@@ -4,14 +4,17 @@ import { Logo } from './components/Logo';
 import { AgencyLogo } from './components/AgencyLogo';
 import { AnnualOverview } from './components/AnnualOverview';
 import { MonthDetail } from './components/MonthDetail';
-import { ANNUAL_PLAN } from './constants'; // Importado para gerar o menu
-import { Map, ChevronRight } from 'lucide-react';
+import { LoginScreen } from './components/LoginScreen';
+import { ANNUAL_PLAN } from './constants'; 
+import { Map, ChevronRight, LogOut } from 'lucide-react';
+import { AuthProvider, useAuth } from './lib/supabase';
 
 type ViewState = 'home' | 'month-detail';
 
-const App: React.FC = () => {
+const MainApp: React.FC = () => {
   const [view, setView] = useState<ViewState>('home');
   const [selectedMonth, setSelectedMonth] = useState<string | null>(null);
+  const { userRole, logout } = useAuth();
 
   const handleSelectMonth = (month: string) => {
     setSelectedMonth(month);
@@ -24,6 +27,15 @@ const App: React.FC = () => {
     setSelectedMonth(null);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
+
+  const getRoleLabel = () => {
+    switch(userRole) {
+      case 'admin': return 'Canguru Digital';
+      case 'approver': return 'Viviane (Diretora)';
+      case 'team': return 'Equipe Next';
+      default: return '';
+    }
+  }
 
   return (
     <div className="min-h-screen flex flex-col font-sans text-brand-dark bg-background-light">
@@ -51,17 +63,32 @@ const App: React.FC = () => {
               </div>
             </div>
             
-            <button
-              onClick={handleBackToHome}
-              className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-bold uppercase tracking-wider transition-all ${
-                view === 'home' 
-                  ? 'bg-brand-dark text-white shadow-md' 
-                  : 'bg-gray-100 text-gray-500 hover:text-gray-900 hover:bg-gray-200'
-              }`}
-            >
-              <Map size={14} />
-              <span className="hidden sm:inline">Mapa Anual</span>
-            </button>
+            <div className="flex items-center gap-3">
+              <div className="hidden md:flex flex-col items-end mr-2">
+                <span className="text-[10px] uppercase tracking-widest text-gray-400 font-bold">Logado como</span>
+                <span className="text-xs font-bold text-blue-600">{getRoleLabel()}</span>
+              </div>
+
+              <button
+                onClick={handleBackToHome}
+                className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-bold uppercase tracking-wider transition-all ${
+                  view === 'home' 
+                    ? 'bg-brand-dark text-white shadow-md' 
+                    : 'bg-gray-100 text-gray-500 hover:text-gray-900 hover:bg-gray-200'
+                }`}
+              >
+                <Map size={14} />
+                <span className="hidden sm:inline">Mapa</span>
+              </button>
+
+              <button
+                onClick={logout}
+                className="p-2 rounded-md bg-red-50 text-red-400 hover:bg-red-100 hover:text-red-600 transition-colors"
+                title="Sair"
+              >
+                <LogOut size={16} />
+              </button>
+            </div>
           </div>
         </div>
 
@@ -140,5 +167,18 @@ const App: React.FC = () => {
     </div>
   );
 };
+
+const App: React.FC = () => {
+  return (
+    <AuthProvider>
+      <AppContent />
+    </AuthProvider>
+  );
+};
+
+const AppContent: React.FC = () => {
+  const { isAuthenticated } = useAuth();
+  return isAuthenticated ? <MainApp /> : <LoginScreen />;
+}
 
 export default App;

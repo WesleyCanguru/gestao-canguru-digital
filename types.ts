@@ -84,6 +84,7 @@ export interface DailyContent {
   bullets?: string[];
   exclusive?: boolean;
   repurposed?: boolean;
+  initialImageUrl?: string; // Novo campo para link direto
 }
 
 export interface WeeklyContent {
@@ -101,4 +102,34 @@ export interface MonthlyDetailedPlan {
   };
   weeks: WeeklyContent[];
   results: string[];
+}
+
+// --- NOVOS TIPOS PARA APLICAÇÃO DINÂMICA ---
+
+export type UserRole = 'admin' | 'approver' | 'team';
+
+export type PostStatus = 
+  | 'draft'               // Cinza (Ninguém subiu nada)
+  | 'pending_approval'    // Azul (Enviado pelo Admin)
+  | 'internal_review'     // Roxo (Comentário da Equipe - Admin vê Azul)
+  | 'changes_requested'   // Laranja (Viviane pediu ajuste)
+  | 'approved';           // Verde (Viviane aprovou)
+
+export interface PostComment {
+  id: string;
+  post_id: string;
+  author_role: UserRole;
+  author_name: string; // "Canguru", "Viviane" ou "Equipe Next"
+  content: string;
+  created_at: string;
+  visible_to_admin: boolean; // True se for Viviane ou Admin. False se for Equipe.
+}
+
+export interface PostData {
+  id?: string;
+  date_key: string; // ID único baseado na data + plataforma (ex: "02/02/2026-linkedin")
+  image_url: string | null;
+  caption: string | null;
+  status: PostStatus;
+  last_updated: string;
 }
