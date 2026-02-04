@@ -182,20 +182,22 @@ export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, onClo
       const newKey = `${d}-${m}-${y}-${platform}`;
 
       // 2. Logic for MOVE or CREATE
-      // If key changed (move) OR isNew (create), we are essentially writing to 'newKey'
-      // If moving a static post, we must also MARK OLD as deleted.
-      
       const isMove = !isNew && newKey !== dateKey;
 
       if (isMove) {
           if (confirm(`Atenção: Você está alterando a data ou a plataforma.\nDeseja mover este post para ${d}/${m} (${platform})?`)) {
-             // A. Mark old key as deleted (if it was static or existing)
-             // We upsert 'deleted' to the old key
-             await supabase.from('posts').upsert({
+             
+             // A. MARK OLD KEY AS DELETED
+             // Isso é crucial: se não marcarmos o antigo como deleted, 
+             // o sistema vai renderizar o conteúdo estático original naquele dia (duplicação).
+             const { error: deleteError } = await supabase.from('posts').upsert({
                  date_key: dateKey,
                  status: 'deleted',
                  last_updated: new Date().toISOString()
              });
+             
+             if (deleteError) throw deleteError;
+             
           } else {
               setLoading(false);
               return;
@@ -204,7 +206,11 @@ export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, onClo
 
       // 3. Determine Status
       let statusToSave: PostStatus = post?.status || 'draft';
-      if (statusToSave !== 'approved' && statusToSave !== 'published' && statusToSave !== 'deleted') {
+      
+      // Se estava deletado e estamos salvando, reativa como rascunho
+      if (statusToSave === 'deleted') statusToSave = 'draft';
+
+      if (statusToSave !== 'approved' && statusToSave !== 'published') {
          const hasCreative = (imageUrl && imageUrl !== dayContent.initialImageUrl) || (caption && caption.trim().length > 0);
          statusToSave = hasCreative ? 'pending_approval' : 'draft';
       }
@@ -231,8 +237,13 @@ export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, onClo
 
       if (onUpdate) onUpdate();
       
-      // ALTERAÇÃO: Fecha o modo de edição, mas mantém o modal aberto para visualização
-      setIsEditing(false);
+      // Se foi um movimento (troca de data), fecha o modal pois o contexto mudou
+      if (isMove) {
+          onClose();
+      } else {
+          // Se foi só edição, fecha o modo de edição mas mantem preview
+          setIsEditing(false);
+      }
 
     } catch (error) {
       console.error(error);
@@ -246,16 +257,23 @@ export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, onClo
       if (!confirm("Tem certeza que deseja excluir esta publicação?")) return;
       try {
           setLoading(true);
-          // Soft delete logic: Upsert status = 'deleted'
-          await supabase.from('posts').upsert({
+          
+          // Soft delete logic: Explicitly upsert status = 'deleted' to current key
+          const { error } = await supabase.from('posts').upsert({
               date_key: dateKey,
               status: 'deleted',
               last_updated: new Date().toISOString()
-          });
+          }, { onConflict: 'date_key' });
+
+          if (error) throw error;
+
           if (onUpdate) onUpdate();
-          onClose();
+          onClose(); // Fecha o modal após excluir
       } catch (e) {
-          alert("Erro ao excluir");
+          console.error(e);
+          alert("Erro ao excluir. Tente novamente.");
+      } finally {
+          setLoading(false);
       }
   };
 
@@ -285,7 +303,6 @@ export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, onClo
     };
 
     try {
-        // ALTERAÇÃO: Usar .select().single() para pegar o ID real criado pelo banco
         const { data: savedComment, error } = await supabase
             .from('comments')
             .insert(newCommentObj)
