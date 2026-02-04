@@ -188,13 +188,12 @@ export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, onClo
           if (confirm(`Atenção: Você está alterando a data ou a plataforma.\nDeseja mover este post para ${d}/${m} (${platform})?`)) {
              
              // A. MARK OLD KEY AS DELETED
-             // Isso é crucial: se não marcarmos o antigo como deleted, 
-             // o sistema vai renderizar o conteúdo estático original naquele dia (duplicação).
+             // Usamos upsert aqui porque o 'velho' pode não existir no banco (se for um post estático que estamos "apagando")
              const { error: deleteError } = await supabase.from('posts').upsert({
                  date_key: dateKey,
                  status: 'deleted',
                  last_updated: new Date().toISOString()
-             });
+             }, { onConflict: 'date_key' });
              
              if (deleteError) throw deleteError;
              
@@ -226,9 +225,30 @@ export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, onClo
         last_updated: new Date().toISOString()
       };
 
-      const { error } = await supabase
+      // 4. CHECK AND SAVE (Explicit Logic to avoid 409 Conflict)
+      // Verifica se o destino JÁ existe
+      const { data: existingDestination } = await supabase
         .from('posts')
-        .upsert(payload, { onConflict: 'date_key' });
+        .select('id')
+        .eq('date_key', newKey)
+        .maybeSingle();
+
+      let error;
+
+      if (existingDestination) {
+         // Se existe, ATUALIZA
+         const { error: updateError } = await supabase
+            .from('posts')
+            .update(payload)
+            .eq('date_key', newKey);
+         error = updateError;
+      } else {
+         // Se não existe, INSERE
+         const { error: insertError } = await supabase
+            .from('posts')
+            .insert(payload);
+         error = insertError;
+      }
 
       if (error) throw error;
 
@@ -247,7 +267,7 @@ export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, onClo
 
     } catch (error) {
       console.error(error);
-      alert('Erro ao salvar.');
+      alert('Erro ao salvar. Verifique se já não existe um post nesta data/plataforma.');
     } finally {
       setLoading(false);
     }
