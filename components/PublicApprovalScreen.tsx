@@ -5,14 +5,20 @@ import { DETAILED_MONTHLY_PLANS } from '../constants';
 import { PostData, PostStatus, DailyContent } from '../types';
 import { InstagramView, LinkedInView } from './PlatformViews';
 import { Logo } from './Logo';
-import { CheckCircle2, AlertTriangle, Send, User, Loader2, XCircle } from 'lucide-react';
+import { CheckCircle2, AlertTriangle, Send, User, Loader2, XCircle, Instagram, Linkedin } from 'lucide-react';
 
 export const PublicApprovalScreen: React.FC = () => {
   const [loading, setLoading] = useState(true);
-  const [postData, setPostData] = useState<PostData | null>(null);
   
-  // O conteúdo base pode vir do estático OU ser montado dinamicamente via banco
-  const [dayContent, setDayContent] = useState<DailyContent | null>(null);
+  // States para Multi-plataforma
+  const [primaryPost, setPrimaryPost] = useState<PostData | null>(null);
+  const [counterpartPost, setCounterpartPost] = useState<PostData | null>(null);
+  const [primaryContent, setPrimaryContent] = useState<DailyContent | null>(null);
+  const [counterpartContent, setCounterpartContent] = useState<DailyContent | null>(null);
+  
+  // View State
+  const [activeTab, setActiveTab] = useState<'meta' | 'linkedin'>('meta'); // Default, atualizado no load
+
   const [error, setError] = useState('');
   
   // Interaction State
@@ -28,40 +34,27 @@ export const PublicApprovalScreen: React.FC = () => {
   const queryParams = new URLSearchParams(window.location.search);
   const dateKey = queryParams.get('id');
 
-  useEffect(() => {
-    if (!dateKey) {
-      setError('Link inválido ou expirado.');
-      setLoading(false);
-      return;
-    }
-
-    const loadData = async () => {
-      try {
-        // 1. Tentar buscar dados reais no Supabase (Prioridade Máxima)
-        const { data: dbData, error: dbError } = await supabase
+  // Helper para buscar dados (DB ou Estático) de uma chave específica
+  const fetchPostData = async (key: string) => {
+      // 1. Busca DB
+      const { data: dbData } = await supabase
           .from('posts')
           .select('*')
-          .eq('date_key', dateKey)
-          .single();
+          .eq('date_key', key)
+          .maybeSingle();
 
-        // 2. Tentar buscar dados no Planejamento Estático (Fallback para posts não salvos)
-        let staticContent: DailyContent | null = null;
-        
-        // dateKey format expected: DD-MM-YYYY-platform (ex: 03-02-2026-linkedin)
-        const parts = dateKey.split('-');
-        
-        if (parts.length >= 3) {
-            const day = parts[0];
-            const month = parts[1];
-            const searchKey = `${day}/${month}`;
-            
-            // Procura no JSON gigante
-            for (const plan of DETAILED_MONTHLY_PLANS) {
+      // 2. Busca Estático (Fallback)
+      let staticContent: DailyContent | null = null;
+      const parts = key.split('-');
+      if (parts.length >= 3) {
+          const day = parts[0];
+          const month = parts[1];
+          const searchKey = `${day}/${month}`;
+          
+          for (const plan of DETAILED_MONTHLY_PLANS) {
                for (const week of plan.weeks) {
                   for (const d of week.days) {
-                     // Verifica se o dia bate. d.day geralmente é "03/02 – Terça..."
                      if (d.day.startsWith(searchKey)) {
-                        // Verifica se a plataforma bate (se estiver no ID)
                         const platformInKey = parts.length > 3 ? parts[3] : null;
                         if (!platformInKey || d.platform === platformInKey) {
                            staticContent = d;
@@ -72,58 +65,80 @@ export const PublicApprovalScreen: React.FC = () => {
                   if (staticContent) break;
                }
                if (staticContent) break;
-            }
-        }
+          }
+      }
 
-        // 3. Decisão do que mostrar
-        if (dbData) {
-            // Cenário A: Post existe no banco (editado ou criado)
-            setPostData(dbData);
-            
-            // Se achou estático, usa como base. Se não, cria base dinâmica com dados do banco
-            if (staticContent) {
-                setDayContent(staticContent);
-            } else {
-                // Post Avulso (não estava no plano original)
-                // Tenta inferir a data e plataforma do ID
-                const [d, m, y, plat] = dateKey.split('-');
-                const displayDate = `${d}/${m}/${y}`;
-                const displayPlat = (plat === 'linkedin' ? 'linkedin' : 'meta');
-
-                setDayContent({
-                    day: displayDate,
-                    platform: displayPlat,
-                    type: dbData.type || 'Post Extra',
-                    theme: dbData.theme || 'Sem tema definido',
-                    bullets: dbData.bullets || [],
-                    initialImageUrl: dbData.image_url || undefined
-                });
-            }
-        } else if (staticContent) {
-            // Cenário B: Post nunca foi salvo no banco, mas existe no plano (Draft Virtual)
-            setPostData({
-              date_key: dateKey,
-              status: staticContent.exclusive ? 'approved' : 'draft', // Assume draft se não exclusivo
+      // 3. Monta Objeto Final
+      if (dbData) {
+          // Existe no banco
+          const content = staticContent || {
+                day: `${parts[0]}/${parts[1]}`,
+                platform: (key.includes('linkedin') ? 'linkedin' : 'meta') as 'meta' | 'linkedin',
+                type: dbData.type || 'Post',
+                theme: dbData.theme || 'Sem tema',
+                bullets: dbData.bullets || [],
+                initialImageUrl: dbData.image_url || undefined
+          };
+          return { post: dbData as PostData, content };
+      } else if (staticContent) {
+          // Apenas estático
+          const dummyPost: PostData = {
+              date_key: key,
+              status: staticContent.exclusive ? 'approved' : 'draft',
               image_url: staticContent.initialImageUrl || null,
               caption: null,
               last_updated: new Date().toISOString()
-           });
-           setDayContent(staticContent);
-        } else {
-            // Cenário C: Não existe nem no banco nem no plano
-            throw new Error('Publicação não encontrada.');
-        }
+          };
+          return { post: dummyPost, content: staticContent };
+      }
+      
+      return null; // Não existe
+  };
+
+  useEffect(() => {
+    if (!dateKey) {
+      setError('Link inválido ou expirado.');
+      setLoading(false);
+      return;
+    }
+
+    const loadAll = async () => {
+      try {
+         // 1. Load Primary (from URL)
+         const primary = await fetchPostData(dateKey);
+         if (!primary) throw new Error('Publicação não encontrada.');
+         
+         setPrimaryPost(primary.post);
+         setPrimaryContent(primary.content);
+         setActiveTab(primary.content.platform);
+
+         // 2. Try to Load Counterpart
+         // Constrói ID da contraparte (Meta <-> LinkedIn)
+         const parts = dateKey.split('-');
+         const currentPlatform = dateKey.includes('linkedin') ? 'linkedin' : 'meta';
+         const otherPlatform = currentPlatform === 'linkedin' ? 'meta' : 'linkedin';
+         const counterpartKey = `${parts[0]}-${parts[1]}-${parts[2]}-${otherPlatform}`;
+         
+         const partner = await fetchPostData(counterpartKey);
+         if (partner) {
+             setCounterpartPost(partner.post);
+             setCounterpartContent(partner.content);
+             // Se houver contraparte, e a URL for do LinkedIn mas tem Meta, talvez seja melhor mostrar Meta primeiro?
+             // Mantemos o que veio na URL como "ActiveTab" inicial, mas permitimos trocar.
+         }
 
       } catch (err) {
-        console.error(err);
-        setError('Publicação não encontrada ou link incorreto.');
+         console.error(err);
+         setError('Publicação não encontrada.');
       } finally {
-        setLoading(false);
+         setLoading(false);
       }
     };
-
-    loadData();
+    
+    loadAll();
   }, [dateKey]);
+
+  // --- ACTIONS ---
 
   const handleActionClick = (action: 'approve' | 'request_changes') => {
     setPendingAction(action);
@@ -144,41 +159,53 @@ export const PublicApprovalScreen: React.FC = () => {
 
   const executeAction = (action: 'approve' | 'request_changes', name: string) => {
      if (action === 'request_changes') {
-        setShowCommentBox(true); // Open comment box only for changes
+        setShowCommentBox(true); 
      } else {
         submitApproval(name);
      }
   };
 
-  const submitApproval = async (name: string) => {
-     if (!dateKey) return;
-     setSubmitting(true);
-     try {
-        // 1. Update Status
-        await supabase
+  // Helper para salvar um único post
+  const savePostStatus = async (pData: PostData, cData: DailyContent, status: PostStatus) => {
+      await supabase
            .from('posts')
            .upsert({
-              date_key: dateKey,
-              status: 'approved',
-              image_url: postData?.image_url || dayContent?.initialImageUrl, // Ensure we preserve image
-              caption: postData?.caption,
-              // Maintain existing overrides if they exist in state
-              theme: postData?.theme || dayContent?.theme,
-              type: postData?.type || dayContent?.type,
-              bullets: postData?.bullets || dayContent?.bullets,
+              date_key: pData.date_key,
+              status: status,
+              image_url: pData.image_url || cData.initialImageUrl,
+              caption: pData.caption,
+              theme: pData.theme || cData.theme,
+              type: pData.type || cData.type,
+              bullets: pData.bullets || cData.bullets,
               last_updated: new Date().toISOString()
            }, { onConflict: 'date_key' });
+  };
 
-        // 2. Add System Comment
+  const submitApproval = async (name: string) => {
+     if (!primaryPost || !primaryContent) return;
+     setSubmitting(true);
+     try {
+        // 1. Aprovar Principal
+        await savePostStatus(primaryPost, primaryContent, 'approved');
+
+        // 2. Aprovar Contraparte (se existir)
+        if (counterpartPost && counterpartContent) {
+            await savePostStatus(counterpartPost, counterpartContent, 'approved');
+        }
+
+        // 3. Comentário no Principal (para registro)
         await supabase.from('comments').insert({
-           post_id: dateKey,
+           post_id: primaryPost.date_key,
            author_role: 'approver',
            author_name: name,
-           content: `✅ APROVOU a publicação.`,
+           content: `✅ APROVOU a publicação${counterpartPost ? ' (e a versão vinculada)' : ''}.`,
            visible_to_admin: true
         });
 
-        setPostData(prev => prev ? ({...prev, status: 'approved'}) : null);
+        // Atualizar estado local
+        setPrimaryPost(prev => prev ? ({...prev, status: 'approved'}) : null);
+        if (counterpartPost) setCounterpartPost(prev => prev ? ({...prev, status: 'approved'}) : null);
+        
         setSuccessMessage('Publicação aprovada com sucesso!');
         setPendingAction(null);
      } catch (err) {
@@ -189,34 +216,29 @@ export const PublicApprovalScreen: React.FC = () => {
   };
 
   const submitChanges = async () => {
-     if (!dateKey || !comment.trim()) return;
+     if (!primaryPost || !comment.trim()) return;
      setSubmitting(true);
      try {
-        // 1. Update Status
-        await supabase
-           .from('posts')
-           .upsert({
-              date_key: dateKey,
-              status: 'changes_requested',
-              image_url: postData?.image_url || dayContent?.initialImageUrl,
-              caption: postData?.caption,
-              // Maintain existing overrides if they exist in state
-              theme: postData?.theme || dayContent?.theme,
-              type: postData?.type || dayContent?.type,
-              bullets: postData?.bullets || dayContent?.bullets,
-              last_updated: new Date().toISOString()
-           }, { onConflict: 'date_key' });
+        // 1. Marcar changes_requested Principal
+        await savePostStatus(primaryPost, primaryContent!, 'changes_requested');
 
-        // 2. Add Comment
+        // 2. Marcar changes_requested Contraparte (se existir)
+        if (counterpartPost && counterpartContent) {
+            await savePostStatus(counterpartPost, counterpartContent, 'changes_requested');
+        }
+
+        // 3. Comentário
         await supabase.from('comments').insert({
-           post_id: dateKey,
+           post_id: primaryPost.date_key,
            author_role: 'approver',
            author_name: userName,
            content: comment,
            visible_to_admin: true
         });
 
-        setPostData(prev => prev ? ({...prev, status: 'changes_requested'}) : null);
+        setPrimaryPost(prev => prev ? ({...prev, status: 'changes_requested'}) : null);
+        if (counterpartPost) setCounterpartPost(prev => prev ? ({...prev, status: 'changes_requested'}) : null);
+
         setSuccessMessage('Solicitação de ajuste enviada!');
         setShowCommentBox(false);
         setComment('');
@@ -231,32 +253,45 @@ export const PublicApprovalScreen: React.FC = () => {
 
   if (loading) return <div className="min-h-screen flex items-center justify-center bg-gray-50"><Loader2 className="animate-spin text-blue-600" size={40} /></div>;
   
-  if (error || !dayContent) return (
+  if (error || !primaryContent || !primaryPost) return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 text-brand-dark p-6 text-center">
           <XCircle size={48} className="text-red-400 mb-4" />
           <h2 className="text-xl font-bold mb-2">Link Indisponível</h2>
-          <p className="text-gray-500">{error || 'Não foi possível carregar os dados desta publicação.'}</p>
+          <p className="text-gray-500">{error}</p>
       </div>
   );
 
-  const isVideo = (postData?.image_url || dayContent.initialImageUrl)?.match(/\.(mp4|webm|ogg)$/i);
-  const isLinkedin = dayContent.platform === 'linkedin';
+  // --- RENDER HELPERS ---
 
-  // Apply Overrides (DB wins, then Static)
-  const effectiveDayContent: DailyContent = {
-     ...dayContent,
-     theme: postData?.theme || dayContent.theme,
-     type: postData?.type || dayContent.type,
-     bullets: postData?.bullets || dayContent.bullets
-  };
+  // Determine which data to show based on active tab
+  const activePost = activeTab === 'meta' 
+      ? (primaryContent.platform === 'meta' ? primaryPost : counterpartPost) 
+      : (primaryContent.platform === 'linkedin' ? primaryPost : counterpartPost);
+
+  const activeContent = activeTab === 'meta'
+      ? (primaryContent.platform === 'meta' ? primaryContent : counterpartContent)
+      : (primaryContent.platform === 'linkedin' ? primaryContent : counterpartContent);
+
+  // Safe checks incase tab switch is weird
+  const safePost = activePost || primaryPost;
+  const safeContent = activeContent || primaryContent;
+
+  const isVideo = (safePost.image_url || safeContent.initialImageUrl)?.match(/\.(mp4|webm|ogg)$/i);
   
-  const displayImage = postData?.image_url || dayContent.initialImageUrl || '';
-  const displayCaption = postData?.caption || '';
+  // Overrides
+  const effectiveContent: DailyContent = {
+     ...safeContent,
+     theme: safePost.theme || safeContent.theme,
+     type: safePost.type || safeContent.type,
+     bullets: safePost.bullets || safeContent.bullets
+  };
 
-  // Helpers de Tradução
+  const displayImage = safePost.image_url || safeContent.initialImageUrl || '';
+  const displayCaption = safePost.caption || '';
+
   const getStatusLabel = (s?: string) => {
     const map: Record<string, string> = {
-        'draft': 'Rascunho (Em Produção)',
+        'draft': 'Rascunho',
         'pending_approval': 'Aprovação Pendente',
         'changes_requested': 'Ajustes Solicitados',
         'internal_review': 'Discussão Interna',
@@ -266,6 +301,8 @@ export const PublicApprovalScreen: React.FC = () => {
     };
     return map[s || 'draft'] || s;
   };
+
+  const hasMultiple = !!counterpartPost;
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col font-sans">
@@ -301,17 +338,36 @@ export const PublicApprovalScreen: React.FC = () => {
                 
                 {/* Preview Column */}
                 <div className="w-full md:w-1/2 flex flex-col">
-                   <div className="bg-white p-2 rounded-xl shadow-sm border border-gray-200 mb-4">
-                      {isLinkedin ? (
+                   
+                   {/* Platform Tabs (if multiple) */}
+                   {hasMultiple && (
+                       <div className="flex gap-2 mb-4 bg-white p-1.5 rounded-lg border border-gray-200 shadow-sm self-center">
+                           <button 
+                               onClick={() => setActiveTab('meta')}
+                               className={`px-4 py-2 rounded-md text-sm font-bold flex items-center gap-2 transition-all ${activeTab === 'meta' ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-sm' : 'text-gray-500 hover:bg-gray-50'}`}
+                           >
+                               <Instagram size={16} /> Instagram
+                           </button>
+                           <button 
+                               onClick={() => setActiveTab('linkedin')}
+                               className={`px-4 py-2 rounded-md text-sm font-bold flex items-center gap-2 transition-all ${activeTab === 'linkedin' ? 'bg-[#0077B5] text-white shadow-sm' : 'text-gray-500 hover:bg-gray-50'}`}
+                           >
+                               <Linkedin size={16} /> LinkedIn
+                           </button>
+                       </div>
+                   )}
+
+                   <div className="bg-white p-2 rounded-xl shadow-sm border border-gray-200 mb-4 transition-all duration-300">
+                      {activeTab === 'linkedin' ? (
                          <LinkedInView 
-                           dayContent={effectiveDayContent} 
+                           dayContent={effectiveContent} 
                            caption={displayCaption} 
                            imageUrl={displayImage} 
                            isVideo={!!isVideo} 
                          />
                       ) : (
                          <InstagramView 
-                           dayContent={effectiveDayContent} 
+                           dayContent={effectiveContent} 
                            caption={displayCaption} 
                            imageUrl={displayImage} 
                            isVideo={!!isVideo} 
@@ -321,11 +377,11 @@ export const PublicApprovalScreen: React.FC = () => {
                    
                    <div className="text-center">
                       <span className={`inline-block px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide border 
-                         ${postData?.status === 'approved' ? 'bg-green-100 text-green-700 border-green-200' : 
-                           postData?.status === 'changes_requested' ? 'bg-red-100 text-red-700 border-red-200' : 
+                         ${safePost.status === 'approved' ? 'bg-green-100 text-green-700 border-green-200' : 
+                           safePost.status === 'changes_requested' ? 'bg-red-100 text-red-700 border-red-200' : 
                            'bg-gray-100 text-gray-600 border-gray-200'
                          }`}>
-                         Status: {getStatusLabel(postData?.status)}
+                         Status: {getStatusLabel(safePost.status)}
                       </span>
                    </div>
                 </div>
@@ -335,8 +391,14 @@ export const PublicApprovalScreen: React.FC = () => {
                    
                    {/* Context Box */}
                    <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-                      <h2 className="text-lg font-bold text-gray-900 mb-1">{effectiveDayContent.day.split(' – ')[0]}</h2>
-                      <p className="text-sm text-gray-500 mb-6 font-medium">{effectiveDayContent.theme}</p>
+                      <h2 className="text-lg font-bold text-gray-900 mb-1">{effectiveContent.day.split(' – ')[0]}</h2>
+                      <p className="text-sm text-gray-500 mb-6 font-medium">{effectiveContent.theme}</p>
+                      
+                      {hasMultiple && (
+                          <div className="mb-6 p-3 bg-blue-50 border border-blue-100 rounded-lg text-xs text-blue-700 font-medium text-center">
+                              Esta aprovação se aplica a ambas as plataformas (Instagram e LinkedIn).
+                          </div>
+                      )}
 
                       {!showCommentBox && !showNamePrompt && (
                          <div className="flex flex-col gap-3">

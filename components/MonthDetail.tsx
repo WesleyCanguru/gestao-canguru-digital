@@ -14,6 +14,18 @@ interface MonthDetailProps {
 
 type ViewMode = 'list' | 'calendar';
 
+// Interface auxiliar para agrupar posts visuais
+interface GroupedPost {
+    primaryKey: string; // Chave principal para abrir o modal
+    keys: string[]; // Todas as chaves associadas (ex: meta e linkedin)
+    platforms: ('meta' | 'linkedin')[];
+    content: DailyContent;
+    status: PostStatus; // Status unificado (se um estiver pendente, mostra pendente)
+    theme: string;
+    type: string;
+    bullets: string[];
+}
+
 export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack }) => {
   const { userRole } = useAuth();
   
@@ -28,15 +40,15 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack }) =
   // Data States
   const [dbPosts, setDbPosts] = useState<Record<string, PostData>>({});
   const [mergedPosts, setMergedPosts] = useState<Array<{ content: DailyContent, key: string, sortDate: number }>>([]);
+  const [groupedPosts, setGroupedPosts] = useState<GroupedPost[]>([]);
   const [loadingPosts, setLoadingPosts] = useState(true);
 
   const plan = DETAILED_MONTHLY_PLANS.find(p => p.month.toLowerCase().includes(monthName.toLowerCase()));
 
-  // 1. Helper: Gerar chave única (Corrigido para incluir plataforma)
+  // 1. Helper: Gerar chave única
   const getDateKey = (day: string, platform: string) => {
-     // day format expected: "03/02 – Terça-feira" OR "03/02"
      const datePart = day.split(' ')[0].replace('/', '-');
-     return `${datePart}-2026-${platform}`; // ex: 03-02-2026-linkedin
+     return `${datePart}-2026-${platform}`; 
   };
 
   // 2. Buscar Dados do Supabase
@@ -44,7 +56,6 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack }) =
     if (!plan) return;
     setLoadingPosts(true);
     
-    // Busca todos os posts (filtros client-side por enquanto para simplicidade)
     const { data } = await supabase
       .from('posts')
       .select('*');
@@ -63,49 +74,42 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack }) =
     fetchMonthPosts();
   }, [fetchMonthPosts]);
 
-  // 3. Mesclar Posts Estáticos + Posts do Banco + Filtrar Deletados
+  // 3. Mesclar Posts Estáticos + Posts do Banco
   useEffect(() => {
     if (!plan) return;
 
     const tempPosts: Array<{ content: DailyContent, key: string, sortDate: number }> = [];
     const processedKeys = new Set<string>();
 
-    // A. Adicionar Posts Estáticos (se não estiverem deletados)
+    // A. Adicionar Posts Estáticos
     plan.weeks.forEach(week => {
       week.days.forEach(day => {
         const key = getDateKey(day.day, day.platform);
         const dbPost = dbPosts[key];
-
-        // Se estiver marcado como 'deleted' no banco, PULA.
         if (dbPost && dbPost.status === 'deleted') return;
 
         processedKeys.add(key);
-
-        // Parse date for sorting
         const [d, m] = day.day.split(' ')[0].split('/');
         const sortDate = new Date(2026, parseInt(m) - 1, parseInt(d)).getTime();
 
         tempPosts.push({
-          content: day, // Usa o conteúdo estático base
+          content: day,
           key: key,
           sortDate
         });
       });
     });
 
-    // B. Adicionar Posts NOVOS (que estão no banco mas não no estático)
-    // Ex: Posts criados manualmente ou movidos para dias vazios
+    // B. Adicionar Posts NOVOS (DB only)
     Object.values(dbPosts).forEach((post: PostData) => {
       if (post.status === 'deleted') return;
-      if (processedKeys.has(post.date_key)) return; // Já processado via estático
+      if (processedKeys.has(post.date_key)) return;
 
-      // Verificar se o post pertence ao mês atual visualizado
-      // Key format: DD-MM-YYYY-platform[-suffix]
       const parts = post.date_key.split('-');
       const d = parts[0];
       const m = parts[1];
       const y = parts[2];
-      const platform = parts[3] as 'meta' | 'linkedin'; // Always 4th part
+      const platform = parts[3] as 'meta' | 'linkedin';
       
       const postMonthName = new Date(parseInt(y), parseInt(m) - 1, parseInt(d))
         .toLocaleString('pt-BR', { month: 'long' })
@@ -114,8 +118,6 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack }) =
       if (!plan.month.toUpperCase().includes(postMonthName)) return;
 
       const dateStr = `${d}/${m}`;
-      
-      // Criar um objeto DailyContent "fake" para o post novo
       const newContent: DailyContent = {
         day: `${dateStr} – (Novo)`,
         platform: platform,
@@ -132,9 +134,69 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack }) =
       });
     });
 
-    // Ordenar por data
     tempPosts.sort((a, b) => a.sortDate - b.sortDate);
     setMergedPosts(tempPosts);
+    
+    // --- LÓGICA DE AGRUPAMENTO ---
+    // Agrupa posts que são do mesmo dia e têm temas similares (ou são contrapartes)
+    const groups: GroupedPost[] = [];
+    const usedIndices = new Set<number>();
+
+    tempPosts.forEach((post, i) => {
+        if (usedIndices.has(i)) return;
+
+        const dbPost = dbPosts[post.key];
+        const currentTheme = dbPost?.theme || post.content.theme;
+        
+        // Inicializa o grupo com o post atual
+        const group: GroupedPost = {
+            primaryKey: post.key,
+            keys: [post.key],
+            platforms: [post.content.platform],
+            content: post.content,
+            status: dbPost?.status || 'draft',
+            theme: currentTheme,
+            type: dbPost?.type || post.content.type,
+            bullets: dbPost?.bullets || post.content.bullets || []
+        };
+        
+        usedIndices.add(i);
+
+        // Tenta encontrar pares no restante da lista (mesmo dia, tema idêntico)
+        for (let j = i + 1; j < tempPosts.length; j++) {
+            if (usedIndices.has(j)) continue;
+            
+            const other = tempPosts[j];
+            const otherDb = dbPosts[other.key];
+            const otherTheme = otherDb?.theme || other.content.theme;
+            
+            // Verifica se é mesmo dia (pela sortDate)
+            if (other.sortDate === post.sortDate) {
+                 // Verifica se é a "contraparte" (tema igual ou chaves compatíveis)
+                 // Simplificação: Se for mesmo dia e mesmo tema, agrupa.
+                 if (otherTheme === currentTheme) {
+                     group.keys.push(other.key);
+                     if (!group.platforms.includes(other.content.platform)) {
+                         group.platforms.push(other.content.platform);
+                     }
+                     // Se um dos posts não estiver publicado, o grupo todo não está "pronto" visualmente (prioriza status de atenção)
+                     const s1 = group.status;
+                     const s2 = otherDb?.status || 'draft';
+                     
+                     // Hierarquia de visualização de status: 
+                     // changes_requested > pending > draft > approved > published
+                     if (s2 === 'changes_requested') group.status = 'changes_requested';
+                     else if (s2 === 'pending_approval' && s1 !== 'changes_requested') group.status = 'pending_approval';
+                     else if (s2 === 'draft' && s1 !== 'changes_requested' && s1 !== 'pending_approval') group.status = 'draft';
+                     
+                     usedIndices.add(j);
+                 }
+            }
+        }
+        groups.push(group);
+    });
+
+    setGroupedPosts(groups);
 
   }, [dbPosts, plan]);
 
@@ -147,7 +209,6 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack }) =
   };
 
   const handleCreatePost = (day?: number) => {
-    // Definir data padrão se clicou no calendário
     if (day && plan) {
        const monthMap: { [key: string]: string } = {
           'JANEIRO': '01', 'FEVEREIRO': '02', 'MARÇO': '03', 'ABRIL': '04', 'MAIO': '05', 'JUNHO': '06',
@@ -156,15 +217,14 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack }) =
        const monthStr = plan.month.split(' ')[0].toUpperCase();
        const yearStr = plan.month.split(' ')[1];
        const dStr = day < 10 ? `0${day}` : `${day}`;
-       setNewPostDefaultDate(`${yearStr}-${monthMap[monthStr]}-${dStr}`); // YYYY-MM-DD for input
+       setNewPostDefaultDate(`${yearStr}-${monthMap[monthStr]}-${dStr}`); 
     } else {
        setNewPostDefaultDate('');
     }
     
-    // Template vazio
     const emptyContent: DailyContent = {
        day: 'Nova Data',
-       platform: 'meta', // default
+       platform: 'meta',
        type: 'Estático',
        theme: '',
        bullets: []
@@ -175,51 +235,41 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack }) =
     setModalOpen(true);
   };
 
-  const handleQuickPublish = async (e: React.MouseEvent, item: { content: DailyContent, key: string }) => {
+  const handleQuickPublish = async (e: React.MouseEvent, group: GroupedPost) => {
     e.stopPropagation();
-    // Somente admin pode publicar rápido
     if (userRole !== 'admin') return;
-    
-    const dbPost = dbPosts[item.key];
-    const currentStatus = dbPost?.status || 'draft';
+    if (group.status === 'published') return;
 
-    // Se já estiver publicado, não faz nada
-    if (currentStatus === 'published') return;
-
-    if (!confirm("Marcar esta publicação como PUBLICADA?")) return;
+    if (!confirm("Marcar esta publicação (todas as plataformas) como PUBLICADA?")) return;
 
     try {
         setLoadingPosts(true);
-
-        // Prepara o payload. Se o post não existir no banco (dbPost undefined),
-        // precisamos copiar os dados do item.content (estático) para garantir que
-        // o post salvo tenha Tema, Tipo e Imagem.
         
-        const payload: any = {
-            date_key: item.key,
-            status: 'published',
-            last_updated: new Date().toISOString(),
-        };
+        // Itera sobre todas as chaves do grupo (Meta e LinkedIn se existirem)
+        for (const key of group.keys) {
+             const dbPost = dbPosts[key];
+             
+             const payload: any = {
+                date_key: key,
+                status: 'published',
+                last_updated: new Date().toISOString(),
+             };
 
-        if (!dbPost) {
-            // É um post estático sendo salvo pela primeira vez
-            payload.theme = item.content.theme;
-            payload.type = item.content.type;
-            payload.bullets = item.content.bullets;
-            payload.image_url = item.content.initialImageUrl || null;
-            // caption continua null pois não temos no estático
+             if (!dbPost) {
+                // Se era estático puro, copia dados para persistir
+                payload.theme = group.theme;
+                payload.type = group.type;
+                payload.bullets = group.bullets;
+                payload.image_url = group.content.initialImageUrl || null;
+             }
+             
+             await supabase.from('posts').upsert(payload, { onConflict: 'date_key' });
         }
-
-        const { error } = await supabase
-            .from('posts')
-            .upsert(payload, { onConflict: 'date_key' });
-
-        if (error) throw error;
         
         await fetchMonthPosts(); 
     } catch (err) {
         console.error(err);
-        alert("Erro ao publicar. Verifique sua conexão.");
+        alert("Erro ao publicar.");
         setLoadingPosts(false);
     }
   };
@@ -261,20 +311,9 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack }) =
       case 'internal_review': return 'bg-purple-100 border-purple-200 hover:bg-purple-200';
       case 'approved': return 'bg-blue-100 border-blue-200 hover:bg-blue-200';
       case 'scheduled': return 'bg-purple-100 border-purple-200 hover:bg-purple-200'; 
-      case 'published': return 'bg-green-100 border-green-200 hover:bg-green-200'; // VERDE
+      case 'published': return 'bg-green-100 border-green-200 hover:bg-green-200'; 
       default: return 'bg-gray-50 border-gray-100';
     }
-  };
-
-  // Helper para obter dados de exibição (DB override)
-  const getDisplayData = (item: { content: DailyContent, key: string }) => {
-     const dbPost = dbPosts[item.key];
-     return {
-        status: dbPost?.status || 'draft',
-        theme: dbPost?.theme || item.content.theme,
-        type: dbPost?.type || item.content.type,
-        bullets: dbPost?.bullets || item.content.bullets
-     };
   };
 
   // --- CALENDAR RENDERER ---
@@ -302,10 +341,9 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack }) =
       const monthNum = monthIndex + 1;
       const monthString = monthNum < 10 ? `0${monthNum}` : `${monthNum}`;
       
-      // Filtrar posts do dia (usando o mergedPosts que já filtrou deletados e incluiu novos)
-      const dayEvents = mergedPosts.filter(p => {
-         // p.key format: DD-MM-YYYY-plat
-         const pDate = p.key.split('-').slice(0, 2).join('/');
+      // Filtrar posts do dia (usando groupedPosts)
+      const dayEvents = groupedPosts.filter(p => {
+         const pDate = p.primaryKey.split('-').slice(0, 2).join('/');
          return pDate === `${dayString}/${monthString}`;
       });
 
@@ -325,39 +363,38 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack }) =
           </div>
           
           <div className="flex flex-col gap-2">
-            {dayEvents.map((item, idx) => {
-               const { status, theme, type } = getDisplayData(item);
-               const statusColor = getStatusColorClass(status);
+            {dayEvents.map((group, idx) => {
+               const statusColor = getStatusColorClass(group.status);
+               const hasMeta = group.platforms.includes('meta');
+               const hasLinkedin = group.platforms.includes('linkedin');
 
                return (
                 <div 
                   key={idx}
-                  onClick={() => handleOpenPost(item)}
+                  onClick={() => handleOpenPost({ content: group.content, key: group.primaryKey })}
                   className={`p-2 rounded-lg border shadow-sm cursor-pointer hover:scale-[1.02] ${statusColor} relative group/card`}
                 >
                   <div className="flex items-center justify-between mb-1">
                     <div className="flex items-center gap-1.5">
-                      {item.content.platform === 'linkedin' ? (
-                        <Linkedin size={12} className="text-[#0077B5]" /> 
-                      ) : (
-                        <Instagram size={12} className="text-[#E1306C]" />
-                      )}
-                      <span className="text-[9px] font-bold uppercase opacity-70 truncate max-w-[60px]">
-                        {type.split(' ')[0]}
+                      {/* Renderiza ambos os ícones se tiver as duas plataformas */}
+                      {hasMeta && <Instagram size={12} className="text-[#E1306C]" />}
+                      {hasLinkedin && <Linkedin size={12} className="text-[#0077B5]" />}
+                      
+                      <span className="text-[9px] font-bold uppercase opacity-70 truncate max-w-[60px] ml-1">
+                        {group.type.split(' ')[0]}
                       </span>
                     </div>
                   </div>
-                  <p className="text-[10px] font-bold text-gray-900 leading-tight line-clamp-2 mb-1" title={theme}>
-                    {theme}
+                  <p className="text-[10px] font-bold text-gray-900 leading-tight line-clamp-2 mb-1" title={group.theme}>
+                    {group.theme}
                   </p>
                   <div className="flex items-center justify-between mt-1 h-5">
                       <span className="text-[8px] font-bold uppercase text-gray-500 border border-black/10 px-1 rounded bg-white/40">
-                         {getStatusLabel(status)}
+                         {getStatusLabel(group.status)}
                       </span>
-                      {/* BOTÃO PUBLICAR CALENDÁRIO */}
-                      {userRole === 'admin' && status !== 'published' && (
+                      {userRole === 'admin' && group.status !== 'published' && (
                           <button 
-                             onClick={(e) => handleQuickPublish(e, item)}
+                             onClick={(e) => handleQuickPublish(e, group)}
                              className="opacity-100 sm:opacity-0 sm:group-hover/card:opacity-100 p-1 rounded bg-white text-gray-400 hover:text-green-600 hover:bg-green-50 shadow-sm border border-gray-200 transition-all"
                              title="Marcar como Publicado"
                           >
@@ -469,28 +506,30 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack }) =
            <StatusLegend />
            {viewMode === 'list' ? (
              <div className="flex flex-col gap-4">
-                {mergedPosts.map((item, idx) => {
-                   const { status, theme, type, bullets } = getDisplayData(item);
-                   const statusColor = getStatusColorClass(status);
+                {groupedPosts.map((group, idx) => {
+                   const statusColor = getStatusColorClass(group.status);
+                   const hasMeta = group.platforms.includes('meta');
+                   const hasLinkedin = group.platforms.includes('linkedin');
+
                    return (
-                      <div key={idx} onClick={() => handleOpenPost(item)} className={`p-4 rounded-xl border flex gap-4 cursor-pointer hover:shadow-md transition-all ${statusColor} items-center`}>
+                      <div key={idx} onClick={() => handleOpenPost({ content: group.content, key: group.primaryKey })} className={`p-4 rounded-xl border flex gap-4 cursor-pointer hover:shadow-md transition-all ${statusColor} items-center`}>
                          <div className="w-24 flex-shrink-0">
-                            <span className="font-bold text-gray-900 block">{item.content.day.split(' – ')[0]}</span>
-                            <div className="flex items-center gap-1 text-xs text-gray-600 mt-1">
-                               {item.content.platform === 'linkedin' ? <Linkedin size={12} className="text-[#0077B5]" /> : <Instagram size={12} className="text-[#E1306C]" />}
-                               <span className="capitalize">{item.content.platform}</span>
+                            <span className="font-bold text-gray-900 block">{group.content.day.split(' – ')[0]}</span>
+                            <div className="flex items-center gap-1.5 text-xs text-gray-600 mt-1">
+                               {hasMeta && <Instagram size={12} className="text-[#E1306C]" />}
+                               {hasLinkedin && <Linkedin size={12} className="text-[#0077B5]" />}
+                               <span className="capitalize text-[10px]">{group.platforms.length > 1 ? 'Multi' : group.platforms[0]}</span>
                             </div>
-                            <span className="inline-block mt-2 px-2 py-0.5 rounded text-[9px] font-bold border border-black/10 bg-white/50 uppercase text-gray-700">{getStatusLabel(status)}</span>
+                            <span className="inline-block mt-2 px-2 py-0.5 rounded text-[9px] font-bold border border-black/10 bg-white/50 uppercase text-gray-700">{getStatusLabel(group.status)}</span>
                          </div>
                          <div className="flex-grow">
-                            <span className="text-xs font-bold px-2 py-0.5 rounded border bg-white/50 border-black/10 text-gray-800 mb-2 inline-block">📌 {type}</span>
-                            <h4 className="font-bold text-gray-900 mb-1">{theme}</h4>
-                            {bullets && bullets.length > 0 && <p className="text-xs text-gray-600 line-clamp-2">{bullets.join(' • ')}</p>}
+                            <span className="text-xs font-bold px-2 py-0.5 rounded border bg-white/50 border-black/10 text-gray-800 mb-2 inline-block">📌 {group.type}</span>
+                            <h4 className="font-bold text-gray-900 mb-1">{group.theme}</h4>
+                            {group.bullets && group.bullets.length > 0 && <p className="text-xs text-gray-600 line-clamp-2">{group.bullets.join(' • ')}</p>}
                          </div>
-                         {/* List View Quick Action */}
-                         {userRole === 'admin' && status !== 'published' && (
+                         {userRole === 'admin' && group.status !== 'published' && (
                             <button 
-                                onClick={(e) => handleQuickPublish(e, item)}
+                                onClick={(e) => handleQuickPublish(e, group)}
                                 className="flex items-center gap-2 px-3 py-2 bg-white text-gray-500 border border-gray-200 rounded-lg hover:bg-green-50 hover:text-green-700 hover:border-green-200 transition-all shadow-sm ml-4"
                                 title="Publicar Agora"
                             >
