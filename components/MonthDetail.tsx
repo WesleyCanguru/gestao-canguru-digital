@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { DETAILED_MONTHLY_PLANS } from '../constants';
 import { MonthlyDetailedPlan, DailyContent, PostStatus, PostData } from '../types';
-import { Instagram, Linkedin, CalendarDays, Target, BarChart3, Repeat, FileCheck, CheckCircle2, ArrowLeft, MessageCircle, List, Calendar as CalendarIcon, Plus, Loader2 } from 'lucide-react';
+import { Instagram, Linkedin, CalendarDays, Target, BarChart3, Repeat, FileCheck, CheckCircle2, ArrowLeft, MessageCircle, List, Calendar as CalendarIcon, Plus, Loader2, Check } from 'lucide-react';
 import { PostModal } from './PostModal';
 import { useAuth, supabase } from '../lib/supabase';
 import { StatusLegend } from './StatusLegend';
@@ -175,6 +175,55 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack }) =
     setModalOpen(true);
   };
 
+  const handleQuickPublish = async (e: React.MouseEvent, item: { content: DailyContent, key: string }) => {
+    e.stopPropagation();
+    // Somente admin pode publicar rápido
+    if (userRole !== 'admin') return;
+    
+    const dbPost = dbPosts[item.key];
+    const currentStatus = dbPost?.status || 'draft';
+
+    // Se já estiver publicado, não faz nada
+    if (currentStatus === 'published') return;
+
+    if (!confirm("Marcar esta publicação como PUBLICADA?")) return;
+
+    try {
+        setLoadingPosts(true);
+
+        // Prepara o payload. Se o post não existir no banco (dbPost undefined),
+        // precisamos copiar os dados do item.content (estático) para garantir que
+        // o post salvo tenha Tema, Tipo e Imagem.
+        
+        const payload: any = {
+            date_key: item.key,
+            status: 'published',
+            last_updated: new Date().toISOString(),
+        };
+
+        if (!dbPost) {
+            // É um post estático sendo salvo pela primeira vez
+            payload.theme = item.content.theme;
+            payload.type = item.content.type;
+            payload.bullets = item.content.bullets;
+            payload.image_url = item.content.initialImageUrl || null;
+            // caption continua null pois não temos no estático
+        }
+
+        const { error } = await supabase
+            .from('posts')
+            .upsert(payload, { onConflict: 'date_key' });
+
+        if (error) throw error;
+        
+        await fetchMonthPosts(); 
+    } catch (err) {
+        console.error(err);
+        alert("Erro ao publicar. Verifique sua conexão.");
+        setLoadingPosts(false);
+    }
+  };
+
   const handleCloseModal = () => {
     setModalOpen(false);
     setSelectedPost(null);
@@ -211,8 +260,8 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack }) =
       case 'changes_requested': return 'bg-red-100 border-red-200 hover:bg-red-200';
       case 'internal_review': return 'bg-purple-100 border-purple-200 hover:bg-purple-200';
       case 'approved': return 'bg-blue-100 border-blue-200 hover:bg-blue-200';
-      case 'scheduled': return 'bg-purple-100 border-purple-200 hover:bg-purple-200'; // ROXO AGORA É AGENDADO
-      case 'published': return 'bg-green-100 border-green-200 hover:bg-green-200';
+      case 'scheduled': return 'bg-purple-100 border-purple-200 hover:bg-purple-200'; 
+      case 'published': return 'bg-green-100 border-green-200 hover:bg-green-200'; // VERDE
       default: return 'bg-gray-50 border-gray-100';
     }
   };
@@ -284,7 +333,7 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack }) =
                 <div 
                   key={idx}
                   onClick={() => handleOpenPost(item)}
-                  className={`p-2 rounded-lg border shadow-sm cursor-pointer hover:scale-[1.02] ${statusColor}`}
+                  className={`p-2 rounded-lg border shadow-sm cursor-pointer hover:scale-[1.02] ${statusColor} relative group/card`}
                 >
                   <div className="flex items-center justify-between mb-1">
                     <div className="flex items-center gap-1.5">
@@ -301,9 +350,21 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack }) =
                   <p className="text-[10px] font-bold text-gray-900 leading-tight line-clamp-2 mb-1" title={theme}>
                     {theme}
                   </p>
-                  <span className="text-[8px] font-bold uppercase text-gray-500 border border-black/10 px-1 rounded bg-white/40">
-                     {getStatusLabel(status)}
-                  </span>
+                  <div className="flex items-center justify-between mt-1 h-5">
+                      <span className="text-[8px] font-bold uppercase text-gray-500 border border-black/10 px-1 rounded bg-white/40">
+                         {getStatusLabel(status)}
+                      </span>
+                      {/* BOTÃO PUBLICAR CALENDÁRIO */}
+                      {userRole === 'admin' && status !== 'published' && (
+                          <button 
+                             onClick={(e) => handleQuickPublish(e, item)}
+                             className="opacity-100 sm:opacity-0 sm:group-hover/card:opacity-100 p-1 rounded bg-white text-gray-400 hover:text-green-600 hover:bg-green-50 shadow-sm border border-gray-200 transition-all"
+                             title="Marcar como Publicado"
+                          >
+                              <Check size={12} />
+                          </button>
+                      )}
+                  </div>
                 </div>
                );
             })}
@@ -412,7 +473,7 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack }) =
                    const { status, theme, type, bullets } = getDisplayData(item);
                    const statusColor = getStatusColorClass(status);
                    return (
-                      <div key={idx} onClick={() => handleOpenPost(item)} className={`p-4 rounded-xl border flex gap-4 cursor-pointer hover:shadow-md transition-all ${statusColor}`}>
+                      <div key={idx} onClick={() => handleOpenPost(item)} className={`p-4 rounded-xl border flex gap-4 cursor-pointer hover:shadow-md transition-all ${statusColor} items-center`}>
                          <div className="w-24 flex-shrink-0">
                             <span className="font-bold text-gray-900 block">{item.content.day.split(' – ')[0]}</span>
                             <div className="flex items-center gap-1 text-xs text-gray-600 mt-1">
@@ -421,11 +482,21 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack }) =
                             </div>
                             <span className="inline-block mt-2 px-2 py-0.5 rounded text-[9px] font-bold border border-black/10 bg-white/50 uppercase text-gray-700">{getStatusLabel(status)}</span>
                          </div>
-                         <div>
+                         <div className="flex-grow">
                             <span className="text-xs font-bold px-2 py-0.5 rounded border bg-white/50 border-black/10 text-gray-800 mb-2 inline-block">📌 {type}</span>
                             <h4 className="font-bold text-gray-900 mb-1">{theme}</h4>
                             {bullets && bullets.length > 0 && <p className="text-xs text-gray-600 line-clamp-2">{bullets.join(' • ')}</p>}
                          </div>
+                         {/* List View Quick Action */}
+                         {userRole === 'admin' && status !== 'published' && (
+                            <button 
+                                onClick={(e) => handleQuickPublish(e, item)}
+                                className="flex items-center gap-2 px-3 py-2 bg-white text-gray-500 border border-gray-200 rounded-lg hover:bg-green-50 hover:text-green-700 hover:border-green-200 transition-all shadow-sm ml-4"
+                                title="Publicar Agora"
+                            >
+                                <Check size={16} /> <span className="text-xs font-bold">Publicar</span>
+                            </button>
+                         )}
                       </div>
                    )
                 })}
