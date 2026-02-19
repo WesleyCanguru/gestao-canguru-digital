@@ -2,10 +2,10 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { DETAILED_MONTHLY_PLANS } from '../constants';
-import { PostData, PostStatus, DailyContent } from '../types';
+import { PostData, PostStatus, DailyContent, PostComment } from '../types';
 import { InstagramView, LinkedInView } from './PlatformViews';
 import { Logo } from './Logo';
-import { CheckCircle2, AlertTriangle, Send, User, Loader2, XCircle, Instagram, Linkedin } from 'lucide-react';
+import { CheckCircle2, AlertTriangle, Send, User, Loader2, XCircle, Instagram, Linkedin, MessageSquare } from 'lucide-react';
 
 export const PublicApprovalScreen: React.FC = () => {
   const [loading, setLoading] = useState(true);
@@ -16,6 +16,9 @@ export const PublicApprovalScreen: React.FC = () => {
   const [primaryContent, setPrimaryContent] = useState<DailyContent | null>(null);
   const [counterpartContent, setCounterpartContent] = useState<DailyContent | null>(null);
   
+  // Comments State
+  const [comments, setComments] = useState<PostComment[]>([]);
+
   // View State
   const [activeTab, setActiveTab] = useState<'meta' | 'linkedin'>('meta'); // Default, atualizado no load
 
@@ -113,7 +116,6 @@ export const PublicApprovalScreen: React.FC = () => {
          setActiveTab(primary.content.platform);
 
          // 2. Try to Load Counterpart
-         // Constrói ID da contraparte (Meta <-> LinkedIn)
          const parts = dateKey.split('-');
          const currentPlatform = dateKey.includes('linkedin') ? 'linkedin' : 'meta';
          const otherPlatform = currentPlatform === 'linkedin' ? 'meta' : 'linkedin';
@@ -123,8 +125,21 @@ export const PublicApprovalScreen: React.FC = () => {
          if (partner) {
              setCounterpartPost(partner.post);
              setCounterpartContent(partner.content);
-             // Se houver contraparte, e a URL for do LinkedIn mas tem Meta, talvez seja melhor mostrar Meta primeiro?
-             // Mantemos o que veio na URL como "ActiveTab" inicial, mas permitimos trocar.
+         }
+
+         // 3. Load Comments (fetch for both keys to be safe)
+         const keysToFetch = [primary.post.date_key];
+         if (partner) keysToFetch.push(partner.post.date_key);
+
+         const { data: commentsData } = await supabase
+            .from('comments')
+            .select('*')
+            .in('post_id', keysToFetch)
+            .eq('visible_to_admin', true) // Only show comments intended for public/admin/approver flow
+            .order('created_at', { ascending: true });
+
+         if (commentsData) {
+            setComments(commentsData as PostComment[]);
          }
 
       } catch (err) {
@@ -194,13 +209,17 @@ export const PublicApprovalScreen: React.FC = () => {
         }
 
         // 3. Comentário no Principal (para registro)
-        await supabase.from('comments').insert({
+        const newCommentObj = {
            post_id: primaryPost.date_key,
            author_role: 'approver',
            author_name: name,
            content: `✅ APROVOU a publicação${counterpartPost ? ' (e a versão vinculada)' : ''}.`,
            visible_to_admin: true
-        });
+        };
+        const { data: insertedComment } = await supabase.from('comments').insert(newCommentObj).select().single();
+        if (insertedComment) {
+            setComments(prev => [...prev, insertedComment as PostComment]);
+        }
 
         // Atualizar estado local
         setPrimaryPost(prev => prev ? ({...prev, status: 'approved'}) : null);
@@ -228,13 +247,18 @@ export const PublicApprovalScreen: React.FC = () => {
         }
 
         // 3. Comentário
-        await supabase.from('comments').insert({
+        const newCommentObj = {
            post_id: primaryPost.date_key,
            author_role: 'approver',
            author_name: userName,
            content: comment,
            visible_to_admin: true
-        });
+        };
+        
+        const { data: insertedComment } = await supabase.from('comments').insert(newCommentObj).select().single();
+        if (insertedComment) {
+            setComments(prev => [...prev, insertedComment as PostComment]);
+        }
 
         setPrimaryPost(prev => prev ? ({...prev, status: 'changes_requested'}) : null);
         if (counterpartPost) setCounterpartPost(prev => prev ? ({...prev, status: 'changes_requested'}) : null);
@@ -460,6 +484,34 @@ export const PublicApprovalScreen: React.FC = () => {
                             </div>
                          </div>
                       )}
+                      
+                      {/* Comments History Section */}
+                      {comments.length > 0 && (
+                          <div className="mt-8 pt-6 border-t border-gray-100">
+                              <h3 className="flex items-center gap-2 text-sm font-bold text-gray-900 mb-4">
+                                  <MessageSquare size={16} className="text-blue-500" /> Histórico de Comentários
+                              </h3>
+                              <div className="space-y-4 max-h-[300px] overflow-y-auto custom-scrollbar pr-2">
+                                  {comments.map((c) => (
+                                      <div key={c.id} className="flex flex-col gap-1 text-sm">
+                                          <div className="flex items-center gap-2">
+                                              <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold text-white shadow-sm flex-shrink-0 ${c.author_role === 'admin' ? 'bg-brand-dark' : c.author_role === 'approver' ? 'bg-green-600' : 'bg-purple-600'}`}>
+                                                  {c.author_name.charAt(0)}
+                                              </div>
+                                              <span className="font-bold text-gray-700 text-xs">{c.author_name}</span>
+                                              <span className="text-[10px] text-gray-400">
+                                                  {new Date(c.created_at).toLocaleDateString('pt-BR')}
+                                              </span>
+                                          </div>
+                                          <div className={`p-3 rounded-xl ${c.author_role === 'admin' ? 'bg-gray-50 rounded-tl-none' : c.author_role === 'approver' ? 'bg-green-50 text-green-900 rounded-tl-none' : 'bg-purple-50 rounded-tl-none'}`}>
+                                              <p className="text-gray-600 leading-relaxed">{c.content}</p>
+                                          </div>
+                                      </div>
+                                  ))}
+                              </div>
+                          </div>
+                      )}
+
                    </div>
 
                    <p className="text-xs text-gray-400 text-center leading-relaxed">
