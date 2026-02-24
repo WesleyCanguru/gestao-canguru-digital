@@ -17,43 +17,40 @@ export const ANNUAL_PLAN: AnnualStrategy = {
   months: [
     {
       month: 'FEVEREIRO',
-      title: 'POSICIONAMENTO TÉCNICO',
-      function: 'Preparar o mercado',
+      title: 'BASE TÉCNICA & PRECISÃO APLICADA',
+      function: 'Construir base técnica sólida',
       color: 'blue',
       deliverables: [
-        'Foco: MaxiFlex Ultimate e Linha MaxiCut',
-        'Educação técnica (base)',
-        'Normas, aplicações, riscos',
-        'Início oficial da série semanal de vídeos'
+        'Foco: MaxiFlex, MaxiCut, MaxiDex (introdução)',
+        'Reforçar domínio sobre precisão e riscos mecânicos',
+        'Iniciar cultura de vídeo técnico semanal'
       ],
-      takeaways: ['Construção de autoridade', 'Preparação para eventos']
+      takeaways: ['Construção de autoridade', 'Base técnica sólida']
     },
     {
       month: 'MARÇO',
-      title: 'AUTORIDADE & CONFIANÇA',
-      function: 'Aprofundar credibilidade',
+      title: 'ROBUSTEZ, COMPARAÇÃO E AUTORIDADE',
+      function: 'Construir credibilidade técnica',
       color: 'blue',
       deliverables: [
-        'Foco: Linha Mack (Force/Driller) e Química',
-        'Comparativos e critérios de escolha',
-        'Bastidores de qualidade e produto',
-        'Preparação para Proteminas'
+        'Foco: Linha Mack e Química (MaxiChem)',
+        'Trabalhar comparação técnica real',
+        'Conectar com evento de 05/03 (Autoridade técnica)'
       ],
-      takeaways: ['Mercado começa a "escutar"']
+      takeaways: ['Mercado começa a "escutar"', 'Autoridade de campo']
     },
     {
       month: 'ABRIL',
-      title: 'EVENTO + EDUCAÇÃO',
-      function: 'Marca visível',
+      title: 'ESPECIALIDADES & POSICIONAMENTO',
+      function: 'Conteúdo sofisticado e inovação',
       color: 'yellow',
       events: [
         { name: 'Proteminas', date: '14 a 16/04' }
       ],
       deliverables: [
-        'Foco: Inovação (MaxiDex) e Especialidades',
-        'Pré-evento: contexto técnico',
-        'Durante: presença, pessoas, bastidores',
-        'Pós-evento: aprendizados e tendências'
+        'Foco: Proteminas e MaxiDex como inovação',
+        'Comparações técnicas avançadas',
+        'Conteúdo mais sofisticado'
       ],
       takeaways: ['Marca visível', 'Conteúdo com lastro real']
     },
@@ -181,70 +178,74 @@ export const SOCIAL_STRATEGY: PlatformStrategy[] = [
     id: 'meta',
     name: 'Instagram / Facebook',
     schedule: 'Segunda, Quarta e Sexta',
-    description: 'Foco total em Reels das luvas específicas e carrosséis educativos.',
+    description: 'Foco em conteúdo educacional, vídeos técnicos e autoridade.',
     bestDays: [
       {
         day: 'Segunda',
-        reason: ['Planejamento da semana', 'Bom para conteúdos educacionais e institucionais']
+        reason: ['Conteúdo educacional estratégico']
       },
       {
         day: 'Quarta',
-        reason: ['Dia do Produto (Vídeo/Reel)', 'Foco nas luvas específicas (Mack, MaxiFlex, etc)']
+        reason: ['Vídeo técnico aplicado (produto em ação)']
       },
       {
         day: 'Sexta',
-        reason: ['Conteúdos mais leves ou institucionais', 'Boa taxa de salvamento e leitura']
+        reason: ['Autoridade técnica / posicionamento institucional']
       }
     ]
   },
   {
     id: 'linkedin',
     name: 'LinkedIn',
-    schedule: 'Terça, Quinta e Sexta',
-    description: 'Foco total em qualidade e exclusividade técnica.',
+    schedule: 'Segunda, Terça, Quarta e Sexta',
+    description: 'Foco técnico profundo, analítico e estratégico.',
     bestDays: [
       {
-        day: 'Terça',
-        reason: ['Maior taxa de engajamento técnico (Conteúdo Exclusivo)']
+        day: 'Segunda',
+        reason: ['Conteúdo analítico / educacional']
       },
       {
-        day: 'Quinta',
-        reason: ['Bom alcance e leitura profunda (Conteúdo Exclusivo)']
+        day: 'Terça',
+        reason: ['Ficha técnica horizontal (produto específico)']
+      },
+      {
+        day: 'Quarta',
+        reason: ['Vídeo técnico aplicado']
       },
       {
         day: 'Sexta',
-        reason: ['Reforço de mensagem (Conteúdo Adaptado/Reaproveitado)']
+        reason: ['Posicionamento estratégico / visão de mercado']
       }
     ],
-    tip: 'Lembre-se: Posts sobre luvas devem SEMPRE citar o modelo exato (ex: MaxiFlex Ultimate) para evitar erros.'
+    tip: 'O LinkedIn é o canal para aprofundamento técnico e conexão com decisores.'
   }
 ];
 
 export const WEEKLY_SCHEDULE: WeeklyScheduleRow[] = [
   {
     day: 'Segunda',
-    platforms: 'Instagram/Facebook',
-    content: 'Conteúdo principal (educacional / institucional)'
+    platforms: 'IG + LinkedIn',
+    content: 'Conteúdo estratégico / educacional'
   },
   {
     day: 'Terça',
-    platforms: 'LinkedIn',
-    content: 'Conteúdo exclusivo LinkedIn'
+    platforms: 'LinkedIn only',
+    content: 'Ficha técnica horizontal (produto)'
   },
   {
     day: 'Quarta',
-    platforms: 'Instagram/Facebook',
-    content: 'Produto Específico (Reel da Luva)'
+    platforms: 'IG + LinkedIn',
+    content: 'VÍDEO (Técnico aplicado)'
   },
   {
     day: 'Quinta',
-    platforms: 'LinkedIn',
-    content: 'Conteúdo exclusivo (Estratégico / Mercado)'
+    platforms: '-',
+    content: 'Sem postagem fixa (Gestão de comunidade)'
   },
   {
     day: 'Sexta',
-    platforms: 'Insta/Face + LinkedIn',
-    content: 'Institucional / Produto (Meta) + Adaptação (LinkedIn)'
+    platforms: 'IG + LinkedIn',
+    content: 'Estratégico / autoridade / institucional'
   }
 ];
 
