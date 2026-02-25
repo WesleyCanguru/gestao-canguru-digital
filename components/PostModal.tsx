@@ -107,7 +107,8 @@ export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, onClo
              const parts = dateKey.split('-'); // DD-MM-YYYY-platform[-suffix]
              if (parts.length >= 3) {
                  [currentD, currentM, currentY] = parts;
-                 setPostDate(`${currentY}-${currentM}-${currentD}`);
+                 const pad = (n: string) => n.length === 1 ? `0${n}` : n;
+                 setPostDate(`${currentY}-${pad(currentM)}-${pad(currentD)}`);
              }
          }
 
@@ -269,10 +270,12 @@ export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, onClo
       let dateChanged = false;
       if (!isNew && originalKeys.length > 0) {
           // Extrair a parte da data da primeira chave original (formato DD-MM-YYYY-...)
-          const originalDatePart = originalKeys[0].split('-').slice(0, 3).join('-');
-          const newDatePart = `${d}-${m}-${y}`;
+          const originalDateParts = originalKeys[0].split('-').slice(0, 3);
+          // Normalizar para inteiros para evitar problemas com zeros à esquerda (ex: 05 vs 5)
+          const originalDateStr = originalDateParts.map(p => parseInt(p)).join('-');
+          const newDateStr = `${parseInt(d)}-${parseInt(m)}-${parseInt(y)}`;
 
-          if (originalDatePart !== newDatePart) {
+          if (originalDateStr !== newDateStr) {
               dateChanged = true;
               // A Data Mudou! Precisamos "deletar" os posts da data antiga.
               // Percorre todas as chaves originais (ex: Meta e LinkedIn da data antiga) e marca como deleted
@@ -299,11 +302,7 @@ export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, onClo
               // Se estamos editando e a data for a mesma, tentamos preservar a chave original 
               // (para o caso de posts com sufixos).
               
-              const [oy, om, od] = postDate.split('-');
-              const currentTargetDateStr = `${od}-${om}-${oy}`; // DD-MM-YYYY
-              
-              // Verifica se alguma das chaves originais corresponde a essa plataforma E a essa data
-              const existingKeyForPlat = originalKeys.find(k => k.includes(plat) && k.startsWith(currentTargetDateStr));
+              const existingKeyForPlat = originalKeys.find(k => k.includes(plat));
               
               if (existingKeyForPlat) {
                   targetKey = existingKeyForPlat;
