@@ -15,8 +15,9 @@ export const MediaRenderer: React.FC<{
   imageUrl: string | null; 
   isVideo: boolean | null; 
   isUploading?: boolean; 
-  aspectRatioClass: string 
-}> = ({ imageUrl, isVideo, isUploading, aspectRatioClass }) => {
+  aspectRatioClass: string;
+  helpText?: string;
+}> = ({ imageUrl, isVideo, isUploading, aspectRatioClass, helpText }) => {
   if (!imageUrl) {
     return (
       <div className={`w-full ${aspectRatioClass} bg-gray-100 rounded-md border-2 border-dashed border-gray-300 flex flex-col items-center justify-center text-gray-400`}>
@@ -26,7 +27,7 @@ export const MediaRenderer: React.FC<{
             <ImageIcon size={48} className="mb-4 opacity-30" />
         )}
         <span className="text-sm font-medium">{isUploading ? 'Enviando mídia...' : 'Aguardando Upload'}</span>
-        <span className="text-xs mt-2 opacity-60">1080x1350 (Img) ou 1080x1920 (Vídeo)</span>
+        <span className="text-xs mt-2 opacity-60">{helpText || '1080x1350 (Img) ou 1080x1920 (Vídeo)'}</span>
       </div>
     );
   }
@@ -106,7 +107,7 @@ export const InstagramView: React.FC<PlatformViewProps> = ({ dayContent, caption
 
 export const LinkedInView: React.FC<PlatformViewProps> = ({ dayContent, caption, imageUrl, isVideo, isUploading }) => {
   const isVerticalVideo = dayContent.type.toLowerCase().includes('vídeo') || dayContent.type.toLowerCase().includes('reel');
-  const aspectRatioClass = isVerticalVideo ? 'aspect-[9/16]' : 'aspect-[4/5]';
+  const aspectRatioClass = isVerticalVideo ? 'aspect-[9/16]' : 'aspect-[16/9]';
 
   return (
     <div className="bg-white border border-gray-200 rounded-lg shadow-sm max-w-md mx-auto overflow-hidden">
@@ -135,7 +136,13 @@ export const LinkedInView: React.FC<PlatformViewProps> = ({ dayContent, caption,
 
       {/* Media */}
       <div className="w-full">
-        <MediaRenderer imageUrl={imageUrl} isVideo={isVideo} isUploading={isUploading} aspectRatioClass={aspectRatioClass} />
+        <MediaRenderer 
+          imageUrl={imageUrl} 
+          isVideo={isVideo} 
+          isUploading={isUploading} 
+          aspectRatioClass={aspectRatioClass} 
+          helpText="1920x1080 (Wide) ou 1080x1920 (Vertical)"
+        />
       </div>
 
       {/* Footer Actions */}
