@@ -202,6 +202,93 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack }) =
 
 
   // Handlers
+  const handleDragStart = (e: React.DragEvent, key: string) => {
+      e.dataTransfer.setData('text/plain', key);
+      e.dataTransfer.effectAllowed = 'move';
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+  };
+
+  const handleDrop = async (e: React.DragEvent, targetDay: number) => {
+      e.preventDefault();
+      const key = e.dataTransfer.getData('text/plain');
+      if (key) {
+          await movePost(key, targetDay);
+      }
+  };
+
+  const movePost = async (originalKey: string, targetDay: number) => {
+      const postGroup = groupedPosts.find(g => g.primaryKey === originalKey);
+      if (!postGroup || !plan) return;
+
+      const monthMap: { [key: string]: string } = {
+          'JANEIRO': '01', 'FEVEREIRO': '02', 'MARÇO': '03', 'ABRIL': '04', 'MAIO': '05', 'JUNHO': '06',
+          'JULHO': '07', 'AGOSTO': '08', 'SETEMBRO': '09', 'OUTUBRO': '10', 'NOVEMBRO': '11', 'DEZEMBRO': '12'
+       };
+      const monthStr = plan.month.split(' ')[0].toUpperCase();
+      const yearStr = plan.month.split(' ')[1];
+      const m = monthMap[monthStr];
+      const y = yearStr;
+      const d = targetDay < 10 ? `0${targetDay}` : `${targetDay}`;
+
+      // Check if moving to same day
+      const originalDay = parseInt(originalKey.split('-')[0]);
+      if (originalDay === targetDay) return;
+
+      if (!confirm(`Mover publicação para o dia ${d}/${m}?`)) return;
+
+      setLoadingPosts(true);
+      try {
+          for (const oldKey of postGroup.keys) {
+              const parts = oldKey.split('-');
+              // Format: DD-MM-YYYY-platform[-timestamp]
+              // platform is at index 3 usually, but let's be safe
+              // If oldKey is 20-02-2026-meta, parts[3] is meta.
+              const platform = parts[3]; 
+              
+              const newKey = `${d}-${m}-${y}-${platform}-${Date.now()}`;
+
+              const dbPost = dbPosts[oldKey];
+              
+              const payload = {
+                  date_key: newKey,
+                  status: dbPost?.status || 'draft',
+                  theme: dbPost?.theme || postGroup.theme,
+                  type: dbPost?.type || postGroup.type,
+                  bullets: dbPost?.bullets || postGroup.bullets,
+                  image_url: dbPost?.image_url || postGroup.content.initialImageUrl || null,
+                  caption: dbPost?.caption || null,
+                  last_updated: new Date().toISOString()
+              };
+
+              // 1. Create New
+              const { error: insertError } = await supabase.from('posts').insert(payload);
+              if (insertError) throw insertError;
+
+              // 2. Delete Old
+              const { error: deleteError } = await supabase.from('posts').upsert({
+                  date_key: oldKey,
+                  status: 'deleted',
+                  last_updated: new Date().toISOString()
+              });
+              if (deleteError) throw deleteError;
+              
+              // 3. Move Comments
+              await supabase.from('comments').update({ post_id: newKey }).eq('post_id', oldKey);
+          }
+          
+          await fetchMonthPosts();
+      } catch (error) {
+          console.error(error);
+          alert("Erro ao mover publicação.");
+      } finally {
+          setLoadingPosts(false);
+      }
+  };
+
   const handleOpenPost = (item: { content: DailyContent, key: string }) => {
     setSelectedPost(item);
     setIsCreatingNew(false);
@@ -348,7 +435,12 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack }) =
       });
 
       calendarCells.push(
-        <div key={`day-${d}`} className="bg-white border-b border-r border-gray-100 min-h-[200px] p-2 relative group hover:bg-gray-50/50">
+        <div 
+          key={`day-${d}`} 
+          className="bg-white border-b border-r border-gray-100 min-h-[200px] p-2 relative group hover:bg-gray-50/50 transition-colors"
+          onDragOver={handleDragOver}
+          onDrop={(e) => handleDrop(e, d)}
+        >
           <div className="flex justify-between items-start mb-2">
             <span className={`text-sm font-semibold ${dayEvents.length > 0 ? 'text-gray-900' : 'text-gray-400'}`}>{d}</span>
             {userRole === 'admin' && (
@@ -372,7 +464,9 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack }) =
                 <div 
                   key={idx}
                   onClick={() => handleOpenPost({ content: group.content, key: group.primaryKey })}
-                  className={`p-2 rounded-lg border shadow-sm cursor-pointer hover:scale-[1.02] ${statusColor} relative group/card shrink-0`}
+                  className={`p-2 rounded-lg border shadow-sm cursor-pointer hover:scale-[1.02] ${statusColor} relative group/card shrink-0 transition-transform`}
+                  draggable
+                  onDragStart={(e) => handleDragStart(e, group.primaryKey)}
                 >
                   <div className="flex items-center justify-between mb-1">
                     <div className="flex items-center gap-1.5">
@@ -511,8 +605,18 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack }) =
                    const hasMeta = group.platforms.includes('meta');
                    const hasLinkedin = group.platforms.includes('linkedin');
 
+                   const targetDay = parseInt(group.content.day.split('/')[0]);
+                   
                    return (
-                      <div key={idx} onClick={() => handleOpenPost({ content: group.content, key: group.primaryKey })} className={`p-4 rounded-xl border flex gap-4 cursor-pointer hover:shadow-md transition-all ${statusColor} items-center`}>
+                      <div 
+                        key={idx} 
+                        onClick={() => handleOpenPost({ content: group.content, key: group.primaryKey })} 
+                        className={`p-4 rounded-xl border flex gap-4 cursor-pointer hover:shadow-md transition-all ${statusColor} items-center`}
+                        draggable
+                        onDragStart={(e) => handleDragStart(e, group.primaryKey)}
+                        onDragOver={handleDragOver}
+                        onDrop={(e) => handleDrop(e, targetDay)}
+                      >
                          <div className="w-24 flex-shrink-0">
                             <span className="font-bold text-gray-900 block">{group.content.day.split(' – ')[0]}</span>
                             <div className="flex items-center gap-1.5 text-xs text-gray-600 mt-1">

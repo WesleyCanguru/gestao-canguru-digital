@@ -117,7 +117,7 @@ export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, onClo
             .from('posts')
             .select('*')
             .eq('date_key', dateKey)
-            .single();
+            .maybeSingle();
 
          // Load COUNTERPART post data (se abri o Meta, tenta achar o Linkedin do mesmo dia)
          // A chave counterpart tem a mesma estrutura, só muda a plataforma
