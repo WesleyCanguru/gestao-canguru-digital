@@ -242,6 +242,7 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack }) =
 
       setLoadingPosts(true);
       try {
+          const timestamp = Date.now();
           for (const oldKey of postGroup.keys) {
               const parts = oldKey.split('-');
               // Format: DD-MM-YYYY-platform[-timestamp]
@@ -249,7 +250,7 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack }) =
               // If oldKey is 20-02-2026-meta, parts[3] is meta.
               const platform = parts[3]; 
               
-              const newKey = `${d}-${m}-${y}-${platform}-${Date.now()}`;
+              const newKey = `${d}-${m}-${y}-${platform}-${timestamp}`;
 
               const dbPost = dbPosts[oldKey];
               
@@ -268,12 +269,21 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack }) =
               const { error: insertError } = await supabase.from('posts').insert(payload);
               if (insertError) throw insertError;
 
-              // 2. Delete Old
-              const { error: deleteError } = await supabase.from('posts').upsert({
+              // 2. Delete Old (Hide)
+              // We must provide enough data to satisfy constraints if this is a new insert (hiding a static post)
+              const deletePayload = {
                   date_key: oldKey,
                   status: 'deleted',
-                  last_updated: new Date().toISOString()
-              });
+                  last_updated: new Date().toISOString(),
+                  // Include other fields just in case they are required
+                  theme: dbPost?.theme || postGroup.theme,
+                  type: dbPost?.type || postGroup.type,
+                  bullets: dbPost?.bullets || postGroup.bullets,
+                  image_url: dbPost?.image_url || postGroup.content.initialImageUrl || null,
+                  caption: dbPost?.caption || null
+              };
+
+              const { error: deleteError } = await supabase.from('posts').upsert(deletePayload, { onConflict: 'date_key' });
               if (deleteError) throw deleteError;
               
               // 3. Move Comments
