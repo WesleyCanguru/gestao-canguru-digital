@@ -19,15 +19,17 @@ export const MediaRenderer: React.FC<{
   helpText?: string;
 }> = ({ imageUrl, isVideo, isUploading, aspectRatioClass, helpText }) => {
   if (!imageUrl) {
+    // If auto, default to a square or 4:5 placeholder for better UI
+    const placeholderClass = aspectRatioClass === 'aspect-auto' ? 'aspect-[4/5]' : aspectRatioClass;
     return (
-      <div className={`w-full ${aspectRatioClass} bg-gray-100 rounded-md border-2 border-dashed border-gray-300 flex flex-col items-center justify-center text-gray-400`}>
+      <div className={`w-full ${placeholderClass} bg-gray-100 rounded-md border-2 border-dashed border-gray-300 flex flex-col items-center justify-center text-gray-400`}>
         {isUploading ? (
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-dark mb-4"></div>
         ) : (
             <ImageIcon size={48} className="mb-4 opacity-30" />
         )}
         <span className="text-sm font-medium">{isUploading ? 'Enviando mídia...' : 'Aguardando Upload'}</span>
-        <span className="text-xs mt-2 opacity-60">{helpText || '1080x1350 (Img) ou 1080x1920 (Vídeo)'}</span>
+        <span className="text-xs mt-2 opacity-60 text-center px-4">{helpText || '1080x1350 (Img) ou 1080x1920 (Vídeo)'}</span>
       </div>
     );
   }
@@ -43,6 +45,19 @@ export const MediaRenderer: React.FC<{
         />
       </div>
     );
+  }
+
+  // Image Handling
+  if (aspectRatioClass === 'aspect-auto') {
+      return (
+        <div className="w-full bg-gray-100 overflow-hidden flex items-center justify-center">
+          <img 
+            src={imageUrl} 
+            className="w-full h-auto object-contain max-h-[600px]" 
+            alt="Post Content" 
+          />
+        </div>
+      );
   }
 
   return (
@@ -107,7 +122,15 @@ export const InstagramView: React.FC<PlatformViewProps> = ({ dayContent, caption
 
 export const LinkedInView: React.FC<PlatformViewProps> = ({ dayContent, caption, imageUrl, isVideo, isUploading }) => {
   const isVerticalVideo = dayContent.type.toLowerCase().includes('vídeo') || dayContent.type.toLowerCase().includes('reel');
-  const aspectRatioClass = isVerticalVideo ? 'aspect-[9/16]' : 'aspect-[16/9]';
+  
+  // Logic: 
+  // - If Video & Vertical: 9:16
+  // - If Video & Not Vertical: 16:9 (Default)
+  // - If Image: Auto (Let image drive height, covers 4:5, 1:1, 16:9)
+  let aspectRatioClass = 'aspect-auto';
+  if (isVideo) {
+      aspectRatioClass = isVerticalVideo ? 'aspect-[9/16]' : 'aspect-[16/9]';
+  }
 
   return (
     <div className="bg-white border border-gray-200 rounded-lg shadow-sm max-w-md mx-auto overflow-hidden">
