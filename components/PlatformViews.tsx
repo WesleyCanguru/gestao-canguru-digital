@@ -13,14 +13,16 @@ interface PlatformViewProps {
 }
 
 export const MediaRenderer: React.FC<{ 
-  imageUrl: string | null; 
+  imageUrl: string | string[] | null; 
   isVideo: boolean | null; 
   isUploading?: boolean; 
   aspectRatioClass: string;
   helpText?: string;
   onImageClick?: (url: string) => void;
 }> = ({ imageUrl, isVideo, isUploading, aspectRatioClass, helpText, onImageClick }) => {
-  if (!imageUrl) {
+  const [currentIndex, setCurrentIndex] = React.useState(0);
+
+  if (!imageUrl || (Array.isArray(imageUrl) && imageUrl.length === 0)) {
     // If auto, default to a square or 4:5 placeholder for better UI
     const placeholderClass = aspectRatioClass === 'aspect-auto' ? 'aspect-[4/5]' : aspectRatioClass;
     return (
@@ -34,6 +36,58 @@ export const MediaRenderer: React.FC<{
         <span className="text-xs mt-2 opacity-60 text-center px-4">{helpText || '1080x1350 (Img) ou 1080x1920 (Vídeo)'}</span>
       </div>
     );
+  }
+
+  // Handle Carousel (Array)
+  if (Array.isArray(imageUrl)) {
+      const currentImg = imageUrl[currentIndex];
+      const hasNext = currentIndex < imageUrl.length - 1;
+      const hasPrev = currentIndex > 0;
+
+      return (
+        <div className={`w-full ${aspectRatioClass} bg-gray-100 overflow-hidden relative group`}>
+            <img 
+              src={currentImg} 
+              className="w-full h-full object-cover cursor-pointer" 
+              alt={`Slide ${currentIndex + 1}`} 
+              onClick={() => onImageClick && onImageClick(currentImg)}
+            />
+            
+            {/* Navigation */}
+            {imageUrl.length > 1 && (
+                <>
+                    <div className="absolute top-3 right-3 bg-black/60 text-white text-xs px-2 py-1 rounded-full font-medium">
+                        {currentIndex + 1}/{imageUrl.length}
+                    </div>
+                    
+                    {hasPrev && (
+                        <button 
+                            onClick={(e) => { e.stopPropagation(); setCurrentIndex(prev => prev - 1); }}
+                            className="absolute left-2 top-1/2 -translate-y-1/2 bg-white/80 hover:bg-white text-gray-800 p-1.5 rounded-full shadow-sm opacity-0 group-hover:opacity-100 transition-opacity"
+                        >
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+                        </button>
+                    )}
+                    
+                    {hasNext && (
+                        <button 
+                            onClick={(e) => { e.stopPropagation(); setCurrentIndex(prev => prev + 1); }}
+                            className="absolute right-2 top-1/2 -translate-y-1/2 bg-white/80 hover:bg-white text-gray-800 p-1.5 rounded-full shadow-sm opacity-0 group-hover:opacity-100 transition-opacity"
+                        >
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+                        </button>
+                    )}
+                    
+                    {/* Dots */}
+                    <div className="absolute bottom-2 left-0 right-0 flex justify-center gap-1.5">
+                        {imageUrl.map((_, idx) => (
+                            <div key={idx} className={`w-1.5 h-1.5 rounded-full shadow-sm ${idx === currentIndex ? 'bg-blue-500' : 'bg-white/60'}`} />
+                        ))}
+                    </div>
+                </>
+            )}
+        </div>
+      );
   }
 
   if (isVideo) {

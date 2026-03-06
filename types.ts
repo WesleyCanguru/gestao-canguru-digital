@@ -131,7 +131,7 @@ export interface PostComment {
 export interface PostData {
   id?: string;
   date_key: string; // ID único baseado na data + plataforma (ex: "02-02-2026-linkedin")
-  image_url: string | null;
+  image_url: string | string[] | null;
   caption: string | null;
   status: PostStatus;
   last_updated: string;

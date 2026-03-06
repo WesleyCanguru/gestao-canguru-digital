@@ -67,7 +67,8 @@ export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, onClo
   const [captionLinkedin, setCaptionLinkedin] = useState('');
   
   // Content States (Shared)
-  const [imageUrl, setImageUrl] = useState(dayContent.initialImageUrl || '');
+  const [imageUrl, setImageUrl] = useState<string | string[]>(dayContent.initialImageUrl || '');
+  const [isDragging, setIsDragging] = useState(false);
   
   // Structure Overrides (Shared)
   const [editedTheme, setEditedTheme] = useState(dayContent.theme);
@@ -223,22 +224,69 @@ export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, onClo
       }
   };
 
+  const processFiles = async (files: FileList | File[]) => {
+      if (!files || files.length === 0) return;
+      
+      try {
+          setIsUploading(true);
+          const uploadedUrls: string[] = [];
+          
+          // Limit to 20 images if carousel
+          const isCarousel = editedType.toLowerCase().includes('carrossel');
+          const maxFiles = isCarousel ? 20 : 1;
+          const filesToProcess = Array.from(files).slice(0, maxFiles);
+
+          for (const file of filesToProcess) {
+              const fileExt = file.name.split('.').pop();
+              const fileName = `upload-${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
+              const { error } = await supabase.storage.from('post-uploads').upload(fileName, file);
+              if (error) throw error;
+              const { data } = supabase.storage.from('post-uploads').getPublicUrl(fileName);
+              uploadedUrls.push(data.publicUrl);
+          }
+
+          if (isCarousel) {
+              // If it's a carousel, we append or replace? 
+              // User said "já ficar na sequência", implies replacing or setting the list.
+              // Let's replace for now to keep it simple and consistent with drag-drop behavior.
+              // Or if dragging multiple, we just set them.
+              setImageUrl(uploadedUrls);
+          } else {
+              // Single image
+              setImageUrl(uploadedUrls[0]);
+          }
+
+      } catch (error) {
+          alert('Erro no upload.');
+          console.error(error);
+      } finally {
+          setIsUploading(false);
+          setIsDragging(false);
+      }
+  };
+
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    try {
-      setIsUploading(true);
-      const fileExt = file.name.split('.').pop();
-      const fileName = `upload-${Date.now()}.${fileExt}`;
-      const { error } = await supabase.storage.from('post-uploads').upload(fileName, file);
-      if (error) throw error;
-      const { data } = supabase.storage.from('post-uploads').getPublicUrl(fileName);
-      setImageUrl(data.publicUrl);
-    } catch (error) {
-      alert('Erro no upload.');
-    } finally {
-      setIsUploading(false);
+    if (e.target.files) {
+        await processFiles(e.target.files);
     }
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+      e.preventDefault();
+      setIsDragging(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+      e.preventDefault();
+      setIsDragging(false);
+  };
+
+  const handleDrop = async (e: React.DragEvent) => {
+      e.preventDefault();
+      setIsDragging(false);
+      if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+          await processFiles(e.dataTransfer.files);
+      }
   };
 
   const handleSavePost = async () => {
@@ -622,10 +670,27 @@ export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, onClo
                         <h3 className="text-xs font-bold text-blue-800 uppercase tracking-wide mb-3 flex items-center gap-1"><ImageIcon size={14} /> Criativo</h3>
                         
                         {/* Image Upload */}
-                        <label className={`h-24 border-2 border-dashed border-blue-200 bg-blue-50/50 hover:bg-blue-50 rounded-lg flex flex-col items-center justify-center gap-2 cursor-pointer mb-4 ${isUploading ? 'opacity-50' : ''}`}>
-                              <input type="file" accept="image/*,video/*" onChange={handleImageUpload} className="hidden" disabled={isUploading} />
-                              <UploadCloud size={24} className="text-blue-400" />
-                              <span className="text-xs text-blue-700 font-bold">{isUploading ? 'Enviando...' : 'Carregar Imagem / Vídeo'}</span>
+                        <label 
+                            className={`h-24 border-2 border-dashed rounded-lg flex flex-col items-center justify-center gap-2 cursor-pointer mb-4 transition-all
+                                ${isDragging ? 'border-blue-500 bg-blue-100' : 'border-blue-200 bg-blue-50/50 hover:bg-blue-50'}
+                                ${isUploading ? 'opacity-50 pointer-events-none' : ''}
+                            `}
+                            onDragOver={handleDragOver}
+                            onDragLeave={handleDragLeave}
+                            onDrop={handleDrop}
+                        >
+                              <input 
+                                type="file" 
+                                accept="image/*,video/*" 
+                                onChange={handleImageUpload} 
+                                className="hidden" 
+                                disabled={isUploading} 
+                                multiple={editedType.toLowerCase().includes('carrossel')}
+                              />
+                              <UploadCloud size={24} className={isDragging ? 'text-blue-600' : 'text-blue-400'} />
+                              <span className={`text-xs font-bold ${isDragging ? 'text-blue-800' : 'text-blue-700'}`}>
+                                  {isUploading ? 'Enviando...' : isDragging ? 'Solte os arquivos aqui' : 'Carregar Imagem / Vídeo (Arraste aqui)'}
+                              </span>
                         </label>
 
                         {/* Caption Switcher */}
