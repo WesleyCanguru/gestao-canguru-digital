@@ -493,7 +493,7 @@ export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, onClo
     return map[s] || s;
   };
 
-  const isVideo = imageUrl?.match(/\.(mp4|webm|ogg)$/i);
+  const isVideo = typeof imageUrl === 'string' ? imageUrl.match(/\.(mp4|webm|ogg)$/i) : false;
   const effectiveDayContent = { ...dayContent, theme: editedTheme, type: editedType, bullets: editedBullets ? editedBullets.split('\n') : [] };
   
   // Determine which caption to show in Preview

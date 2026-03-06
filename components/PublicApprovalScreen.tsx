@@ -309,7 +309,8 @@ export const PublicApprovalScreen: React.FC = () => {
   const safePost = activePost || primaryPost;
   const safeContent = activeContent || primaryContent;
 
-  const isVideo = (safePost.image_url || safeContent.initialImageUrl)?.match(/\.(mp4|webm|ogg)$/i);
+  const imgUrl = safePost.image_url || safeContent.initialImageUrl;
+  const isVideo = typeof imgUrl === 'string' ? imgUrl.match(/\.(mp4|webm|ogg)$/i) : false;
   
   // Overrides
   const effectiveContent: DailyContent = {
