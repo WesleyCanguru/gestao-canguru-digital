@@ -12,11 +12,12 @@ import { ClientHome } from './components/ClientHome';
 import { BriefingsView } from './components/BriefingsView';
 import { DocumentsView } from './components/DocumentsView';
 import { PaidTrafficView } from './components/PaidTrafficView';
+import WebsiteView from './components/WebsiteView';
 import { useEditorialData, MONTH_NAMES } from './hooks/useEditorialData';
-import { Map, ChevronRight, LogOut, Home, Building2, ClipboardList, LayoutDashboard, FileText, FolderOpen, TrendingUp } from 'lucide-react';
+import { Map, ChevronRight, LogOut, Home, Building2, ClipboardList, LayoutDashboard, FileText, FolderOpen, TrendingUp, Globe } from 'lucide-react';
 import { AuthProvider, useAuth } from './lib/supabase';
 
-type ViewState = 'home' | 'month-detail' | 'onboarding' | 'dashboard' | 'briefings' | 'documents' | 'paid-traffic';
+type ViewState = 'home' | 'month-detail' | 'onboarding' | 'dashboard' | 'briefings' | 'documents' | 'paid-traffic' | 'website';
 
 interface MainAppProps {
   onBack?: () => void;
@@ -174,6 +175,18 @@ const MainApp: React.FC<MainAppProps> = ({ onBack }) => {
                 <TrendingUp size={16} />
                 Tráfego Pago
               </button>
+
+              <button
+                onClick={() => setView('website')}
+                className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  view === 'website'
+                    ? 'bg-brand-dark text-white shadow-md'
+                    : 'bg-gray-100 text-gray-500 hover:text-gray-900 hover:bg-gray-200'
+                }`}
+              >
+                <Globe size={14} />
+                <span className="hidden sm:inline">Website</span>
+              </button>
             </div>
 
             <div className="flex items-center gap-3">
@@ -230,7 +243,9 @@ const MainApp: React.FC<MainAppProps> = ({ onBack }) => {
              </div>
           )}
 
-          {view === 'paid-traffic' ? (
+          {view === 'website' ? (
+            <WebsiteView />
+          ) : view === 'paid-traffic' ? (
             <PaidTrafficView />
           ) : view === 'documents' ? (
             <DocumentsView />
@@ -243,6 +258,7 @@ const MainApp: React.FC<MainAppProps> = ({ onBack }) => {
               onNavigateToBriefings={() => setView('briefings')}
               onNavigateToDocuments={() => setView('documents')}
               onNavigateToPaidTraffic={() => setView('paid-traffic')}
+              onNavigateToWebsite={() => setView('website')}
             />
           ) : view === 'onboarding' ? (
             <OnboardingView />

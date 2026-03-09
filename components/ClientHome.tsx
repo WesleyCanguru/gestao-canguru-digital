@@ -11,7 +11,8 @@ import {
   Calendar,
   Target,
   AlertCircle,
-  FolderOpen
+  FolderOpen,
+  Globe
 } from 'lucide-react';
 
 interface OnboardingPhase {
@@ -35,6 +36,7 @@ interface ClientHomeProps {
   onNavigateToBriefings: () => void;
   onNavigateToDocuments: () => void;
   onNavigateToPaidTraffic: () => void;
+  onNavigateToWebsite: () => void;
 }
 
 export const ClientHome: React.FC<ClientHomeProps> = ({
@@ -43,6 +45,7 @@ export const ClientHome: React.FC<ClientHomeProps> = ({
   onNavigateToBriefings,
   onNavigateToDocuments,
   onNavigateToPaidTraffic,
+  onNavigateToWebsite,
 }) => {
   const { activeClient } = useAuth();
   const [phases, setPhases] = useState<OnboardingPhase[]>([]);
@@ -269,7 +272,7 @@ export const ClientHome: React.FC<ClientHomeProps> = ({
             Ações Rápidas
           </h2>
         </div>
-        <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3">
           <button
             onClick={onNavigateToOnboarding}
             className="flex flex-col items-center gap-2 p-4 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 transition-colors text-center"
@@ -304,6 +307,13 @@ export const ClientHome: React.FC<ClientHomeProps> = ({
           >
             <TrendingUp size={22} />
             <span className="text-xs font-semibold leading-tight">Tráfego Pago</span>
+          </button>
+          <button
+            onClick={onNavigateToWebsite}
+            className="flex flex-col items-center gap-2 p-4 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 transition-colors text-center"
+          >
+            <Globe size={22} />
+            <span className="text-xs font-semibold leading-tight">Website</span>
           </button>
         </div>
         <p className="text-xs text-gray-400 text-center mt-3">Mais funcionalidades em breve</p>
