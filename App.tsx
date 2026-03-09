@@ -7,7 +7,7 @@ import { MonthDetail } from './components/MonthDetail';
 import { LoginScreen } from './components/LoginScreen';
 import { PublicApprovalScreen } from './components/PublicApprovalScreen';
 import { LandingPage } from './components/LandingPage';
-import { ANNUAL_PLAN } from './constants'; 
+import { useEditorialData, MONTH_NAMES } from './hooks/useEditorialData';
 import { Map, ChevronRight, LogOut, Home } from 'lucide-react';
 import { AuthProvider, useAuth } from './lib/supabase';
 
@@ -21,6 +21,7 @@ const MainApp: React.FC<MainAppProps> = ({ onBack }) => {
   const [view, setView] = useState<ViewState>('home');
   const [selectedMonth, setSelectedMonth] = useState<string | null>(null);
   const { userRole, logout } = useAuth();
+  const { monthlyPlans } = useEditorialData();
 
   const handleSelectMonth = (month: string) => {
     setSelectedMonth(month);
@@ -113,13 +114,14 @@ const MainApp: React.FC<MainAppProps> = ({ onBack }) => {
         <div className="border-t border-gray-100 bg-white/50 backdrop-blur-sm">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-2 sm:py-3 -mx-4 px-4 sm:mx-0 sm:px-0">
-              {ANNUAL_PLAN.months.map((m) => {
-                const isActive = selectedMonth === m.month;
+              {monthlyPlans.map((plan) => {
+                const monthName = MONTH_NAMES[plan.month - 1];
+                const isActive = selectedMonth === monthName;
                 
                 return (
                   <button
-                    key={m.month}
-                    onClick={() => handleSelectMonth(m.month)}
+                    key={plan.id}
+                    onClick={() => handleSelectMonth(monthName)}
                     className={`
                       whitespace-nowrap px-3 py-1.5 rounded-full text-[11px] font-bold uppercase tracking-wide transition-all border
                       ${isActive 
@@ -128,7 +130,7 @@ const MainApp: React.FC<MainAppProps> = ({ onBack }) => {
                       }
                     `}
                   >
-                    {m.month}
+                    {monthName}
                   </button>
                 );
               })}

@@ -1,10 +1,10 @@
 
 import React, { useState, useEffect } from 'react';
-import { ANNUAL_PLAN } from '../constants';
 import { MonthCard } from './MonthCard';
 import { DistributionAnalysis } from './DistributionAnalysis';
 import { Compass, CheckCircle2 } from 'lucide-react';
 import { useAuth, supabase } from '../lib/supabase';
+import { useEditorialData, MONTH_NAMES } from '../hooks/useEditorialData';
 
 interface AnnualOverviewProps {
   onSelectMonth: (month: string) => void;
@@ -13,6 +13,7 @@ interface AnnualOverviewProps {
 export const AnnualOverview: React.FC<AnnualOverviewProps> = ({ onSelectMonth }) => {
   const { activeClient } = useAuth();
   const [postCounts, setPostCounts] = useState<Record<string, number>>({});
+  const { monthlyPlans, loading } = useEditorialData();
 
   useEffect(() => {
     const fetchPostCounts = async () => {
@@ -70,23 +71,29 @@ export const AnnualOverview: React.FC<AnnualOverviewProps> = ({ onSelectMonth })
               <h2 className="text-[10px] font-bold tracking-[0.2em] uppercase text-brand-green">Estratégia Macro</h2>
             </div>
             <h1 className="text-xl md:text-2xl font-extrabold tracking-tight leading-tight">
-              {ANNUAL_PLAN.northStar.title}
+              Planejamento Anual 2026
             </h1>
           </div>
 
           {/* Right: Content */}
           <div className="md:w-2/3">
             <p className="text-sm md:text-base text-gray-300 font-light leading-relaxed mb-4">
-              {ANNUAL_PLAN.northStar.description}
+              Visão geral da estratégia de conteúdo para o ano, focada em construir autoridade e engajamento.
             </p>
 
             <div className="flex flex-wrap gap-x-4 gap-y-2">
-              {ANNUAL_PLAN.benefits.map((benefit, idx) => (
-                <div key={idx} className="flex items-center gap-1.5 text-[10px] md:text-xs font-medium text-gray-400 bg-white/5 px-2 py-1 rounded-full border border-white/5">
-                  <CheckCircle2 size={12} className="text-brand-green" />
-                  {benefit}
-                </div>
-              ))}
+              <div className="flex items-center gap-1.5 text-[10px] md:text-xs font-medium text-gray-400 bg-white/5 px-2 py-1 rounded-full border border-white/5">
+                <CheckCircle2 size={12} className="text-brand-green" />
+                Foco em Resultados
+              </div>
+              <div className="flex items-center gap-1.5 text-[10px] md:text-xs font-medium text-gray-400 bg-white/5 px-2 py-1 rounded-full border border-white/5">
+                <CheckCircle2 size={12} className="text-brand-green" />
+                Consistência
+              </div>
+              <div className="flex items-center gap-1.5 text-[10px] md:text-xs font-medium text-gray-400 bg-white/5 px-2 py-1 rounded-full border border-white/5">
+                <CheckCircle2 size={12} className="text-brand-green" />
+                Multi-plataforma
+              </div>
             </div>
           </div>
         </div>
@@ -102,18 +109,32 @@ export const AnnualOverview: React.FC<AnnualOverviewProps> = ({ onSelectMonth })
           Calendário 2026
         </h2>
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-          {ANNUAL_PLAN.months.map((monthData, index) => {
-            const monthName = monthData.month.split(' ')[0].toUpperCase();
-            const postCount = postCounts[monthName] || 0;
-            return (
-              <MonthCard 
-                key={index} 
-                data={monthData} 
-                onClick={() => onSelectMonth(monthData.month)}
-                postCount={postCount}
-              />
-            );
-          })}
+          {monthlyPlans.length === 0 && !loading ? (
+            <div className="col-span-full py-12 text-center text-gray-500">
+              Nenhum plano editorial encontrado para este cliente.
+            </div>
+          ) : (
+            monthlyPlans.map((plan) => {
+              const monthName = MONTH_NAMES[plan.month - 1];
+              const postCount = postCounts[monthName.toUpperCase()] || 0;
+              return (
+                <MonthCard 
+                  key={plan.id} 
+                  data={{
+                    month: monthName,
+                    title: plan.theme || 'Sem tema definido',
+                    color: 'blue', // Default color, you could map this based on month or add to DB
+                    function: plan.objectives?.[0] || 'Objetivo não definido',
+                    events: plan.key_dates?.map(d => ({ name: d, date: '' })) || [],
+                    deliverables: plan.campaigns || [],
+                    takeaways: plan.objectives?.slice(1) || []
+                  }} 
+                  onClick={() => onSelectMonth(monthName)}
+                  postCount={postCount}
+                />
+              );
+            })
+          )}
         </div>
       </div>
       

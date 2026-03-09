@@ -1,11 +1,11 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { DETAILED_MONTHLY_PLANS } from '../constants';
 import { MonthlyDetailedPlan, DailyContent, PostStatus, PostData } from '../types';
-import { Instagram, Linkedin, CalendarDays, Target, BarChart3, Repeat, FileCheck, CheckCircle2, ArrowLeft, MessageCircle, List, Calendar as CalendarIcon, Plus, Loader2, Check } from 'lucide-react';
+import { Instagram, Linkedin, CalendarDays, Target, BarChart3, Repeat, FileCheck, CheckCircle2, ArrowLeft, MessageCircle, List, Calendar as CalendarIcon, Plus, Loader2, Check, Edit2, Save, X } from 'lucide-react';
 import { PostModal } from './PostModal';
 import { useAuth, supabase } from '../lib/supabase';
 import { StatusLegend } from './StatusLegend';
+import { useEditorialData, MONTH_NAMES, DAY_NAMES } from '../hooks/useEditorialData';
 
 interface MonthDetailProps {
   monthName: string;
@@ -28,6 +28,7 @@ interface GroupedPost {
 
 export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack }) => {
   const { userRole, activeClient } = useAuth();
+  const { monthlyPlans, weeklySchedule, updateMonthlyPlan, loading: loadingEditorial } = useEditorialData();
   
   // Modal State
   const [modalOpen, setModalOpen] = useState(false);
@@ -43,17 +44,27 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack }) =
   const [groupedPosts, setGroupedPosts] = useState<GroupedPost[]>([]);
   const [loadingPosts, setLoadingPosts] = useState(true);
 
-  const plan = DETAILED_MONTHLY_PLANS.find(p => p.month.toLowerCase().includes(monthName.toLowerCase()));
+  // Edit State
+  const [isEditingPlan, setIsEditingPlan] = useState(false);
+  const [editTheme, setEditTheme] = useState('');
+  const [editObjectives, setEditObjectives] = useState('');
+  const [editKeyDates, setEditKeyDates] = useState('');
+  const [editCampaigns, setEditCampaigns] = useState('');
+  const [isSavingPlan, setIsSavingPlan] = useState(false);
+
+  const currentPlan = monthlyPlans.find(p => MONTH_NAMES[p.month - 1].toLowerCase() === monthName.toLowerCase());
+  const monthIndex = MONTH_NAMES.findIndex(m => m.toLowerCase() === monthName.toLowerCase());
+  const year = 2026;
 
   // 1. Helper: Gerar chave única
   const getDateKey = (day: string, platform: string) => {
      const datePart = day.split(' ')[0].replace('/', '-');
-     return `${datePart}-2026-${platform}`; 
+     return `${datePart}-${year}-${platform}`; 
   };
 
   // 2. Buscar Dados do Supabase
   const fetchMonthPosts = useCallback(async () => {
-    if (!plan) return;
+    if (!currentPlan) return;
     setLoadingPosts(true);
     
     const { data } = await supabase
@@ -69,7 +80,7 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack }) =
     }
     setDbPosts(postsMap);
     setLoadingPosts(false);
-  }, [plan]);
+  }, [currentPlan, activeClient]);
 
   useEffect(() => {
     fetchMonthPosts();
@@ -77,29 +88,50 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack }) =
 
   // 3. Mesclar Posts Estáticos + Posts do Banco
   useEffect(() => {
-    if (!plan) return;
+    if (!currentPlan || monthIndex === -1) return;
 
     const tempPosts: Array<{ content: DailyContent, key: string, sortDate: number }> = [];
     const processedKeys = new Set<string>();
 
-    // A. Adicionar Posts Estáticos
-    plan.weeks.forEach(week => {
-      week.days.forEach(day => {
-        const key = getDateKey(day.day, day.platform);
+    // A. Adicionar Posts Estáticos (gerados a partir da agenda semanal)
+    const daysInMonth = new Date(year, monthIndex + 1, 0).getDate();
+
+    for (let d = 1; d <= daysInMonth; d++) {
+      const date = new Date(year, monthIndex, d);
+      const dayOfWeek = date.getDay(); // 0 = Sun, 1 = Mon, ..., 6 = Sat
+      
+      // Map JS getDay() to our day_of_week (1=Mon, ..., 5=Fri, 6=Sat, 7=Sun)
+      const mappedDayOfWeek = dayOfWeek === 0 ? 7 : dayOfWeek;
+
+      const scheduleItems = weeklySchedule.filter(s => s.day_of_week === mappedDayOfWeek);
+      
+      scheduleItems.forEach(item => {
+        const dayString = d < 10 ? `0${d}` : `${d}`;
+        const monthString = (monthIndex + 1) < 10 ? `0${monthIndex + 1}` : `${monthIndex + 1}`;
+        const dayFormatted = `${dayString}/${monthString}`;
+        
+        const key = getDateKey(`${dayFormatted} – ${DAY_NAMES[mappedDayOfWeek]}`, item.platform);
         const dbPost = dbPosts[key];
         if (dbPost && dbPost.status === 'deleted') return;
 
         processedKeys.add(key);
-        const [d, m] = day.day.split(' ')[0].split('/');
-        const sortDate = new Date(2026, parseInt(m) - 1, parseInt(d)).getTime();
+        const sortDate = date.getTime();
+
+        const content: DailyContent = {
+          day: `${dayFormatted} – ${DAY_NAMES[mappedDayOfWeek]}`,
+          platform: item.platform as 'meta' | 'linkedin',
+          type: item.content_type || 'Post',
+          theme: item.theme || 'Tema',
+          bullets: item.description ? [item.description] : []
+        };
 
         tempPosts.push({
-          content: day,
-          key: key,
+          content,
+          key,
           sortDate
         });
       });
-    });
+    }
 
     // B. Adicionar Posts NOVOS (DB only)
     Object.values(dbPosts).forEach((post: PostData) => {
@@ -116,7 +148,7 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack }) =
         .toLocaleString('pt-BR', { month: 'long' })
         .toUpperCase();
         
-      if (!plan.month.toUpperCase().includes(postMonthName)) return;
+      if (!MONTH_NAMES[currentPlan.month - 1].toUpperCase().includes(postMonthName)) return;
 
       const dateStr = `${d}/${m}`;
       const newContent: DailyContent = {
@@ -199,7 +231,7 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack }) =
 
     setGroupedPosts(groups);
 
-  }, [dbPosts, plan]);
+  }, [dbPosts, currentPlan, weeklySchedule, monthIndex]);
 
 
   // Handlers
@@ -223,16 +255,10 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack }) =
 
   const movePost = async (originalKey: string, targetDay: number) => {
       const postGroup = groupedPosts.find(g => g.primaryKey === originalKey);
-      if (!postGroup || !plan) return;
+      if (!postGroup || !currentPlan) return;
 
-      const monthMap: { [key: string]: string } = {
-          'JANEIRO': '01', 'FEVEREIRO': '02', 'MARÇO': '03', 'ABRIL': '04', 'MAIO': '05', 'JUNHO': '06',
-          'JULHO': '07', 'AGOSTO': '08', 'SETEMBRO': '09', 'OUTUBRO': '10', 'NOVEMBRO': '11', 'DEZEMBRO': '12'
-       };
-      const monthStr = plan.month.split(' ')[0].toUpperCase();
-      const yearStr = plan.month.split(' ')[1];
-      const m = monthMap[monthStr];
-      const y = yearStr;
+      const m = (monthIndex + 1) < 10 ? `0${monthIndex + 1}` : `${monthIndex + 1}`;
+      const y = year.toString();
       const d = targetDay < 10 ? `0${targetDay}` : `${targetDay}`;
 
       // Check if moving to same day
@@ -309,15 +335,11 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack }) =
   };
 
   const handleCreatePost = (day?: number) => {
-    if (day && plan) {
-       const monthMap: { [key: string]: string } = {
-          'JANEIRO': '01', 'FEVEREIRO': '02', 'MARÇO': '03', 'ABRIL': '04', 'MAIO': '05', 'JUNHO': '06',
-          'JULHO': '07', 'AGOSTO': '08', 'SETEMBRO': '09', 'OUTUBRO': '10', 'NOVEMBRO': '11', 'DEZEMBRO': '12'
-       };
-       const monthStr = plan.month.split(' ')[0].toUpperCase();
-       const yearStr = plan.month.split(' ')[1];
+    if (day && currentPlan) {
+       const m = (monthIndex + 1) < 10 ? `0${monthIndex + 1}` : `${monthIndex + 1}`;
+       const y = year.toString();
        const dStr = day < 10 ? `0${day}` : `${day}`;
-       setNewPostDefaultDate(`${yearStr}-${monthMap[monthStr]}-${dStr}`); 
+       setNewPostDefaultDate(`${y}-${m}-${dStr}`); 
     } else {
        setNewPostDefaultDate('');
     }
@@ -380,12 +402,52 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack }) =
     setSelectedPost(null);
   };
 
+  const handleEditPlan = () => {
+    if (!currentPlan) return;
+    setEditTheme(currentPlan.theme || '');
+    setEditObjectives(currentPlan.objectives?.join('\n') || '');
+    setEditKeyDates(currentPlan.key_dates?.join('\n') || '');
+    setEditCampaigns(currentPlan.campaigns?.join('\n') || '');
+    setIsEditingPlan(true);
+  };
+
+  const handleSavePlan = async () => {
+    if (!currentPlan) return;
+    setIsSavingPlan(true);
+    
+    const objectives = editObjectives.split('\n').map(s => s.trim()).filter(Boolean);
+    const key_dates = editKeyDates.split('\n').map(s => s.trim()).filter(Boolean);
+    const campaigns = editCampaigns.split('\n').map(s => s.trim()).filter(Boolean);
+
+    const success = await updateMonthlyPlan(currentPlan.id, {
+      theme: editTheme,
+      objectives,
+      key_dates,
+      campaigns
+    });
+
+    if (success) {
+      setIsEditingPlan(false);
+    } else {
+      alert("Erro ao salvar o plano mensal.");
+    }
+    setIsSavingPlan(false);
+  };
+
   // --- RENDERS ---
 
-  if (!plan) {
+  if (loadingEditorial) {
+    return (
+      <div className="flex justify-center items-center py-20">
+        <Loader2 size={32} className="animate-spin text-brand-green" />
+      </div>
+    );
+  }
+
+  if (!currentPlan) {
     return (
       <div className="text-center py-20">
-        <h2 className="text-xl font-bold text-gray-800 mb-4">Planejamento em desenvolvimento</h2>
+        <h2 className="text-xl font-bold text-gray-800 mb-4">Plano não encontrado para este mês</h2>
         <button onClick={onBack} className="px-6 py-2 bg-gray-100 rounded-lg">Voltar</button>
       </div>
     );
@@ -419,13 +481,6 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack }) =
 
   // --- CALENDAR RENDERER ---
   const renderCalendar = () => {
-    const monthMap: { [key: string]: number } = {
-      'JANEIRO': 0, 'FEVEREIRO': 1, 'MARÇO': 2, 'ABRIL': 3, 'MAIO': 4, 'JUNHO': 5,
-      'JULHO': 6, 'AGOSTO': 7, 'SETEMBRO': 8, 'OUTUBRO': 9, 'NOVEMBRO': 10, 'DEZEMBRO': 11
-    };
-    const [monthStr, yearStr] = plan.month.split(' ');
-    const monthIndex = monthMap[monthStr.toUpperCase()];
-    const year = parseInt(yearStr);
     const daysInMonth = new Date(year, monthIndex + 1, 0).getDate();
     const firstDayOfWeek = new Date(year, monthIndex, 1).getDay(); 
 
@@ -589,23 +644,108 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack }) =
         <div className="bg-brand-dark text-white p-8 md:p-10 relative overflow-hidden">
            <div className="absolute top-0 right-0 p-8 opacity-10"><CalendarDays size={200} /></div>
            <div className="relative z-10">
-            <h2 className="text-3xl font-extrabold tracking-tight mb-2">{plan.month}</h2>
-            <div className="inline-block bg-white/10 backdrop-blur-sm px-3 py-1 rounded border border-white/20 text-blue-200 text-xs font-bold uppercase tracking-[0.2em] mb-6">Tema: {plan.theme}</div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mt-4">
-               <div>
-                  <h4 className="flex items-center gap-2 text-brand-green font-bold text-sm uppercase tracking-wider mb-2"><Target size={16} /> Objetivo</h4>
-                  <p className="text-gray-300 leading-relaxed">{plan.objective}</p>
-               </div>
-               <div className="bg-white/5 rounded-xl p-5 border border-white/10">
-                  <h4 className="flex items-center gap-2 text-white font-bold text-sm uppercase tracking-wider mb-3"><BarChart3 size={16} /> Visão Geral</h4>
-                  <div className="space-y-4">
-                    <div>
-                      <p className="text-xs text-purple-300 font-bold uppercase mb-1">Meta</p>
-                      <ul className="text-sm text-gray-400 space-y-1">{plan.overview.meta.map((item, i) => <li key={i}>• {item}</li>)}</ul>
-                    </div>
-                  </div>
-               </div>
+            <div className="flex justify-between items-start mb-2">
+              <h2 className="text-3xl font-extrabold tracking-tight">{monthName} {year}</h2>
+              {userRole === 'admin' && !isEditingPlan && (
+                <button 
+                  onClick={handleEditPlan}
+                  className="flex items-center gap-2 px-3 py-1.5 bg-white/10 hover:bg-white/20 rounded-md text-xs font-bold transition-colors"
+                >
+                  <Edit2 size={14} /> Editar Plano
+                </button>
+              )}
             </div>
+
+            {isEditingPlan ? (
+              <div className="bg-white/10 p-6 rounded-xl border border-white/20 mt-4 space-y-4">
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-blue-200 mb-1">Tema do Mês</label>
+                  <input 
+                    type="text" 
+                    value={editTheme} 
+                    onChange={e => setEditTheme(e.target.value)}
+                    className="w-full bg-white/5 border border-white/20 rounded-md px-3 py-2 text-white placeholder-white/30 focus:outline-none focus:border-brand-green"
+                    placeholder="Ex: Inovação e Segurança"
+                  />
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-xs font-bold uppercase tracking-wider text-blue-200 mb-1">Objetivos (um por linha)</label>
+                    <textarea 
+                      value={editObjectives} 
+                      onChange={e => setEditObjectives(e.target.value)}
+                      className="w-full bg-white/5 border border-white/20 rounded-md px-3 py-2 text-white placeholder-white/30 focus:outline-none focus:border-brand-green h-24 resize-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold uppercase tracking-wider text-blue-200 mb-1">Datas Chave (uma por linha)</label>
+                    <textarea 
+                      value={editKeyDates} 
+                      onChange={e => setEditKeyDates(e.target.value)}
+                      className="w-full bg-white/5 border border-white/20 rounded-md px-3 py-2 text-white placeholder-white/30 focus:outline-none focus:border-brand-green h-24 resize-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold uppercase tracking-wider text-blue-200 mb-1">Campanhas (uma por linha)</label>
+                    <textarea 
+                      value={editCampaigns} 
+                      onChange={e => setEditCampaigns(e.target.value)}
+                      className="w-full bg-white/5 border border-white/20 rounded-md px-3 py-2 text-white placeholder-white/30 focus:outline-none focus:border-brand-green h-24 resize-none"
+                    />
+                  </div>
+                </div>
+                <div className="flex justify-end gap-3 mt-4">
+                  <button 
+                    onClick={() => setIsEditingPlan(false)}
+                    className="flex items-center gap-2 px-4 py-2 bg-transparent hover:bg-white/10 text-white rounded-md text-xs font-bold transition-colors"
+                  >
+                    <X size={14} /> Cancelar
+                  </button>
+                  <button 
+                    onClick={handleSavePlan}
+                    disabled={isSavingPlan}
+                    className="flex items-center gap-2 px-4 py-2 bg-brand-green hover:bg-green-600 text-white rounded-md text-xs font-bold transition-colors disabled:opacity-50"
+                  >
+                    {isSavingPlan ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />} 
+                    Salvar Alterações
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <>
+                <div className="inline-block bg-white/10 backdrop-blur-sm px-3 py-1 rounded border border-white/20 text-blue-200 text-xs font-bold uppercase tracking-[0.2em] mb-6 mt-2">
+                  Tema: {currentPlan.theme || 'Não definido'}
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mt-4">
+                   <div className="md:col-span-1">
+                      <h4 className="flex items-center gap-2 text-brand-green font-bold text-sm uppercase tracking-wider mb-2"><Target size={16} /> Objetivos</h4>
+                      <ul className="text-gray-300 leading-relaxed text-sm space-y-1">
+                        {currentPlan.objectives?.map((obj, i) => <li key={i}>• {obj}</li>)}
+                        {(!currentPlan.objectives || currentPlan.objectives.length === 0) && <li>Nenhum objetivo definido.</li>}
+                      </ul>
+                   </div>
+                   <div className="bg-white/5 rounded-xl p-5 border border-white/10 md:col-span-2">
+                      <h4 className="flex items-center gap-2 text-white font-bold text-sm uppercase tracking-wider mb-3"><BarChart3 size={16} /> Visão Geral</h4>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                          <p className="text-xs text-purple-300 font-bold uppercase mb-1">Datas Chave</p>
+                          <ul className="text-sm text-gray-400 space-y-1">
+                            {currentPlan.key_dates?.map((item, i) => <li key={i}>• {item}</li>)}
+                            {(!currentPlan.key_dates || currentPlan.key_dates.length === 0) && <li>Nenhuma data chave.</li>}
+                          </ul>
+                        </div>
+                        <div>
+                          <p className="text-xs text-blue-300 font-bold uppercase mb-1">Campanhas / Entregáveis</p>
+                          <ul className="text-sm text-gray-400 space-y-1">
+                            {currentPlan.campaigns?.map((item, i) => <li key={i}>• {item}</li>)}
+                            {(!currentPlan.campaigns || currentPlan.campaigns.length === 0) && <li>Nenhuma campanha.</li>}
+                          </ul>
+                        </div>
+                      </div>
+                   </div>
+                </div>
+              </>
+            )}
           </div>
         </div>
 

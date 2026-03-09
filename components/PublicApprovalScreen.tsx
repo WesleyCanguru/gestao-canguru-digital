@@ -1,7 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
 import { supabase, parseImageUrl } from '../lib/supabase';
-import { DETAILED_MONTHLY_PLANS } from '../constants';
 import { PostData, PostStatus, DailyContent, PostComment } from '../types';
 import { InstagramView, LinkedInView } from './PlatformViews';
 import { Logo } from './Logo';
@@ -55,38 +54,15 @@ export const PublicApprovalScreen: React.FC = () => {
           .eq('date_key', key)
           .maybeSingle();
 
-      // 2. Busca Estático (Fallback)
-      let staticContent: DailyContent | null = null;
-      const parts = key.split('-');
-      if (parts.length >= 3) {
-          const day = parts[0];
-          const month = parts[1];
-          const searchKey = `${day}/${month}`;
-          
-          for (const plan of DETAILED_MONTHLY_PLANS) {
-               for (const week of plan.weeks) {
-                  for (const d of week.days) {
-                     if (d.day.startsWith(searchKey)) {
-                        const platformInKey = parts.length > 3 ? parts[3] : null;
-                        if (!platformInKey || d.platform === platformInKey) {
-                           staticContent = d;
-                           break;
-                        }
-                     }
-                  }
-                  if (staticContent) break;
-               }
-               if (staticContent) break;
-          }
-      }
-
-      // 3. Monta Objeto Final
+      // 2. Monta Objeto Final
       if (dbData) {
           // Parse image_url if it's a stringified array
           const parsedImage = parseImageUrl(dbData.image_url);
           
+          const parts = key.split('-');
+          
           // Existe no banco
-          const content = staticContent || {
+          const content = {
                 day: `${parts[0]}/${parts[1]}`,
                 platform: (key.includes('linkedin') ? 'linkedin' : 'meta') as 'meta' | 'linkedin',
                 type: dbData.type || 'Post',
@@ -95,16 +71,6 @@ export const PublicApprovalScreen: React.FC = () => {
                 initialImageUrl: (parsedImage as string | string[] | undefined)
           };
           return { post: { ...dbData, image_url: parsedImage } as PostData, content };
-      } else if (staticContent) {
-          // Apenas estático
-          const dummyPost: PostData = {
-              date_key: key,
-              status: staticContent.exclusive ? 'approved' : 'draft',
-              image_url: parseImageUrl(staticContent.initialImageUrl) || null,
-              caption: null,
-              last_updated: new Date().toISOString()
-          };
-          return { post: dummyPost, content: staticContent };
       }
       
       return null; // Não existe
