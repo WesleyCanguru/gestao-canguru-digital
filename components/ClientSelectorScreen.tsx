@@ -61,10 +61,14 @@ export const ClientSelectorScreen: React.FC<ClientSelectorScreenProps> = ({
               >
                 {/* Avatar do cliente */}
                 <div
-                  className="w-12 h-12 rounded-xl flex items-center justify-center text-white font-bold text-lg flex-shrink-0 shadow-sm"
+                  className="w-12 h-12 rounded-xl flex items-center justify-center text-white font-bold text-lg flex-shrink-0 shadow-sm overflow-hidden"
                   style={{ backgroundColor: client.color }}
                 >
-                  {client.initials}
+                  {client.logo_url ? (
+                    <img src={client.logo_url} alt={client.name} className="w-full h-full object-contain mix-blend-multiply" />
+                  ) : (
+                    client.initials
+                  )}
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-brand-dark font-semibold text-sm truncate">{client.name}</p>

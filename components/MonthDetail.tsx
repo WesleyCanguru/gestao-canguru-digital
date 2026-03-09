@@ -64,7 +64,7 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack }) =
   // 1. Helper: Gerar chave única
   const getDateKey = (day: string, platform: string) => {
      const datePart = day.split(' ')[0].replace('/', '-');
-     return `${datePart}-${year}-${platform}`; 
+     return `${datePart}-${year}-${platform}-${activeClient?.id}`; 
   };
 
   // 2. Buscar Dados do Supabase

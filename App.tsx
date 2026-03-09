@@ -5,6 +5,7 @@ import { MonthDetail } from './components/MonthDetail';
 import { LoginScreen } from './components/LoginScreen';
 import { PublicApprovalScreen } from './components/PublicApprovalScreen';
 import { ClientSelectorScreen } from './components/ClientSelectorScreen';
+import { ClientManager } from './components/ClientManager';
 import { OnboardingView } from './components/OnboardingView';
 import { ClientHome } from './components/ClientHome';
 import { BriefingsView } from './components/BriefingsView';
@@ -19,8 +20,7 @@ import { motion, AnimatePresence } from 'motion/react';
 
 type ViewState = 'home' | 'month-detail' | 'onboarding' | 'dashboard' | 'briefings' | 'documents' | 'paid-traffic' | 'website' | 'admin';
 
-interface MainAppProps {
-}
+interface MainAppProps {}
 
 const MainApp: React.FC<MainAppProps> = () => {
   const [view, setView] = useState<ViewState>('dashboard');
@@ -47,11 +47,10 @@ const MainApp: React.FC<MainAppProps> = () => {
       case 'team': return 'Equipe Canguru';
       default: return '';
     }
-  }
+  };
 
   return (
     <div className="min-h-screen flex flex-col font-sans text-brand-dark bg-[#FDFDFD] relative overflow-x-hidden">
-      
       {/* Background Decorations */}
       <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden">
         <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-blue-50/30 rounded-full blur-[120px] animate-pulse"></div>
@@ -61,43 +60,34 @@ const MainApp: React.FC<MainAppProps> = () => {
 
       {/* Header Fixo */}
       <header className="bg-white/70 backdrop-blur-xl border-b border-black/[0.02] sticky top-0 z-50 shadow-[0_1px_10px_rgba(0,0,0,0.02)]">
-        
         {/* Linha Superior: Logo e Botões de Navegação */}
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-24">
-            
             {/* Área de Logos */}
             <div className="flex items-center gap-6 sm:gap-10">
-              <motion.div 
+              <motion.div
                 whileHover={{ scale: 1.02 }}
-                className="cursor-pointer" 
+                className="cursor-pointer flex items-center gap-4"
                 onClick={() => setView('dashboard')}
               >
                 {activeClient?.logo_url ? (
-                  <img 
-                    src={activeClient.logo_url} 
-                    alt={activeClient.name} 
-                    className="h-12 w-auto object-contain mix-blend-multiply" 
-                  />
+                  <img src={activeClient.logo_url} alt={activeClient.name} className="h-20 w-auto object-contain mix-blend-multiply" />
                 ) : (
-                  <span className="text-2xl font-bold text-brand-dark tracking-tighter serif italic">{activeClient?.name}</span>
+                  <span className="text-3xl font-bold text-brand-dark tracking-tighter serif italic">{activeClient?.name}</span>
                 )}
+                <div className="h-6 w-px bg-gray-100 hidden sm:block"></div>
+                <div className="flex items-center gap-2 opacity-40 hover:opacity-100 transition-opacity duration-500">
+                  <span className="text-[7px] uppercase tracking-[0.3em] text-gray-400 font-bold hidden lg:block">Strategy by</span>
+                  <Logo size="small" />
+                </div>
               </motion.div>
-              
-              <div className="h-8 w-px bg-gray-100 hidden sm:block"></div>
-              
-              <div className="flex items-center gap-4 opacity-40 hover:opacity-100 transition-opacity duration-500">
-                <span className="text-[8px] uppercase tracking-[0.4em] text-gray-400 font-bold hidden lg:block">Strategy by</span>
-                <Logo size="small" />
-              </div>
             </div>
-            
+
             <div className="flex items-center gap-4">
               <div className="hidden md:flex flex-col items-end mr-4">
                 <span className="text-[8px] uppercase tracking-[0.3em] text-gray-400 font-bold mb-0.5">Membro Premium</span>
                 <span className="text-[11px] font-bold text-brand-dark uppercase tracking-widest">{getRoleLabel()}</span>
               </div>
-
               {userRole === 'admin' && (
                 <button
                   onClick={() => setActiveClient(null)}
@@ -108,7 +98,6 @@ const MainApp: React.FC<MainAppProps> = () => {
                   <span className="hidden sm:inline">Trocar Cliente</span>
                 </button>
               )}
-
               {userRole === 'admin' && (
                 <button
                   onClick={() => setView('admin')}
@@ -122,7 +111,6 @@ const MainApp: React.FC<MainAppProps> = () => {
                   <span className="hidden sm:inline">Admin</span>
                 </button>
               )}
-
               <button
                 onClick={logout}
                 className="p-3 rounded-2xl bg-red-50/50 text-red-400 hover:bg-red-50 hover:text-red-600 transition-all active:scale-95 border border-red-100/20"
@@ -134,10 +122,10 @@ const MainApp: React.FC<MainAppProps> = () => {
           </div>
         </div>
 
-        {/* Linha Inferior: Navegação dos Meses (Scroll Horizontal) - Apenas no Mapa Editorial */}
+        {/* Linha Inferior: Navegação dos Meses */}
         <AnimatePresence>
           {(view === 'home' || view === 'month-detail') && (
-            <motion.div 
+            <motion.div
               initial={{ height: 0, opacity: 0 }}
               animate={{ height: 'auto', opacity: 1 }}
               exit={{ height: 0, opacity: 0 }}
@@ -148,15 +136,14 @@ const MainApp: React.FC<MainAppProps> = () => {
                   {monthlyPlans.map((plan) => {
                     const monthName = MONTH_NAMES[plan.month - 1];
                     const isActive = selectedMonth === monthName;
-                    
                     return (
                       <button
                         key={plan.id}
                         onClick={() => handleSelectMonth(monthName)}
                         className={`
                           whitespace-nowrap px-6 py-2.5 rounded-full text-[10px] font-bold uppercase tracking-[0.2em] transition-all border
-                          ${isActive 
-                            ? 'bg-brand-dark border-brand-dark text-white shadow-xl transform scale-105' 
+                          ${isActive
+                            ? 'bg-brand-dark border-brand-dark text-white shadow-xl transform scale-105'
                             : 'bg-white border-black/[0.03] text-gray-400 hover:border-brand-dark hover:text-brand-dark'
                           }
                         `}
@@ -173,22 +160,20 @@ const MainApp: React.FC<MainAppProps> = () => {
       </header>
 
       {/* Main Content */}
-      <main className="flex-grow py-12 sm:py-20">
+      <main className="flex-grow py-6 sm:py-10">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          
-          {/* Breadcrumb simples visual quando estiver no detalhe */}
           <AnimatePresence mode="wait">
             {view === 'month-detail' && (
-               <motion.div 
+              <motion.div
                 initial={{ opacity: 0, x: -10 }}
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: -10 }}
                 className="mb-12 flex items-center gap-4 text-[10px] font-bold text-gray-400 uppercase tracking-[0.3em]"
-               >
-                  <span onClick={handleBackToHome} className="cursor-pointer hover:text-brand-dark transition-colors">Mapa Anual</span>
-                  <ChevronRight size={12} className="opacity-30" />
-                  <span className="text-brand-dark">{selectedMonth}</span>
-               </motion.div>
+              >
+                <span onClick={handleBackToHome} className="cursor-pointer hover:text-brand-dark transition-colors">Mapa Anual</span>
+                <ChevronRight size={12} className="opacity-30" />
+                <span className="text-brand-dark">{selectedMonth}</span>
+              </motion.div>
             )}
           </AnimatePresence>
 
@@ -224,26 +209,19 @@ const MainApp: React.FC<MainAppProps> = () => {
               ) : view === 'home' ? (
                 <AnnualOverview onSelectMonth={handleSelectMonth} />
               ) : (
-                <MonthDetail 
-                  monthName={selectedMonth || ''} 
-                  onBack={handleBackToHome} 
-                />
+                <MonthDetail monthName={selectedMonth || ''} onBack={handleBackToHome} />
               )}
             </motion.div>
           </AnimatePresence>
-
         </div>
       </main>
 
       {/* Footer */}
       <footer className="bg-white border-t border-gray-100 mt-auto py-12">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col md:flex-row justify-between items-center gap-10">
-          
-          {/* Logos Footer */}
           <div className="flex flex-col sm:flex-row items-center gap-8 opacity-40 hover:opacity-100 transition-opacity duration-500">
-             <Logo size="small" />
+            <Logo size="small" />
           </div>
-
           <div className="flex flex-col items-center md:items-end gap-2">
             <p className="text-[10px] text-gray-400 uppercase tracking-[0.4em] font-bold text-center md:text-right">
               Bolsa • Canguru Digital 2026
@@ -260,39 +238,46 @@ const MainApp: React.FC<MainAppProps> = () => {
 
 const AppContent: React.FC = () => {
   const { isAuthenticated, userRole, activeClient, logout } = useAuth();
+  const [showClientManager, setShowClientManager] = useState(false);
 
   if (!isAuthenticated) {
     return <LoginScreen />;
   }
 
   if (userRole === 'admin' && !activeClient) {
+    if (showClientManager) {
+      return (
+        <ClientManager
+          onBack={() => setShowClientManager(false)}
+        />
+      );
+    }
     return (
-      <ClientSelectorScreen 
-        onSelectClient={() => {}} 
-        onManageClients={() => {}} 
+      <ClientSelectorScreen
+        onSelectClient={() => {}}
+        onManageClients={() => setShowClientManager(true)}
         onLogout={() => {
           logout();
-        }} 
+        }}
       />
     );
   }
 
   return <MainApp />;
-}
+};
 
 const App: React.FC = () => {
-  // Simple routing logic to check for Public Link
   const [isPublicMode, setIsPublicMode] = useState(false);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     if (params.get('mode') === 'public' && params.get('id')) {
-       setIsPublicMode(true);
+      setIsPublicMode(true);
     }
   }, []);
 
   if (isPublicMode) {
-     return <PublicApprovalScreen />;
+    return <PublicApprovalScreen />;
   }
 
   return (

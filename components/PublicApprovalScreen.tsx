@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { supabase, parseImageUrl } from '../lib/supabase';
-import { PostData, PostStatus, DailyContent, PostComment } from '../types';
+import { PostData, PostStatus, DailyContent, PostComment, Client } from '../types';
 import { InstagramView, LinkedInView } from './PlatformViews';
 import { Logo } from './Logo';
 import { CheckCircle2, AlertTriangle, Send, User, Loader2, XCircle, Instagram, Linkedin, MessageSquare } from 'lucide-react';
@@ -17,6 +17,7 @@ export const PublicApprovalScreen: React.FC = () => {
   
   // Comments State
   const [comments, setComments] = useState<PostComment[]>([]);
+  const [client, setClient] = useState<Client | null>(null);
 
   // View State
   const [activeTab, setActiveTab] = useState<'meta' | 'linkedin'>('meta'); // Default, atualizado no load
@@ -56,6 +57,14 @@ export const PublicApprovalScreen: React.FC = () => {
 
       // 2. Monta Objeto Final
       if (dbData) {
+          // Fetch client data
+          const { data: clientData } = await supabase
+             .from('clients')
+             .select('*')
+             .eq('id', dbData.client_id)
+             .maybeSingle();
+          if (clientData) setClient(clientData as Client);
+
           // Parse image_url if it's a stringified array
           const parsedImage = parseImageUrl(dbData.image_url);
           
@@ -312,7 +321,18 @@ export const PublicApprovalScreen: React.FC = () => {
        {/* Header Public */}
        <header className="bg-white border-b border-gray-200 py-4 sticky top-0 z-20">
           <div className="max-w-3xl mx-auto px-4 flex justify-between items-center">
-             <Logo size="small" />
+             <div className="flex items-center gap-4">
+                {client?.logo_url ? (
+                   <img src={client.logo_url} alt={client.name} className="h-20 w-auto object-contain mix-blend-multiply" />
+                ) : (
+                   <span className="text-3xl font-bold text-brand-dark tracking-tighter serif italic">{client?.name}</span>
+                )}
+                <div className="h-6 w-px bg-gray-100 hidden sm:block"></div>
+                <div className="flex items-center gap-2 opacity-40 hover:opacity-100 transition-opacity duration-500">
+                   <span className="text-[7px] uppercase tracking-[0.3em] text-gray-400 font-bold hidden lg:block">Strategy by</span>
+                   <Logo size="small" />
+                </div>
+             </div>
              <div className="text-right">
                 <span className="block text-[10px] text-gray-400 uppercase tracking-widest font-bold">Ambiente de Aprovação</span>
                 {userName && <span className="text-xs font-bold text-blue-600">Olá, {userName}</span>}

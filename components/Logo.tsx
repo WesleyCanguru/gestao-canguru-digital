@@ -24,7 +24,7 @@ export const Logo: React.FC<LogoProps> = ({ size = 'large', className = '', show
             <img
               src="https://i.postimg.cc/ZRYDpRWD/Rebranding-Canguru-Digital-(5000-x-2500-px).png"
               alt="Canguru Digital"
-              className="h-3 w-auto object-contain mix-blend-multiply"
+              className="h-6 w-auto object-contain mix-blend-multiply"
             />
           </div>
         )}

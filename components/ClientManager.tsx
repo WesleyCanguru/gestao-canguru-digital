@@ -8,7 +8,11 @@ interface ClientManagerProps {
   onBack: () => void;
 }
 
-const COLORS = ['#1e40af','#16a34a','#dc2626','#9333ea','#d97706','#0891b2','#be185d','#475569'];
+const COLORS = [
+  '#1e40af','#16a34a','#dc2626','#9333ea','#d97706','#0891b2','#be185d','#475569',
+  '#E0F2FE', '#DCFCE7', '#FEE2E2', '#F3E8FF', '#FEF3C7', '#ECFEFF', '#FCE7F3', '#F1F5F9',
+  '#FFEDD5', '#CCFBF1', '#F5F3FF', '#FDF2F8'
+];
 const AVAILABLE_SERVICES = ["Social Media", "Tráfego Pago", "Website", "Identidade Visual", "Papelaria", "E-mail Marketing"];
 
 export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
@@ -28,7 +32,9 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
     initials: '',
     services: [] as string[],
     password: '',
+    logo_url: '',
   });
+  const [uploading, setUploading] = useState(false);
 
   const fetchClients = async () => {
     setLoading(true);
@@ -58,6 +64,7 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
           color: form.color,
           initials: form.initials.trim().toUpperCase().slice(0, 2),
           services: form.services,
+          logo_url: form.logo_url || null,
         }])
         .select()
         .single();
@@ -110,6 +117,7 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
         initials: '', 
         services: [],
         password: '',
+        logo_url: '',
       });
       setShowForm(false);
       fetchClients();
@@ -125,6 +133,25 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
     if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
     if (parts.length === 1 && parts[0].length >= 2) return parts[0].slice(0, 2).toUpperCase();
     return '';
+  };
+
+  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files || e.target.files.length === 0) return;
+    setUploading(true);
+    try {
+      const file = e.target.files[0];
+      const fileExt = file.name.split('.').pop();
+      const fileName = `logo-${Date.now()}.${fileExt}`;
+      const { error } = await supabase.storage.from('post-uploads').upload(fileName, file);
+      if (error) throw error;
+      const { data } = supabase.storage.from('post-uploads').getPublicUrl(fileName);
+      setForm(f => ({ ...f, logo_url: data.publicUrl }));
+    } catch (err) {
+      console.error('Erro no upload do logo:', err);
+      alert('Erro ao enviar o logotipo.');
+    } finally {
+      setUploading(false);
+    }
   };
 
   return (
@@ -215,6 +242,35 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
                 </div>
               </div>
 
+              <div className="sm:col-span-2">
+                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Logotipo do Cliente</label>
+                <div className="flex items-center gap-4">
+                  <div className="w-16 h-16 rounded-xl border-2 border-dashed border-gray-300 flex items-center justify-center overflow-hidden bg-gray-50">
+                    {form.logo_url ? (
+                      <img src={form.logo_url} alt="Logo preview" className="w-full h-full object-contain mix-blend-multiply" />
+                    ) : (
+                      <Building2 className="text-gray-300" size={24} />
+                    )}
+                  </div>
+                  <div className="flex-1">
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleLogoUpload}
+                      className="hidden"
+                      id="logo-upload"
+                    />
+                    <label
+                      htmlFor="logo-upload"
+                      className="inline-flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-lg text-sm font-semibold text-gray-700 hover:bg-gray-50 cursor-pointer transition-colors"
+                    >
+                      {uploading ? 'Enviando...' : 'Selecionar Logotipo'}
+                    </label>
+                    <p className="text-[10px] text-gray-400 mt-1">PNG ou JPG com fundo transparente preferencialmente.</p>
+                  </div>
+                </div>
+              </div>
+
               <div>
                 <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Iniciais (2 letras) *</label>
                 <input type="text" value={form.initials} maxLength={2}
@@ -225,13 +281,22 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
 
               <div>
                 <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Cor do Cliente</label>
-                <div className="flex gap-2 flex-wrap">
+                <div className="flex gap-2 flex-wrap mb-3">
                   {COLORS.map(c => (
                     <button key={c} onClick={() => setForm(f => ({...f, color: c}))}
                       className="w-8 h-8 rounded-lg border-2 transition-all"
                       style={{ backgroundColor: c, borderColor: form.color === c ? '#000' : 'transparent' }}
                     />
                   ))}
+                </div>
+                <div className="flex items-center gap-3">
+                  <input 
+                    type="color" 
+                    value={form.color} 
+                    onChange={e => setForm(f => ({...f, color: e.target.value}))}
+                    className="w-10 h-10 rounded-lg border border-gray-300 cursor-pointer p-1 bg-white"
+                  />
+                  <span className="text-xs text-gray-500 font-mono uppercase">{form.color}</span>
                 </div>
               </div>
 
@@ -278,12 +343,19 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
               </div>
 
               {/* Preview */}
-              <div className="sm:col-span-2 flex items-center gap-3 p-3 bg-gray-50 rounded-xl">
-                <div className="w-10 h-10 rounded-lg flex items-center justify-center text-white font-bold text-sm"
+              <div className="sm:col-span-2 flex items-center gap-4 p-4 bg-gray-50 rounded-2xl border border-black/[0.02]">
+                <div className="w-12 h-12 rounded-xl flex items-center justify-center text-white font-bold text-lg shadow-sm overflow-hidden"
                   style={{ backgroundColor: form.color }}>
-                  {form.initials || '?'}
+                  {form.logo_url ? (
+                    <img src={form.logo_url} alt="Logo" className="w-full h-full object-contain mix-blend-multiply" />
+                  ) : (
+                    form.initials || '?'
+                  )}
                 </div>
-                <span className="text-sm font-semibold text-gray-700">{form.name || 'Nome do cliente'}</span>
+                <div>
+                  <span className="block text-sm font-bold text-gray-800">{form.name || 'Nome do cliente'}</span>
+                  <span className="block text-[10px] text-gray-400 uppercase tracking-wider">{form.segment || 'Segmento'}</span>
+                </div>
               </div>
             </div>
 
@@ -306,10 +378,14 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
         ) : (
           <div className="space-y-3">
             {clients.map(client => (
-              <div key={client.id} className="flex items-center gap-4 p-4 bg-white rounded-xl border border-gray-200">
-                <div className="w-11 h-11 rounded-xl flex items-center justify-center text-white font-bold text-sm flex-shrink-0"
+              <div key={client.id} className="flex items-center gap-4 p-4 bg-white rounded-2xl border border-gray-200 shadow-sm hover:shadow-md transition-shadow">
+                <div className="w-12 h-12 rounded-xl flex items-center justify-center text-white font-bold text-sm flex-shrink-0 shadow-sm overflow-hidden"
                   style={{ backgroundColor: client.color }}>
-                  {client.initials}
+                  {client.logo_url ? (
+                    <img src={client.logo_url} alt={client.name} className="w-full h-full object-contain mix-blend-multiply" />
+                  ) : (
+                    client.initials
+                  )}
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="font-semibold text-gray-900 text-sm">{client.name}</p>

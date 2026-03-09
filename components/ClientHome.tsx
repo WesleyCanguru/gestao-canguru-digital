@@ -133,7 +133,7 @@ export const ClientHome: React.FC<ClientHomeProps> = ({
   };
 
   return (
-    <div className="flex flex-col items-center justify-center relative pb-20">
+    <div className="flex flex-col items-center justify-center relative pb-10">
       
       {/* Background Elements */}
       <div className="absolute top-0 left-1/4 w-[500px] h-[500px] bg-blue-50/30 rounded-full blur-[120px] -z-10 animate-pulse"></div>
@@ -143,22 +143,22 @@ export const ClientHome: React.FC<ClientHomeProps> = ({
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
-        className="max-w-4xl w-full text-center mb-20 space-y-8"
+        className="max-w-4xl w-full text-center mb-8 space-y-4"
       >
-        <div className="inline-flex items-center gap-3 px-5 py-2 rounded-full bg-white border border-black/[0.02] shadow-[0_2px_10px_rgba(0,0,0,0.02)] mb-4">
+        <div className="inline-flex items-center gap-3 px-5 py-2 rounded-full bg-white border border-black/[0.02] shadow-[0_2px_10px_rgba(0,0,0,0.02)] mb-2">
           <span className="w-2 h-2 rounded-full bg-green-500 shadow-[0_0_10px_rgba(34,197,94,0.4)] animate-pulse"></span>
           <span className="text-[10px] font-bold uppercase tracking-[0.3em] text-gray-400">Ambiente Seguro • {clientName}</span>
         </div>
         
-        <div className="space-y-4">
-          <h1 className="text-6xl md:text-8xl font-bold tracking-tighter text-brand-dark leading-[0.85]">
+        <div className="space-y-3">
+          <h1 className="text-4xl md:text-6xl font-bold tracking-tighter text-brand-dark leading-[0.8]">
             Bolsa <br />
             <span className="serif italic font-normal text-gray-300">Estratégia & Gestão</span>
           </h1>
-          <div className="w-20 h-1 bg-brand-dark mx-auto opacity-5 rounded-full"></div>
+          <div className="w-10 h-1 bg-brand-dark mx-auto opacity-5 rounded-full"></div>
         </div>
         
-        <p className="text-xl md:text-2xl text-gray-500 max-w-2xl mx-auto leading-relaxed font-medium">
+        <p className="text-base md:text-lg text-gray-500 max-w-xl mx-auto leading-relaxed font-medium">
           O lugar onde a Canguru Digital guarda tudo da sua marca. 
           Acompanhe a linha editorial, monitore métricas e visualize o crescimento da {clientName}.
         </p>
@@ -169,7 +169,7 @@ export const ClientHome: React.FC<ClientHomeProps> = ({
         <motion.div 
           initial={{ opacity: 0, scale: 0.98 }}
           animate={{ opacity: 1, scale: 1 }}
-          className="max-w-6xl w-full mb-12 flex flex-col sm:flex-row gap-6"
+          className="max-w-6xl w-full mb-8 flex flex-col sm:flex-row gap-6"
         >
           {onboardingPending > 0 && (
             <motion.div 
