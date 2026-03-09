@@ -8,11 +8,12 @@ import { LoginScreen } from './components/LoginScreen';
 import { PublicApprovalScreen } from './components/PublicApprovalScreen';
 import { LandingPage } from './components/LandingPage';
 import { ClientSelectorScreen } from './components/ClientSelectorScreen';
+import { OnboardingView } from './components/OnboardingView';
 import { useEditorialData, MONTH_NAMES } from './hooks/useEditorialData';
-import { Map, ChevronRight, LogOut, Home, Building2 } from 'lucide-react';
+import { Map, ChevronRight, LogOut, Home, Building2, ClipboardList } from 'lucide-react';
 import { AuthProvider, useAuth } from './lib/supabase';
 
-type ViewState = 'home' | 'month-detail';
+type ViewState = 'home' | 'month-detail' | 'onboarding';
 
 interface MainAppProps {
   onBack?: () => void;
@@ -112,6 +113,18 @@ const MainApp: React.FC<MainAppProps> = ({ onBack }) => {
               </button>
 
               <button
+                onClick={() => setView('onboarding')}
+                className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-bold uppercase tracking-wider transition-all ${
+                  view === 'onboarding'
+                    ? 'bg-brand-dark text-white shadow-md'
+                    : 'bg-gray-100 text-gray-500 hover:text-gray-900 hover:bg-gray-200'
+                }`}
+              >
+                <ClipboardList size={14} />
+                <span className="hidden sm:inline">Onboarding</span>
+              </button>
+
+              <button
                 onClick={logout}
                 className="p-2 rounded-md bg-red-50 text-red-400 hover:bg-red-100 hover:text-red-600 transition-colors"
                 title="Sair"
@@ -164,7 +177,9 @@ const MainApp: React.FC<MainAppProps> = ({ onBack }) => {
              </div>
           )}
 
-          {view === 'home' ? (
+          {view === 'onboarding' ? (
+            <OnboardingView />
+          ) : view === 'home' ? (
             <AnnualOverview onSelectMonth={handleSelectMonth} />
           ) : (
             <MonthDetail 
