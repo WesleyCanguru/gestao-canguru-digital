@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Logo } from './components/Logo';
 import { AgencyLogo } from './components/AgencyLogo';
@@ -9,18 +8,19 @@ import { PublicApprovalScreen } from './components/PublicApprovalScreen';
 import { LandingPage } from './components/LandingPage';
 import { ClientSelectorScreen } from './components/ClientSelectorScreen';
 import { OnboardingView } from './components/OnboardingView';
+import { ClientHome } from './components/ClientHome';
 import { useEditorialData, MONTH_NAMES } from './hooks/useEditorialData';
-import { Map, ChevronRight, LogOut, Home, Building2, ClipboardList } from 'lucide-react';
+import { Map, ChevronRight, LogOut, Home, Building2, ClipboardList, LayoutDashboard } from 'lucide-react';
 import { AuthProvider, useAuth } from './lib/supabase';
 
-type ViewState = 'home' | 'month-detail' | 'onboarding';
+type ViewState = 'home' | 'month-detail' | 'onboarding' | 'dashboard';
 
 interface MainAppProps {
   onBack?: () => void;
 }
 
 const MainApp: React.FC<MainAppProps> = ({ onBack }) => {
-  const [view, setView] = useState<ViewState>('home');
+  const [view, setView] = useState<ViewState>('dashboard');
   const [selectedMonth, setSelectedMonth] = useState<string | null>(null);
   const { userRole, logout, activeClient, setActiveClient } = useAuth();
   const { monthlyPlans } = useEditorialData();
@@ -52,13 +52,13 @@ const MainApp: React.FC<MainAppProps> = ({ onBack }) => {
       {/* Header Fixo */}
       <header className="bg-surface-light border-b border-gray-200 sticky top-0 z-50 shadow-sm bg-opacity-95 backdrop-blur-md">
         
-        {/* Linha Superior: Logo e Botão Home */}
+        {/* Linha Superior: Logo e Botões de Navegação */}
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             
             {/* Área de Logos */}
             <div className="flex items-center gap-4 sm:gap-6">
-              <div className="cursor-pointer" onClick={handleBackToHome}>
+              <div className="cursor-pointer" onClick={() => setView('dashboard')}>
                 <Logo size="small" />
               </div>
               
@@ -101,10 +101,22 @@ const MainApp: React.FC<MainAppProps> = ({ onBack }) => {
               )}
 
               <button
+                onClick={() => setView('dashboard')}
+                className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-bold uppercase tracking-wider transition-all ${
+                  view === 'dashboard'
+                    ? 'bg-brand-dark text-white shadow-md'
+                    : 'bg-gray-100 text-gray-500 hover:text-gray-900 hover:bg-gray-200'
+                }`}
+              >
+                <LayoutDashboard size={14} />
+                <span className="hidden sm:inline">Painel</span>
+              </button>
+
+              <button
                 onClick={handleBackToHome}
                 className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-bold uppercase tracking-wider transition-all ${
-                  view === 'home' 
-                    ? 'bg-brand-dark text-white shadow-md' 
+                  view === 'home'
+                    ? 'bg-brand-dark text-white shadow-md'
                     : 'bg-gray-100 text-gray-500 hover:text-gray-900 hover:bg-gray-200'
                 }`}
               >
@@ -177,7 +189,12 @@ const MainApp: React.FC<MainAppProps> = ({ onBack }) => {
              </div>
           )}
 
-          {view === 'onboarding' ? (
+          {view === 'dashboard' ? (
+            <ClientHome
+              onNavigateToOnboarding={() => setView('onboarding')}
+              onNavigateToMapa={() => setView('home')}
+            />
+          ) : view === 'onboarding' ? (
             <OnboardingView />
           ) : view === 'home' ? (
             <AnnualOverview onSelectMonth={handleSelectMonth} />
