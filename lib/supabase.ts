@@ -3,21 +3,23 @@ import { createClient } from '@supabase/supabase-js';
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { UserRole, Client } from '../types';
 
-// =================================================================
-// ⚠️ PASSO FINAL: COLE SUAS CHAVES DO SUPABASE AQUI
-// =================================================================
-
 const SUPABASE_URL = 'https://wtzphiyybitcucwkfpgv.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_uLQGmz7lWazPN1Uqb4_4vQ_HggVpMz9';
 
-// =================================================================
-
 export const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+
+export const hashPassword = async (password: string): Promise<string> => {
+  const msgBuffer = new TextEncoder().encode(password);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+};
 
 interface AuthContextType {
   userRole: UserRole | null;
   activeClient: Client | null;
   login: (role: UserRole) => void;
+  loginByPassword: (password: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => void;
   setActiveClient: (client: Client | null) => void;
   isAuthenticated: boolean;
@@ -27,6 +29,7 @@ const AuthContext = createContext<AuthContextType>({
   userRole: null,
   activeClient: null,
   login: () => {},
+  loginByPassword: async () => ({ success: false }),
   logout: () => {},
   setActiveClient: () => {},
   isAuthenticated: false,
@@ -44,7 +47,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const login = (role: UserRole) => {
     setUserRole(role);
     localStorage.setItem('next_app_role', role);
-    // approver e team ficam sempre na NEXT Safety automaticamente
     if (role !== 'admin') {
       const nextSafety: Client = {
         id: '75b00b27-61ee-4b23-8721-70748ccb0789',
@@ -57,10 +59,61 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         initials: 'NS',
         logo_url: null,
         is_active: true,
+        services: [] as string[],
+        reportei_url: null,
       };
       setActiveClientState(nextSafety);
       localStorage.setItem('next_app_client', JSON.stringify(nextSafety));
     }
+  };
+
+  const loginByPassword = async (password: string): Promise<{ success: boolean; error?: string }> => {
+    const cleanPass = password.trim();
+
+    // 1. Verificar senhas da agência (Hardcoded)
+    if (cleanPass === 'Canguru2026') {
+      login('admin');
+      return { success: true };
+    } else if (cleanPass === 'Vivi2026') {
+      login('approver');
+      return { success: true };
+    } else if (cleanPass === 'Next2026') {
+      login('team');
+      return { success: true };
+    }
+
+    // 2. Verificar senhas de clientes no banco de dados
+    const hashedPassword = await hashPassword(cleanPass);
+    
+    const { data, error } = await supabase
+      .from('client_users')
+      .select('id, client_id, role, password_hash')
+      .eq('password_hash', hashedPassword)
+      .eq('is_active', true)
+      .limit(1)
+      .maybeSingle();
+
+    if (error || !data) {
+      return { success: false, error: 'Chave de acesso inválida.' };
+    }
+
+    const { data: clientResult, error: clientError } = await supabase
+      .from('clients')
+      .select('*')
+      .eq('id', data.client_id)
+      .single();
+
+    if (clientError || !clientResult) {
+      return { success: false, error: 'Cliente não encontrado.' };
+    }
+
+    const role = data.role as UserRole;
+    setUserRole(role);
+    setActiveClientState(clientResult as Client);
+    localStorage.setItem('next_app_role', role);
+    localStorage.setItem('next_app_client', JSON.stringify(clientResult));
+
+    return { success: true };
   };
 
   const logout = () => {
@@ -81,7 +134,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   return React.createElement(
     AuthContext.Provider,
-    { value: { userRole, activeClient, login, logout, setActiveClient, isAuthenticated: !!userRole } },
+    { value: { userRole, activeClient, login, loginByPassword, logout, setActiveClient, isAuthenticated: !!userRole } },
     children
   );
 };
@@ -92,14 +145,11 @@ export const parseImageUrl = (url: string | string[] | null): string | string[] 
   if (!url) return null;
   if (Array.isArray(url)) return url;
   try {
-    // Check if it's a JSON array string
     if (typeof url === 'string' && url.trim().startsWith('[') && url.trim().endsWith(']')) {
       const parsed = JSON.parse(url);
       if (Array.isArray(parsed)) return parsed;
     }
-  } catch (e) {
-    // Ignore error, return as string
-  }
+  } catch (e) {}
   return url;
 };
 

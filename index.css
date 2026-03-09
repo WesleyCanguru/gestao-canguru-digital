@@ -1,0 +1,52 @@
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Playfair+Display:ital,wght@0,400..900;1,400..900&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply antialiased text-brand-dark bg-background-light;
+    font-family: 'Inter', sans-serif;
+  }
+}
+
+@layer components {
+  .premium-card {
+    @apply bg-white rounded-3xl border border-black/[0.03] shadow-[0_4px_20px_rgba(0,0,0,0.03)] transition-all duration-300;
+  }
+  
+  .premium-card:hover {
+    @apply shadow-[0_8px_30px_rgba(0,0,0,0.06)] border-black/[0.06] -translate-y-1;
+  }
+
+  .premium-button {
+    @apply px-6 py-3 rounded-2xl font-bold text-sm tracking-tight transition-all duration-300 flex items-center justify-center gap-2;
+  }
+
+  .premium-button-primary {
+    @apply bg-brand-dark text-white hover:bg-gray-800 shadow-lg hover:shadow-xl active:scale-95;
+  }
+
+  .premium-button-secondary {
+    @apply bg-white text-brand-dark border border-black/[0.05] hover:bg-gray-50 active:scale-95;
+  }
+
+  .premium-label {
+    @apply text-[10px] uppercase tracking-[0.2em] font-bold text-gray-400;
+  }
+
+  .serif {
+    font-family: 'Playfair Display', serif;
+  }
+}
+
+/* Hide scrollbar but keep functionality */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}

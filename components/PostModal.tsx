@@ -1,5 +1,6 @@
 
 import React, { useState, useEffect, useRef } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
 import { DailyContent, PostData, PostComment, PostStatus } from '../types';
 import { useAuth, supabase, parseImageUrl, stringifyImageUrl } from '../lib/supabase';
 import { X, Send, Image as ImageIcon, CheckCircle2, AlertTriangle, Save, UploadCloud, Trash2, Edit3, RefreshCw, Link, Check, Calendar, Instagram, Linkedin, ChevronDown, Layers, Copy, LayoutTemplate } from 'lucide-react';
@@ -509,34 +510,58 @@ export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, onClo
 
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-2 sm:p-4">
-      <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={onClose}></div>
-      <div className="bg-white w-full max-w-[98%] xl:max-w-[90rem] h-[95vh] rounded-xl shadow-2xl relative z-10 flex flex-col md:flex-row overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+      <motion.div 
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        className="absolute inset-0 bg-brand-dark/40 backdrop-blur-md" 
+        onClick={onClose}
+      />
+      <motion.div 
+        initial={{ opacity: 0, scale: 0.95, y: 20 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.95, y: 20 }}
+        transition={{ type: "spring", damping: 25, stiffness: 300 }}
+        className="bg-[#fcfbf9] w-full max-w-[98%] xl:max-w-[95rem] h-[95vh] rounded-[2.5rem] shadow-[0_50px_100px_rgba(0,0,0,0.25)] relative z-10 flex flex-col md:flex-row overflow-hidden border border-white/20"
+      >
+        {/* Background Decorations inside Modal */}
+        <div className="absolute inset-0 pointer-events-none z-0 overflow-hidden opacity-30">
+          <div className="absolute top-[-10%] right-[-10%] w-[40%] h-[40%] bg-blue-50 rounded-full blur-[100px]"></div>
+          <div className="absolute bottom-[-10%] left-[-10%] w-[40%] h-[40%] bg-purple-50 rounded-full blur-[100px]"></div>
+        </div>
         
-        <button onClick={onClose} className="absolute top-3 right-3 z-50 p-2 bg-white rounded-full text-gray-500 hover:text-red-500 shadow-md border border-gray-100 transition-colors"><X size={20} /></button>
+        <button onClick={onClose} className="absolute top-6 right-6 z-50 p-3 bg-white/80 backdrop-blur-md rounded-full text-gray-400 hover:text-red-500 shadow-xl border border-white/50 transition-all hover:scale-110 active:scale-95"><X size={20} /></button>
 
         {/* ================= LEFT: PREVIEW ================= */}
-        <div className="w-full md:w-[60%] bg-gray-100 flex flex-col border-r border-gray-200 overflow-y-auto custom-scrollbar relative">
+        <div className="w-full md:w-[65%] bg-[#1a1c20] flex flex-col border-r border-white/5 overflow-y-auto custom-scrollbar relative">
            
            {/* Header: Status + Preview Tabs */}
-           <div className="sticky top-0 z-20 w-full p-4 flex justify-between items-start pointer-events-none">
-                <div className="flex gap-2">
-                    {!isNew && <span className="pointer-events-auto px-4 py-1.5 rounded-full text-xs font-bold border uppercase bg-white shadow-sm text-gray-600">
+           <div className="sticky top-0 z-20 w-full p-6 flex justify-between items-start pointer-events-none">
+                <div className="flex gap-3">
+                    {!isNew && (
+                      <div className="pointer-events-auto flex items-center gap-2 px-4 py-2 rounded-full text-[10px] font-bold border uppercase bg-white/10 backdrop-blur-md border-white/10 shadow-xl text-white tracking-widest">
+                        <div className={`w-2 h-2 rounded-full animate-pulse ${
+                          post?.status === 'approved' ? 'bg-green-400' : 
+                          post?.status === 'published' ? 'bg-blue-400' : 
+                          post?.status === 'changes_requested' ? 'bg-red-400' : 'bg-yellow-400'
+                        }`} />
                         {getStatusLabel(post?.status || 'draft')}
-                    </span>}
+                      </div>
+                    )}
                 </div>
                 
                 {/* Preview Toggles (Only if both selected) */}
                 {selectedPlatforms.length > 1 && (
-                    <div className="pointer-events-auto bg-white p-1 rounded-lg shadow-sm border border-gray-200 flex gap-1">
+                    <div className="pointer-events-auto bg-white/5 backdrop-blur-md p-1.5 rounded-xl shadow-2xl border border-white/10 flex gap-1.5">
                         <button 
                             onClick={() => setPreviewPlatform('meta')}
-                            className={`px-3 py-1.5 rounded-md text-xs font-bold flex items-center gap-2 transition-all ${previewPlatform === 'meta' ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-sm' : 'text-gray-500 hover:bg-gray-50'}`}
+                            className={`px-4 py-2 rounded-lg text-[10px] font-bold flex items-center gap-2 transition-all tracking-widest uppercase ${previewPlatform === 'meta' ? 'bg-white text-black shadow-lg' : 'text-white/60 hover:text-white hover:bg-white/5'}`}
                         >
                             <Instagram size={14} /> Instagram
                         </button>
                         <button 
                             onClick={() => setPreviewPlatform('linkedin')}
-                            className={`px-3 py-1.5 rounded-md text-xs font-bold flex items-center gap-2 transition-all ${previewPlatform === 'linkedin' ? 'bg-[#0077B5] text-white shadow-sm' : 'text-gray-500 hover:bg-gray-50'}`}
+                            className={`px-4 py-2 rounded-lg text-[10px] font-bold flex items-center gap-2 transition-all tracking-widest uppercase ${previewPlatform === 'linkedin' ? 'bg-white text-black shadow-lg' : 'text-white/60 hover:text-white hover:bg-white/5'}`}
                         >
                             <Linkedin size={14} /> LinkedIn
                         </button>
@@ -544,8 +569,8 @@ export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, onClo
                 )}
            </div>
 
-           <div className="flex-grow p-6 sm:p-10 flex items-start justify-center">
-             <div className="w-full max-w-lg transition-all duration-300">
+           <div className="flex-grow p-8 sm:p-16 flex items-center justify-center">
+             <div className="w-full max-w-lg transition-all duration-500 transform hover:scale-[1.01]">
                 {previewPlatform === 'linkedin' ? (
                   <LinkedInView dayContent={effectiveDayContent} caption={previewCaption} imageUrl={imageUrl} isVideo={!!isVideo} isUploading={isUploading} />
                 ) : (
@@ -553,32 +578,43 @@ export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, onClo
                 )}
              </div>
            </div>
+
+           {/* Decorative elements for premium feel */}
+           <div className="absolute bottom-6 left-6 pointer-events-none opacity-20">
+              <span className="font-serif italic text-white/50 text-4xl tracking-tighter">Bolsa</span>
+           </div>
         </div>
 
         {/* ================= RIGHT: EDIT ================= */}
-        <div className="w-full md:w-[40%] flex flex-col h-full bg-white relative border-l border-gray-200">
+        <div className="w-full md:w-[35%] flex flex-col h-full bg-[#fcfbf9] relative border-l border-black/[0.03]">
            
-           <div className="p-5 border-b border-gray-100 flex flex-col gap-4 bg-gray-50/50 pr-12">
+           <div className="p-6 border-b border-black/[0.03] flex flex-col gap-5 bg-white/50 backdrop-blur-sm pr-14">
               <div className="flex justify-between items-start">
                  <div>
                     {isNew ? (
-                        <h2 className="font-bold text-gray-900 text-lg">Criar Nova Publicação</h2>
+                        <h2 className="font-serif text-2xl text-brand-dark tracking-tight">Nova Publicação</h2>
                     ) : (
-                        <h2 className="font-bold text-gray-900 text-lg">{effectiveDayContent.day.split(' ')[0]}</h2>
+                        <h2 className="font-serif text-2xl text-brand-dark tracking-tight">{effectiveDayContent.day.split(' ')[0]}</h2>
                     )}
-                    <span className="text-xs text-gray-500 uppercase font-medium">
-                        {selectedPlatforms.length > 1 ? 'Multi-plataforma' : (previewPlatform === 'meta' ? 'Instagram/Face' : 'LinkedIn')}
-                    </span>
+                    <div className="flex items-center gap-2 mt-1">
+                      <span className="text-[9px] text-gray-400 uppercase font-bold tracking-[0.2em]">
+                          {selectedPlatforms.length > 1 ? 'Multi-plataforma' : (previewPlatform === 'meta' ? 'Instagram/Face' : 'LinkedIn')}
+                      </span>
+                      <div className="w-1 h-1 rounded-full bg-gray-300" />
+                      <span className="text-[9px] text-gray-400 uppercase font-bold tracking-[0.2em]">
+                        {editedType.split(' ')[0]}
+                      </span>
+                    </div>
                  </div>
                  {userRole === 'admin' && (
                      <div className="flex gap-2">
                         {!isNew && (
-                            <button onClick={handleCopyLink} className="p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded border border-gray-200" title="Copiar Link"><Link size={16} /></button>
+                            <button onClick={handleCopyLink} className="p-2.5 text-gray-400 hover:text-brand-dark hover:bg-black/[0.03] rounded-xl border border-black/[0.05] transition-all" title="Copiar Link"><Link size={16} /></button>
                         )}
                         {!isNew && (
-                            <button onClick={handleDeletePost} className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded border border-transparent hover:border-red-100" title="Excluir"><Trash2 size={16} /></button>
+                            <button onClick={handleDeletePost} className="p-2.5 text-red-300 hover:text-red-500 hover:bg-red-50 rounded-xl border border-transparent transition-all" title="Excluir"><Trash2 size={16} /></button>
                         )}
-                        <button onClick={() => setIsEditing(!isEditing)} className={`text-xs font-bold px-4 py-2 rounded border flex items-center gap-2 transition-colors ${isEditing ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-100 shadow-sm'}`}>
+                        <button onClick={() => setIsEditing(!isEditing)} className={`text-[10px] font-bold uppercase tracking-widest px-5 py-2.5 rounded-xl border flex items-center gap-2 transition-all ${isEditing ? 'bg-brand-dark text-white border-brand-dark shadow-lg shadow-brand-dark/20' : 'bg-white text-gray-600 border-black/[0.08] hover:bg-gray-50 shadow-sm'}`}>
                             <Edit3 size={14} /> {isEditing ? 'Concluir' : 'Editar'}
                         </button>
                      </div>
@@ -590,13 +626,13 @@ export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, onClo
                   <div className="flex gap-3">
                       {!showRequestChangesInput ? (
                         <>
-                        <button onClick={handleApprove} className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-green-600 hover:bg-green-700 text-white rounded-lg font-bold text-sm shadow-sm"><CheckCircle2 size={18} /> Aprovar</button>
-                        <button onClick={() => setShowRequestChangesInput(true)} className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-white hover:bg-red-50 text-red-600 border border-red-200 rounded-lg font-bold text-sm"><AlertTriangle size={18} /> Ajuste</button>
+                        <button onClick={handleApprove} className="flex-1 flex items-center justify-center gap-2 px-4 py-3.5 bg-brand-dark hover:bg-black text-white rounded-xl font-bold text-[11px] uppercase tracking-widest shadow-xl shadow-brand-dark/10 transition-all active:scale-95"><CheckCircle2 size={18} /> Aprovar</button>
+                        <button onClick={() => setShowRequestChangesInput(true)} className="flex-1 flex items-center justify-center gap-2 px-4 py-3.5 bg-white hover:bg-red-50 text-red-600 border border-red-100 rounded-xl font-bold text-[11px] uppercase tracking-widest transition-all active:scale-95"><AlertTriangle size={18} /> Ajuste</button>
                         </>
                       ) : (
-                        <div className="flex items-center justify-between w-full bg-red-50 text-red-800 px-3 py-2 rounded border border-red-100 text-sm">
-                            <span className="font-bold">Escreva o ajuste abaixo</span>
-                            <button onClick={() => setShowRequestChangesInput(false)} className="text-xs underline">Cancelar</button>
+                        <div className="flex items-center justify-between w-full bg-red-50 text-red-800 px-4 py-3 rounded-xl border border-red-100 text-[11px] font-bold uppercase tracking-widest">
+                            <span>Escreva o ajuste abaixo</span>
+                            <button onClick={() => setShowRequestChangesInput(false)} className="text-[10px] underline tracking-normal">Cancelar</button>
                         </div>
                       )}
                   </div>
@@ -604,48 +640,55 @@ export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, onClo
            </div>
 
            <div className="flex-grow flex flex-col overflow-hidden">
-             {userRole === 'admin' && isEditing && (
-                 <div className="p-5 border-b border-gray-100 bg-blue-50/30 overflow-y-auto max-h-[100%] custom-scrollbar pb-20">
+             <AnimatePresence mode="wait">
+               {userRole === 'admin' && isEditing ? (
+                 <motion.div 
+                   key="edit-form"
+                   initial={{ opacity: 0, x: 20 }}
+                   animate={{ opacity: 1, x: 0 }}
+                   exit={{ opacity: 0, x: -20 }}
+                   className="p-5 border-b border-gray-100 bg-blue-50/30 overflow-y-auto max-h-[100%] custom-scrollbar pb-20"
+                 >
                     
                     {/* 1. Status */}
-                    <div className="bg-white p-4 rounded-lg border border-blue-100 shadow-sm mb-4">
-                        <h3 className="text-xs font-bold text-blue-800 uppercase tracking-wide mb-3 flex items-center gap-1"><AlertTriangle size={14} /> Status da Publicação</h3>
+                    <div className="bg-white p-5 rounded-2xl border border-black/[0.05] shadow-sm mb-5">
+                        <h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-[0.2em] mb-4 flex items-center gap-2"><AlertTriangle size={14} className="text-brand-dark" /> Status da Publicação</h3>
                         <div className="relative">
                             <select 
                                 value={manualStatus} 
                                 onChange={(e) => setManualStatus(e.target.value as PostStatus)}
-                                className="w-full appearance-none bg-white border border-gray-300 text-gray-700 py-2 px-3 rounded leading-tight focus:outline-none focus:border-blue-500 font-medium text-sm"
+                                className="w-full appearance-none bg-white border border-black/[0.08] text-brand-dark py-3 px-4 rounded-xl leading-tight focus:outline-none focus:ring-2 focus:ring-brand-dark/10 focus:border-brand-dark font-bold text-[11px] uppercase tracking-widest transition-all"
                             >
                                 {STATUS_OPTIONS.map(opt => (
                                     <option key={opt.value} value={opt.value}>{opt.label}</option>
                                 ))}
                             </select>
-                            <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-700"><ChevronDown size={14} /></div>
+                            <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-gray-400"><ChevronDown size={14} /></div>
                         </div>
                     </div>
 
                     {/* 2. Agendamento & Plataformas */}
-                    <div className="bg-white p-4 rounded-lg border border-blue-100 shadow-sm mb-4">
-                        <h3 className="text-xs font-bold text-blue-800 uppercase tracking-wide mb-3 flex items-center gap-1"><Calendar size={14} /> Agendamento</h3>
-                        <div className="flex flex-col gap-4">
+                    <div className="bg-white p-5 rounded-2xl border border-black/[0.05] shadow-sm mb-5">
+                        <h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-[0.2em] mb-4 flex items-center gap-2"><Calendar size={14} className="text-brand-dark" /> Agendamento</h3>
+                        <div className="flex flex-col gap-5">
                             <div>
-                                <label className="text-[10px] font-bold text-gray-500 uppercase block mb-1">Data</label>
-                                <input type="date" value={postDate} onChange={e => setPostDate(e.target.value)} className="w-full text-sm p-2 border border-gray-200 rounded outline-none focus:border-blue-500" />
+                                <label className="text-[9px] font-bold text-gray-400 uppercase tracking-widest block mb-2">Data da Publicação</label>
+                                <input type="date" value={postDate} onChange={e => setPostDate(e.target.value)} className="w-full text-xs font-bold p-3 border border-black/[0.08] rounded-xl outline-none focus:ring-2 focus:ring-brand-dark/10 focus:border-brand-dark transition-all" />
                             </div>
                             <div>
-                                <label className="text-[10px] font-bold text-gray-500 uppercase block mb-2">Plataformas (Selecione)</label>
-                                <div className="flex gap-2">
+                                <label className="text-[9px] font-bold text-gray-400 uppercase tracking-widest block mb-2">Plataformas</label>
+                                <div className="flex gap-3">
                                     <button 
                                         onClick={() => togglePlatform('meta')} 
-                                        className={`flex-1 flex items-center justify-center gap-2 p-2.5 rounded border transition-all ${selectedPlatforms.includes('meta') ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white border-transparent shadow-md' : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'}`}
+                                        className={`flex-1 flex items-center justify-center gap-2 p-3 rounded-xl border transition-all text-[10px] font-bold uppercase tracking-widest ${selectedPlatforms.includes('meta') ? 'bg-brand-dark text-white border-brand-dark shadow-lg shadow-brand-dark/20' : 'bg-white text-gray-500 border-black/[0.08] hover:bg-gray-50'}`}
                                     >
-                                        <Instagram size={18} /> Instagram
+                                        <Instagram size={16} /> Instagram
                                     </button>
                                     <button 
                                         onClick={() => togglePlatform('linkedin')} 
-                                        className={`flex-1 flex items-center justify-center gap-2 p-2.5 rounded border transition-all ${selectedPlatforms.includes('linkedin') ? 'bg-[#0077B5] text-white border-transparent shadow-md' : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'}`}
+                                        className={`flex-1 flex items-center justify-center gap-2 p-3 rounded-xl border transition-all text-[10px] font-bold uppercase tracking-widest ${selectedPlatforms.includes('linkedin') ? 'bg-brand-dark text-white border-brand-dark shadow-lg shadow-brand-dark/20' : 'bg-white text-gray-500 border-black/[0.08] hover:bg-gray-50'}`}
                                     >
-                                        <Linkedin size={18} /> LinkedIn
+                                        <Linkedin size={16} /> LinkedIn
                                     </button>
                                 </div>
                             </div>
@@ -653,34 +696,37 @@ export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, onClo
                     </div>
 
                     {/* 3. Estrutura */}
-                    <div className="bg-white p-4 rounded-lg border border-blue-100 shadow-sm mb-4">
-                       <h3 className="text-xs font-bold text-blue-800 uppercase tracking-wide mb-3 flex items-center gap-1"><LayoutTemplate size={14} /> Estrutura</h3>
-                       <div className="space-y-3">
+                    <div className="bg-white p-5 rounded-2xl border border-black/[0.05] shadow-sm mb-5">
+                       <h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-[0.2em] mb-4 flex items-center gap-2"><LayoutTemplate size={14} className="text-brand-dark" /> Estrutura do Conteúdo</h3>
+                       <div className="space-y-4">
                           <div>
-                            <label className="text-[11px] font-bold text-gray-500 uppercase block mb-1">Tema</label>
-                            <input type="text" value={editedTheme} onChange={(e) => setEditedTheme(e.target.value)} className="w-full text-sm p-2.5 border border-gray-200 rounded focus:border-blue-500 outline-none" />
+                            <label className="text-[9px] font-bold text-gray-400 uppercase tracking-widest block mb-2">Tema Central</label>
+                            <input type="text" value={editedTheme} onChange={(e) => setEditedTheme(e.target.value)} className="w-full text-xs font-bold p-3 border border-black/[0.08] rounded-xl focus:ring-2 focus:ring-brand-dark/10 focus:border-brand-dark outline-none transition-all" />
                           </div>
                           <div>
-                            <label className="text-[11px] font-bold text-gray-500 uppercase block mb-1">Formato</label>
-                            <select value={editedType} onChange={(e) => setEditedType(e.target.value)} className="w-full text-sm p-2.5 border border-gray-200 rounded focus:border-blue-500 outline-none bg-white">
-                               {POST_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
-                            </select>
+                            <label className="text-[9px] font-bold text-gray-400 uppercase tracking-widest block mb-2">Formato da Entrega</label>
+                            <div className="relative">
+                              <select value={editedType} onChange={(e) => setEditedType(e.target.value)} className="w-full appearance-none text-xs font-bold p-3 border border-black/[0.08] rounded-xl focus:ring-2 focus:ring-brand-dark/10 focus:border-brand-dark outline-none bg-white transition-all">
+                                 {POST_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+                              </select>
+                              <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-gray-400"><ChevronDown size={14} /></div>
+                            </div>
                           </div>
                           <div>
-                            <label className="text-[11px] font-bold text-gray-500 uppercase block mb-1">Bullets</label>
-                            <textarea value={editedBullets} onChange={(e) => setEditedBullets(e.target.value)} rows={3} className="w-full text-sm p-2.5 border border-gray-200 rounded focus:border-blue-500 outline-none resize-none" />
+                            <label className="text-[9px] font-bold text-gray-400 uppercase tracking-widest block mb-2">Bullets / Direcionamento</label>
+                            <textarea value={editedBullets} onChange={(e) => setEditedBullets(e.target.value)} rows={4} className="w-full text-xs p-3 border border-black/[0.08] rounded-xl focus:ring-2 focus:ring-brand-dark/10 focus:border-brand-dark outline-none resize-none leading-relaxed transition-all" />
                           </div>
                        </div>
                     </div>
 
                     {/* 4. Criativo & Legendas */}
-                    <div className="bg-white p-4 rounded-lg border border-blue-100 shadow-sm mb-4">
-                        <h3 className="text-xs font-bold text-blue-800 uppercase tracking-wide mb-3 flex items-center gap-1"><ImageIcon size={14} /> Criativo</h3>
+                    <div className="bg-white p-5 rounded-2xl border border-black/[0.05] shadow-sm mb-8">
+                        <h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-[0.2em] mb-4 flex items-center gap-2"><ImageIcon size={14} className="text-brand-dark" /> Criativo & Legenda</h3>
                         
                         {/* Image Upload */}
                         <label 
-                            className={`h-24 border-2 border-dashed rounded-lg flex flex-col items-center justify-center gap-2 cursor-pointer mb-4 transition-all
-                                ${isDragging ? 'border-blue-500 bg-blue-100' : 'border-blue-200 bg-blue-50/50 hover:bg-blue-50'}
+                            className={`h-32 border-2 border-dashed rounded-2xl flex flex-col items-center justify-center gap-3 cursor-pointer mb-6 transition-all
+                                ${isDragging ? 'border-brand-dark bg-brand-dark/5' : 'border-black/[0.08] bg-black/[0.01] hover:bg-black/[0.03]'}
                                 ${isUploading ? 'opacity-50 pointer-events-none' : ''}
                             `}
                             onDragOver={handleDragOver}
@@ -695,20 +741,25 @@ export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, onClo
                                 disabled={isUploading} 
                                 multiple={editedType.toLowerCase().includes('carrossel')}
                               />
-                              <UploadCloud size={24} className={isDragging ? 'text-blue-600' : 'text-blue-400'} />
-                              <span className={`text-xs font-bold ${isDragging ? 'text-blue-800' : 'text-blue-700'}`}>
-                                  {isUploading ? 'Enviando...' : isDragging ? 'Solte os arquivos aqui' : 'Carregar Imagem / Vídeo (Arraste aqui)'}
-                              </span>
+                              <div className={`p-3 rounded-full ${isDragging ? 'bg-brand-dark text-white' : 'bg-white text-gray-400 shadow-sm border border-black/[0.05]'}`}>
+                                <UploadCloud size={20} />
+                              </div>
+                              <div className="text-center">
+                                <span className={`text-[10px] font-bold uppercase tracking-widest block ${isDragging ? 'text-brand-dark' : 'text-gray-500'}`}>
+                                    {isUploading ? 'Enviando...' : isDragging ? 'Solte os arquivos' : 'Carregar Mídia'}
+                                </span>
+                                <span className="text-[8px] text-gray-400 font-medium mt-1 block">Arraste ou clique para selecionar</span>
+                              </div>
                         </label>
 
                         {/* Caption Switcher */}
-                        <div className="flex items-center justify-between mb-3 border-b border-gray-100 pb-2">
-                             <label className="text-[11px] font-bold text-gray-500 uppercase">Legenda</label>
-                             <div className="flex items-center gap-2">
-                                <span className={`text-[10px] font-bold ${useDifferentCaptions ? 'text-blue-600' : 'text-gray-400'}`}>Legendas Diferentes</span>
+                        <div className="flex items-center justify-between mb-4 border-b border-black/[0.03] pb-3">
+                             <label className="text-[9px] font-bold text-gray-400 uppercase tracking-widest">Legenda da Publicação</label>
+                             <div className="flex items-center gap-3">
+                                <span className={`text-[9px] font-bold uppercase tracking-widest ${useDifferentCaptions ? 'text-brand-dark' : 'text-gray-400'}`}>Legendas Customizadas</span>
                                 <button 
                                     onClick={() => setUseDifferentCaptions(!useDifferentCaptions)}
-                                    className={`w-8 h-4 rounded-full p-0.5 transition-colors ${useDifferentCaptions ? 'bg-blue-600' : 'bg-gray-300'}`}
+                                    className={`w-9 h-5 rounded-full p-1 transition-all ${useDifferentCaptions ? 'bg-brand-dark' : 'bg-gray-200'}`}
                                 >
                                     <div className={`w-3 h-3 bg-white rounded-full shadow-sm transform transition-transform ${useDifferentCaptions ? 'translate-x-4' : 'translate-x-0'}`}></div>
                                 </button>
@@ -716,78 +767,140 @@ export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, onClo
                         </div>
 
                         {!useDifferentCaptions ? (
-                            <div className="relative">
+                            <div className="relative group/caption">
                                 <textarea 
-                                    placeholder="Escreva a legenda aqui..." 
+                                    placeholder="Escreva a legenda estratégica aqui..." 
                                     value={captionMeta} 
                                     onChange={e => setCaptionMeta(e.target.value)} 
-                                    className="w-full h-48 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none resize-none leading-relaxed" 
+                                    className="w-full h-56 px-4 py-3 border border-black/[0.08] rounded-2xl text-xs focus:ring-2 focus:ring-brand-dark/10 focus:border-brand-dark outline-none resize-none leading-relaxed transition-all" 
                                 />
-                                <div className="absolute bottom-2 right-2 text-[10px] text-gray-400 font-bold bg-white/80 px-1 rounded pointer-events-none">GERAL</div>
+                                <div className="absolute bottom-3 right-3 text-[8px] text-gray-400 font-bold bg-white/80 backdrop-blur-sm px-2 py-1 rounded-lg border border-black/[0.05] pointer-events-none tracking-widest uppercase">Legenda Geral</div>
                             </div>
                         ) : (
-                            <div className="space-y-4">
+                            <div className="space-y-5">
                                 <div className="relative">
-                                    <div className="flex items-center gap-1 mb-1 text-xs font-bold text-purple-600"><Instagram size={12}/> Instagram</div>
+                                    <div className="flex items-center gap-2 mb-2 text-[9px] font-bold uppercase tracking-widest text-purple-600"><Instagram size={12}/> Instagram</div>
                                     <textarea 
                                         placeholder="Legenda exclusiva para Instagram..." 
                                         value={captionMeta} 
                                         onChange={e => setCaptionMeta(e.target.value)} 
-                                        className="w-full h-32 px-3 py-2 border border-purple-100 bg-purple-50/20 rounded-lg text-sm focus:ring-2 focus:ring-purple-500 outline-none resize-none leading-relaxed" 
+                                        className="w-full h-40 px-4 py-3 border border-purple-100 bg-purple-50/10 rounded-2xl text-xs focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 outline-none resize-none leading-relaxed transition-all" 
                                     />
                                 </div>
                                 <div className="relative">
-                                    <div className="flex items-center gap-1 mb-1 text-xs font-bold text-[#0077B5]"><Linkedin size={12}/> LinkedIn</div>
+                                    <div className="flex items-center gap-2 mb-2 text-[9px] font-bold uppercase tracking-widest text-[#0077B5]"><Linkedin size={12}/> LinkedIn</div>
                                     <textarea 
                                         placeholder="Legenda exclusiva para LinkedIn..." 
                                         value={captionLinkedin} 
                                         onChange={e => setCaptionLinkedin(e.target.value)} 
-                                        className="w-full h-32 px-3 py-2 border border-blue-100 bg-blue-50/20 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none resize-none leading-relaxed" 
+                                        className="w-full h-40 px-4 py-3 border border-blue-100 bg-blue-50/10 rounded-2xl text-xs focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none resize-none leading-relaxed transition-all" 
                                     />
                                 </div>
                             </div>
                         )}
                     </div>
 
-                    <button onClick={handleSavePost} disabled={loading} className="w-full text-sm font-bold bg-blue-600 text-white px-4 py-3 rounded-lg hover:bg-blue-700 shadow-sm flex items-center justify-center gap-2">
-                        {loading ? <RefreshCw size={16} className="animate-spin" /> : <Save size={16} />} Salvar Publicação
+                    <button onClick={handleSavePost} disabled={loading} className="w-full text-[11px] font-bold uppercase tracking-[0.2em] bg-brand-dark text-white px-6 py-4 rounded-2xl hover:bg-black shadow-xl shadow-brand-dark/20 flex items-center justify-center gap-3 transition-all active:scale-[0.98] disabled:opacity-50">
+                        {loading ? <RefreshCw size={18} className="animate-spin" /> : <Save size={18} />} Salvar Alterações
                     </button>
-                 </div>
-             )}
-
-             {/* Comments List */}
-             {!isNew && (
-                 <div className="flex-grow overflow-y-auto p-5 bg-gray-50 custom-scrollbar flex flex-col gap-4">
-                     {comments.map((comment) => (
-                        <div key={comment.id} className={`flex flex-col gap-1 max-w-[90%] ${comment.author_role === 'admin' ? 'self-end' : 'self-start'}`}>
-                           <div className={`text-xs font-bold text-gray-500 px-1 ${comment.author_role === 'admin' ? 'text-right' : 'text-left'}`}>{comment.author_name}</div>
-                           <div className={`flex gap-2 ${comment.author_role === 'admin' ? 'flex-row-reverse' : 'flex-row'}`}>
-                               <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white shadow-sm flex-shrink-0 ${comment.author_role === 'admin' ? 'bg-brand-dark' : comment.author_role === 'approver' ? 'bg-green-600' : 'bg-purple-600'}`}>{comment.author_name.charAt(0)}</div>
-                               <div className={`p-3 rounded-xl text-sm shadow-sm relative group ${comment.author_role === 'admin' ? 'bg-white rounded-tr-none' : comment.author_role === 'approver' ? 'bg-green-100 text-green-900 rounded-tl-none' : 'bg-purple-100 rounded-tl-none'}`}>
-                                  <p>{comment.content}</p>
-                                  {userRole === 'admin' && (
-                                    <button onClick={() => handleDeleteComment(comment.id)} className="absolute -top-2 -right-2 bg-white text-gray-400 hover:text-red-500 rounded-full p-1 shadow-sm border border-gray-100 opacity-0 group-hover:opacity-100 transition-all" title="Excluir"><Trash2 size={12} /></button>
-                                  )}
-                               </div>
-                           </div>
+                 </motion.div>
+               ) : (
+                 <motion.div 
+                   key="view-details"
+                   initial={{ opacity: 0, x: -20 }}
+                   animate={{ opacity: 1, x: 0 }}
+                   exit={{ opacity: 0, x: 20 }}
+                   className="flex-grow flex flex-col overflow-hidden"
+                 >
+                    {/* Post Details View Mode */}
+                    <div className="p-6 border-b border-black/[0.03] space-y-6 bg-white/30">
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="bg-white p-4 rounded-2xl border border-black/[0.03] shadow-sm">
+                                <span className="text-[8px] font-bold text-gray-400 uppercase tracking-widest block mb-1">Tema</span>
+                                <p className="text-[11px] font-bold text-brand-dark leading-tight">{editedTheme}</p>
+                            </div>
+                            <div className="bg-white p-4 rounded-2xl border border-black/[0.03] shadow-sm">
+                                <span className="text-[8px] font-bold text-gray-400 uppercase tracking-widest block mb-1">Formato</span>
+                                <p className="text-[11px] font-bold text-brand-dark leading-tight">{editedType}</p>
+                            </div>
                         </div>
-                     ))}
-                     <div ref={commentsEndRef} />
-                 </div>
-             )}
+                        {editedBullets && (
+                            <div className="bg-white p-4 rounded-2xl border border-black/[0.03] shadow-sm">
+                                <span className="text-[8px] font-bold text-gray-400 uppercase tracking-widest block mb-2">Direcionamento</span>
+                                <div className="space-y-2">
+                                    {editedBullets.split('\n').filter(b => b.trim()).map((bullet, idx) => (
+                                        <div key={idx} className="flex gap-2 items-start">
+                                            <div className="w-1 h-1 rounded-full bg-brand-dark mt-1.5 flex-shrink-0" />
+                                            <p className="text-[11px] text-gray-600 leading-relaxed">{bullet}</p>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Comments List */}
+                    <div className="flex-grow overflow-y-auto p-6 bg-black/[0.01] custom-scrollbar flex flex-col gap-6 relative">
+                        {/* Subtle Watermark */}
+                        <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-[0.02]">
+                            <span className="font-serif italic text-9xl -rotate-12">Bolsa</span>
+                        </div>
+
+                        {comments.length === 0 ? (
+                          <div className="flex flex-col items-center justify-center h-full text-center opacity-30 py-10 relative z-10">
+                             <div className="w-16 h-16 rounded-full border border-dashed border-gray-400 flex items-center justify-center mb-4">
+                               <Send size={24} className="text-gray-400" />
+                             </div>
+                             <p className="text-[10px] font-bold uppercase tracking-widest text-gray-500">Nenhum comentário ainda</p>
+                             <p className="text-[9px] text-gray-400 mt-1">Inicie a conversa sobre esta publicação</p>
+                          </div>
+                        ) : (
+                          comments.map((comment) => (
+                             <motion.div 
+                               initial={{ opacity: 0, y: 10 }}
+                               animate={{ opacity: 1, y: 0 }}
+                               key={comment.id} 
+                               className={`flex flex-col gap-2 max-w-[90%] relative z-10 ${comment.author_role === 'admin' ? 'self-end' : 'self-start'}`}
+                             >
+                                <div className={`text-[9px] font-bold text-gray-400 uppercase tracking-widest px-1 ${comment.author_role === 'admin' ? 'text-right' : 'text-left'}`}>{comment.author_name}</div>
+                                <div className={`flex gap-3 ${comment.author_role === 'admin' ? 'flex-row-reverse' : 'flex-row'}`}>
+                                    <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-[10px] font-bold text-white shadow-lg flex-shrink-0 border border-white/20 ${comment.author_role === 'admin' ? 'bg-brand-dark' : comment.author_role === 'approver' ? 'bg-green-600' : 'bg-purple-600'}`}>{comment.author_name.charAt(0)}</div>
+                                    <div className={`p-4 rounded-2xl text-[13px] shadow-sm relative group leading-relaxed ${comment.author_role === 'admin' ? 'bg-white text-brand-dark rounded-tr-none border border-black/[0.03]' : comment.author_role === 'approver' ? 'bg-green-50 text-green-900 rounded-tl-none border border-green-100' : 'bg-purple-50 text-purple-900 rounded-tl-none border border-purple-100'}`}>
+                                       <p>{comment.content}</p>
+                                       {userRole === 'admin' && (
+                                         <button onClick={() => handleDeleteComment(comment.id)} className="absolute -top-2 -right-2 bg-white text-gray-400 hover:text-red-500 rounded-full p-1.5 shadow-md border border-black/[0.05] opacity-0 group-hover:opacity-100 transition-all" title="Excluir"><Trash2 size={12} /></button>
+                                       )}
+                                    </div>
+                                </div>
+                             </motion.div>
+                          ))
+                        )}
+                        <div ref={commentsEndRef} />
+                    </div>
+                 </motion.div>
+               )}
+             </AnimatePresence>
 
              {/* Comment Input */}
              {(!isNew && canComment) && (
-                <div className="p-4 bg-white border-t border-gray-100 shrink-0">
-                    <div className="relative flex items-center gap-2">
-                        <input type="text" value={newComment} onChange={e => setNewComment(e.target.value)} placeholder="Comentário..." className="flex-grow pl-4 pr-12 py-3 bg-gray-50 border border-gray-200 rounded-xl outline-none text-sm" onKeyDown={e => e.key === 'Enter' && handleSendComment()} autoFocus={showRequestChangesInput} />
-                        <button onClick={handleSendComment} disabled={!newComment.trim()} className="absolute right-2 p-2 bg-brand-dark text-white rounded-lg"><Send size={16} /></button>
+                <div className="p-6 bg-white border-t border-black/[0.03] shrink-0">
+                    <div className="relative flex items-center gap-3">
+                        <input 
+                          type="text" 
+                          value={newComment} 
+                          onChange={e => setNewComment(e.target.value)} 
+                          placeholder="Adicionar comentário estratégico..." 
+                          className="flex-grow pl-5 pr-14 py-4 bg-black/[0.02] border border-black/[0.05] rounded-2xl outline-none text-sm focus:ring-2 focus:ring-brand-dark/10 focus:border-brand-dark transition-all" 
+                          onKeyDown={e => e.key === 'Enter' && handleSendComment()} 
+                          autoFocus={showRequestChangesInput} 
+                        />
+                        <button onClick={handleSendComment} disabled={!newComment.trim()} className="absolute right-2 p-2.5 bg-brand-dark text-white rounded-xl shadow-lg shadow-brand-dark/20 hover:bg-black transition-all active:scale-90 disabled:opacity-30"><Send size={18} /></button>
                     </div>
                 </div>
              )}
            </div>
         </div>
-      </div>
+      </motion.div>
     </div>
   );
 };

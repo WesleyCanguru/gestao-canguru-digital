@@ -1,6 +1,7 @@
 
 import React from 'react';
-import { Info } from 'lucide-react';
+import { Info, Sparkles } from 'lucide-react';
+import { motion } from 'motion/react';
 
 export const StatusLegend: React.FC = () => {
   const statuses = [
@@ -13,18 +14,29 @@ export const StatusLegend: React.FC = () => {
   ];
 
   return (
-    <div className="bg-white border border-gray-200 rounded-xl p-4 mb-6 shadow-sm">
-      <div className="flex items-center gap-2 mb-3 text-xs font-bold text-gray-400 uppercase tracking-widest">
-        <Info size={14} /> Legenda de Status
+    <motion.div 
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="bg-white/80 backdrop-blur-md border border-black/[0.03] rounded-3xl p-6 mb-10 shadow-[0_10px_30px_rgba(0,0,0,0.02)]"
+    >
+      <div className="flex items-center gap-3 mb-5 text-[10px] font-bold text-gray-400 uppercase tracking-[0.3em]">
+        <div className="w-6 h-6 rounded-full bg-gray-50 flex items-center justify-center border border-black/[0.02]">
+          <Info size={12} />
+        </div>
+        Legenda de Status
       </div>
       <div className="flex flex-wrap gap-3">
         {statuses.map((s, idx) => (
-          <div key={idx} className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-bold ${s.color}`}>
-            <div className="w-2 h-2 rounded-full bg-current opacity-50"></div>
+          <motion.div 
+            key={idx} 
+            whileHover={{ scale: 1.05 }}
+            className={`flex items-center gap-3 px-4 py-2 rounded-xl border text-[10px] font-bold uppercase tracking-widest transition-all shadow-sm ${s.color}`}
+          >
+            <div className="w-2 h-2 rounded-full bg-current opacity-40 shadow-[0_0_8px_currentColor]"></div>
             {s.label}
-          </div>
+          </motion.div>
         ))}
       </div>
-    </div>
+    </motion.div>
   );
 };

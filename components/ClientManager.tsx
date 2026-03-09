@@ -1,7 +1,8 @@
+
 import React, { useState, useEffect } from 'react';
-import { supabase } from '../lib/supabase';
+import { supabase, hashPassword } from '../lib/supabase';
 import { Client } from '../types';
-import { ArrowLeft, Plus, Check, X, Building2 } from 'lucide-react';
+import { ArrowLeft, Plus, Check, X, Building2, Lock, Globe } from 'lucide-react';
 
 interface ClientManagerProps {
   onBack: () => void;
@@ -22,9 +23,11 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
     responsible: '',
     email: '',
     instagram: '',
+    reportei_url: '',
     color: '#1e40af',
     initials: '',
     services: [] as string[],
+    password: '',
   });
 
   const fetchClients = async () => {
@@ -34,13 +37,15 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
     setLoading(false);
   };
 
-  useEffect(() => { fetchClients(); }, []);
+  useEffect(() => {
+    fetchClients();
+  }, []);
 
   const handleSave = async () => {
     if (!form.name.trim() || !form.initials.trim()) return;
     setSaving(true);
     try {
-      // Inserir cliente
+      // 1. Inserir cliente
       const { data: clientData, error } = await supabase
         .from('clients')
         .insert([{
@@ -49,6 +54,7 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
           responsible: form.responsible.trim() || null,
           email: form.email.trim() || null,
           instagram: form.instagram.trim() || null,
+          reportei_url: form.reportei_url.trim() || null,
           color: form.color,
           initials: form.initials.trim().toUpperCase().slice(0, 2),
           services: form.services,
@@ -58,18 +64,53 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
 
       if (error) throw error;
 
-      // Chamar RPC para criar estrutura editorial padrão
+      // 2. Chamar RPCs de estrutura padrão
       await supabase.rpc('create_default_editorial_structure', {
         p_client_id: clientData.id
       });
 
-      // Chamar RPC para criar estrutura de onboarding padrão
       await supabase.rpc('create_default_onboarding_structure', {
         p_client_id: clientData.id
       });
 
-      setSuccessMsg(`Cliente "${form.name}" cadastrado com estrutura editorial e onboarding criados!`);
-      setForm({ name: '', segment: '', responsible: '', email: '', instagram: '', color: '#1e40af', initials: '', services: [] });
+      // 3. Criar usuário de acesso se preenchido
+      let userCreated = false;
+      if (form.password.trim()) {
+        const hashedPassword = await hashPassword(form.password.trim());
+        // Usamos um username gerado automaticamente pois a tabela pode exigir, 
+        // mas o login agora é apenas por senha.
+        const placeholderUsername = `user_${form.initials.toLowerCase()}_${Date.now().toString().slice(-4)}`;
+        
+        const { error: userError } = await supabase
+          .from('client_users')
+          .insert([{
+            client_id: clientData.id,
+            username: placeholderUsername,
+            password_hash: hashedPassword,
+            role: 'approver',
+            is_active: true
+          }]);
+        
+        if (!userError) userCreated = true;
+      }
+
+      let msg = userCreated 
+        ? `Cliente "${form.name}" cadastrado com senha de acesso!`
+        : `Cliente "${form.name}" cadastrado com sucesso!`;
+      
+      setSuccessMsg(msg);
+      setForm({ 
+        name: '', 
+        segment: '', 
+        responsible: '', 
+        email: '', 
+        instagram: '', 
+        reportei_url: '',
+        color: '#1e40af', 
+        initials: '', 
+        services: [],
+        password: '',
+      });
       setShowForm(false);
       fetchClients();
       setTimeout(() => setSuccessMsg(''), 5000);
@@ -164,6 +205,16 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
                   className="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
               </div>
 
+              <div className="sm:col-span-2">
+                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">URL Tráfego Orgânico (Reportei)</label>
+                <div className="relative">
+                  <Globe className="absolute left-3 top-3 text-gray-400" size={16} />
+                  <input type="text" value={form.reportei_url} onChange={e => setForm(f => ({...f, reportei_url: e.target.value}))}
+                    placeholder="https://app.reportei.com/report/..."
+                    className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                </div>
+              </div>
+
               <div>
                 <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Iniciais (2 letras) *</label>
                 <input type="text" value={form.initials} maxLength={2}
@@ -205,6 +256,25 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
                     </label>
                   ))}
                 </div>
+              </div>
+
+              {/* Seção de Acesso */}
+              <div className="sm:col-span-2 mt-4 pt-6 border-t border-gray-100">
+                <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-4">
+                  Acesso do Cliente (Opcional)
+                </h3>
+                <div className="max-w-xs">
+                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Senha de Acesso</label>
+                  <div className="relative">
+                    <Lock className="absolute left-3 top-3 text-gray-400" size={16} />
+                    <input type="password" value={form.password} onChange={e => setForm(f => ({...f, password: e.target.value}))}
+                      placeholder="Mínimo 6 caracteres"
+                      className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                  </div>
+                </div>
+                <p className="mt-2 text-[10px] text-gray-400 italic">
+                  Se preenchido, o cliente poderá acessar o portal apenas com esta senha.
+                </p>
               </div>
 
               {/* Preview */}

@@ -12,24 +12,29 @@
         theme: {
           extend: {
             colors: {
-              primary: "#20364d",
+              primary: "#0f1115", // Deep dark
               secondary: "#8a8f98",
               "brand-dark": "#0f1115",
               "brand-gray": "#8a8f98",
               "brand-green": "#20364d",
-              "background-light": "#f4f3ef",
+              "background-light": "#fcfbf9", // Very light cream
               "surface-light": "#FFFFFF",
             },
             fontFamily: {
               sans: ["Inter", "sans-serif"],
+              serif: ["Playfair Display", "serif"],
             },
+            borderRadius: {
+              '3xl': '1.5rem',
+              '4xl': '2rem',
+            }
           },
         },
       };
     </script>
 
     <link
-      href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Playfair+Display:ital,wght@0,400..900;1,400..900&display=swap"
       rel="stylesheet"
     />
     <style>

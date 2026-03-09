@@ -4,7 +4,6 @@ import { AnnualOverview } from './components/AnnualOverview';
 import { MonthDetail } from './components/MonthDetail';
 import { LoginScreen } from './components/LoginScreen';
 import { PublicApprovalScreen } from './components/PublicApprovalScreen';
-import { LandingPage } from './components/LandingPage';
 import { ClientSelectorScreen } from './components/ClientSelectorScreen';
 import { OnboardingView } from './components/OnboardingView';
 import { ClientHome } from './components/ClientHome';
@@ -16,14 +15,14 @@ import AdminView from './components/AdminView';
 import { useEditorialData, MONTH_NAMES } from './hooks/useEditorialData';
 import { Map, ChevronRight, LogOut, Home, Building2, ClipboardList, LayoutDashboard, FileText, FolderOpen, TrendingUp, Globe, Shield } from 'lucide-react';
 import { AuthProvider, useAuth } from './lib/supabase';
+import { motion, AnimatePresence } from 'motion/react';
 
 type ViewState = 'home' | 'month-detail' | 'onboarding' | 'dashboard' | 'briefings' | 'documents' | 'paid-traffic' | 'website' | 'admin';
 
 interface MainAppProps {
-  onBack?: () => void;
 }
 
-const MainApp: React.FC<MainAppProps> = ({ onBack }) => {
+const MainApp: React.FC<MainAppProps> = () => {
   const [view, setView] = useState<ViewState>('dashboard');
   const [selectedMonth, setSelectedMonth] = useState<string | null>(null);
   const { userRole, logout, activeClient, setActiveClient } = useAuth();
@@ -51,47 +50,58 @@ const MainApp: React.FC<MainAppProps> = ({ onBack }) => {
   }
 
   return (
-    <div className="min-h-screen flex flex-col font-sans text-brand-dark bg-background-light">
+    <div className="min-h-screen flex flex-col font-sans text-brand-dark bg-[#FDFDFD] relative overflow-x-hidden">
       
+      {/* Background Decorations */}
+      <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden">
+        <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-blue-50/30 rounded-full blur-[120px] animate-pulse"></div>
+        <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-purple-50/30 rounded-full blur-[120px] animate-pulse" style={{ animationDelay: '2s' }}></div>
+        <div className="absolute top-[20%] right-[5%] w-[20%] h-[20%] bg-orange-50/20 rounded-full blur-[100px]"></div>
+      </div>
+
       {/* Header Fixo */}
-      <header className="bg-surface-light border-b border-gray-200 sticky top-0 z-50 shadow-sm bg-opacity-95 backdrop-blur-md">
+      <header className="bg-white/70 backdrop-blur-xl border-b border-black/[0.02] sticky top-0 z-50 shadow-[0_1px_10px_rgba(0,0,0,0.02)]">
         
         {/* Linha Superior: Logo e Botões de Navegação */}
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
+          <div className="flex justify-between items-center h-24">
             
             {/* Área de Logos */}
-            <div className="flex items-center gap-4 sm:gap-6">
-              <div className="cursor-pointer" onClick={() => setView('dashboard')}>
+            <div className="flex items-center gap-6 sm:gap-10">
+              <motion.div 
+                whileHover={{ scale: 1.02 }}
+                className="cursor-pointer" 
+                onClick={() => setView('dashboard')}
+              >
                 {activeClient?.logo_url ? (
                   <img 
                     src={activeClient.logo_url} 
                     alt={activeClient.name} 
-                    className="h-10 w-auto object-contain" 
+                    className="h-12 w-auto object-contain mix-blend-multiply" 
                   />
                 ) : (
-                  <span className="text-lg font-bold text-primary">{activeClient?.name}</span>
+                  <span className="text-2xl font-bold text-brand-dark tracking-tighter serif italic">{activeClient?.name}</span>
                 )}
-              </div>
+              </motion.div>
               
-              <div className="h-8 w-px bg-gray-200 hidden sm:block"></div>
+              <div className="h-8 w-px bg-gray-100 hidden sm:block"></div>
               
-              <div className="flex items-center gap-2 opacity-80">
-                <span className="text-[10px] uppercase tracking-widest text-gray-400 font-medium hidden sm:block">Strategy by</span>
+              <div className="flex items-center gap-4 opacity-40 hover:opacity-100 transition-opacity duration-500">
+                <span className="text-[8px] uppercase tracking-[0.4em] text-gray-400 font-bold hidden lg:block">Strategy by</span>
                 <Logo size="small" />
               </div>
             </div>
             
-            <div className="flex items-center gap-3">
-              <div className="hidden md:flex flex-col items-end mr-2">
-                <span className="text-[10px] uppercase tracking-widest text-gray-400 font-bold">Logado como</span>
-                <span className="text-xs font-bold text-blue-600">{getRoleLabel()}</span>
+            <div className="flex items-center gap-4">
+              <div className="hidden md:flex flex-col items-end mr-4">
+                <span className="text-[8px] uppercase tracking-[0.3em] text-gray-400 font-bold mb-0.5">Membro Premium</span>
+                <span className="text-[11px] font-bold text-brand-dark uppercase tracking-widest">{getRoleLabel()}</span>
               </div>
 
               {userRole === 'admin' && (
                 <button
                   onClick={() => setActiveClient(null)}
-                  className="flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-bold uppercase tracking-wider transition-all bg-blue-50 text-blue-600 hover:bg-blue-100 hover:text-blue-700"
+                  className="flex items-center gap-2 px-5 py-2.5 rounded-2xl text-[10px] font-bold uppercase tracking-[0.15em] transition-all bg-gray-50/50 text-gray-500 hover:bg-gray-100 hover:text-brand-dark border border-black/[0.02]"
                   title="Trocar Cliente"
                 >
                   <Building2 size={14} />
@@ -102,10 +112,10 @@ const MainApp: React.FC<MainAppProps> = ({ onBack }) => {
               {userRole === 'admin' && (
                 <button
                   onClick={() => setView('admin')}
-                  className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-bold uppercase tracking-wider transition-all ${
+                  className={`flex items-center gap-2 px-5 py-2.5 rounded-2xl text-[10px] font-bold uppercase tracking-[0.15em] transition-all ${
                     view === 'admin'
-                      ? 'bg-brand-dark text-white shadow-md'
-                      : 'bg-gray-100 text-gray-500 hover:text-gray-900 hover:bg-gray-200'
+                      ? 'bg-brand-dark text-white shadow-xl shadow-brand-dark/20'
+                      : 'bg-gray-50/50 text-gray-500 hover:text-brand-dark hover:bg-gray-100 border border-black/[0.02]'
                   }`}
                 >
                   <Shield size={14} />
@@ -115,104 +125,133 @@ const MainApp: React.FC<MainAppProps> = ({ onBack }) => {
 
               <button
                 onClick={logout}
-                className="p-2 rounded-md bg-red-50 text-red-400 hover:bg-red-100 hover:text-red-600 transition-colors"
+                className="p-3 rounded-2xl bg-red-50/50 text-red-400 hover:bg-red-50 hover:text-red-600 transition-all active:scale-95 border border-red-100/20"
                 title="Sair"
               >
-                <LogOut size={16} />
+                <LogOut size={18} />
               </button>
             </div>
           </div>
         </div>
 
         {/* Linha Inferior: Navegação dos Meses (Scroll Horizontal) - Apenas no Mapa Editorial */}
-        {(view === 'home' || view === 'month-detail') && (
-          <div className="border-t border-gray-100 bg-white/50 backdrop-blur-sm animate-in fade-in slide-in-from-top-2 duration-300">
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-              <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-2 sm:py-3 -mx-4 px-4 sm:mx-0 sm:px-0">
-                {monthlyPlans.map((plan) => {
-                  const monthName = MONTH_NAMES[plan.month - 1];
-                  const isActive = selectedMonth === monthName;
-                  
-                  return (
-                    <button
-                      key={plan.id}
-                      onClick={() => handleSelectMonth(monthName)}
-                      className={`
-                        whitespace-nowrap px-3 py-1.5 rounded-full text-[11px] font-bold uppercase tracking-wide transition-all border
-                        ${isActive 
-                          ? 'bg-blue-600 border-blue-600 text-white shadow-md transform scale-105' 
-                          : 'bg-white border-gray-200 text-gray-400 hover:border-blue-300 hover:text-blue-600 hover:bg-blue-50'
-                        }
-                      `}
-                    >
-                      {monthName}
-                    </button>
-                  );
-                })}
+        <AnimatePresence>
+          {(view === 'home' || view === 'month-detail') && (
+            <motion.div 
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: 'auto', opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              className="border-t border-black/[0.02] bg-white/30 overflow-hidden"
+            >
+              <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div className="flex items-center gap-3 overflow-x-auto no-scrollbar py-4 -mx-4 px-4 sm:mx-0 sm:px-0">
+                  {monthlyPlans.map((plan) => {
+                    const monthName = MONTH_NAMES[plan.month - 1];
+                    const isActive = selectedMonth === monthName;
+                    
+                    return (
+                      <button
+                        key={plan.id}
+                        onClick={() => handleSelectMonth(monthName)}
+                        className={`
+                          whitespace-nowrap px-6 py-2.5 rounded-full text-[10px] font-bold uppercase tracking-[0.2em] transition-all border
+                          ${isActive 
+                            ? 'bg-brand-dark border-brand-dark text-white shadow-xl transform scale-105' 
+                            : 'bg-white border-black/[0.03] text-gray-400 hover:border-brand-dark hover:text-brand-dark'
+                          }
+                        `}
+                      >
+                        {monthName}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
-            </div>
-          </div>
-        )}
+            </motion.div>
+          )}
+        </AnimatePresence>
       </header>
 
       {/* Main Content */}
-      <main className="flex-grow py-8 sm:py-10">
+      <main className="flex-grow py-12 sm:py-20">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           
           {/* Breadcrumb simples visual quando estiver no detalhe */}
-          {view === 'month-detail' && (
-             <div className="mb-6 flex items-center gap-2 text-xs font-medium text-gray-400 uppercase tracking-widest">
-                <span onClick={handleBackToHome} className="cursor-pointer hover:text-brand-dark transition-colors">Mapa Anual</span>
-                <ChevronRight size={12} />
-                <span className="text-blue-600 font-bold">{selectedMonth}</span>
-             </div>
-          )}
+          <AnimatePresence mode="wait">
+            {view === 'month-detail' && (
+               <motion.div 
+                initial={{ opacity: 0, x: -10 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -10 }}
+                className="mb-12 flex items-center gap-4 text-[10px] font-bold text-gray-400 uppercase tracking-[0.3em]"
+               >
+                  <span onClick={handleBackToHome} className="cursor-pointer hover:text-brand-dark transition-colors">Mapa Anual</span>
+                  <ChevronRight size={12} className="opacity-30" />
+                  <span className="text-brand-dark">{selectedMonth}</span>
+               </motion.div>
+            )}
+          </AnimatePresence>
 
-          {view === 'admin' ? (
-            <AdminView />
-          ) : view === 'website' ? (
-            <WebsiteView />
-          ) : view === 'paid-traffic' ? (
-            <PaidTrafficView />
-          ) : view === 'documents' ? (
-            <DocumentsView />
-          ) : view === 'briefings' ? (
-            <BriefingsView />
-          ) : view === 'dashboard' ? (
-            <ClientHome
-              onNavigateToOnboarding={() => setView('onboarding')}
-              onNavigateToMapa={() => setView('home')}
-              onNavigateToBriefings={() => setView('briefings')}
-              onNavigateToDocuments={() => setView('documents')}
-              onNavigateToPaidTraffic={() => setView('paid-traffic')}
-              onNavigateToWebsite={() => setView('website')}
-            />
-          ) : view === 'onboarding' ? (
-            <OnboardingView />
-          ) : view === 'home' ? (
-            <AnnualOverview onSelectMonth={handleSelectMonth} />
-          ) : (
-            <MonthDetail 
-              monthName={selectedMonth || ''} 
-              onBack={handleBackToHome} 
-            />
-          )}
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={view}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+            >
+              {view === 'admin' ? (
+                <AdminView />
+              ) : view === 'website' ? (
+                <WebsiteView />
+              ) : view === 'paid-traffic' ? (
+                <PaidTrafficView />
+              ) : view === 'documents' ? (
+                <DocumentsView />
+              ) : view === 'briefings' ? (
+                <BriefingsView />
+              ) : view === 'dashboard' ? (
+                <ClientHome
+                  onNavigateToOnboarding={() => setView('onboarding')}
+                  onNavigateToMapa={() => setView('home')}
+                  onNavigateToBriefings={() => setView('briefings')}
+                  onNavigateToDocuments={() => setView('documents')}
+                  onNavigateToPaidTraffic={() => setView('paid-traffic')}
+                  onNavigateToWebsite={() => setView('website')}
+                />
+              ) : view === 'onboarding' ? (
+                <OnboardingView />
+              ) : view === 'home' ? (
+                <AnnualOverview onSelectMonth={handleSelectMonth} />
+              ) : (
+                <MonthDetail 
+                  monthName={selectedMonth || ''} 
+                  onBack={handleBackToHome} 
+                />
+              )}
+            </motion.div>
+          </AnimatePresence>
 
         </div>
       </main>
 
       {/* Footer */}
-      <footer className="bg-white border-t border-gray-200 mt-auto py-8">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col md:flex-row justify-between items-center gap-6">
+      <footer className="bg-white border-t border-gray-100 mt-auto py-12">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col md:flex-row justify-between items-center gap-10">
           
           {/* Logos Footer */}
-          <div className="flex flex-col sm:flex-row items-center gap-4 sm:gap-6 opacity-70 hover:opacity-100 transition-opacity">
+          <div className="flex flex-col sm:flex-row items-center gap-8 opacity-40 hover:opacity-100 transition-opacity duration-500">
              <Logo size="small" />
           </div>
 
-          <p className="text-[10px] text-gray-400 uppercase tracking-widest font-medium text-center md:text-right">
-            Planejamento Editorial 2026 • Confidencial
-          </p>
+          <div className="flex flex-col items-center md:items-end gap-2">
+            <p className="text-[10px] text-gray-400 uppercase tracking-[0.4em] font-bold text-center md:text-right">
+              Bolsa • Canguru Digital 2026
+            </p>
+            <p className="text-[9px] text-gray-300 uppercase tracking-widest font-medium text-center md:text-right">
+              Planejamento Estratégico & Editorial • Confidencial
+            </p>
+          </div>
         </div>
       </footer>
     </div>
@@ -221,14 +260,9 @@ const MainApp: React.FC<MainAppProps> = ({ onBack }) => {
 
 const AppContent: React.FC = () => {
   const { isAuthenticated, userRole, activeClient, logout } = useAuth();
-  const [showLanding, setShowLanding] = useState(true);
-
-  if (showLanding) {
-    return <LandingPage onEnterEditorial={() => setShowLanding(false)} />;
-  }
 
   if (!isAuthenticated) {
-    return <LoginScreen onBack={() => setShowLanding(true)} />;
+    return <LoginScreen />;
   }
 
   if (userRole === 'admin' && !activeClient) {
@@ -238,13 +272,12 @@ const AppContent: React.FC = () => {
         onManageClients={() => {}} 
         onLogout={() => {
           logout();
-          setShowLanding(true);
         }} 
       />
     );
   }
 
-  return <MainApp onBack={() => setShowLanding(true)} />;
+  return <MainApp />;
 }
 
 const App: React.FC = () => {

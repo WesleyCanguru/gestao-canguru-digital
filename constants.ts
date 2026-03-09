@@ -1,6 +1,6 @@
 
 
-import { AdSetData, PlatformStrategy } from './types';
+import { AdSetData, PlatformStrategy, WeeklyScheduleRow, MonthlyDetailedPlan } from './types';
 
 export const SOCIAL_STRATEGY: PlatformStrategy[] = [
   {

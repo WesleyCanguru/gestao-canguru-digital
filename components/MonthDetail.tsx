@@ -1,11 +1,12 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { MonthlyDetailedPlan, DailyContent, PostStatus, PostData } from '../types';
-import { Instagram, Linkedin, CalendarDays, Target, BarChart3, Repeat, FileCheck, CheckCircle2, ArrowLeft, MessageCircle, List, Calendar as CalendarIcon, Plus, Loader2, Check, Edit2, Save, X, Trash } from 'lucide-react';
+import { Instagram, Linkedin, CalendarDays, Target, BarChart3, Repeat, FileCheck, CheckCircle2, ArrowLeft, MessageCircle, List, Calendar as CalendarIcon, Plus, Loader2, Check, Edit2, Save, X, Trash, Sparkles } from 'lucide-react';
 import { PostModal } from './PostModal';
 import { useAuth, supabase } from '../lib/supabase';
 import { StatusLegend } from './StatusLegend';
 import { useEditorialData, MONTH_NAMES, DAY_NAMES } from '../hooks/useEditorialData';
+import { motion, AnimatePresence } from 'motion/react';
 
 interface MonthDetailProps {
   monthName: string;
@@ -595,13 +596,13 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack }) =
                 <div 
                   key={idx}
                   onClick={() => handleOpenPost({ content: group.content, key: group.primaryKey })}
-                  className={`p-2 rounded-lg border shadow-sm cursor-pointer hover:scale-[1.02] ${statusColor} ${isSelected ? 'ring-2 ring-brand-dark' : ''} relative group/card shrink-0 transition-transform`}
+                  className={`p-3 rounded-xl border shadow-sm cursor-pointer hover:scale-[1.02] ${statusColor} ${isSelected ? 'ring-2 ring-brand-dark' : ''} relative group/card shrink-0 transition-all duration-300`}
                   draggable
                   onDragStart={(e) => handleDragStart(e, group.primaryKey)}
                 >
                   {userRole === 'admin' && (
                     <div 
-                      className={`absolute -top-2 -right-2 z-10 bg-white rounded-full p-0.5 shadow-sm border ${isSelected ? 'border-brand-dark opacity-100' : 'border-gray-200 opacity-0 group-hover/card:opacity-100'} transition-opacity`}
+                      className={`absolute -top-2 -right-2 z-10 bg-white rounded-full p-1 shadow-md border ${isSelected ? 'border-brand-dark opacity-100' : 'border-gray-200 opacity-0 group-hover/card:opacity-100'} transition-all`}
                       onClick={(e) => togglePostSelection(e, group.primaryKey)}
                     >
                       <div className={`w-4 h-4 rounded-full border flex items-center justify-center ${isSelected ? 'bg-brand-dark border-brand-dark' : 'border-gray-300'}`}>
@@ -609,28 +610,30 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack }) =
                       </div>
                     </div>
                   )}
-                  <div className="flex items-center justify-between mb-1">
-                    <div className="flex items-center gap-1.5">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
                       {/* Renderiza ambos os ícones se tiver as duas plataformas */}
-                      {hasMeta && <Instagram size={12} className="text-[#E1306C]" />}
-                      {hasLinkedin && <Linkedin size={12} className="text-[#0077B5]" />}
+                      <div className="flex -space-x-1">
+                        {hasMeta && <div className="w-5 h-5 rounded-full bg-white flex items-center justify-center shadow-sm border border-black/[0.03]"><Instagram size={10} className="text-[#E1306C]" /></div>}
+                        {hasLinkedin && <div className="w-5 h-5 rounded-full bg-white flex items-center justify-center shadow-sm border border-black/[0.03]"><Linkedin size={10} className="text-[#0077B5]" /></div>}
+                      </div>
                       
-                      <span className="text-[9px] font-bold uppercase opacity-70 truncate max-w-[60px] ml-1">
+                      <span className="text-[8px] font-bold uppercase tracking-widest text-gray-400 truncate max-w-[50px]">
                         {group.type.split(' ')[0]}
                       </span>
                     </div>
                   </div>
-                  <p className="text-[10px] font-bold text-gray-900 leading-tight line-clamp-2 mb-1" title={group.theme}>
+                  <p className="text-[11px] font-bold text-brand-dark leading-tight line-clamp-2 mb-2" title={group.theme}>
                     {group.theme}
                   </p>
-                  <div className="flex items-center justify-between mt-1 h-5">
-                      <span className="text-[8px] font-bold uppercase text-gray-500 border border-black/10 px-1 rounded bg-white/40">
+                  <div className="flex items-center justify-between mt-2 h-6">
+                      <span className="text-[7px] font-bold uppercase tracking-widest text-gray-500 border border-black/[0.05] px-1.5 py-0.5 rounded-md bg-white/50 backdrop-blur-sm">
                          {getStatusLabel(group.status)}
                       </span>
                       {userRole === 'admin' && group.status !== 'published' && (
                           <button 
                              onClick={(e) => handleQuickPublish(e, group)}
-                             className="opacity-100 sm:opacity-0 sm:group-hover/card:opacity-100 p-1 rounded bg-white text-gray-400 hover:text-green-600 hover:bg-green-50 shadow-sm border border-gray-200 transition-all"
+                             className="opacity-100 sm:opacity-0 sm:group-hover/card:opacity-100 p-1.5 rounded-lg bg-white text-gray-400 hover:text-green-600 hover:bg-green-50 shadow-sm border border-black/[0.03] transition-all"
                              title="Marcar como Publicado"
                           >
                               <Check size={12} />
@@ -655,10 +658,10 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack }) =
     }
 
     return (
-      <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden animate-in fade-in zoom-in-95 duration-300">
-        <div className="grid grid-cols-7 bg-gray-50 border-b border-gray-200">
+      <div className="bg-white rounded-3xl border border-black/[0.03] shadow-sm overflow-hidden animate-in fade-in zoom-in-95 duration-500">
+        <div className="grid grid-cols-7 bg-gray-50/50 border-b border-black/[0.03]">
           {['DOM', 'SEG', 'TER', 'QUA', 'QUI', 'SEX', 'SÁB'].map((d, i) => (
-            <div key={d} className={`py-3 text-center text-xs font-bold text-gray-500 uppercase tracking-widest ${i === 0 || i === 6 ? 'bg-gray-100/50 text-gray-400' : ''}`}>
+            <div key={d} className={`py-5 text-center text-[10px] font-bold text-gray-400 uppercase tracking-[0.3em] ${i === 0 || i === 6 ? 'bg-gray-100/30 text-gray-300' : ''}`}>
               {d}
             </div>
           ))}
@@ -669,125 +672,164 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack }) =
   };
 
   return (
-    <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 pb-12">
+    <motion.div 
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -20 }}
+      transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
+      className="pb-12"
+    >
       
-      {modalOpen && selectedPost && (
-        <PostModal 
-          dayContent={selectedPost.content} 
-          dateKey={selectedPost.key} 
-          onClose={handleCloseModal}
-          onUpdate={fetchMonthPosts}
-          isNew={isCreatingNew} 
-          defaultDate={newPostDefaultDate}
-        />
-      )}
+      <AnimatePresence>
+        {modalOpen && selectedPost && (
+          <PostModal 
+            dayContent={selectedPost.content} 
+            dateKey={selectedPost.key} 
+            onClose={handleCloseModal}
+            onUpdate={fetchMonthPosts}
+            isNew={isCreatingNew} 
+            defaultDate={newPostDefaultDate}
+          />
+        )}
+      </AnimatePresence>
 
       {/* Navigation */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
-        <button onClick={onBack} className="flex items-center gap-2 text-gray-500 hover:text-brand-dark transition-colors font-medium">
-          <ArrowLeft size={20} /> Voltar
-        </button>
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-10">
+        <motion.button 
+          whileHover={{ x: -4 }}
+          onClick={onBack} 
+          className="flex items-center gap-4 text-gray-400 hover:text-brand-dark transition-all font-bold text-[11px] uppercase tracking-[0.3em] group"
+        >
+          <div className="w-10 h-10 rounded-full border border-black/[0.05] flex items-center justify-center group-hover:border-brand-dark group-hover:bg-brand-dark group-hover:text-white transition-all duration-300">
+            <ArrowLeft size={16} />
+          </div>
+          Voltar
+        </motion.button>
 
         <div className="flex items-center gap-4">
-            {loadingPosts && <div className="flex items-center gap-2 text-xs text-gray-400"><Loader2 size={14} className="animate-spin" /> Atualizando...</div>}
+            {loadingPosts && (
+              <motion.div 
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className="flex items-center gap-2 text-[10px] font-bold text-gray-400 uppercase tracking-widest"
+              >
+                <Loader2 size={12} className="animate-spin" /> Atualizando...
+              </motion.div>
+            )}
             
             {userRole === 'admin' && selectedPosts.size > 0 && (
-                <button 
+                <motion.button 
+                  initial={{ scale: 0.9, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
                   onClick={handleBulkDelete}
                   disabled={isDeleting}
-                  className="flex items-center gap-2 px-4 py-2 bg-red-500 text-white rounded-md text-xs font-bold uppercase shadow-sm hover:bg-red-600 transition-all disabled:opacity-50"
+                  className="premium-button-secondary bg-red-50 text-red-600 border-red-100 hover:bg-red-100 px-6"
                 >
-                    {isDeleting ? <Loader2 size={16} className="animate-spin" /> : <Trash size={16} />} 
+                    {isDeleting ? <Loader2 size={14} className="animate-spin" /> : <Trash size={14} />} 
                     Excluir ({selectedPosts.size})
-                </button>
+                </motion.button>
             )}
 
             {userRole === 'admin' && (
-                <button 
+                <motion.button 
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
                   onClick={() => handleCreatePost()}
-                  className="flex items-center gap-2 px-4 py-2 bg-brand-green text-white rounded-md text-xs font-bold uppercase shadow-sm hover:bg-green-600 transition-all"
+                  className="premium-button-primary px-6"
                 >
-                    <Plus size={16} /> Criar Post
-                </button>
+                    <Plus size={14} /> Criar Post
+                </motion.button>
             )}
 
-            <div className="flex bg-white rounded-lg p-1 border border-gray-200 shadow-sm">
-                <button onClick={() => setViewMode('list')} className={`flex items-center gap-2 px-4 py-2 rounded-md text-xs font-bold uppercase transition-all ${viewMode === 'list' ? 'bg-brand-dark text-white' : 'text-gray-500 hover:bg-gray-50'}`}>
+            <div className="flex bg-white rounded-2xl p-1.5 border border-black/[0.03] shadow-[0_4px_15px_rgba(0,0,0,0.03)]">
+                <button onClick={() => setViewMode('list')} className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all duration-300 ${viewMode === 'list' ? 'bg-brand-dark text-white shadow-lg' : 'text-gray-400 hover:bg-gray-50'}`}>
                     <List size={14} /> Lista
                 </button>
-                <button onClick={() => setViewMode('calendar')} className={`flex items-center gap-2 px-4 py-2 rounded-md text-xs font-bold uppercase transition-all ${viewMode === 'calendar' ? 'bg-brand-dark text-white' : 'text-gray-500 hover:bg-gray-50'}`}>
+                <button onClick={() => setViewMode('calendar')} className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all duration-300 ${viewMode === 'calendar' ? 'bg-brand-dark text-white shadow-lg' : 'text-gray-400 hover:bg-gray-50'}`}>
                     <CalendarIcon size={14} /> Calendário
                 </button>
             </div>
         </div>
       </div>
 
-      <div className="bg-white rounded-3xl shadow-lg border border-gray-200 overflow-hidden">
+      <div className="bg-white rounded-[3rem] shadow-[0_40px_80px_rgba(0,0,0,0.08)] border border-black/[0.02] overflow-hidden">
         {/* Header */}
-        <div className="bg-brand-dark text-white p-8 md:p-10 relative overflow-hidden">
-           <div className="absolute top-0 right-0 p-8 opacity-10"><CalendarDays size={200} /></div>
+        <div className="bg-brand-dark text-white p-12 md:p-20 relative overflow-hidden">
+           <div className="absolute top-0 right-0 p-12 opacity-[0.03] pointer-events-none transform translate-x-1/4 -translate-y-1/4"><CalendarDays size={400} /></div>
            <div className="relative z-10">
-            <div className="flex justify-between items-start mb-2">
-              <h2 className="text-3xl font-extrabold tracking-tight">{monthName} {year}</h2>
+            <div className="flex flex-col md:flex-row md:items-end justify-between gap-8 mb-12">
+              <div className="space-y-4">
+                <div className="flex items-center gap-3 text-[10px] font-bold uppercase tracking-[0.4em] text-white/40">
+                  <Sparkles size={14} /> Planejamento Mensal
+                </div>
+                <h2 className="text-6xl md:text-8xl font-serif font-medium tracking-tight italic leading-none">
+                  {monthName} <span className="not-italic font-sans font-bold opacity-20">{year}</span>
+                </h2>
+              </div>
+              
               {userRole === 'admin' && !isEditingPlan && (
-                <button 
+                <motion.button 
+                  whileHover={{ scale: 1.05 }}
                   onClick={handleEditPlan}
-                  className="flex items-center gap-2 px-3 py-1.5 bg-white/10 hover:bg-white/20 rounded-md text-xs font-bold transition-colors"
+                  className="flex items-center gap-3 px-8 py-4 bg-white/10 hover:bg-white/20 rounded-2xl text-[11px] font-bold uppercase tracking-[0.2em] transition-all backdrop-blur-md border border-white/10 shadow-xl"
                 >
                   <Edit2 size={14} /> Editar Plano
-                </button>
+                </motion.button>
               )}
             </div>
 
             {isEditingPlan ? (
-              <div className="bg-white/10 p-6 rounded-xl border border-white/20 mt-4 space-y-4">
+              <div className="bg-white/5 p-8 rounded-3xl border border-white/10 mt-8 space-y-6 backdrop-blur-xl">
                 <div>
-                  <label className="block text-xs font-bold uppercase tracking-wider text-blue-200 mb-1">Tema do Mês</label>
+                  <label className="premium-label text-white/60 mb-2 block">Tema do Mês</label>
                   <input 
                     type="text" 
                     value={editTheme} 
                     onChange={e => setEditTheme(e.target.value)}
-                    className="w-full bg-white/5 border border-white/20 rounded-md px-3 py-2 text-white placeholder-white/30 focus:outline-none focus:border-brand-green"
+                    className="w-full bg-white/5 border border-white/10 rounded-2xl px-5 py-3.5 text-white placeholder-white/20 focus:outline-none focus:border-white/40 transition-all font-medium"
                     placeholder="Ex: Inovação e Segurança"
                   />
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                   <div>
-                    <label className="block text-xs font-bold uppercase tracking-wider text-blue-200 mb-1">Objetivos (um por linha)</label>
+                    <label className="premium-label text-white/60 mb-2 block">Objetivos</label>
                     <textarea 
                       value={editObjectives} 
                       onChange={e => setEditObjectives(e.target.value)}
-                      className="w-full bg-white/5 border border-white/20 rounded-md px-3 py-2 text-white placeholder-white/30 focus:outline-none focus:border-brand-green h-24 resize-none"
+                      className="w-full bg-white/5 border border-white/10 rounded-2xl px-5 py-3.5 text-white placeholder-white/20 focus:outline-none focus:border-white/40 transition-all h-32 resize-none font-medium text-sm"
+                      placeholder="Um por linha..."
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-bold uppercase tracking-wider text-blue-200 mb-1">Datas Chave (uma por linha)</label>
+                    <label className="premium-label text-white/60 mb-2 block">Datas Chave</label>
                     <textarea 
                       value={editKeyDates} 
                       onChange={e => setEditKeyDates(e.target.value)}
-                      className="w-full bg-white/5 border border-white/20 rounded-md px-3 py-2 text-white placeholder-white/30 focus:outline-none focus:border-brand-green h-24 resize-none"
+                      className="w-full bg-white/5 border border-white/10 rounded-2xl px-5 py-3.5 text-white placeholder-white/20 focus:outline-none focus:border-white/40 transition-all h-32 resize-none font-medium text-sm"
+                      placeholder="Uma por linha..."
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-bold uppercase tracking-wider text-blue-200 mb-1">Campanhas (uma por linha)</label>
+                    <label className="premium-label text-white/60 mb-2 block">Campanhas</label>
                     <textarea 
                       value={editCampaigns} 
                       onChange={e => setEditCampaigns(e.target.value)}
-                      className="w-full bg-white/5 border border-white/20 rounded-md px-3 py-2 text-white placeholder-white/30 focus:outline-none focus:border-brand-green h-24 resize-none"
+                      className="w-full bg-white/5 border border-white/10 rounded-2xl px-5 py-3.5 text-white placeholder-white/20 focus:outline-none focus:border-white/40 transition-all h-32 resize-none font-medium text-sm"
+                      placeholder="Uma por linha..."
                     />
                   </div>
                 </div>
-                <div className="flex justify-end gap-3 mt-4">
+                <div className="flex justify-end gap-4 mt-8">
                   <button 
                     onClick={() => setIsEditingPlan(false)}
-                    className="flex items-center gap-2 px-4 py-2 bg-transparent hover:bg-white/10 text-white rounded-md text-xs font-bold transition-colors"
+                    className="flex items-center gap-2 px-6 py-3 bg-transparent hover:bg-white/5 text-white rounded-2xl text-[10px] font-bold uppercase tracking-widest transition-all"
                   >
                     <X size={14} /> Cancelar
                   </button>
                   <button 
                     onClick={handleSavePlan}
                     disabled={isSavingPlan}
-                    className="flex items-center gap-2 px-4 py-2 bg-brand-green hover:bg-green-600 text-white rounded-md text-xs font-bold transition-colors disabled:opacity-50"
+                    className="flex items-center gap-2 px-8 py-3 bg-white text-brand-dark hover:bg-gray-100 rounded-2xl text-[10px] font-bold uppercase tracking-widest transition-all disabled:opacity-50 shadow-xl"
                   >
                     {isSavingPlan ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />} 
                     Salvar Alterações
@@ -796,8 +838,9 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack }) =
               </div>
             ) : (
               <>
-                <div className="inline-block bg-white/10 backdrop-blur-sm px-3 py-1 rounded border border-white/20 text-blue-200 text-xs font-bold uppercase tracking-[0.2em] mb-6 mt-2">
-                  Tema: {currentPlan.theme || 'Não definido'}
+                <div className="inline-flex items-center gap-3 bg-white/10 backdrop-blur-md px-4 py-2 rounded-xl border border-white/10 text-white/80 text-[10px] font-bold uppercase tracking-[0.2em] mb-10 mt-4">
+                  <Target size={12} className="text-white/40" />
+                  Tema: <span className="text-white">{currentPlan.theme || 'Não definido'}</span>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mt-4">
                    <div className="md:col-span-1">
@@ -895,6 +938,6 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack }) =
            ) : renderCalendar()}
         </div>
       </div>
-    </div>
+    </motion.div>
   );
 };

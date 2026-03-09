@@ -154,4 +154,5 @@ export interface Client {
   logo_url: string | null;
   is_active: boolean;
   services: string[];
+  reportei_url?: string | null;
 }
