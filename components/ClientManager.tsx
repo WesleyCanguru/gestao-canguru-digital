@@ -63,7 +63,12 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
         p_client_id: clientData.id
       });
 
-      setSuccessMsg(`Cliente "${form.name}" cadastrado com estrutura editorial criada!`);
+      // Chamar RPC para criar estrutura de onboarding padrão
+      await supabase.rpc('create_default_onboarding_structure', {
+        p_client_id: clientData.id
+      });
+
+      setSuccessMsg(`Cliente "${form.name}" cadastrado com estrutura editorial e onboarding criados!`);
       setForm({ name: '', segment: '', responsible: '', email: '', instagram: '', color: '#1e40af', initials: '', services: [] });
       setShowForm(false);
       fetchClients();
