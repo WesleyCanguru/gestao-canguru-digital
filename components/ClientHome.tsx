@@ -22,6 +22,7 @@ interface ClientHomeProps {
   onNavigateToDocuments: () => void;
   onNavigateToPaidTraffic: () => void;
   onNavigateToWebsite: () => void;
+  onRefreshClient?: () => void;
 }
 
 const MONTHS = [
@@ -36,8 +37,9 @@ export const ClientHome: React.FC<ClientHomeProps> = ({
   onNavigateToDocuments,
   onNavigateToPaidTraffic,
   onNavigateToWebsite,
+  onRefreshClient,
 }) => {
-  const { activeClient } = useAuth();
+  const { activeClient, userRole } = useAuth();
   const [onboardingPending, setOnboardingPending] = useState(0);
   const [briefingMissing, setBriefingMissing] = useState(false);
   const [smartLoading, setSmartLoading] = useState(true);
@@ -98,6 +100,31 @@ export const ClientHome: React.FC<ClientHomeProps> = ({
 
     checkStatus();
   }, [activeClient?.id]);
+
+  const isAdmin = userRole === 'admin';
+
+  const handleSetUrl = async (type: 'organic' | 'paid') => {
+    if (!isAdmin || !activeClient) return;
+    
+    const currentUrl = type === 'organic' ? activeClient.organic_reportei_url : activeClient.paid_reportei_url;
+    const newUrl = window.prompt(`Digite a URL do Reportei para Tráfego ${type === 'organic' ? 'Orgânico' : 'Pago'}:`, currentUrl || '');
+    
+    if (newUrl !== null) {
+      try {
+        const field = type === 'organic' ? 'organic_reportei_url' : 'paid_reportei_url';
+        const { error } = await supabase
+          .from('clients')
+          .update({ [field]: newUrl.trim() || null })
+          .eq('id', activeClient.id);
+        
+        if (error) throw error;
+        if (onRefreshClient) onRefreshClient();
+      } catch (err) {
+        console.error('Erro ao salvar URL:', err);
+        alert('Erro ao salvar a URL. Tente novamente.');
+      }
+    }
+  };
 
   const services = activeClient?.services || [];
   const hasService = (s: string) => services.length === 0 || services.includes(s);
@@ -256,34 +283,74 @@ export const ClientHome: React.FC<ClientHomeProps> = ({
           
           {/* Tráfego Pago */}
           {showPaidTraffic && (
-            <motion.div 
-              variants={itemVariants}
-              onClick={onNavigateToPaidTraffic}
-              className="group bg-white rounded-[2.5rem] p-10 shadow-[0_4px_25px_rgba(0,0,0,0.02)] border border-black/[0.02] hover:shadow-[0_15px_45px_rgba(0,0,0,0.05)] hover:border-brand-dark/10 transition-all duration-500 cursor-pointer flex flex-col"
-            >
-              <div className="flex justify-between items-start mb-8">
-                <div className="w-16 h-16 bg-blue-50/50 rounded-[20px] flex items-center justify-center text-blue-600 group-hover:bg-blue-600 group-hover:text-white transition-all duration-500 shadow-sm">
-                  <Zap size={32} />
+            activeClient?.paid_reportei_url ? (
+              <motion.a 
+                variants={itemVariants}
+                href={activeClient.paid_reportei_url} 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="group bg-white rounded-[2.5rem] p-10 shadow-[0_4px_25px_rgba(0,0,0,0.02)] border border-black/[0.02] hover:shadow-[0_15px_45px_rgba(0,0,0,0.05)] hover:border-brand-dark/10 transition-all duration-500 cursor-pointer flex flex-col relative"
+              >
+                {isAdmin && (
+                  <button 
+                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleSetUrl('paid'); }}
+                    className="absolute top-6 right-6 p-2 bg-gray-50 rounded-full opacity-0 group-hover:opacity-100 transition-opacity hover:bg-gray-100"
+                  >
+                    <Globe size={14} className="text-gray-400" />
+                  </button>
+                )}
+                <div className="flex justify-between items-start mb-8">
+                  <div className="w-16 h-16 bg-blue-50/50 rounded-[20px] flex items-center justify-center text-blue-600 group-hover:bg-blue-600 group-hover:text-white transition-all duration-500 shadow-sm">
+                    <Zap size={32} />
+                  </div>
+                  <ArrowRight size={22} className="text-gray-200 group-hover:text-brand-dark transform group-hover:-rotate-45 transition-all duration-500" />
                 </div>
-                <ArrowRight size={22} className="text-gray-200 group-hover:text-brand-dark transform group-hover:-rotate-45 transition-all duration-500" />
-              </div>
-              <h3 className="text-2xl font-bold text-brand-dark mb-3 tracking-tight">Tráfego Pago</h3>
-              <p className="text-gray-500 text-sm leading-relaxed font-medium">
-                Performance de anúncios e campanhas ativas em tempo real.
-              </p>
-            </motion.div>
+                <h3 className="text-2xl font-bold text-brand-dark mb-3 tracking-tight">Tráfego Pago</h3>
+                <p className="text-gray-500 text-sm leading-relaxed font-medium">
+                  Performance de anúncios e campanhas ativas em tempo real.
+                </p>
+              </motion.a>
+            ) : (
+              <motion.div 
+                variants={itemVariants}
+                onClick={() => isAdmin && handleSetUrl('paid')}
+                className={`group bg-white rounded-[2.5rem] p-10 shadow-[0_4px_25px_rgba(0,0,0,0.02)] border border-black/[0.02] ${isAdmin ? 'cursor-pointer hover:border-brand-dark/10' : 'opacity-60 cursor-default'} flex flex-col`}
+              >
+                <div className="flex justify-between items-start mb-8">
+                  <div className="w-16 h-16 bg-blue-50/50 rounded-[20px] flex items-center justify-center text-blue-600 shadow-sm">
+                    <Zap size={32} />
+                  </div>
+                  <div className="flex flex-col items-end gap-1">
+                    <span className="text-[10px] font-bold uppercase tracking-[0.25em] text-gray-400">Em breve</span>
+                    {isAdmin && <span className="text-[8px] text-brand-dark font-bold uppercase tracking-widest opacity-40 group-hover:opacity-100 transition-opacity">Configurar Link</span>}
+                  </div>
+                </div>
+                <h3 className="text-2xl font-bold text-brand-dark mb-3 tracking-tight">Tráfego Pago</h3>
+                <p className="text-gray-500 text-sm leading-relaxed font-medium">
+                  Performance de anúncios e campanhas ativas em tempo real.
+                </p>
+              </motion.div>
+            )
           )}
 
           {/* Tráfego Orgânico */}
           {showOrganicTraffic && (
-            activeClient?.reportei_url ? (
+            activeClient?.organic_reportei_url ? (
               <motion.a 
                 variants={itemVariants}
-                href={activeClient.reportei_url} 
+                href={activeClient.organic_reportei_url} 
                 target="_blank" 
                 rel="noopener noreferrer"
-                className="group bg-white rounded-[2.5rem] p-10 shadow-[0_4px_25px_rgba(0,0,0,0.02)] border border-black/[0.02] hover:shadow-[0_15px_45px_rgba(0,0,0,0.05)] hover:border-brand-dark/10 transition-all duration-500 cursor-pointer flex flex-col"
+                className="group bg-white rounded-[2.5rem] p-10 shadow-[0_4px_25px_rgba(0,0,0,0.02)] border border-black/[0.02] hover:shadow-[0_15px_45px_rgba(0,0,0,0.05)] hover:border-brand-dark/10 transition-all duration-500 cursor-pointer flex flex-col relative"
               >
+                {isAdmin && (
+                  <button 
+                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleSetUrl('organic'); }}
+                    className="absolute top-6 right-6 p-2 bg-gray-50 rounded-full opacity-0 group-hover:opacity-100 transition-opacity hover:bg-gray-100"
+                  >
+                    <Globe size={14} className="text-gray-400" />
+                  </button>
+                )}
                 <div className="flex justify-between items-start mb-8">
                   <div className="w-16 h-16 bg-purple-50/50 rounded-[20px] flex items-center justify-center text-purple-600 group-hover:bg-purple-600 group-hover:text-white transition-all duration-500 shadow-sm">
                     <TrendingUp size={32} />
@@ -298,13 +365,17 @@ export const ClientHome: React.FC<ClientHomeProps> = ({
             ) : (
               <motion.div 
                 variants={itemVariants}
-                className="group bg-white rounded-[2.5rem] p-10 shadow-[0_4px_25px_rgba(0,0,0,0.02)] border border-black/[0.02] opacity-60 cursor-default flex flex-col"
+                onClick={() => isAdmin && handleSetUrl('organic')}
+                className={`group bg-white rounded-[2.5rem] p-10 shadow-[0_4px_25px_rgba(0,0,0,0.02)] border border-black/[0.02] ${isAdmin ? 'cursor-pointer hover:border-brand-dark/10' : 'opacity-60 cursor-default'} flex flex-col`}
               >
                 <div className="flex justify-between items-start mb-8">
                   <div className="w-16 h-16 bg-purple-50/50 rounded-[20px] flex items-center justify-center text-purple-600 shadow-sm">
                     <TrendingUp size={32} />
                   </div>
-                  <span className="text-[10px] font-bold uppercase tracking-[0.25em] text-gray-400">Em breve</span>
+                  <div className="flex flex-col items-end gap-1">
+                    <span className="text-[10px] font-bold uppercase tracking-[0.25em] text-gray-400">Em breve</span>
+                    {isAdmin && <span className="text-[8px] text-brand-dark font-bold uppercase tracking-widest opacity-40 group-hover:opacity-100 transition-opacity">Configurar Link</span>}
+                  </div>
                 </div>
                 <h3 className="text-2xl font-bold text-brand-dark mb-3 tracking-tight">Tráfego Orgânico</h3>
                 <p className="text-gray-500 text-sm leading-relaxed font-medium">

@@ -32,6 +32,8 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
     email: '',
     instagram: '',
     reportei_url: '',
+    organic_reportei_url: '',
+    paid_reportei_url: '',
     color: '#1e40af',
     initials: '',
     services: [] as string[],
@@ -63,7 +65,8 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
         responsible: form.responsible.trim() || null,
         email: form.email.trim() || null,
         instagram: form.instagram.trim() || null,
-        reportei_url: form.reportei_url.trim() || null,
+        organic_reportei_url: form.organic_reportei_url.trim() || null,
+        paid_reportei_url: form.paid_reportei_url.trim() || null,
         color: form.color,
         initials: form.initials.trim().toUpperCase().slice(0, 2),
         services: form.services,
@@ -185,7 +188,8 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
       responsible: '', 
       email: '', 
       instagram: '', 
-      reportei_url: '',
+      organic_reportei_url: '',
+      paid_reportei_url: '',
       color: '#1e40af', 
       initials: '', 
       services: [],
@@ -204,7 +208,8 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
       responsible: client.responsible || '',
       email: client.email || '',
       instagram: client.instagram || '',
-      reportei_url: client.reportei_url || '',
+      organic_reportei_url: client.organic_reportei_url || '',
+      paid_reportei_url: client.paid_reportei_url || '',
       color: client.color,
       initials: client.initials,
       services: client.services || [],
@@ -375,7 +380,17 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
                 <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">URL Tráfego Orgânico (Reportei)</label>
                 <div className="relative">
                   <Globe className="absolute left-3 top-3 text-gray-400" size={16} />
-                  <input type="text" value={form.reportei_url} onChange={e => setForm(f => ({...f, reportei_url: e.target.value}))}
+                  <input type="text" value={form.organic_reportei_url} onChange={e => setForm(f => ({...f, organic_reportei_url: e.target.value}))}
+                    placeholder="https://app.reportei.com/report/..."
+                    className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                </div>
+              </div>
+
+              <div className="sm:col-span-2">
+                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">URL Tráfego Pago (Reportei)</label>
+                <div className="relative">
+                  <Globe className="absolute left-3 top-3 text-gray-400" size={16} />
+                  <input type="text" value={form.paid_reportei_url} onChange={e => setForm(f => ({...f, paid_reportei_url: e.target.value}))}
                     placeholder="https://app.reportei.com/report/..."
                     className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
                 </div>

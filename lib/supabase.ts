@@ -22,6 +22,7 @@ interface AuthContextType {
   loginByPassword: (password: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => void;
   setActiveClient: (client: Client | null) => void;
+  refreshActiveClient: () => Promise<void>;
   isAuthenticated: boolean;
 }
 
@@ -32,6 +33,7 @@ const AuthContext = createContext<AuthContextType>({
   loginByPassword: async () => ({ success: false }),
   logout: () => {},
   setActiveClient: () => {},
+  refreshActiveClient: async () => {},
   isAuthenticated: false,
 });
 
@@ -134,9 +136,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const refreshActiveClient = async () => {
+    if (!activeClient?.id) return;
+    const { data, error } = await supabase
+      .from('clients')
+      .select('*')
+      .eq('id', activeClient.id)
+      .single();
+    if (!error && data) {
+      setActiveClientState(data as Client);
+      localStorage.setItem('next_app_client', JSON.stringify(data));
+    }
+  };
+
   return React.createElement(
     AuthContext.Provider,
-    { value: { userRole, activeClient, login, loginByPassword, logout, setActiveClient, isAuthenticated: !!userRole } },
+    { value: { userRole, activeClient, login, loginByPassword, logout, setActiveClient, refreshActiveClient, isAuthenticated: !!userRole } },
     children
   );
 };

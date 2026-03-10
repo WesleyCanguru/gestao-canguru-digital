@@ -25,8 +25,15 @@ interface MainAppProps {}
 const MainApp: React.FC<MainAppProps> = () => {
   const [view, setView] = useState<ViewState>('dashboard');
   const [selectedMonth, setSelectedMonth] = useState<string | null>(null);
-  const { userRole, logout, activeClient, setActiveClient } = useAuth();
+  const { userRole, logout, activeClient, setActiveClient, refreshActiveClient } = useAuth();
   const { monthlyPlans } = useEditorialData();
+
+  // Redirecionar para onboarding se não estiver completo (apenas para clientes)
+  useEffect(() => {
+    if (userRole === 'approver' && activeClient && !activeClient.onboarding_completed && view !== 'onboarding') {
+      setView('onboarding');
+    }
+  }, [userRole, activeClient, view]);
 
   const handleSelectMonth = (month: string) => {
     setSelectedMonth(month);
@@ -203,9 +210,13 @@ const MainApp: React.FC<MainAppProps> = () => {
                   onNavigateToDocuments={() => setView('documents')}
                   onNavigateToPaidTraffic={() => setView('paid-traffic')}
                   onNavigateToWebsite={() => setView('website')}
+                  onRefreshClient={refreshActiveClient}
                 />
               ) : view === 'onboarding' ? (
-                <OnboardingView />
+                <OnboardingView onComplete={() => {
+                  refreshActiveClient();
+                  setView('dashboard');
+                }} />
               ) : view === 'home' ? (
                 <AnnualOverview onSelectMonth={handleSelectMonth} />
               ) : (

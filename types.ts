@@ -158,4 +158,7 @@ export interface Client {
   social_networks: string[];
   traffic_platforms: string[];
   reportei_url?: string | null;
+  organic_reportei_url?: string | null;
+  paid_reportei_url?: string | null;
+  onboarding_completed?: boolean;
 }

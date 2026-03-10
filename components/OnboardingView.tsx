@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase, useAuth } from '../lib/supabase';
 import { CheckCircle, Circle, Clock, ChevronDown, ChevronUp } from 'lucide-react';
+import { BriefingOnboarding } from './BriefingOnboarding';
 
 interface OnboardingPhase {
   id: string;
@@ -27,7 +28,11 @@ interface OnboardingStep {
   created_at: string;
 }
 
-export const OnboardingView: React.FC = () => {
+interface OnboardingViewProps {
+  onComplete?: () => void;
+}
+
+export const OnboardingView: React.FC<OnboardingViewProps> = ({ onComplete }) => {
   const { activeClient, userRole } = useAuth();
   const [phases, setPhases] = useState<OnboardingPhase[]>([]);
   const [steps, setSteps] = useState<OnboardingStep[]>([]);
@@ -83,6 +88,10 @@ export const OnboardingView: React.FC = () => {
   const totalRequired = steps.filter(s => s.is_required).length;
   const completedRequired = steps.filter(s => s.is_required && s.status === 'completed').length;
   const progressPercent = totalRequired > 0 ? Math.round((completedRequired / totalRequired) * 100) : 0;
+
+  if (userRole === 'approver' && activeClient && !activeClient.onboarding_completed) {
+    return <BriefingOnboarding onComplete={onComplete || (() => {})} />;
+  }
 
   if (loading) return <div className="text-center text-gray-400 py-12">Carregando...</div>;
 
