@@ -73,7 +73,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const cleanPass = password.trim();
 
     // 1. Verificar senhas da agência (Hardcoded)
-    if (cleanPass === 'Canguru2026') {
+    if (cleanPass === 'Amor1106*') {
       login('admin');
       return { success: true };
     } else if (cleanPass === 'Vivi2026') {
