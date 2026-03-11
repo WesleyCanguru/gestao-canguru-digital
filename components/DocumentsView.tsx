@@ -11,7 +11,8 @@ import {
   Trash2,
   X,
   UploadCloud,
-  AlertCircle
+  AlertCircle,
+  Folder
 } from 'lucide-react';
 
 interface Document {
@@ -30,13 +31,23 @@ interface Document {
   created_at: string;
 }
 
-const CATEGORY_CONFIG = {
-  report: { label: 'Relatório', icon: BarChart2, color: 'text-blue-600', bg: 'bg-blue-100', border: 'border-blue-200' },
-  editorial_calendar: { label: 'Calendário Editorial', icon: Calendar, color: 'text-purple-600', bg: 'bg-purple-100', border: 'border-purple-200' },
-  contract: { label: 'Contrato', icon: FileText, color: 'text-green-600', bg: 'bg-green-100', border: 'border-green-200' },
-  presentation: { label: 'Apresentação', icon: Monitor, color: 'text-orange-600', bg: 'bg-orange-100', border: 'border-orange-200' },
-  other: { label: 'Outro', icon: File, color: 'text-gray-600', bg: 'bg-gray-100', border: 'border-gray-200' },
-};
+interface CategoryConfig {
+  id: string;
+  label: string;
+  icon: any;
+  color: string;
+  bg: string;
+  border: string;
+  isCustom?: boolean;
+}
+
+const DEFAULT_CATEGORIES: CategoryConfig[] = [
+  { id: 'report', label: 'Relatório', icon: BarChart2, color: 'text-blue-600', bg: 'bg-blue-100', border: 'border-blue-200' },
+  { id: 'editorial_calendar', label: 'Calendário Editorial', icon: Calendar, color: 'text-purple-600', bg: 'bg-purple-100', border: 'border-purple-200' },
+  { id: 'contract', label: 'Contrato', icon: FileText, color: 'text-green-600', bg: 'bg-green-100', border: 'border-green-200' },
+  { id: 'presentation', label: 'Apresentação', icon: Monitor, color: 'text-orange-600', bg: 'bg-orange-100', border: 'border-orange-200' },
+  { id: 'other', label: 'Outro', icon: File, color: 'text-gray-600', bg: 'bg-gray-100', border: 'border-gray-200' },
+];
 
 const MONTH_NAMES = [
   'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
@@ -46,20 +57,26 @@ const MONTH_NAMES = [
 export const DocumentsView: React.FC = () => {
   const { activeClient, userRole } = useAuth();
   const [documents, setDocuments] = useState<Document[]>([]);
+  const [customCategories, setCustomCategories] = useState<CategoryConfig[]>([]);
+  const [deletedPredefined, setDeletedPredefined] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<string>('all');
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // Form state
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
-  const [category, setCategory] = useState<keyof typeof CATEGORY_CONFIG>('report');
+  const [category, setCategory] = useState<string>('report');
   const [month, setMonth] = useState<string>('');
   const [year, setYear] = useState<number>(new Date().getFullYear());
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   
+  // Category form state
+  const [newCategoryName, setNewCategoryName] = useState('');
+
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -79,13 +96,34 @@ export const DocumentsView: React.FC = () => {
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      setDocuments(data || []);
+      
+      const allDocs = data || [];
+      const actualDocs = allDocs.filter(d => d.file_type !== 'category' && d.file_type !== 'deleted_category');
+      const customCategoryDocs = allDocs.filter(d => d.file_type === 'category');
+      const deletedCategoryDocs = allDocs.filter(d => d.file_type === 'deleted_category');
+
+      setDocuments(actualDocs);
+      setCustomCategories(customCategoryDocs.map(d => ({
+        id: d.id,
+        label: d.title,
+        icon: Folder,
+        color: 'text-gray-600',
+        bg: 'bg-gray-100',
+        border: 'border-gray-200',
+        isCustom: true
+      })));
+      setDeletedPredefined(deletedCategoryDocs.map(d => d.title));
     } catch (err) {
       console.error('Error fetching documents:', err);
     } finally {
       setLoading(false);
     }
   };
+
+  const allCategories = [
+    ...DEFAULT_CATEGORIES.filter(c => !deletedPredefined.includes(c.id)),
+    ...customCategories
+  ];
 
   const formatFileSize = (bytes?: number) => {
     if (!bytes) return '';
@@ -95,7 +133,7 @@ export const DocumentsView: React.FC = () => {
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   };
 
-  const handleDownload = async (doc: Document) => {
+  const handlePreview = async (doc: Document) => {
     try {
       const { data } = supabase.storage
         .from('client-documents')
@@ -103,6 +141,31 @@ export const DocumentsView: React.FC = () => {
       
       if (data?.publicUrl) {
         window.open(data.publicUrl, '_blank');
+      }
+    } catch (err) {
+      console.error('Error previewing document:', err);
+      alert('Erro ao abrir o documento.');
+    }
+  };
+
+  const handleDownload = async (doc: Document, e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      const { data, error } = await supabase.storage
+        .from('client-documents')
+        .download(doc.file_path);
+      
+      if (error) throw error;
+      
+      if (data) {
+        const url = URL.createObjectURL(data);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = doc.file_name;
+        document.body.appendChild(a);
+        a.click();
+        URL.revokeObjectURL(url);
+        document.body.removeChild(a);
       }
     } catch (err) {
       console.error('Error downloading document:', err);
@@ -181,18 +244,22 @@ export const DocumentsView: React.FC = () => {
 
       if (uploadError) throw uploadError;
 
+      const isCustomCategory = customCategories.some(c => c.id === category);
+      const dbCategory = isCustomCategory ? 'other' : category;
+      const dbDescription = isCustomCategory ? `[CAT:${category}] ${description.trim()}` : description.trim() || null;
+
       // 2. Insert record to database
       const { error: dbError } = await supabase
         .from('documents')
         .insert({
           client_id: activeClient.id,
           title: title.trim(),
-          description: description.trim() || null,
+          description: dbDescription,
           file_name: selectedFile.name,
           file_path: filePath,
           file_type: selectedFile.type || 'application/octet-stream',
           file_size: selectedFile.size,
-          category,
+          category: dbCategory,
           month: month ? parseInt(month) : null,
           year: year || null
         });
@@ -210,6 +277,79 @@ export const DocumentsView: React.FC = () => {
     }
   };
 
+  const handleCreateCategory = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!activeClient || !newCategoryName.trim()) return;
+
+    setUploading(true);
+    setError(null);
+
+    try {
+      const { error: dbError } = await supabase
+        .from('documents')
+        .insert({
+          client_id: activeClient.id,
+          title: newCategoryName.trim(),
+          file_name: '__category__',
+          file_path: '__category__' + Date.now(),
+          file_type: 'category',
+          category: 'other'
+        });
+
+      if (dbError) throw dbError;
+
+      await fetchDocuments();
+      setIsCategoryModalOpen(false);
+      setNewCategoryName('');
+    } catch (err: any) {
+      console.error('Error creating category:', err);
+      setError(err.message || 'Erro ao criar categoria.');
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleDeleteCategory = async (categoryId: string) => {
+    if (!activeClient) return;
+    if (!window.confirm('Tem certeza que deseja excluir esta categoria? Os documentos não serão excluídos, mas ficarão sem categoria.')) {
+      return;
+    }
+
+    try {
+      const isCustom = customCategories.some(c => c.id === categoryId);
+      
+      if (isCustom) {
+        // Delete the category document
+        const { error } = await supabase
+          .from('documents')
+          .delete()
+          .eq('id', categoryId);
+        if (error) throw error;
+      } else {
+        // Add to deleted predefined categories
+        const { error } = await supabase
+          .from('documents')
+          .insert({
+            client_id: activeClient.id,
+            title: categoryId,
+            file_name: '__deleted_category__',
+            file_path: '__deleted_category__' + Date.now(),
+            file_type: 'deleted_category',
+            category: 'other'
+          });
+        if (error) throw error;
+      }
+
+      await fetchDocuments();
+      if (filter === categoryId) {
+        setFilter('all');
+      }
+    } catch (err) {
+      console.error('Error deleting category:', err);
+      alert('Erro ao excluir categoria.');
+    }
+  };
+
   const closeModal = () => {
     setIsModalOpen(false);
     setTitle('');
@@ -224,7 +364,18 @@ export const DocumentsView: React.FC = () => {
 
   const filteredDocuments = filter === 'all' 
     ? documents 
-    : documents.filter(d => d.category === filter);
+    : documents.filter(d => {
+        let customCategoryId = null;
+        if (d.description && d.description.startsWith('[CAT:')) {
+          const match = d.description.match(/^\[CAT:([^\]]+)\]/);
+          if (match) customCategoryId = match[1];
+        }
+        
+        if (customCategoryId) {
+          return customCategoryId === filter;
+        }
+        return d.category === filter;
+      });
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -240,13 +391,24 @@ export const DocumentsView: React.FC = () => {
               <p className="text-sm text-gray-500">Gerencie arquivos e apresentações</p>
             </div>
           </div>
-          <button
-            onClick={() => setIsModalOpen(true)}
-            className="flex items-center gap-2 bg-orange-500 text-white px-4 py-2 rounded-lg hover:bg-orange-600 transition-colors text-sm font-medium shadow-sm"
-          >
-            <Plus className="w-4 h-4" />
-            Novo Documento
-          </button>
+          <div className="flex items-center gap-2">
+            {(userRole === 'admin' || userRole === 'team') && (
+              <button
+                onClick={() => setIsCategoryModalOpen(true)}
+                className="flex items-center gap-2 bg-white border border-gray-200 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-50 transition-colors text-sm font-medium shadow-sm"
+              >
+                <Folder className="w-4 h-4" />
+                Nova Categoria
+              </button>
+            )}
+            <button
+              onClick={() => setIsModalOpen(true)}
+              className="flex items-center gap-2 bg-orange-500 text-white px-4 py-2 rounded-lg hover:bg-orange-600 transition-colors text-sm font-medium shadow-sm"
+            >
+              <Plus className="w-4 h-4" />
+              Novo Documento
+            </button>
+          </div>
         </div>
       </div>
 
@@ -263,19 +425,29 @@ export const DocumentsView: React.FC = () => {
           >
             Todos
           </button>
-          {Object.entries(CATEGORY_CONFIG).map(([key, config]) => (
-            <button
-              key={key}
-              onClick={() => setFilter(key)}
-              className={`px-4 py-1.5 rounded-full text-xs font-medium transition-colors flex items-center gap-1.5 ${
-                filter === key 
-                  ? `${config.bg} ${config.color} border ${config.border}` 
-                  : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'
-              }`}
-            >
-              <config.icon className="w-3.5 h-3.5" />
-              {config.label}
-            </button>
+          {allCategories.map((config) => (
+            <div key={config.id} className="relative group flex items-center">
+              <button
+                onClick={() => setFilter(config.id)}
+                className={`px-4 py-1.5 rounded-full text-xs font-medium transition-colors flex items-center gap-1.5 ${
+                  filter === config.id 
+                    ? `${config.bg} ${config.color} border ${config.border}` 
+                    : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'
+                }`}
+              >
+                <config.icon className="w-3.5 h-3.5" />
+                {config.label}
+              </button>
+              {(userRole === 'admin' || userRole === 'team') && (
+                <button
+                  onClick={() => handleDeleteCategory(config.id)}
+                  className="absolute -top-1 -right-1 w-4 h-4 bg-red-100 text-red-600 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                  title="Excluir categoria"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              )}
+            </div>
           ))}
         </div>
 
@@ -293,17 +465,31 @@ export const DocumentsView: React.FC = () => {
             <p className="text-gray-500 text-sm">
               {filter === 'all' 
                 ? 'Faça o upload do seu primeiro documento clicando no botão acima.'
-                : `Nenhum documento da categoria "${CATEGORY_CONFIG[filter as keyof typeof CATEGORY_CONFIG].label}" encontrado.`}
+                : `Nenhum documento da categoria "${allCategories.find(c => c.id === filter)?.label || 'Desconhecida'}" encontrado.`}
             </p>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {filteredDocuments.map((doc) => {
-              const config = CATEGORY_CONFIG[doc.category];
+              let customCategoryId = null;
+              let displayDescription = doc.description;
+              if (doc.description && doc.description.startsWith('[CAT:')) {
+                const match = doc.description.match(/^\[CAT:([^\]]+)\]\s*(.*)$/);
+                if (match) {
+                  customCategoryId = match[1];
+                  displayDescription = match[2];
+                }
+              }
+
+              const config = allCategories.find(c => c.id === (customCategoryId || doc.category)) || allCategories.find(c => c.id === 'other') || DEFAULT_CATEGORIES[4];
               const Icon = config.icon;
               
               return (
-                <div key={doc.id} className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm hover:shadow-md transition-shadow flex flex-col h-full">
+                <div 
+                  key={doc.id} 
+                  onClick={() => handlePreview(doc)}
+                  className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm hover:shadow-md transition-shadow flex flex-col h-full cursor-pointer"
+                >
                   <div className="flex items-start justify-between mb-3">
                     <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider ${config.bg} ${config.color}`}>
                       <Icon className="w-3 h-3" />
@@ -318,13 +504,13 @@ export const DocumentsView: React.FC = () => {
                     {doc.title}
                   </h3>
                   
-                  {doc.description && (
+                  {displayDescription && (
                     <p className="text-sm text-gray-500 mb-3 line-clamp-2 flex-grow">
-                      {doc.description}
+                      {displayDescription}
                     </p>
                   )}
                   
-                  {!doc.description && <div className="flex-grow"></div>}
+                  {!displayDescription && <div className="flex-grow"></div>}
 
                   <div className="mt-4 pt-4 border-t border-gray-100">
                     <div className="flex items-center justify-between mb-3">
@@ -345,7 +531,7 @@ export const DocumentsView: React.FC = () => {
 
                     <div className="flex items-center gap-2">
                       <button
-                        onClick={() => handleDownload(doc)}
+                        onClick={(e) => handleDownload(doc, e)}
                         className="flex-1 flex items-center justify-center gap-1.5 bg-blue-50 hover:bg-blue-100 text-blue-600 px-3 py-2 rounded-lg text-xs font-semibold transition-colors"
                       >
                         <Download className="w-3.5 h-3.5" />
@@ -353,7 +539,10 @@ export const DocumentsView: React.FC = () => {
                       </button>
                       {(userRole === 'admin' || userRole === 'team') && (
                         <button
-                          onClick={() => handleDelete(doc)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDelete(doc);
+                          }}
                           className="flex items-center justify-center bg-red-50 hover:bg-red-100 text-red-600 p-2 rounded-lg transition-colors"
                           title="Excluir documento"
                         >
@@ -416,12 +605,12 @@ export const DocumentsView: React.FC = () => {
                   <label className="block text-sm font-medium text-gray-700 mb-1">Categoria *</label>
                   <select
                     value={category}
-                    onChange={(e) => setCategory(e.target.value as keyof typeof CATEGORY_CONFIG)}
+                    onChange={(e) => setCategory(e.target.value)}
                     className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
                     required
                   >
-                    {Object.entries(CATEGORY_CONFIG).map(([key, config]) => (
-                      <option key={key} value={key}>{config.label}</option>
+                    {allCategories.map((config) => (
+                      <option key={config.id} value={config.id}>{config.label}</option>
                     ))}
                   </select>
                 </div>
@@ -510,6 +699,64 @@ export const DocumentsView: React.FC = () => {
                   <>
                     <UploadCloud className="w-4 h-4" />
                     Fazer Upload
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Category Modal */}
+      {isCategoryModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden flex flex-col">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+              <h2 className="text-lg font-bold text-gray-900">Nova Categoria</h2>
+              <button onClick={() => setIsCategoryModalOpen(false)} className="text-gray-400 hover:text-gray-600 transition-colors">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            <div className="p-6">
+              <form id="category-form" onSubmit={handleCreateCategory} className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Nome da Categoria *</label>
+                  <input
+                    type="text"
+                    value={newCategoryName}
+                    onChange={(e) => setNewCategoryName(e.target.value)}
+                    placeholder="Ex: Relatórios Trimestrais"
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                    required
+                  />
+                </div>
+              </form>
+            </div>
+            
+            <div className="px-6 py-4 border-t border-gray-100 bg-gray-50 flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setIsCategoryModalOpen(false)}
+                disabled={uploading}
+                className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
+              >
+                Cancelar
+              </button>
+              <button
+                type="submit"
+                form="category-form"
+                disabled={uploading || !newCategoryName.trim()}
+                className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-orange-500 rounded-lg hover:bg-orange-600 transition-colors disabled:opacity-50"
+              >
+                {uploading ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    Salvando...
+                  </>
+                ) : (
+                  <>
+                    <Plus className="w-4 h-4" />
+                    Criar Categoria
                   </>
                 )}
               </button>
