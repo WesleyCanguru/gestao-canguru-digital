@@ -42,7 +42,6 @@ export const ClientHome: React.FC<ClientHomeProps> = ({
   onRefreshClient,
 }) => {
   const { activeClient, userRole } = useAuth();
-  const [onboardingPending, setOnboardingPending] = useState(0);
   const [briefingMissing, setBriefingMissing] = useState(false);
   const [smartLoading, setSmartLoading] = useState(true);
 
@@ -59,25 +58,6 @@ export const ClientHome: React.FC<ClientHomeProps> = ({
         const now = new Date();
         const currentMonth = now.getMonth() + 1;
         const currentYear = now.getFullYear();
-
-        // a. Buscar fases
-        const { data: phases } = await supabase
-          .from('onboarding_phases')
-          .select('id')
-          .eq('client_id', activeClient.id);
-
-        // b. Contar steps incompletos
-        if (phases && phases.length > 0) {
-          const phaseIds = phases.map(p => p.id);
-          const { count } = await supabase
-            .from('onboarding_steps')
-            .select('id', { count: 'exact', head: true })
-            .in('phase_id', phaseIds)
-            .eq('is_required', true)
-            .eq('is_completed', false);
-          
-          setOnboardingPending(count || 0);
-        }
 
         // c. Buscar briefing do mês atual
         const { data: briefing } = await supabase
@@ -136,7 +116,6 @@ export const ClientHome: React.FC<ClientHomeProps> = ({
   const showOrganicTraffic = hasService('Social Media');
   const showBriefings = hasService('Social Media') || hasService('Tráfego Pago');
   const showWebsite = hasService('Website');
-  const showOnboarding = activeClient?.name !== 'Next Safety';
   const showDocuments = true; // Sempre mostrar
 
   const containerVariants = {
@@ -193,29 +172,27 @@ export const ClientHome: React.FC<ClientHomeProps> = ({
         </p>
       </motion.div>
 
-      {/* Seção "O que fazer agora" */}
-      {!smartLoading && (onboardingPending > 0) && showOnboarding && (
+      {/* Seção Admin: Onboarding Interno */}
+      {userRole === 'admin' && (
         <motion.div 
           initial={{ opacity: 0, scale: 0.98 }}
           animate={{ opacity: 1, scale: 1 }}
-          className="max-w-6xl w-full mb-8 flex flex-col sm:flex-row gap-6"
+          className="max-w-6xl w-full mb-8"
         >
-          {onboardingPending > 0 && (
-            <motion.div 
-              whileHover={{ y: -4, shadow: '0 20px 40px rgba(0,0,0,0.04)' }}
-              onClick={onNavigateToOnboarding} 
-              className="flex-1 flex items-center gap-5 p-6 bg-white border border-amber-100 rounded-[32px] cursor-pointer transition-all shadow-sm"
-            >
-              <div className="w-12 h-12 bg-amber-50 rounded-2xl flex items-center justify-center text-amber-600">
-                <Zap size={24} />
-              </div>
-              <div className="flex-1">
-                <p className="text-[10px] font-bold text-amber-600 uppercase tracking-widest mb-1">Onboarding pendente</p>
-                <p className="text-base font-bold text-brand-dark">{onboardingPending} etapa(s) obrigatória(s)</p>
-              </div>
-              <ArrowRight size={20} className="text-amber-300" />
-            </motion.div>
-          )}
+          <motion.div 
+            whileHover={{ y: -4, shadow: '0 20px 40px rgba(0,0,0,0.04)' }}
+            onClick={onNavigateToOnboarding} 
+            className="flex items-center gap-5 p-6 bg-white border border-brand-dark/10 rounded-[32px] cursor-pointer transition-all shadow-sm"
+          >
+            <div className="w-12 h-12 bg-brand-dark/5 rounded-2xl flex items-center justify-center text-brand-dark">
+              <ClipboardList size={24} />
+            </div>
+            <div className="flex-1">
+              <p className="text-[10px] font-bold text-brand-dark uppercase tracking-widest mb-1">Área Interna da Agência</p>
+              <p className="text-base font-bold text-gray-900">Checklist de Onboarding do Cliente</p>
+            </div>
+            <ArrowRight size={20} className="text-brand-dark/40" />
+          </motion.div>
         </motion.div>
       )}
 
@@ -369,26 +346,6 @@ export const ClientHome: React.FC<ClientHomeProps> = ({
                 </p>
               </motion.div>
             )
-          )}
-
-          {/* Onboarding */}
-          {showOnboarding && (
-            <motion.div 
-              variants={itemVariants}
-              onClick={onNavigateToOnboarding}
-              className="group bg-white rounded-[2.5rem] p-10 shadow-[0_4px_25px_rgba(0,0,0,0.02)] border border-black/[0.02] hover:shadow-[0_15px_45px_rgba(0,0,0,0.05)] hover:border-brand-dark/10 transition-all duration-500 cursor-pointer flex flex-col"
-            >
-              <div className="flex justify-between items-start mb-8">
-                <div className="w-16 h-16 bg-orange-50/50 rounded-[20px] flex items-center justify-center text-orange-600 group-hover:bg-orange-600 group-hover:text-white transition-all duration-500 shadow-sm">
-                  <ClipboardList size={32} />
-                </div>
-                <ArrowRight size={22} className="text-gray-200 group-hover:text-brand-dark transform group-hover:-rotate-45 transition-all duration-500" />
-              </div>
-              <h3 className="text-2xl font-bold text-brand-dark mb-3 tracking-tight">Onboarding</h3>
-              <p className="text-gray-500 text-sm leading-relaxed font-medium">
-                Etapas de configuração inicial e alinhamento estratégico.
-              </p>
-            </motion.div>
           )}
 
           {/* Briefings Estratégicos */}

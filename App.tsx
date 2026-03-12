@@ -6,7 +6,7 @@ import { LoginScreen } from './components/LoginScreen';
 import { PublicApprovalScreen } from './components/PublicApprovalScreen';
 import { ClientSelectorScreen } from './components/ClientSelectorScreen';
 import { ClientManager } from './components/ClientManager';
-import { OnboardingView } from './components/OnboardingView';
+import { ClientOnboarding } from './components/ClientOnboarding';
 import { BriefingOnboarding } from './components/BriefingOnboarding';
 import { ClientHome } from './components/ClientHome';
 import { BriefingsView } from './components/BriefingsView';
@@ -28,13 +28,6 @@ const MainApp: React.FC<MainAppProps> = () => {
   const [selectedMonth, setSelectedMonth] = useState<string | null>(null);
   const { userRole, logout, activeClient, setActiveClient, refreshActiveClient } = useAuth();
   const { monthlyPlans } = useEditorialData();
-
-  // Redirecionar para onboarding se não estiver completo (apenas para clientes)
-  useEffect(() => {
-    if (userRole === 'approver' && activeClient && !activeClient.onboarding_completed && view !== 'onboarding' && activeClient.name !== 'Next Safety') {
-      setView('onboarding');
-    }
-  }, [userRole, activeClient, view]);
 
   const handleSelectMonth = (month: string) => {
     setSelectedMonth(month);
@@ -230,10 +223,7 @@ const MainApp: React.FC<MainAppProps> = () => {
                   onRefreshClient={refreshActiveClient}
                 />
               ) : view === 'onboarding' ? (
-                <OnboardingView onComplete={() => {
-                  refreshActiveClient();
-                  setView('dashboard');
-                }} />
+                <ClientOnboarding />
               ) : view === 'home' ? (
                 <AnnualOverview onSelectMonth={handleSelectMonth} />
               ) : (
