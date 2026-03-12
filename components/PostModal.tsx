@@ -71,6 +71,16 @@ export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, onClo
   // Content States (Shared)
   const [imageUrl, setImageUrl] = useState<string | string[]>(dayContent.initialImageUrl || '');
   const [isDragging, setIsDragging] = useState(false);
+
+  const hasContent = (Array.isArray(imageUrl) ? imageUrl.length > 0 : !!imageUrl) || !!captionMeta || !!captionLinkedin;
+
+  useEffect(() => {
+    if (!hasContent) {
+      setMobileTab('edit');
+    } else {
+      setMobileTab('preview');
+    }
+  }, [hasContent]);
   
   // Structure Overrides (Shared)
   const [editedTheme, setEditedTheme] = useState(dayContent.theme);
@@ -909,9 +919,11 @@ export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, onClo
 
         {/* Mobile Tab Bar */}
         <div className="md:hidden flex w-full bg-white border-t border-gray-200 z-50 shrink-0">
-           <button onClick={() => setMobileTab('preview')} className={`flex-1 py-3 text-[10px] font-bold uppercase tracking-widest flex flex-col items-center gap-1 transition-colors ${mobileTab === 'preview' ? 'text-brand-dark bg-gray-50' : 'text-gray-400 hover:bg-gray-50'}`}>
-              <Eye size={18} /> Visualizar
-           </button>
+           {hasContent && (
+             <button onClick={() => setMobileTab('preview')} className={`flex-1 py-3 text-[10px] font-bold uppercase tracking-widest flex flex-col items-center gap-1 transition-colors ${mobileTab === 'preview' ? 'text-brand-dark bg-gray-50' : 'text-gray-400 hover:bg-gray-50'}`}>
+                <Eye size={18} /> Visualizar
+             </button>
+           )}
            <button onClick={() => setMobileTab('edit')} className={`flex-1 py-3 text-[10px] font-bold uppercase tracking-widest flex flex-col items-center gap-1 transition-colors ${mobileTab === 'edit' ? 'text-brand-dark bg-gray-50' : 'text-gray-400 hover:bg-gray-50'}`}>
               <FileText size={18} /> Detalhes
            </button>

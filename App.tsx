@@ -84,9 +84,11 @@ const MainApp: React.FC<MainAppProps> = () => {
                   <span className="text-lg sm:text-3xl font-bold text-brand-dark tracking-tighter serif italic truncate max-w-[120px] sm:max-w-none">{activeClient?.name}</span>
                 )}
                 <div className="h-6 w-px bg-gray-100 hidden sm:block"></div>
-                <div className="hidden sm:flex items-center gap-2 opacity-40 hover:opacity-100 transition-opacity duration-500">
-                  <span className="text-[7px] uppercase tracking-[0.3em] text-gray-400 font-bold hidden lg:block">Strategy by</span>
-                  <Logo size="small" />
+                <div className="flex items-center gap-1 sm:gap-2 opacity-40 hover:opacity-100 transition-opacity duration-500">
+                  <span className="text-[5px] sm:text-[7px] uppercase tracking-[0.3em] text-gray-400 font-bold">Strategy by</span>
+                  <div className="scale-75 sm:scale-100 origin-left">
+                    <Logo size="small" />
+                  </div>
                 </div>
               </motion.div>
             </div>

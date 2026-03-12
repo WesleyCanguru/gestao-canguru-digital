@@ -746,13 +746,16 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack }) =
                 </motion.button>
             )}
 
-            <div className="flex bg-white rounded-xl sm:rounded-2xl p-1 sm:p-1.5 border border-black/[0.03] shadow-[0_4px_15px_rgba(0,0,0,0.03)]">
-                <button onClick={() => setViewMode('list')} className={`flex items-center gap-1.5 sm:gap-2 px-3 sm:px-6 py-2 sm:py-2.5 rounded-lg sm:rounded-xl text-[9px] sm:text-[10px] font-bold uppercase tracking-widest transition-all duration-300 ${viewMode === 'list' ? 'bg-brand-dark text-white shadow-lg' : 'text-gray-400 hover:bg-gray-50'}`}>
-                    <List size={14} /> <span className="hidden sm:inline">Lista</span>
-                </button>
-                <button onClick={() => setViewMode('calendar')} className={`flex items-center gap-1.5 sm:gap-2 px-3 sm:px-6 py-2 sm:py-2.5 rounded-lg sm:rounded-xl text-[9px] sm:text-[10px] font-bold uppercase tracking-widest transition-all duration-300 ${viewMode === 'calendar' ? 'bg-brand-dark text-white shadow-lg' : 'text-gray-400 hover:bg-gray-50'}`}>
-                    <CalendarIcon size={14} /> <span className="hidden sm:inline">Calendário</span>
-                </button>
+            <div className="hidden md:flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-4">
+                <span className="text-[9px] uppercase tracking-widest text-gray-400 font-bold ml-1 sm:ml-0">Modo de Visualização:</span>
+                <div className="flex bg-white rounded-xl sm:rounded-2xl p-1 sm:p-1.5 border border-black/[0.03] shadow-[0_4px_15px_rgba(0,0,0,0.03)]">
+                    <button onClick={() => setViewMode('list')} className={`flex items-center gap-1.5 sm:gap-2 px-3 sm:px-6 py-2 sm:py-2.5 rounded-lg sm:rounded-xl text-[9px] sm:text-[10px] font-bold uppercase tracking-widest transition-all duration-300 ${viewMode === 'list' ? 'bg-brand-dark text-white shadow-lg' : 'text-gray-400 hover:bg-gray-50'}`}>
+                        <List size={14} /> <span>Lista</span>
+                    </button>
+                    <button onClick={() => setViewMode('calendar')} className={`flex items-center gap-1.5 sm:gap-2 px-3 sm:px-6 py-2 sm:py-2.5 rounded-lg sm:rounded-xl text-[9px] sm:text-[10px] font-bold uppercase tracking-widest transition-all duration-300 ${viewMode === 'calendar' ? 'bg-brand-dark text-white shadow-lg' : 'text-gray-400 hover:bg-gray-50'}`}>
+                        <CalendarIcon size={14} /> <span>Calendário</span>
+                    </button>
+                </div>
             </div>
         </div>
       </div>
@@ -883,7 +886,7 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack }) =
         {/* Content */}
         <div className="p-6 md:p-10 bg-gray-50/50">
            <StatusLegend />
-           {viewMode === 'list' ? (
+           <div className={viewMode === 'list' ? 'block' : 'block md:hidden'}>
              <div className="flex flex-col gap-4">
                 {groupedPosts.map((group, idx) => {
                    const statusColor = getStatusColorClass(group.status);
@@ -940,7 +943,13 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack }) =
                    )
                 })}
              </div>
-           ) : renderCalendar()}
+           </div>
+
+           {viewMode === 'calendar' && (
+             <div className="hidden md:block">
+               {renderCalendar()}
+             </div>
+           )}
         </div>
       </div>
     </motion.div>

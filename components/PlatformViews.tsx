@@ -22,6 +22,33 @@ export const MediaRenderer: React.FC<{
   onImageClick?: (url: string) => void;
 }> = ({ imageUrl, isVideo, isUploading, aspectRatioClass, helpText, onImageClick }) => {
   const [currentIndex, setCurrentIndex] = React.useState(0);
+  const [touchStart, setTouchStart] = React.useState<number | null>(null);
+  const [touchEnd, setTouchEnd] = React.useState<number | null>(null);
+
+  const minSwipeDistance = 50;
+
+  const onTouchStart = (e: React.TouchEvent) => {
+    setTouchEnd(null);
+    setTouchStart(e.targetTouches[0].clientX);
+  };
+
+  const onTouchMove = (e: React.TouchEvent) => {
+    setTouchEnd(e.targetTouches[0].clientX);
+  };
+
+  const onTouchEndHandler = () => {
+    if (!touchStart || !touchEnd || !Array.isArray(imageUrl)) return;
+    const distance = touchStart - touchEnd;
+    const isLeftSwipe = distance > minSwipeDistance;
+    const isRightSwipe = distance < -minSwipeDistance;
+
+    if (isLeftSwipe && currentIndex < imageUrl.length - 1) {
+      setCurrentIndex(prev => prev + 1);
+    }
+    if (isRightSwipe && currentIndex > 0) {
+      setCurrentIndex(prev => prev - 1);
+    }
+  };
 
   if (!imageUrl || (Array.isArray(imageUrl) && imageUrl.length === 0)) {
     // If auto, default to a square or 4:5 placeholder for better UI
@@ -59,7 +86,12 @@ export const MediaRenderer: React.FC<{
       const hasPrev = currentIndex > 0;
 
       return (
-        <div className={`w-full ${aspectRatioClass} bg-gray-100 overflow-hidden relative group`}>
+        <div 
+          className={`w-full ${aspectRatioClass} bg-gray-100 overflow-hidden relative group`}
+          onTouchStart={onTouchStart}
+          onTouchMove={onTouchMove}
+          onTouchEnd={onTouchEndHandler}
+        >
             <img 
               src={currentImg} 
               className="w-full h-full object-cover cursor-pointer" 
