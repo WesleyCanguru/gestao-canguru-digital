@@ -11,7 +11,8 @@ import {
   FolderOpen,
   Globe,
   AlertCircle,
-  Sparkles
+  Sparkles,
+  BookOpen
 } from 'lucide-react';
 import { motion } from 'motion/react';
 
@@ -24,6 +25,7 @@ interface ClientHomeProps {
   onNavigateToPaidTraffic: () => void;
   onNavigateToWebsite: () => void;
   onNavigateToPasswordVault: () => void;
+  onNavigateToTutorials: () => void;
   onRefreshClient?: () => void;
 }
 
@@ -41,6 +43,7 @@ export const ClientHome: React.FC<ClientHomeProps> = ({
   onNavigateToPaidTraffic,
   onNavigateToWebsite,
   onNavigateToPasswordVault,
+  onNavigateToTutorials,
   onRefreshClient,
 }) => {
   const { activeClient, userRole } = useAuth();
@@ -448,20 +451,43 @@ export const ClientHome: React.FC<ClientHomeProps> = ({
             </p>
           </motion.div>
 
+          {/* Central de Tutoriais */}
+          <motion.div 
+            variants={itemVariants}
+            onClick={onNavigateToTutorials}
+            className="group bg-white rounded-[2.5rem] p-10 shadow-[0_4px_25px_rgba(0,0,0,0.02)] border border-black/[0.02] hover:shadow-[0_15px_45px_rgba(0,0,0,0.05)] hover:border-brand-dark/10 transition-all duration-500 cursor-pointer flex flex-col"
+          >
+            <div className="flex justify-between items-start mb-8">
+              <div className="w-16 h-16 bg-blue-50/50 rounded-[20px] flex items-center justify-center text-blue-600 group-hover:bg-blue-600 group-hover:text-white transition-all duration-500 shadow-sm">
+                <BookOpen size={32} />
+              </div>
+              <ArrowRight size={22} className="text-gray-200 group-hover:text-brand-dark transform group-hover:-rotate-45 transition-all duration-500" />
+            </div>
+            <h3 className="text-2xl font-bold text-brand-dark mb-3 tracking-tight">Tutoriais</h3>
+            <p className="text-gray-500 text-sm leading-relaxed font-medium">
+              Aprenda a gerenciar suas plataformas e aprovar conteúdos.
+            </p>
+          </motion.div>
+
         </div>
 
       </motion.div>
 
-      {/* Premium Watermark */}
+      {/* Premium Watermark & Support */}
       <motion.div 
         initial={{ opacity: 0 }}
-        animate={{ opacity: 0.05 }}
+        animate={{ opacity: 1 }}
         transition={{ delay: 2, duration: 2 }}
-        className="mt-20 flex items-center gap-4 select-none pointer-events-none"
+        className="mt-20 flex flex-col items-center gap-6"
       >
-        <Sparkles size={16} />
-        <span className="text-[10px] uppercase tracking-[0.5em] font-bold">Experiência Premium Bolsa</span>
-        <Sparkles size={16} />
+        <p className="text-[12px] text-gray-400 font-medium">
+          Precisa de ajuda? Entre em contato: <a href="mailto:contato@cangurudigital.com.br" className="text-brand-dark font-bold hover:underline">contato@cangurudigital.com.br</a>
+        </p>
+        <div className="flex items-center gap-4 select-none pointer-events-none opacity-5">
+          <Sparkles size={16} />
+          <span className="text-[10px] uppercase tracking-[0.5em] font-bold">Experiência Premium Bolsa</span>
+          <Sparkles size={16} />
+        </div>
       </motion.div>
     </div>
   );

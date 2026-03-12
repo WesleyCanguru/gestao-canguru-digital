@@ -153,6 +153,9 @@ export const LoginScreen: React.FC = () => {
             </form>
             
             <div className="mt-10 pt-8 border-t border-gray-50 flex flex-col items-center gap-4">
+               <p className="text-[10px] text-gray-400 font-medium">
+                 Precisa de ajuda? Entre em contato: <a href="mailto:contato@cangurudigital.com.br" className="text-brand-dark font-bold hover:underline">contato@cangurudigital.com.br</a>
+               </p>
                <div className="flex items-center gap-2 opacity-30 hover:opacity-100 transition-opacity duration-500">
                  <span className="text-[8px] uppercase tracking-[0.3em] font-bold text-gray-400">Powered by</span>
                  <AgencyLogo className="h-5 mix-blend-multiply" />

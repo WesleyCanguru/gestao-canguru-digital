@@ -349,6 +349,12 @@ export default function AdminView() {
             )}
           </>
         )}
+        
+        <div className="mt-12 pt-8 border-t border-gray-200 text-center">
+          <p className="text-sm text-gray-500">
+            Precisa de suporte técnico? Entre em contato: <a href="mailto:contato@cangurudigital.com.br" className="text-brand-dark font-bold hover:underline">contato@cangurudigital.com.br</a>
+          </p>
+        </div>
       </div>
     </div>
   );

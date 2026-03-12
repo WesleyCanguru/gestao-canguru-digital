@@ -20,8 +20,9 @@ import { AuthProvider, useAuth } from './lib/supabase';
 import { motion, AnimatePresence } from 'motion/react';
 
 import { PasswordVault } from './components/PasswordVault';
+import { TutorialCenter } from './components/TutorialCenter';
 
-type ViewState = 'home' | 'month-detail' | 'onboarding' | 'dashboard' | 'briefings' | 'strategic-briefings' | 'documents' | 'paid-traffic' | 'website' | 'admin' | 'password-vault';
+type ViewState = 'home' | 'month-detail' | 'onboarding' | 'dashboard' | 'briefings' | 'strategic-briefings' | 'documents' | 'paid-traffic' | 'website' | 'admin' | 'password-vault' | 'tutorials';
 
 interface MainAppProps {}
 
@@ -209,6 +210,19 @@ const MainApp: React.FC<MainAppProps> = () => {
                 <DocumentsView />
               ) : view === 'briefings' ? (
                 <BriefingsView />
+              ) : view === 'tutorials' ? (
+                <div className="bg-white rounded-[2.5rem] border border-black/[0.03] shadow-sm min-h-[80vh] p-6 sm:p-10">
+                  <div className="mb-8 border-b border-gray-100 pb-6 flex items-center gap-4">
+                    <button 
+                      onClick={() => setView('dashboard')}
+                      className="p-2 hover:bg-gray-50 rounded-xl transition-colors text-gray-400 hover:text-brand-dark"
+                    >
+                      <ChevronRight className="w-5 h-5 rotate-180" />
+                    </button>
+                    <h2 className="text-xl font-bold text-brand-dark">Voltar ao Dashboard</h2>
+                  </div>
+                  <TutorialCenter clientId={activeClient?.id || ''} userRole={userRole} />
+                </div>
               ) : view === 'password-vault' ? (
                 <div className="bg-white rounded-[2.5rem] border border-black/[0.03] shadow-sm min-h-[80vh] p-6 sm:p-10">
                   <div className="mb-8 border-b border-gray-100 pb-6 flex items-center gap-4">
@@ -247,6 +261,7 @@ const MainApp: React.FC<MainAppProps> = () => {
                   onNavigateToPaidTraffic={() => setView('paid-traffic')}
                   onNavigateToWebsite={() => setView('website')}
                   onNavigateToPasswordVault={() => setView('password-vault')}
+                  onNavigateToTutorials={() => setView('tutorials')}
                   onRefreshClient={refreshActiveClient}
                 />
               ) : view === 'onboarding' ? (

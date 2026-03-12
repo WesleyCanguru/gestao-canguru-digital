@@ -99,6 +99,12 @@ export const ClientSelectorScreen: React.FC<ClientSelectorScreenProps> = ({
             Sair
           </button>
         </div>
+
+        <div className="mt-12 text-center">
+          <p className="text-xs text-gray-400 font-medium">
+            Precisa de ajuda? Entre em contato: <a href="mailto:contato@cangurudigital.com.br" className="text-brand-dark font-bold hover:underline">contato@cangurudigital.com.br</a>
+          </p>
+        </div>
       </div>
     </div>
   );
