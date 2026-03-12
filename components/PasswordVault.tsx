@@ -78,7 +78,7 @@ export const PasswordVault: React.FC<PasswordVaultProps> = ({ clientId, userRole
       if (editingCred) {
         await updateCredential(editingCred.id, {
           platform: finalPlatform,
-          label: form.label,
+          label: finalPlatform,
           username: form.username,
           url: form.url,
           notes: form.notes,
@@ -87,7 +87,7 @@ export const PasswordVault: React.FC<PasswordVaultProps> = ({ clientId, userRole
       } else {
         await addCredential({
           platform: finalPlatform,
-          label: form.label,
+          label: finalPlatform,
           username: form.username,
           password_raw: form.password_raw,
           url: form.url,
@@ -207,7 +207,7 @@ export const PasswordVault: React.FC<PasswordVaultProps> = ({ clientId, userRole
                     )}
                     
                     <div className="mb-4 pr-12">
-                      <h4 className="font-bold text-gray-900">{cred.label}</h4>
+                      <h4 className="font-bold text-gray-900">{cred.label || cred.platform}</h4>
                       {cred.url && (
                         <a href={cred.url} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-500 hover:underline flex items-center gap-1 mt-1">
                           {cred.url.replace(/^https?:\/\//, '')} <ExternalLink size={10} />
@@ -306,17 +306,6 @@ export const PasswordVault: React.FC<PasswordVaultProps> = ({ clientId, userRole
                   />
                 </div>
               )}
-
-              <div>
-                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Rótulo (Ex: Conta Principal) *</label>
-                <input
-                  type="text"
-                  value={form.label}
-                  onChange={e => setForm({ ...form, label: e.target.value })}
-                  className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-dark"
-                  required
-                />
-              </div>
 
               <div>
                 <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Usuário / E-mail *</label>
