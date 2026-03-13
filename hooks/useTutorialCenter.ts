@@ -148,13 +148,13 @@ export const useTutorialCenter = (clientId: string, userRole: 'admin' | 'client'
         platform: 'meta',
         slug: 'meta-business-acesso',
         title: 'Como dar acesso ao Meta Business Suite',
-        description: 'Passo a passo para compartilhar o acesso da sua página do Facebook e Instagram com a nossa agência.',
+        description: 'Passo a passo para compartilhar o acesso do seu Gerenciador de Negócios com a nossa agência.',
         steps: [
           { order: 1, title: 'Acesse o Meta Business Suite', description: 'Faça login no Facebook e acesse business.facebook.com.' },
           { order: 2, title: 'Vá em Configurações', description: 'No menu lateral esquerdo, clique no ícone de engrenagem (Configurações do negócio).' },
           { order: 3, title: 'Parceiros', description: 'Na seção "Usuários", clique em "Parceiros" e depois no botão "Adicionar" -> "Conceder a um parceiro acesso aos seus recursos".' },
-          { order: 4, title: 'Insira o ID da Agência', description: 'Insira o ID da Canguru Digital (solicite ao seu atendimento) e clique em Avançar.' },
-          { order: 5, title: 'Atribua os ativos', description: 'Selecione sua Página, Conta de Anúncios, Catálogo e Conta do Instagram. Dê controle total (Administrador) para a agência e clique em Salvar alterações.' }
+          { order: 4, title: 'Insira o ID da Agência', description: 'Insira o ID do BM da Canguru Digital: 1356919691324181 e clique em Avançar.' },
+          { order: 5, title: 'Conceder Controle Total', description: 'Dê controle total (Administrador) do Gerenciador de Negócios para a agência como parceiro e clique em Salvar alterações.' }
         ]
       },
       {
