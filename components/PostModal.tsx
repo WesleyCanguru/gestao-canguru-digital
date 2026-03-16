@@ -879,7 +879,14 @@ export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, onClo
                                key={comment.id} 
                                className={`flex flex-col gap-2 max-w-[90%] relative z-10 ${comment.author_role === 'admin' ? 'self-end' : 'self-start'}`}
                              >
-                                <div className={`text-[9px] font-bold text-gray-400 uppercase tracking-widest px-1 ${comment.author_role === 'admin' ? 'text-right' : 'text-left'}`}>{comment.author_name}</div>
+                                <div className={`text-[9px] font-bold text-gray-400 uppercase tracking-widest px-1 flex gap-2 items-center ${comment.author_role === 'admin' ? 'justify-end' : 'justify-start'}`}>
+                                  <span>{comment.author_name}</span>
+                                  {comment.created_at && (
+                                    <span className="opacity-50 lowercase font-medium">
+                                      {new Date(comment.created_at).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                                    </span>
+                                  )}
+                                </div>
                                 <div className={`flex gap-3 ${comment.author_role === 'admin' ? 'flex-row-reverse' : 'flex-row'}`}>
                                     <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-[10px] font-bold text-white shadow-lg flex-shrink-0 border border-white/20 ${comment.author_role === 'admin' ? 'bg-brand-dark' : comment.author_role === 'approver' ? 'bg-green-600' : 'bg-purple-600'}`}>{comment.author_name.charAt(0)}</div>
                                     <div className={`p-4 rounded-2xl text-[13px] shadow-sm relative group leading-relaxed ${comment.author_role === 'admin' ? 'bg-white text-brand-dark rounded-tr-none border border-black/[0.03]' : comment.author_role === 'approver' ? 'bg-green-50 text-green-900 rounded-tl-none border border-green-100' : 'bg-purple-50 text-purple-900 rounded-tl-none border border-purple-100'}`}>

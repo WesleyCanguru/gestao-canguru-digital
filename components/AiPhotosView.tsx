@@ -320,7 +320,14 @@ export const AiPhotosView: React.FC = () => {
             <div className="p-6 flex-1 flex flex-col">
               {photo.feedback && (
                 <div className="mb-6 bg-gray-50 p-4 rounded-xl border border-gray-100 relative group">
-                  <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Feedback do Cliente</p>
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">Feedback do Cliente</p>
+                    {photo.updated_at && (
+                      <span className="text-[10px] font-medium text-gray-400">
+                        {new Date(photo.updated_at).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                      </span>
+                    )}
+                  </div>
                   <p className="text-sm text-gray-700 font-medium pr-6">{photo.feedback}</p>
                   {isAdmin && (
                     <button
