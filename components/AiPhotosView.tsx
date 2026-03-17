@@ -405,28 +405,73 @@ export const AiPhotosView: React.FC = () => {
             </div>
 
             <div className="p-6 flex-1 flex flex-col">
-              {photo.feedback && (
-                <div className="mb-6 bg-gray-50 p-4 rounded-xl border border-gray-100 relative group">
-                  <div className="flex items-center justify-between mb-2">
-                    <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">Feedback do Cliente</p>
-                    {photo.updated_at && (
-                      <span className="text-[10px] font-medium text-gray-400">
-                        {new Date(photo.updated_at).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
-                      </span>
+              {photo.feedback && (() => {
+                const agencyPrefix = 'Canguru Digital:';
+                const hasAgency = photo.feedback.includes(agencyPrefix);
+                
+                let clientFeedback = photo.feedback;
+                let agencyFeedback = '';
+
+                if (hasAgency) {
+                  const parts = photo.feedback.split(agencyPrefix);
+                  clientFeedback = parts[0].trim();
+                  agencyFeedback = parts.slice(1).join(agencyPrefix).trim();
+                }
+
+                return (
+                  <div className="mb-6 space-y-3">
+                    {clientFeedback && (
+                      <div className="bg-gray-50 p-4 rounded-xl border border-gray-100 relative group">
+                        <div className="flex items-center justify-between mb-2">
+                          <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">Feedback do Cliente</p>
+                          <div className="flex items-center gap-3">
+                            {photo.updated_at && !agencyFeedback && (
+                              <span className="text-[10px] font-medium text-gray-400">
+                                {new Date(photo.updated_at).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                              </span>
+                            )}
+                            {isAdmin && (
+                              <button
+                                onClick={() => handleDeleteFeedback(photo.id)}
+                                className="text-gray-400 hover:text-red-500 transition-colors"
+                                title="Excluir comentário"
+                              >
+                                <Trash2 size={14} />
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                        <p className="text-sm text-gray-700 font-medium whitespace-pre-wrap">{clientFeedback}</p>
+                      </div>
+                    )}
+
+                    {agencyFeedback && (
+                      <div className="bg-brand-dark/5 p-4 rounded-xl border border-brand-dark/10 relative group">
+                        <div className="flex items-center justify-between mb-2">
+                          <p className="text-xs font-bold text-brand-dark uppercase tracking-wider">Canguru Digital</p>
+                          <div className="flex items-center gap-3">
+                            {photo.updated_at && (
+                              <span className="text-[10px] font-medium text-brand-dark/60">
+                                {new Date(photo.updated_at).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                              </span>
+                            )}
+                            {isAdmin && !clientFeedback && (
+                              <button
+                                onClick={() => handleDeleteFeedback(photo.id)}
+                                className="text-brand-dark/40 hover:text-red-500 transition-colors"
+                                title="Excluir comentário"
+                              >
+                                <Trash2 size={14} />
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                        <p className="text-sm text-brand-dark font-medium whitespace-pre-wrap">{agencyFeedback}</p>
+                      </div>
                     )}
                   </div>
-                  <p className="text-sm text-gray-700 font-medium pr-6 whitespace-pre-wrap">{photo.feedback}</p>
-                  {isAdmin && (
-                    <button
-                      onClick={() => handleDeleteFeedback(photo.id)}
-                      className="absolute top-4 right-4 text-gray-400 hover:text-red-500 transition-colors"
-                      title="Excluir comentário"
-                    >
-                      <Trash2 size={14} />
-                    </button>
-                  )}
-                </div>
-              )}
+                );
+              })()}
 
               {isAdmin && photo.status === 'changes_requested' && !replacingPhotoId && (
                 <button
