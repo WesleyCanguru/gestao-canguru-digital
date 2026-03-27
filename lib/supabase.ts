@@ -60,7 +60,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         id: '75b00b27-61ee-4b23-8721-70748ccb0789',
         name: 'NEXT Safety',
         segment: 'EPI / Segurança do Trabalho',
-        responsible: 'Viviane',
+        responsible: 'Wesley',
         email: null,
         instagram: null,
         linkedin: null,

@@ -474,7 +474,7 @@ export const PublicApprovalScreen: React.FC = () => {
                               type="text" 
                               value={userName}
                               onChange={e => setUserName(e.target.value)}
-                              placeholder={`Ex: ${client?.responsible || 'Viviane'}...`}
+                              placeholder={`Ex: ${client?.responsible || 'Wesley'}...`}
                               className="w-full p-3 border border-gray-300 rounded-lg mb-4 focus:ring-2 focus:ring-blue-500 outline-none"
                             />
                             <div className="flex gap-2">

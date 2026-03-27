@@ -122,10 +122,10 @@ export interface PostComment {
   id: string;
   post_id: string;
   author_role: UserRole;
-  author_name: string; // "Canguru", "Viviane" ou "Equipe Canguru"
+  author_name: string; // "Canguru", "Wesley" ou "Equipe Canguru"
   content: string;
   created_at: string;
-  visible_to_admin: boolean; // True se for Viviane ou Admin. False se for Equipe.
+  visible_to_admin: boolean; // True se for Wesley ou Admin. False se for Equipe.
 }
 
 export interface PostData {
@@ -163,4 +163,62 @@ export interface Client {
   paid_reportei_url?: string | null;
   onboarding_completed?: boolean;
   created_at?: string;
+}
+
+// --- NOVOS TIPOS PARA GESTÃO DA AGÊNCIA ---
+
+export interface AgencyBilling {
+  id: string;
+  client_id: string;
+  month_year: string; // YYYY-MM
+  base_value: number;
+  extra_value: number;
+  total_value: number;
+  due_day: number;
+  status: 'paid' | 'pending' | 'overdue';
+  notes: string | null;
+  paid_at: string | null;
+  created_at: string;
+  client?: Client;
+}
+
+export interface AgencyExpense {
+  id: string;
+  description: string;
+  category: 'fixed' | 'variable';
+  amount: number;
+  month_year: string; // YYYY-MM
+  created_at: string;
+}
+
+export type LeadStage = 'lead' | 'first_message' | 'in_conversation' | 'followup_1' | 'followup_2' | 'farewell' | 'converted' | 'lost';
+
+export interface Lead {
+  id: string;
+  name: string;
+  niche: string;
+  instagram_url: string;
+  instagram_bio: string | null;
+  meta_ads_active: 'yes' | 'no';
+  posting_frequency: 'none' | '1-2x' | '3-4x' | 'daily' | 'multiple';
+  website_url: string | null;
+  meta_pixel_installed: 'yes' | 'no' | 'dont_know';
+  google_tag_installed: 'yes' | 'no' | 'dont_know';
+  preferred_communication: 'whatsapp' | 'instagram_dm' | 'email';
+  observations: string | null;
+  kanban_stage: LeadStage;
+  next_followup_date: string | null;
+  stage_changed_at: string;
+  created_at: string;
+}
+
+export type QuickLinkType = 'google_ads' | 'meta_ads' | 'reportei' | 'instagram' | 'other';
+
+export interface ClientQuickLink {
+  id: string;
+  client_id: string;
+  type: QuickLinkType;
+  label: string;
+  url: string;
+  created_at: string;
 }

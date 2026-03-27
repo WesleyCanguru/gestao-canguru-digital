@@ -13,7 +13,7 @@ import { BriefingsView } from './components/BriefingsView';
 import { DocumentsView } from './components/DocumentsView';
 import { PaidTrafficView } from './components/PaidTrafficView';
 import WebsiteView from './components/WebsiteView';
-import AdminView from './components/AdminView';
+// import AdminView from './components/AdminView'; // Removed redundant view
 import { useEditorialData, MONTH_NAMES } from './hooks/useEditorialData';
 import { Map, ChevronRight, LogOut, Home, Building2, ClipboardList, LayoutDashboard, FileText, FolderOpen, TrendingUp, Globe, Shield } from 'lucide-react';
 import { AuthProvider, useAuth } from './lib/supabase';
@@ -23,12 +23,20 @@ import { PasswordVault } from './components/PasswordVault';
 import { TutorialCenter } from './components/TutorialCenter';
 import { AiPhotosView } from './components/AiPhotosView';
 
-type ViewState = 'home' | 'month-detail' | 'onboarding' | 'dashboard' | 'briefings' | 'strategic-briefings' | 'documents' | 'paid-traffic' | 'website' | 'admin' | 'password-vault' | 'tutorials' | 'ai-photos';
+import { AgencyHome } from './components/agency/AgencyHome';
+import { AgencyDashboard } from './components/agency/AgencyDashboard';
 
-interface MainAppProps {}
+type ViewState = 'home' | 'month-detail' | 'onboarding' | 'dashboard' | 'briefings' | 'strategic-briefings' | 'documents' | 'paid-traffic' | 'website' | 'password-vault' | 'tutorials' | 'ai-photos' | 'agencyHome' | 'agencyDashboard';
 
-const MainApp: React.FC<MainAppProps> = () => {
-  const [view, setView] = useState<ViewState>('dashboard');
+interface MainAppProps {
+  initialView?: ViewState;
+  onExitAgencyDashboard?: () => void;
+  onGoToAgencyHome?: () => void;
+  onGoToClientSelector?: () => void;
+}
+
+const MainApp: React.FC<MainAppProps> = ({ initialView, onExitAgencyDashboard, onGoToAgencyHome, onGoToClientSelector }) => {
+  const [view, setView] = useState<ViewState>(initialView || 'dashboard');
   const [selectedMonth, setSelectedMonth] = useState<string | null>(null);
   const { userRole, logout, activeClient, setActiveClient, refreshActiveClient } = useAuth();
   const { monthlyPlans } = useEditorialData();
@@ -56,8 +64,8 @@ const MainApp: React.FC<MainAppProps> = () => {
 
   const getRoleLabel = () => {
     switch(userRole) {
-      case 'admin': return 'Canguru Digital';
-      case 'approver': return activeClient?.responsible || 'Viviane (Diretora)';
+      case 'admin': return 'Wesley (Diretor)';
+      case 'approver': return activeClient?.responsible || 'Wesley (Diretor)';
       case 'team': return 'Equipe Canguru';
       default: return '';
     }
@@ -84,18 +92,26 @@ const MainApp: React.FC<MainAppProps> = () => {
                 className="cursor-pointer flex items-center gap-2 sm:gap-4 shrink-0"
                 onClick={() => setView('dashboard')}
               >
-                {activeClient?.logo_url ? (
-                  <img src={activeClient.logo_url} alt={activeClient.name} className="h-10 sm:h-20 w-auto max-w-[100px] sm:max-w-[200px] object-contain mix-blend-multiply" />
+                {activeClient ? (
+                  activeClient.logo_url ? (
+                    <img src={activeClient.logo_url} alt={activeClient.name} className="h-10 sm:h-20 w-auto max-w-[100px] sm:max-w-[200px] object-contain mix-blend-multiply" />
+                  ) : (
+                    <span className="text-lg sm:text-3xl font-bold text-brand-dark tracking-tighter serif italic truncate max-w-[120px] sm:max-w-none">{activeClient.name}</span>
+                  )
                 ) : (
-                  <span className="text-lg sm:text-3xl font-bold text-brand-dark tracking-tighter serif italic truncate max-w-[120px] sm:max-w-none">{activeClient?.name}</span>
+                  <Logo size="medium" />
                 )}
-                <div className="h-6 w-px bg-gray-100 hidden sm:block"></div>
-                <div className="flex items-center gap-1 sm:gap-2 opacity-40 hover:opacity-100 transition-opacity duration-500">
-                  <span className="text-[5px] sm:text-[7px] uppercase tracking-[0.3em] text-gray-400 font-bold">Strategy by</span>
-                  <div className="scale-75 sm:scale-100 origin-left">
-                    <Logo size="small" />
-                  </div>
-                </div>
+                {activeClient && (
+                  <>
+                    <div className="h-6 w-px bg-gray-100 hidden sm:block"></div>
+                    <div className="flex items-center gap-1 sm:gap-2 opacity-40 hover:opacity-100 transition-opacity duration-500">
+                      <span className="text-[5px] sm:text-[7px] uppercase tracking-[0.3em] text-gray-400 font-bold">Strategy by</span>
+                      <div className="scale-75 sm:scale-100 origin-left">
+                        <Logo size="small" />
+                      </div>
+                    </div>
+                  </>
+                )}
               </motion.div>
             </div>
 
@@ -106,25 +122,39 @@ const MainApp: React.FC<MainAppProps> = () => {
               </div>
               {userRole === 'admin' && (
                 <button
-                  onClick={() => setActiveClient(null)}
+                  onClick={onGoToAgencyHome}
+                  className="flex items-center gap-2 px-3 sm:px-5 py-2 sm:py-2.5 rounded-xl sm:rounded-2xl text-[9px] sm:text-[10px] font-bold uppercase tracking-[0.15em] transition-all bg-gray-50/50 text-gray-500 hover:bg-gray-100 hover:text-brand-dark border border-black/[0.02]"
+                  title="Menu Inicial"
+                >
+                  <Home size={14} />
+                  <span className="hidden sm:inline">Menu Inicial</span>
+                </button>
+              )}
+              {userRole === 'admin' && (
+                <button
+                  onClick={() => setView('agencyDashboard')}
+                  className={`flex items-center gap-2 px-3 sm:px-5 py-2 sm:py-2.5 rounded-xl sm:rounded-2xl text-[9px] sm:text-[10px] font-bold uppercase tracking-[0.15em] transition-all ${
+                    view === 'agencyDashboard'
+                      ? 'bg-brand-dark text-white shadow-xl shadow-brand-dark/20'
+                      : 'bg-gray-50/50 text-gray-500 hover:text-brand-dark hover:bg-gray-100 border border-black/[0.02]'
+                  }`}
+                  title="Painel Canguru"
+                >
+                  <Shield size={14} />
+                  <span className="hidden sm:inline">Painel Canguru</span>
+                </button>
+              )}
+              {userRole === 'admin' && (
+                <button
+                  onClick={() => {
+                    setActiveClient(null);
+                    if (onGoToClientSelector) onGoToClientSelector();
+                  }}
                   className="flex items-center gap-2 px-3 sm:px-5 py-2 sm:py-2.5 rounded-xl sm:rounded-2xl text-[9px] sm:text-[10px] font-bold uppercase tracking-[0.15em] transition-all bg-gray-50/50 text-gray-500 hover:bg-gray-100 hover:text-brand-dark border border-black/[0.02]"
                   title="Trocar Cliente"
                 >
                   <Building2 size={14} />
                   <span className="hidden sm:inline">Trocar Cliente</span>
-                </button>
-              )}
-              {userRole === 'admin' && (
-                <button
-                  onClick={() => setView('admin')}
-                  className={`flex items-center gap-2 px-3 sm:px-5 py-2 sm:py-2.5 rounded-xl sm:rounded-2xl text-[9px] sm:text-[10px] font-bold uppercase tracking-[0.15em] transition-all ${
-                    view === 'admin'
-                      ? 'bg-brand-dark text-white shadow-xl shadow-brand-dark/20'
-                      : 'bg-gray-50/50 text-gray-500 hover:text-brand-dark hover:bg-gray-100 border border-black/[0.02]'
-                  }`}
-                >
-                  <Shield size={14} />
-                  <span className="hidden sm:inline">Admin</span>
                 </button>
               )}
               <button
@@ -209,8 +239,23 @@ const MainApp: React.FC<MainAppProps> = () => {
               exit={{ opacity: 0, y: -10 }}
               transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
             >
-              {view === 'admin' ? (
-                <AdminView onBack={() => setView('dashboard')} />
+              {view === 'agencyDashboard' ? (
+                <AgencyDashboard 
+                  onBack={() => {
+                    if (onExitAgencyDashboard) {
+                      onExitAgencyDashboard();
+                    } else {
+                      setView('dashboard');
+                    }
+                  }}
+                  onSelectClient={(client) => {
+                    setActiveClient(client);
+                    setView('dashboard');
+                    if (onExitAgencyDashboard) {
+                      onExitAgencyDashboard();
+                    }
+                  }} 
+                />
               ) : view === 'website' ? (
                 <WebsiteView onBack={() => setView('dashboard')} />
               ) : view === 'paid-traffic' ? (
@@ -320,14 +365,16 @@ const MainApp: React.FC<MainAppProps> = () => {
 };
 
 const AppContent: React.FC = () => {
-  const { isAuthenticated, userRole, activeClient, logout } = useAuth();
+  const { isAuthenticated, userRole, activeClient, logout, setActiveClient } = useAuth();
   const [showClientManager, setShowClientManager] = useState(false);
+  const [showAgencyDashboard, setShowAgencyDashboard] = useState(false);
+  const [adminView, setAdminView] = useState<'agencyHome' | 'clientSelector'>('agencyHome');
 
   if (!isAuthenticated) {
     return <LoginScreen />;
   }
 
-  if (userRole === 'admin' && !activeClient) {
+  if (userRole === 'admin' && !activeClient && !showAgencyDashboard) {
     if (showClientManager) {
       return (
         <ClientManager
@@ -335,6 +382,16 @@ const AppContent: React.FC = () => {
         />
       );
     }
+
+    if (adminView === 'agencyHome') {
+      return (
+        <AgencyHome 
+          onManageAgency={() => setShowAgencyDashboard(true)}
+          onAccessClients={() => setAdminView('clientSelector')}
+        />
+      );
+    }
+
     return (
       <ClientSelectorScreen
         onSelectClient={() => {}}
@@ -346,7 +403,19 @@ const AppContent: React.FC = () => {
     );
   }
 
-  return <MainApp />;
+  return <MainApp 
+    initialView={showAgencyDashboard ? 'agencyDashboard' : undefined} 
+    onExitAgencyDashboard={() => setShowAgencyDashboard(false)}
+    onGoToAgencyHome={() => {
+      setActiveClient(null);
+      setAdminView('agencyHome');
+      setShowAgencyDashboard(false);
+    }}
+    onGoToClientSelector={() => {
+      setAdminView('clientSelector');
+      setShowAgencyDashboard(false);
+    }}
+  />;
 };
 
 const App: React.FC = () => {
