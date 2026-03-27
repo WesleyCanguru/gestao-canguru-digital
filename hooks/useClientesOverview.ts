@@ -126,22 +126,18 @@ export function useClientesOverview() {
 
   const addQuickLink = async (link: Omit<ClientQuickLink, 'id' | 'created_at'>) => {
     try {
-      console.log('DADOS SENDO ENVIADOS:', JSON.stringify(link, null, 2));
       const { data, error } = await supabase
         .from('client_quick_links')
         .insert([link])
         .select()
         .single();
 
-      if (error) {
-        console.error('ERRO SUPABASE (DETALHADO):', JSON.stringify(error, null, 2));
-        throw error;
-      }
+      if (error) throw error;
       
       setQuickLinks(prev => [...prev, data]);
       return data;
     } catch (error) {
-      console.error('ERRO AO ADICIONAR LINK:', error);
+      console.error('Erro ao adicionar link:', error);
       throw error;
     }
   };
