@@ -20,10 +20,17 @@ import dayjs from 'dayjs';
 
 export const FinanceiroTab: React.FC = () => {
   const [currentMonthYear, setCurrentMonthYear] = useState(dayjs().format('YYYY-MM'));
-  const { billings, expenses, loading, updateBilling, addExpense, deleteExpense } = useAgencyFinanceiro(currentMonthYear);
+  const { billings, expenses, loading, updateBilling, addExpense, updateExpense, deleteExpense } = useAgencyFinanceiro(currentMonthYear);
   const [showExpenseModal, setShowExpenseModal] = useState(false);
   const [editingBilling, setEditingBilling] = useState<any>(null);
-  const [newExpense, setNewExpense] = useState({ description: '', category: 'fixed' as 'fixed' | 'variable', amount: 0 });
+  const [newExpense, setNewExpense] = useState({ 
+    description: '', 
+    category: 'fixed' as 'fixed' | 'variable', 
+    amount: 0,
+    due_day: 10,
+    notes: ''
+  });
+  const [payingExpense, setPayingExpense] = useState<any>(null);
   const [isUpdating, setIsUpdating] = useState(false);
 
   const stats = useMemo(() => {
@@ -45,9 +52,38 @@ export const FinanceiroTab: React.FC = () => {
 
   const handleAddExpense = async (e: React.FormEvent) => {
     e.preventDefault();
-    await addExpense({ ...newExpense, month_year: currentMonthYear });
+    
+    let due_date = null;
+    if (newExpense.category === 'fixed') {
+      due_date = dayjs(currentMonthYear).date(newExpense.due_day).format('YYYY-MM-DD');
+    }
+
+    await addExpense({ 
+      description: newExpense.description,
+      category: newExpense.category,
+      amount: newExpense.amount,
+      month_year: currentMonthYear,
+      due_date,
+      paid: false,
+      paid_at: null,
+      notes: newExpense.notes
+    });
+    
     setShowExpenseModal(false);
-    setNewExpense({ description: '', category: 'fixed', amount: 0 });
+    setNewExpense({ description: '', category: 'fixed', amount: 0, due_day: 10, notes: '' });
+  };
+
+  const handleMarkExpensePaid = async (expense: any, paidAt?: string) => {
+    if (expense.category === 'variable' && !paidAt) {
+      setPayingExpense(expense);
+      return;
+    }
+
+    await updateExpense(expense.id, {
+      paid: true,
+      paid_at: paidAt || new Date().toISOString()
+    });
+    setPayingExpense(null);
   };
 
   const handleUpdateBilling = async (e: React.FormEvent) => {
@@ -77,6 +113,22 @@ export const FinanceiroTab: React.FC = () => {
     
     if (isOverdue || billing.status === 'overdue') {
       return <span className="px-3 py-1 bg-red-100 text-red-700 text-[10px] font-bold rounded-full uppercase tracking-widest">Atrasado</span>;
+    }
+    
+    return <span className="px-3 py-1 bg-orange-100 text-orange-700 text-[10px] font-bold rounded-full uppercase tracking-widest">Pendente</span>;
+  };
+
+  const getExpenseStatusBadge = (expense: any) => {
+    if (expense.paid) {
+      return <span className="px-3 py-1 bg-green-100 text-green-700 text-[10px] font-bold rounded-full uppercase tracking-widest">Pago</span>;
+    }
+    
+    if (expense.category === 'fixed' && expense.due_date) {
+      const today = dayjs();
+      const dueDate = dayjs(expense.due_date);
+      if (today.isAfter(dueDate, 'day')) {
+        return <span className="px-3 py-1 bg-red-100 text-red-700 text-[10px] font-bold rounded-full uppercase tracking-widest">Atrasado</span>;
+      }
     }
     
     return <span className="px-3 py-1 bg-orange-100 text-orange-700 text-[10px] font-bold rounded-full uppercase tracking-widest">Pendente</span>;
@@ -242,33 +294,77 @@ export const FinanceiroTab: React.FC = () => {
             <span>{formatCurrency(stats.totalExpenses)}</span>
           </div>
         </div>
-        <div className="p-8">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {expenses.map((expense) => (
-              <div key={expense.id} className="p-6 bg-gray-50/50 rounded-2xl border border-gray-100 flex justify-between items-start group">
-                <div>
-                  <div className="flex items-center gap-2 mb-2">
-                    <span className={`px-2 py-0.5 rounded-full text-[8px] font-bold uppercase tracking-widest ${expense.category === 'fixed' ? 'bg-blue-50 text-blue-600' : 'bg-purple-50 text-purple-600'}`}>
+        <div className="overflow-x-auto">
+          <table className="w-full text-left">
+            <thead>
+              <tr className="bg-gray-50/50">
+                <th className="px-8 py-4 text-[10px] uppercase tracking-widest font-bold text-gray-400">Descrição</th>
+                <th className="px-8 py-4 text-[10px] uppercase tracking-widest font-bold text-gray-400">Categoria</th>
+                <th className="px-8 py-4 text-[10px] uppercase tracking-widest font-bold text-gray-400">Valor</th>
+                <th className="px-8 py-4 text-[10px] uppercase tracking-widest font-bold text-gray-400">Vencimento</th>
+                <th className="px-8 py-4 text-[10px] uppercase tracking-widest font-bold text-gray-400">Status</th>
+                <th className="px-8 py-4 text-[10px] uppercase tracking-widest font-bold text-gray-400">Ações</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-50">
+              {expenses.map((expense) => (
+                <tr key={expense.id} className="hover:bg-gray-50/50 transition-colors group">
+                  <td className="px-8 py-6">
+                    <div className="flex flex-col">
+                      <span className="font-bold text-brand-dark">{expense.description}</span>
+                      {expense.notes && <span className="text-[10px] text-gray-400 italic">{expense.notes}</span>}
+                    </div>
+                  </td>
+                  <td className="px-8 py-6">
+                    <span className={`px-2 py-1 rounded-lg text-[10px] font-bold uppercase tracking-widest ${expense.category === 'fixed' ? 'bg-blue-50 text-blue-600' : 'bg-purple-50 text-purple-600'}`}>
                       {expense.category === 'fixed' ? 'Fixa' : 'Variável'}
                     </span>
-                  </div>
-                  <h4 className="font-bold text-brand-dark mb-1">{expense.description}</h4>
-                  <p className="text-lg font-bold text-brand-dark">{formatCurrency(expense.amount)}</p>
-                </div>
-                <button 
-                  onClick={() => deleteExpense(expense.id)}
-                  className="p-2 text-gray-300 hover:text-red-600 transition-colors opacity-0 group-hover:opacity-100"
-                >
-                  <Trash2 size={18} />
-                </button>
-              </div>
-            ))}
-            {expenses.length === 0 && (
-              <div className="col-span-full py-12 text-center text-gray-400">
-                Nenhuma despesa cadastrada para este mês.
-              </div>
-            )}
-          </div>
+                  </td>
+                  <td className="px-8 py-6">
+                    <span className="font-bold text-brand-dark">{formatCurrency(expense.amount)}</span>
+                  </td>
+                  <td className="px-8 py-6">
+                    <span className="text-gray-500 font-medium">
+                      {expense.category === 'fixed' ? (expense.due_date ? dayjs(expense.due_date).format('DD/MM') : '-') : '-'}
+                    </span>
+                  </td>
+                  <td className="px-8 py-6">{getExpenseStatusBadge(expense)}</td>
+                  <td className="px-8 py-6">
+                    <div className="flex items-center gap-2">
+                      {!expense.paid ? (
+                        <button 
+                          onClick={() => handleMarkExpensePaid(expense)}
+                          className="px-4 py-2 bg-green-600 text-white rounded-xl text-[10px] font-bold uppercase tracking-widest hover:bg-green-700 transition-all shadow-lg shadow-green-600/20 whitespace-nowrap"
+                        >
+                          Marcar Pago
+                        </button>
+                      ) : (
+                        <button 
+                          onClick={() => updateExpense(expense.id, { paid: false, paid_at: null })}
+                          className="px-4 py-2 bg-gray-50 text-gray-400 rounded-xl text-[10px] font-bold uppercase tracking-widest border border-gray-100 whitespace-nowrap hover:bg-red-50 hover:text-red-600 hover:border-red-100 transition-all"
+                        >
+                          Estornar
+                        </button>
+                      )}
+                      <button 
+                        onClick={() => deleteExpense(expense.id)}
+                        className="p-2 text-gray-300 hover:text-red-600 transition-colors opacity-0 group-hover:opacity-100"
+                      >
+                        <Trash2 size={18} />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+              {expenses.length === 0 && (
+                <tr>
+                  <td colSpan={6} className="px-8 py-12 text-center text-gray-400">
+                    Nenhuma despesa cadastrada para este mês.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
         </div>
       </div>
 
@@ -321,6 +417,31 @@ export const FinanceiroTab: React.FC = () => {
                   </select>
                 </div>
               </div>
+
+              {newExpense.category === 'fixed' && (
+                <div className="space-y-2">
+                  <label className="text-[10px] uppercase tracking-widest font-bold text-gray-400 ml-1">Dia de Vencimento</label>
+                  <input 
+                    type="number" 
+                    required min={1} max={31}
+                    value={newExpense.due_day}
+                    onChange={(e) => setNewExpense({ ...newExpense, due_day: Number(e.target.value) })}
+                    className="w-full px-6 py-4 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-brand-dark/5 focus:border-brand-dark outline-none transition-all font-medium"
+                  />
+                </div>
+              )}
+
+              <div className="space-y-2">
+                <label className="text-[10px] uppercase tracking-widest font-bold text-gray-400 ml-1">Notas</label>
+                <input 
+                  type="text" 
+                  value={newExpense.notes}
+                  onChange={(e) => setNewExpense({ ...newExpense, notes: e.target.value })}
+                  className="w-full px-6 py-4 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-brand-dark/5 focus:border-brand-dark outline-none transition-all font-medium"
+                  placeholder="Observações..."
+                />
+              </div>
+
               <div className="flex gap-4 pt-4">
                 <button 
                   type="button"
@@ -431,6 +552,43 @@ export const FinanceiroTab: React.FC = () => {
                 </button>
               </div>
             </form>
+          </motion.div>
+        </div>
+      )}
+      {/* Date Picker Modal for Variable Expenses */}
+      {payingExpense && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-white w-full max-w-sm rounded-[2.5rem] p-10 shadow-2xl"
+          >
+            <h3 className="text-xl font-bold text-brand-dark mb-6 text-center">Data de Pagamento</h3>
+            <div className="space-y-6">
+              <input 
+                type="date"
+                defaultValue={dayjs().format('YYYY-MM-DD')}
+                id="payment-date"
+                className="w-full px-6 py-4 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-brand-dark/5 focus:border-brand-dark outline-none transition-all font-medium"
+              />
+              <div className="flex gap-4">
+                <button 
+                  onClick={() => setPayingExpense(null)}
+                  className="flex-1 py-4 bg-gray-50 text-gray-500 rounded-2xl font-bold text-sm uppercase tracking-widest hover:bg-gray-100 transition-all"
+                >
+                  Cancelar
+                </button>
+                <button 
+                  onClick={() => {
+                    const date = (document.getElementById('payment-date') as HTMLInputElement).value;
+                    handleMarkExpensePaid(payingExpense, dayjs(date).toISOString());
+                  }}
+                  className="flex-1 py-4 bg-green-600 text-white rounded-2xl font-bold text-sm uppercase tracking-widest hover:bg-green-700 transition-all shadow-xl shadow-green-600/10"
+                >
+                  Confirmar
+                </button>
+              </div>
+            </div>
           </motion.div>
         </div>
       )}

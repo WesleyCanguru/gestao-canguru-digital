@@ -190,6 +190,10 @@ export interface AgencyExpense {
   category: 'fixed' | 'variable';
   amount: number;
   month_year: string; // YYYY-MM
+  due_date?: string | null; // DATE
+  paid: boolean;
+  paid_at: string | null; // TIMESTAMPTZ
+  notes?: string | null;
   created_at: string;
 }
 

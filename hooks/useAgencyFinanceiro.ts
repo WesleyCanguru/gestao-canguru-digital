@@ -136,6 +136,23 @@ export function useAgencyFinanceiro(monthYear: string) {
     }
   };
 
+  const updateExpense = async (id: string, updates: Partial<AgencyExpense>) => {
+    try {
+      const { data, error } = await supabase
+        .from('agency_expenses')
+        .update(updates)
+        .eq('id', id)
+        .select()
+        .single();
+
+      if (error) throw error;
+      setExpenses(prev => prev.map(e => e.id === id ? data : e));
+    } catch (error) {
+      console.error('Error updating expense:', error);
+      throw error;
+    }
+  };
+
   const deleteExpense = async (id: string) => {
     try {
       const { error } = await supabase
@@ -157,6 +174,7 @@ export function useAgencyFinanceiro(monthYear: string) {
     loading,
     updateBilling,
     addExpense,
+    updateExpense,
     deleteExpense,
     refresh: fetchData
   };
