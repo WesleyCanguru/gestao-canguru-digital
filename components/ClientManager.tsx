@@ -1,13 +1,15 @@
 
 import React, { useState, useEffect } from 'react';
+import { motion } from 'motion/react';
 import { supabase, hashPassword } from '../lib/supabase';
 import { Client } from '../types';
 import { getAnnualOverviewTemplate } from '../constants';
-import { ArrowLeft, Plus, Check, X, Building2, Lock, Globe } from 'lucide-react';
+import { ArrowLeft, Plus, Check, X, Building2, Lock, Globe, Edit2 } from 'lucide-react';
 
 interface ClientManagerProps {
   onBack: () => void;
 }
+
 
 const COLORS = [
   '#1e40af','#16a34a','#dc2626','#9333ea','#d97706','#0891b2','#be185d','#475569',
@@ -276,51 +278,65 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 p-6">
-      <div className="max-w-3xl mx-auto">
+    <div className="min-h-screen bg-[#FDFDFD] p-6 relative overflow-hidden">
+      {/* Background decoration */}
+      <div className="absolute top-0 left-0 w-full h-full overflow-hidden z-0 pointer-events-none">
+        <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-blue-50/50 rounded-full blur-[120px]"></div>
+        <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-purple-50/50 rounded-full blur-[120px]"></div>
+      </div>
+
+      <motion.div 
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="max-w-4xl mx-auto relative z-10"
+      >
         
         {/* Header */}
-        <div className="flex items-center gap-4 mb-8">
-          <button onClick={onBack} className="p-2 rounded-lg hover:bg-gray-200 transition-colors">
-            <ArrowLeft size={20} className="text-gray-600" />
+        <div className="flex items-center gap-4 mb-10">
+          <button onClick={onBack} className="p-3 rounded-2xl hover:bg-gray-100 text-gray-400 hover:text-brand-dark transition-colors">
+            <ArrowLeft size={20} />
           </button>
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Gerenciar Clientes</h1>
-            <p className="text-sm text-gray-500">{clients.length} cliente(s) cadastrado(s)</p>
+            <h1 className="text-3xl font-bold text-brand-dark tracking-tight">Gerenciar Clientes</h1>
+            <p className="text-sm text-gray-500 mt-1">{clients.length} cliente(s) cadastrado(s)</p>
           </div>
           <button
             onClick={() => {
               if (showForm) resetForm();
               setShowForm(!showForm);
             }}
-            className="ml-auto flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold text-sm transition-colors"
+            className="ml-auto flex items-center gap-2 px-6 py-3 bg-brand-dark hover:bg-opacity-90 text-white rounded-2xl font-bold text-xs uppercase tracking-widest transition-all shadow-[0_10px_20px_rgba(0,0,0,0.1)] hover:shadow-[0_15px_30px_rgba(0,0,0,0.15)] hover:-translate-y-0.5"
           >
-            <Plus size={16} />
+            {showForm ? <X size={16} /> : <Plus size={16} />}
             {showForm ? 'Fechar' : 'Novo Cliente'}
           </button>
         </div>
 
         {/* Mensagem de sucesso */}
         {successMsg && (
-          <div className="mb-6 flex items-center gap-3 p-4 bg-green-50 border border-green-200 rounded-xl text-green-800 text-sm">
+          <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="mb-6 flex items-center gap-3 p-4 bg-green-50 border border-green-200 rounded-2xl text-green-800 text-sm font-medium">
             <Check size={18} className="text-green-600 flex-shrink-0" />
             {successMsg}
-          </div>
+          </motion.div>
         )}
 
         {/* Mensagem de erro */}
         {errorMsg && (
-          <div className="mb-6 flex items-center gap-3 p-4 bg-red-50 border border-red-200 rounded-xl text-red-800 text-sm">
+          <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="mb-6 flex items-center gap-3 p-4 bg-red-50 border border-red-200 rounded-2xl text-red-800 text-sm font-medium">
             <X size={18} className="text-red-600 flex-shrink-0" />
             {errorMsg}
-          </div>
+          </motion.div>
         )}
 
         {/* Formulário de novo cliente */}
         {showForm && (
-          <div className="mb-8 p-6 bg-white rounded-2xl border border-gray-200 shadow-sm">
-            <h2 className="text-lg font-bold text-gray-800 mb-5">{editingClientId ? 'Editar Cliente' : 'Novo Cliente'}</h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <motion.div 
+            initial={{ opacity: 0, height: 0 }} 
+            animate={{ opacity: 1, height: 'auto' }} 
+            className="mb-10 p-8 bg-white rounded-[2rem] border border-black/[0.03] shadow-[0_20px_50px_rgba(0,0,0,0.04)] overflow-hidden"
+          >
+            <h2 className="text-xl font-bold text-brand-dark mb-6">{editingClientId ? 'Editar Cliente' : 'Novo Cliente'}</h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
               
               <div className="sm:col-span-2">
                 <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Nome *</label>
@@ -583,30 +599,36 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
               </div>
             </div>
 
-            <div className="flex gap-3 mt-6">
+            <div className="flex gap-4 mt-8">
               <button onClick={handleSave} disabled={saving || !form.name || !form.initials}
-                className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-lg font-semibold text-sm transition-colors">
-                {saving ? 'Salvando...' : <><Check size={15} /> {editingClientId ? 'Atualizar Cliente' : 'Salvar Cliente'}</>}
+                className="flex items-center gap-2 px-6 py-3 bg-brand-dark hover:bg-opacity-90 disabled:opacity-50 text-white rounded-2xl font-bold text-xs uppercase tracking-widest transition-all shadow-[0_10px_20px_rgba(0,0,0,0.1)] hover:shadow-[0_15px_30px_rgba(0,0,0,0.15)] hover:-translate-y-0.5">
+                {saving ? 'Salvando...' : <><Check size={16} /> {editingClientId ? 'Atualizar Cliente' : 'Salvar Cliente'}</>}
               </button>
               <button onClick={() => {
                 resetForm();
                 setShowForm(false);
               }}
-                className="flex items-center gap-2 px-4 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-lg font-semibold text-sm transition-colors">
-                <X size={15} /> Cancelar
+                className="flex items-center gap-2 px-6 py-3 bg-white hover:bg-gray-50 text-gray-500 border border-black/[0.05] rounded-2xl font-bold text-xs uppercase tracking-widest transition-all shadow-sm hover:shadow-md hover:-translate-y-0.5">
+                <X size={16} /> Cancelar
               </button>
             </div>
-          </div>
+          </motion.div>
         )}
 
         {/* Lista de clientes */}
         {loading ? (
           <div className="text-center text-gray-400 py-12">Carregando...</div>
         ) : (
-          <div className="space-y-3">
-            {clients.map(client => (
-              <div key={client.id} className="flex items-center gap-4 p-4 bg-white rounded-2xl border border-gray-200 shadow-sm hover:shadow-md transition-shadow">
-                <div className="w-12 h-12 rounded-xl flex items-center justify-center text-white font-bold text-sm flex-shrink-0 shadow-sm overflow-hidden"
+          <div className="space-y-4">
+            {clients.map((client, index) => (
+              <motion.div 
+                key={client.id} 
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: index * 0.05 }}
+                className="group flex items-center gap-5 p-6 bg-white rounded-3xl border border-black/[0.03] shadow-[0_10px_30px_rgba(0,0,0,0.02)] hover:shadow-[0_20px_40px_rgba(0,0,0,0.06)] transition-all duration-300"
+              >
+                <div className="w-14 h-14 rounded-2xl flex items-center justify-center text-white font-bold text-xl flex-shrink-0 shadow-sm overflow-hidden"
                   style={{ backgroundColor: client.color }}>
                   {client.logo_url ? (
                     <img src={client.logo_url} alt={client.name} className="w-full h-full object-contain mix-blend-multiply" />
@@ -615,36 +637,38 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
                   )}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="font-semibold text-gray-900 text-sm">{client.name}</p>
-                  <p className="text-xs text-gray-400">{client.segment || '—'} {client.responsible ? `• ${client.responsible}` : ''}</p>
+                  <p className="font-bold text-brand-dark text-base mb-1">{client.name}</p>
+                  <p className="text-xs text-gray-400 uppercase tracking-wider font-semibold">
+                    {client.segment || '—'} {client.responsible ? `• ${client.responsible}` : ''}
+                  </p>
                   {client.services && client.services.length > 0 && (
-                    <div className="flex flex-wrap gap-1 mt-1.5">
+                    <div className="flex flex-wrap gap-2 mt-3">
                       {client.services.map(service => (
-                        <span key={service} className="px-1.5 py-0.5 bg-gray-100 text-gray-600 rounded text-[10px] font-medium border border-gray-200">
+                        <span key={service} className="px-2.5 py-1 bg-gray-50 text-gray-500 rounded-lg text-[10px] font-bold uppercase tracking-wider border border-black/[0.03]">
                           {service}
                         </span>
                       ))}
                     </div>
                   )}
                 </div>
-                <div className="flex-shrink-0 flex gap-2">
+                <div className="flex-shrink-0 flex items-center gap-4">
                   <button 
                     onClick={() => handleEdit(client)}
-                    className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all"
+                    className="flex flex-col items-center justify-center gap-1 p-2 text-gray-400 hover:text-brand-dark transition-colors"
                     title="Editar Cliente"
                   >
-                    <Plus size={18} className="rotate-45" /> {/* Usando Plus rotacionado como ícone de edição improvisado ou apenas texto */}
-                    <span className="text-[10px] font-bold uppercase tracking-wider ml-1">Editar</span>
+                    <Edit2 size={18} />
+                    <span className="text-[9px] font-bold uppercase tracking-widest">Editar</span>
                   </button>
-                  <span className={`text-xs px-2 py-1 rounded-full font-medium h-fit ${client.is_active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+                  <span className={`text-[10px] px-3 py-1.5 rounded-xl font-bold uppercase tracking-widest h-fit ${client.is_active ? 'bg-green-50 text-green-600 border border-green-100' : 'bg-gray-50 text-gray-500 border border-gray-100'}`}>
                     {client.is_active ? 'Ativo' : 'Inativo'}
                   </span>
                 </div>
-              </div>
+              </motion.div>
             ))}
           </div>
         )}
-      </div>
+      </motion.div>
     </div>
   );
 };
