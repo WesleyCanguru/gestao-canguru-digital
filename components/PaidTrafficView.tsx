@@ -30,6 +30,50 @@ export const PaidTrafficView: React.FC<{ onBack?: () => void }> = ({ onBack }) =
     visible: { opacity: 1, y: 0 }
   };
 
+  const isCalabres = activeClient?.id === 'e817fbf9-0985-4453-b710-34623af870d6';
+
+  if (!isCalabres) {
+    return (
+      <div className="min-h-screen bg-[#F8F9FA] pb-20">
+        <div className="bg-white border-b border-gray-200 px-6 py-6 sticky top-0 z-10 shadow-sm">
+          <div className="max-w-5xl mx-auto flex items-center gap-4">
+            {onBack && (
+              <button 
+                onClick={onBack}
+                className="p-2 hover:bg-gray-50 rounded-xl transition-colors text-gray-400 hover:text-brand-dark"
+              >
+                <ChevronLeft className="w-6 h-6" />
+              </button>
+            )}
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900">Estratégia de Tráfego Pago</h1>
+              <p className="text-sm text-gray-500 mt-1">{activeClient?.name || 'Cliente'}</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="max-w-5xl mx-auto px-6 py-20 flex flex-col items-center justify-center text-center space-y-4">
+          <div className="w-20 h-20 bg-blue-50 rounded-3xl flex items-center justify-center text-blue-600 mb-4">
+            <Zap size={40} />
+          </div>
+          <h2 className="text-2xl font-bold text-brand-dark">Estratégia em Desenvolvimento</h2>
+          <p className="text-gray-500 max-w-md mx-auto">
+            Estamos preparando a estratégia de tráfego pago personalizada para a {activeClient?.name || 'sua marca'}. 
+            Em breve você poderá acompanhar todos os detalhes aqui.
+          </p>
+          {onBack && (
+            <button 
+              onClick={onBack}
+              className="mt-6 px-6 py-3 bg-brand-dark text-white rounded-2xl font-bold text-xs uppercase tracking-widest hover:shadow-xl transition-all transform hover:-translate-y-1"
+            >
+              Voltar ao Início
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-[#F8F9FA] pb-20">
       {/* Header */}

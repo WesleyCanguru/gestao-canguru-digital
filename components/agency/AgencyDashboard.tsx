@@ -12,12 +12,14 @@ import {
   Building2,
   DollarSign,
   Search,
-  ClipboardList
+  ClipboardList,
+  Wrench
 } from 'lucide-react';
 import { FinanceiroTab } from './FinanceiroTab';
 import { ProspeccaoTab } from './ProspeccaoTab';
 import { ClientesTab } from './ClientesTab';
 import { AgencyTasksTab } from './AgencyTasksTab';
+import { MaintenanceTab } from './MaintenanceTab';
 import { Logo } from '../Logo';
 
 import { useAuth } from '../../lib/supabase';
@@ -27,7 +29,7 @@ interface AgencyDashboardProps {
   onSelectClient: (client: any) => void;
 }
 
-type Tab = 'tasks' | 'financeiro' | 'prospeccao' | 'clientes';
+type Tab = 'tasks' | 'financeiro' | 'prospeccao' | 'clientes' | 'maintenance';
 
 export const AgencyDashboard: React.FC<AgencyDashboardProps> = ({ onBack, onSelectClient }) => {
   const { userRole } = useAuth();
@@ -42,6 +44,7 @@ export const AgencyDashboard: React.FC<AgencyDashboardProps> = ({ onBack, onSele
     { id: 'clientes', label: 'Clientes', icon: Users },
     { id: 'financeiro', label: 'Financeiro', icon: DollarSign },
     { id: 'prospeccao', label: 'Prospecção', icon: Search },
+    { id: 'maintenance', label: 'Manutenção', icon: Wrench },
   ];
 
   return (
@@ -105,6 +108,7 @@ export const AgencyDashboard: React.FC<AgencyDashboardProps> = ({ onBack, onSele
               {activeTab === 'financeiro' && <FinanceiroTab />}
               {activeTab === 'prospeccao' && <ProspeccaoTab />}
               {activeTab === 'clientes' && <ClientesTab onSelectClient={onSelectClient} />}
+              {activeTab === 'maintenance' && <MaintenanceTab />}
             </motion.div>
           </AnimatePresence>
         </div>
