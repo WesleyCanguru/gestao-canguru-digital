@@ -121,6 +121,8 @@ export const ClientHome: React.FC<ClientHomeProps> = ({
 
   const showMapa = hasService('Social Media');
   const showPaidTraffic = hasService('Tráfego Pago');
+  // Esconder o card de estratégia para Next Safety (ID: 75b00b27-61ee-4b23-8721-70748ccb0789)
+  const showPaidTrafficCard = showPaidTraffic && activeClient?.id !== '75b00b27-61ee-4b23-8721-70748ccb0789';
   const showAiPhotos = hasService('Fotos com IA');
   const showOrganicTraffic = hasService('Social Media');
   const showBriefings = hasService('Social Media') || hasService('Tráfego Pago');
@@ -345,7 +347,7 @@ export const ClientHome: React.FC<ClientHomeProps> = ({
         )}
 
         {/* Tráfego Pago */}
-        {showPaidTraffic && (
+        {showPaidTrafficCard && (
           <motion.div 
             variants={itemVariants}
             onClick={onNavigateToPaidTraffic}

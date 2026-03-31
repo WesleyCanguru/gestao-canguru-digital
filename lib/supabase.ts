@@ -68,7 +68,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         initials: 'NS',
         logo_url: null,
         is_active: true,
-        services: ['Social Media'],
+        services: ['Social Media', 'Tráfego Pago'],
         social_networks: [] as string[],
         traffic_platforms: [] as string[],
         reportei_url: null,

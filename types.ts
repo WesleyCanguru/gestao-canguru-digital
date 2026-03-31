@@ -248,3 +248,32 @@ export interface AgencyTask {
   created_at: string;
   completed_at?: string | null;
 }
+
+export interface PaidTrafficStrategy {
+  id: string;
+  client_id: string;
+  monthly_budget: number;
+  daily_budget: string;
+  priority_goal: string;
+  avg_ticket: number;
+  strategic_decision: string;
+  campaign_structure: {
+    sets: {
+      id: string;
+      title: string;
+      destination_url: string;
+      audience: string;
+      keywords: string[];
+      prefilled_message: string;
+    }[];
+  };
+  phase_2_description: string;
+  phase_2_campaigns: {
+    title: string;
+    description: string;
+    value: string;
+  }[];
+  alert_message: string;
+  pdf_url?: string | null;
+  updated_at: string;
+}

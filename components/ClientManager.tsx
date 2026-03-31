@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { supabase, hashPassword } from '../lib/supabase';
 import { Client } from '../types';
 import { getAnnualOverviewTemplate } from '../constants';
-import { ArrowLeft, Plus, Check, X, Building2, Lock, Globe } from 'lucide-react';
+import { ArrowLeft, Plus, Check, X, Building2, Lock, Globe, Edit2 } from 'lucide-react';
 
 interface ClientManagerProps {
   onBack: () => void;
@@ -44,6 +44,7 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
     logo_url: '',
     base_value: 0,
     due_day: 10,
+    is_active: true,
   });
   const [uploading, setUploading] = useState(false);
 
@@ -59,31 +60,45 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
   }, []);
 
   const handleSave = async () => {
-    if (!form.name.trim() || !form.initials.trim()) return;
+    if (!form.name.trim()) {
+      alert('O nome do cliente é obrigatório.');
+      return;
+    }
+    if (!form.initials.trim()) {
+      alert('As iniciais do cliente são obrigatórias.');
+      return;
+    }
+
     setSaving(true);
+    console.log('Iniciando salvamento do cliente...', { editingClientId, form });
+
     try {
-      const socialNetworks = form.social_networks.filter(s => !s.startsWith('linkedin_handle:'));
-      if (form.linkedin.trim()) {
+      const socialNetworks = (form.social_networks || []).filter(s => typeof s === 'string' && !s.startsWith('linkedin_handle:'));
+      if (form.linkedin && form.linkedin.trim()) {
         socialNetworks.push(`linkedin_handle:${form.linkedin.trim()}`);
       }
 
       const clientPayload = {
         name: form.name.trim(),
-        segment: form.segment.trim() || null,
-        responsible: form.responsible.trim() || null,
-        email: form.email.trim() || null,
-        instagram: form.instagram.trim() || null,
-        organic_reportei_url: form.organic_reportei_url.trim() || null,
-        paid_reportei_url: form.paid_reportei_url.trim() || null,
+        segment: (form.segment || '').trim() || null,
+        responsible: (form.responsible || '').trim() || null,
+        email: (form.email || '').trim() || null,
+        instagram: (form.instagram || '').trim() || null,
+        organic_reportei_url: (form.organic_reportei_url || '').trim() || null,
+        paid_reportei_url: (form.paid_reportei_url || '').trim() || null,
         color: form.color,
         initials: form.initials.trim().toUpperCase().slice(0, 2),
-        services: form.services,
+        services: form.services || [],
         social_networks: socialNetworks,
-        traffic_platforms: form.traffic_platforms,
+        traffic_platforms: form.traffic_platforms || [],
         logo_url: form.logo_url || null,
-        base_value: form.base_value,
-        due_day: form.due_day,
+        base_value: form.base_value || 0,
+        due_day: form.due_day || 10,
+        is_active: form.is_active,
+        reportei_url: (form.reportei_url || '').trim() || null,
       };
+
+      console.log('Payload preparado:', clientPayload);
 
       let clientData;
 
@@ -139,12 +154,13 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
         const hashedPassword = await hashPassword(form.password.trim());
         
         if (editingClientId) {
-          // Tentar atualizar ou inserir se não existir
-          const { data: existingUser } = await supabase
+          const { data: existingUser, error: userFetchError } = await supabase
             .from('client_users')
             .select('id')
             .eq('client_id', editingClientId)
-            .single();
+            .maybeSingle();
+          
+          if (userFetchError) console.warn('Erro ao buscar usuário existente:', userFetchError);
           
           if (existingUser) {
             await supabase
@@ -191,8 +207,9 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
       setShowForm(false);
       fetchClients();
       setTimeout(() => setSuccessMsg(''), 5000);
-    } catch (err) {
+    } catch (err: any) {
       console.error('Erro ao salvar cliente:', err);
+      alert('Erro ao salvar cliente: ' + (err.message || 'Erro desconhecido'));
     }
     setSaving(false);
   };
@@ -205,6 +222,7 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
       email: '', 
       instagram: '', 
       linkedin: '',
+      reportei_url: '',
       organic_reportei_url: '',
       paid_reportei_url: '',
       color: '#1e40af', 
@@ -216,6 +234,7 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
       logo_url: '',
       base_value: 0,
       due_day: 10,
+      is_active: true,
     });
     setEditingClientId(null);
   };
@@ -240,6 +259,8 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
       logo_url: client.logo_url || '',
       base_value: client.base_value || 0,
       due_day: client.due_day || 10,
+      is_active: client.is_active ?? true,
+      reportei_url: client.reportei_url || '',
     });
     setEditingClientId(client.id);
     setShowForm(true);
@@ -570,6 +591,18 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
                   <span className="block text-[10px] text-gray-400 uppercase tracking-wider">{form.segment || 'Segmento'}</span>
                 </div>
               </div>
+
+              <div className="sm:col-span-2">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input 
+                    type="checkbox" 
+                    checked={form.is_active}
+                    onChange={(e) => setForm(f => ({ ...f, is_active: e.target.checked }))}
+                    className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                  />
+                  <span className="text-sm font-semibold text-gray-700 uppercase tracking-wider">Cliente Ativo</span>
+                </label>
+              </div>
             </div>
 
             <div className="flex gap-3 mt-6">
@@ -619,11 +652,11 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
                 <div className="flex-shrink-0 flex gap-2">
                   <button 
                     onClick={() => handleEdit(client)}
-                    className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all"
+                    className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all flex items-center gap-1"
                     title="Editar Cliente"
                   >
-                    <Plus size={18} className="rotate-45" /> {/* Usando Plus rotacionado como ícone de edição improvisado ou apenas texto */}
-                    <span className="text-[10px] font-bold uppercase tracking-wider ml-1">Editar</span>
+                    <Edit2 size={18} />
+                    <span className="text-[10px] font-bold uppercase tracking-wider">Editar</span>
                   </button>
                   <span className={`text-xs px-2 py-1 rounded-full font-medium h-fit ${client.is_active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
                     {client.is_active ? 'Ativo' : 'Inativo'}
