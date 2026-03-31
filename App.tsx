@@ -248,7 +248,9 @@ const MainApp: React.FC<MainAppProps> = ({ initialView, onExitAgencyDashboard, o
               {view === 'agencyDashboard' && userRole === 'admin' ? (
                 <AgencyDashboard 
                   onBack={() => {
-                    if (onExitAgencyDashboard) {
+                    if (onGoToAgencyHome) {
+                      onGoToAgencyHome();
+                    } else if (onExitAgencyDashboard) {
                       onExitAgencyDashboard();
                     } else {
                       setView('dashboard');
