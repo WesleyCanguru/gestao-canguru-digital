@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { supabase, parseImageUrl } from '../lib/supabase';
+import { supabase, parseImageUrl, stringifyImageUrl } from '../lib/supabase';
 import { PostData, PostStatus, DailyContent, PostComment, Client } from '../types';
 import { InstagramView, LinkedInView } from './PlatformViews';
 import { Logo } from './Logo';
@@ -27,7 +27,7 @@ export const PublicApprovalScreen: React.FC = () => {
   // Interaction State
   const [userName, setUserName] = useState('');
   const [showNamePrompt, setShowNamePrompt] = useState(false);
-  const [pendingAction, setPendingAction] = useState<'approve' | 'request_changes' | null>(null);
+  const [pendingAction, setPendingAction] = useState<'approve' | 'request_changes' | 'reject' | null>(null);
   const [comment, setComment] = useState('');
   const [showCommentBox, setShowCommentBox] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -141,7 +141,7 @@ export const PublicApprovalScreen: React.FC = () => {
 
   // --- ACTIONS ---
 
-  const handleActionClick = (action: 'approve' | 'request_changes') => {
+  const handleActionClick = (action: 'approve' | 'request_changes' | 'reject') => {
     setPendingAction(action);
     if (!userName) {
        setShowNamePrompt(true);
@@ -158,8 +158,8 @@ export const PublicApprovalScreen: React.FC = () => {
      }
   };
 
-  const executeAction = (action: 'approve' | 'request_changes', name: string) => {
-     if (action === 'request_changes') {
+  const executeAction = (action: 'approve' | 'request_changes' | 'reject', name: string) => {
+     if (action === 'request_changes' || action === 'reject') {
         setShowCommentBox(true); 
      } else {
         submitApproval(name);
@@ -172,8 +172,9 @@ export const PublicApprovalScreen: React.FC = () => {
            .from('posts')
            .upsert({
               date_key: pData.date_key,
+              client_id: pData.client_id,
               status: status,
-              image_url: pData.image_url || cData.initialImageUrl,
+              image_url: stringifyImageUrl(pData.image_url) || stringifyImageUrl(cData.initialImageUrl),
               caption: pData.caption,
               theme: pData.theme || cData.theme,
               type: pData.type || cData.type,
@@ -215,6 +216,47 @@ export const PublicApprovalScreen: React.FC = () => {
         setPendingAction(null);
      } catch (err) {
         alert('Erro ao aprovar.');
+     } finally {
+        setSubmitting(false);
+     }
+  };
+
+  const submitReject = async () => {
+     if (!primaryPost || !comment.trim()) return;
+     setSubmitting(true);
+     try {
+        // 1. Marcar rejected Principal
+        await savePostStatus(primaryPost, primaryContent!, 'rejected');
+
+        // 2. Marcar rejected Contraparte (se existir)
+        if (counterpartPost && counterpartContent) {
+            await savePostStatus(counterpartPost, counterpartContent, 'rejected');
+        }
+
+        // 3. Comentário
+        const newCommentObj = {
+           post_id: primaryPost.date_key,
+           author_role: 'approver',
+           author_name: userName,
+           content: `❌ REPROVOU a publicação. Justificativa: ${comment}`,
+           visible_to_admin: true
+        };
+        
+        const { data: insertedComment } = await supabase.from('comments').insert(newCommentObj).select().single();
+        if (insertedComment) {
+            setComments(prev => [...prev, insertedComment as PostComment]);
+        }
+
+        setPrimaryPost(prev => prev ? ({...prev, status: 'rejected'}) : null);
+        if (counterpartPost) setCounterpartPost(prev => prev ? ({...prev, status: 'rejected'}) : null);
+
+        setSuccessMessage('Publicação reprovada com sucesso!');
+        setShowCommentBox(false);
+        setComment('');
+        setPendingAction(null);
+
+     } catch (err) {
+        alert('Erro ao enviar reprovação.');
      } finally {
         setSubmitting(false);
      }
@@ -305,6 +347,7 @@ export const PublicApprovalScreen: React.FC = () => {
         'draft': 'Rascunho',
         'pending_approval': 'Aprovação Pendente',
         'changes_requested': 'Ajustes Solicitados',
+        'rejected': 'Reprovado',
         'internal_review': 'Discussão Interna',
         'approved': 'Aprovado',
         'scheduled': 'Programado',
@@ -420,7 +463,8 @@ export const PublicApprovalScreen: React.FC = () => {
                    <div className="text-center">
                       <span className={`inline-block px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide border 
                          ${safePost.status === 'approved' ? 'bg-green-100 text-green-700 border-green-200' : 
-                           safePost.status === 'changes_requested' ? 'bg-red-100 text-red-700 border-red-200' : 
+                           safePost.status === 'changes_requested' ? 'bg-orange-100 text-orange-700 border-orange-200' : 
+                           safePost.status === 'rejected' ? 'bg-red-100 text-red-700 border-red-200' : 
                            'bg-gray-100 text-gray-600 border-gray-200'
                          }`}>
                          Status: {getStatusLabel(safePost.status)}
@@ -456,12 +500,20 @@ export const PublicApprovalScreen: React.FC = () => {
                             >
                                <CheckCircle2 size={20} /> Aprovar Publicação
                             </button>
-                            <button 
-                              onClick={() => handleActionClick('request_changes')}
-                              className="w-full py-4 bg-white hover:bg-red-50 text-red-600 border border-red-200 rounded-xl font-bold transition-all flex items-center justify-center gap-2"
-                            >
-                               <AlertTriangle size={20} /> Solicitar Ajuste
-                            </button>
+                            <div className="flex gap-3">
+                                <button 
+                                  onClick={() => handleActionClick('request_changes')}
+                                  className="flex-1 py-4 bg-white hover:bg-orange-50 text-orange-600 border border-orange-200 rounded-xl font-bold transition-all flex items-center justify-center gap-2"
+                                >
+                                   <AlertTriangle size={20} /> Ajuste
+                                </button>
+                                <button 
+                                  onClick={() => handleActionClick('reject')}
+                                  className="flex-1 py-4 bg-white hover:bg-red-50 text-red-600 border border-red-200 rounded-xl font-bold transition-all flex items-center justify-center gap-2"
+                                >
+                                   <XCircle size={20} /> Reprovar
+                                </button>
+                            </div>
                          </div>
                       )}
 
@@ -487,22 +539,24 @@ export const PublicApprovalScreen: React.FC = () => {
                       {/* Comment Box */}
                       {showCommentBox && (
                          <div className="animate-in fade-in slide-in-from-bottom-2">
-                            <label className="block text-sm font-bold text-gray-700 mb-2">O que precisa ser ajustado?</label>
+                            <label className="block text-sm font-bold text-gray-700 mb-2">
+                                {pendingAction === 'reject' ? 'Qual a justificativa da reprovação?' : 'O que precisa ser ajustado?'}
+                            </label>
                             <textarea 
                               autoFocus
                               value={comment}
                               onChange={e => setComment(e.target.value)}
-                              placeholder="Descreva o que gostaria de alterar..."
-                              className="w-full h-32 p-3 border border-gray-300 rounded-lg mb-4 focus:ring-2 focus:ring-red-500 outline-none resize-none text-sm"
+                              placeholder={pendingAction === 'reject' ? "Justifique o motivo da reprovação..." : "Descreva o que gostaria de alterar..."}
+                              className={`w-full h-32 p-3 border border-gray-300 rounded-lg mb-4 focus:ring-2 outline-none resize-none text-sm ${pendingAction === 'reject' ? 'focus:ring-red-500' : 'focus:ring-orange-500'}`}
                             />
                             <div className="flex gap-2">
                                <button 
-                                 onClick={submitChanges} 
+                                 onClick={pendingAction === 'reject' ? submitReject : submitChanges} 
                                  disabled={!comment.trim() || submitting} 
-                                 className="flex-1 bg-red-600 text-white py-2 rounded-lg font-bold disabled:opacity-50 flex items-center justify-center gap-2"
+                                 className={`flex-1 text-white py-2 rounded-lg font-bold disabled:opacity-50 flex items-center justify-center gap-2 ${pendingAction === 'reject' ? 'bg-red-600' : 'bg-orange-600'}`}
                                >
                                   {submitting ? <Loader2 className="animate-spin" size={16} /> : <Send size={16} />}
-                                  Enviar Solicitação
+                                  {pendingAction === 'reject' ? 'Enviar Reprovação' : 'Enviar Solicitação'}
                                </button>
                                <button onClick={() => setShowCommentBox(false)} disabled={submitting} className="px-4 text-gray-500 font-medium">Cancelar</button>
                             </div>

@@ -3,7 +3,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { DailyContent, PostData, PostComment, PostStatus } from '../types';
 import { useAuth, supabase, parseImageUrl, stringifyImageUrl } from '../lib/supabase';
-import { X, Send, Image as ImageIcon, CheckCircle2, AlertTriangle, Save, UploadCloud, Trash2, Edit3, RefreshCw, Link, Check, Calendar, Instagram, Linkedin, ChevronDown, Layers, Copy, LayoutTemplate, Eye, FileText } from 'lucide-react';
+import { X, Send, Image as ImageIcon, CheckCircle2, AlertTriangle, Save, UploadCloud, Trash2, Edit3, RefreshCw, Link, Check, Calendar, Instagram, Linkedin, ChevronDown, Layers, Copy, LayoutTemplate, Eye, FileText, XCircle } from 'lucide-react';
 import { InstagramView, LinkedInView } from './PlatformViews';
 
 interface PostModalProps {
@@ -202,10 +202,11 @@ export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, onClo
          }
 
          // Fetch Comments
+         const keysToFetch = foundKeys.length > 0 ? foundKeys : [dateKey];
          const { data: commentsData } = await supabase
             .from('comments')
             .select('*')
-            .eq('post_id', dateKey)
+            .in('post_id', keysToFetch)
             .order('created_at', { ascending: true });
          if (commentsData) setComments(commentsData as PostComment[]);
          
@@ -471,6 +472,31 @@ export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, onClo
       if (!error) setComments(prev => prev.filter(c => c.id !== commentId));
   };
   
+  const changeStatus = async (newStatus: PostStatus) => {
+      const keysToUpdate = originalKeys.length > 0 ? originalKeys : [dateKey];
+      for (const k of keysToUpdate) {
+          const plat = k.split('-').pop();
+          let finalCaption = captionMeta;
+          if (useDifferentCaptions) {
+              finalCaption = plat === 'meta' ? captionMeta : captionLinkedin;
+          }
+          
+          await supabase.from('posts').upsert({
+              date_key: k,
+              client_id: activeClient?.id,
+              image_url: stringifyImageUrl(imageUrl) || dayContent.initialImageUrl,
+              caption: finalCaption,
+              status: newStatus,
+              theme: editedTheme || dayContent.theme,
+              type: editedType || dayContent.type,
+              bullets: editedBullets ? editedBullets.split('\n').filter(l => l.trim() !== '') : dayContent.bullets,
+              last_updated: new Date().toISOString()
+          }, { onConflict: 'date_key' });
+      }
+      setPost(prev => ({ ...prev!, status: newStatus }));
+      if (onUpdate) onUpdate();
+  };
+
   const handleSendComment = async () => {
     if (!newComment.trim()) return;
     const newCommentObj = { 
@@ -485,16 +511,36 @@ export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, onClo
         setComments(prev => [...prev, data as PostComment]);
         setNewComment('');
         if (userRole === 'approver') {
-             await supabase.from('posts').update({ status: 'changes_requested' }).eq('date_key', dateKey);
-             if (onUpdate) onUpdate();
+             await changeStatus('changes_requested');
         }
     }
   };
 
   const handleApprove = async () => {
-      await supabase.from('posts').update({ status: 'approved' }).eq('date_key', dateKey).eq('client_id', activeClient?.id);
-      setPost(prev => ({ ...prev!, status: 'approved' }));
-      if (onUpdate) onUpdate();
+      await changeStatus('approved');
+  };
+
+  const handleReject = async () => {
+      const justification = prompt("Por favor, justifique a reprovação:");
+      if (!justification || !justification.trim()) {
+          alert("A justificativa é obrigatória para reprovar a publicação.");
+          return;
+      }
+      
+      const newCommentObj = { 
+          post_id: dateKey, 
+          author_role: userRole, 
+          author_name: userRole === 'admin' ? 'Canguru' : userRole === 'approver' ? (activeClient?.responsible || 'Wesley') : 'Equipe', 
+          content: `❌ REPROVOU a publicação. Justificativa: ${justification}`, 
+          visible_to_admin: true 
+      };
+      const { data, error } = await supabase.from('comments').insert(newCommentObj).select().single();
+      if (!error && data) {
+          setComments(prev => [...prev, data as PostComment]);
+          await changeStatus('rejected');
+      } else {
+          alert('Erro ao registrar reprovação.');
+      }
   };
 
   const handleCopyLink = () => {
@@ -513,6 +559,7 @@ export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, onClo
         'draft': 'Rascunho',
         'pending_approval': 'Em Aprovação',
         'changes_requested': 'Ajustes Solicitados',
+        'rejected': 'Reprovado',
         'internal_review': 'Discussão Interna',
         'approved': 'Aprovado',
         'scheduled': 'Programado',
@@ -564,7 +611,8 @@ export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, onClo
                           <div className={`w-2 h-2 rounded-full animate-pulse ${
                             post?.status === 'approved' ? 'bg-green-400' : 
                             post?.status === 'published' ? 'bg-blue-400' : 
-                            post?.status === 'changes_requested' ? 'bg-red-400' : 'bg-yellow-400'
+                            post?.status === 'changes_requested' ? 'bg-orange-400' : 
+                            post?.status === 'rejected' ? 'bg-red-400' : 'bg-yellow-400'
                           }`} />
                           {getStatusLabel(post?.status || 'draft')}
                         </div>
@@ -644,14 +692,15 @@ export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, onClo
               
               {/* Approver Actions */}
               {userRole === 'approver' && !isNew && (
-                  <div className="flex gap-3">
+                  <div className="flex gap-2">
                       {!showRequestChangesInput ? (
                         <>
-                        <button onClick={handleApprove} className="flex-1 flex items-center justify-center gap-2 px-4 py-3.5 bg-brand-dark hover:bg-black text-white rounded-xl font-bold text-[11px] uppercase tracking-widest shadow-xl shadow-brand-dark/10 transition-all active:scale-95"><CheckCircle2 size={18} /> Aprovar</button>
-                        <button onClick={() => setShowRequestChangesInput(true)} className="flex-1 flex items-center justify-center gap-2 px-4 py-3.5 bg-white hover:bg-red-50 text-red-600 border border-red-100 rounded-xl font-bold text-[11px] uppercase tracking-widest transition-all active:scale-95"><AlertTriangle size={18} /> Ajuste</button>
+                        <button onClick={handleApprove} className="flex-1 flex items-center justify-center gap-1.5 px-3 py-3.5 bg-brand-dark hover:bg-black text-white rounded-xl font-bold text-[10px] sm:text-[11px] uppercase tracking-widest shadow-xl shadow-brand-dark/10 transition-all active:scale-95"><CheckCircle2 size={16} /> Aprovar</button>
+                        <button onClick={() => setShowRequestChangesInput(true)} className="flex-1 flex items-center justify-center gap-1.5 px-3 py-3.5 bg-white hover:bg-orange-50 text-orange-600 border border-orange-100 rounded-xl font-bold text-[10px] sm:text-[11px] uppercase tracking-widest transition-all active:scale-95"><AlertTriangle size={16} /> Ajuste</button>
+                        <button onClick={handleReject} className="flex-1 flex items-center justify-center gap-1.5 px-3 py-3.5 bg-white hover:bg-red-50 text-red-600 border border-red-100 rounded-xl font-bold text-[10px] sm:text-[11px] uppercase tracking-widest transition-all active:scale-95"><XCircle size={16} /> Reprovar</button>
                         </>
                       ) : (
-                        <div className="flex items-center justify-between w-full bg-red-50 text-red-800 px-4 py-3 rounded-xl border border-red-100 text-[11px] font-bold uppercase tracking-widest">
+                        <div className="flex items-center justify-between w-full bg-orange-50 text-orange-800 px-4 py-3 rounded-xl border border-orange-100 text-[11px] font-bold uppercase tracking-widest">
                             <span>Escreva o ajuste abaixo</span>
                             <button onClick={() => setShowRequestChangesInput(false)} className="text-[10px] underline tracking-normal">Cancelar</button>
                         </div>

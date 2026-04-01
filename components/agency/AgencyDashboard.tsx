@@ -12,14 +12,12 @@ import {
   Building2,
   DollarSign,
   Search,
-  ClipboardList,
-  Wrench
+  ClipboardList
 } from 'lucide-react';
 import { FinanceiroTab } from './FinanceiroTab';
 import { ProspeccaoTab } from './ProspeccaoTab';
 import { ClientesTab } from './ClientesTab';
 import { AgencyTasksTab } from './AgencyTasksTab';
-import { MaintenanceTab } from './MaintenanceTab';
 import { Logo } from '../Logo';
 
 import { useAuth } from '../../lib/supabase';
@@ -29,7 +27,7 @@ interface AgencyDashboardProps {
   onSelectClient: (client: any) => void;
 }
 
-type Tab = 'tasks' | 'financeiro' | 'prospeccao' | 'clientes' | 'maintenance';
+type Tab = 'tasks' | 'financeiro' | 'prospeccao' | 'clientes';
 
 export const AgencyDashboard: React.FC<AgencyDashboardProps> = ({ onBack, onSelectClient }) => {
   const { userRole } = useAuth();
@@ -44,7 +42,6 @@ export const AgencyDashboard: React.FC<AgencyDashboardProps> = ({ onBack, onSele
     { id: 'clientes', label: 'Clientes', icon: Users },
     { id: 'financeiro', label: 'Financeiro', icon: DollarSign },
     { id: 'prospeccao', label: 'Prospecção', icon: Search },
-    { id: 'maintenance', label: 'Manutenção', icon: Wrench },
   ];
 
   return (
@@ -55,7 +52,10 @@ export const AgencyDashboard: React.FC<AgencyDashboardProps> = ({ onBack, onSele
           <div className="flex justify-between items-center h-20 sm:h-24">
             <div className="flex items-center gap-4">
               <button 
-                onClick={onBack}
+                onClick={(e) => {
+                  e.preventDefault();
+                  onBack();
+                }}
                 className="p-3 rounded-2xl bg-gray-50 text-gray-400 hover:bg-gray-100 hover:text-brand-dark transition-all border border-black/[0.02]"
                 title="Voltar"
               >
@@ -108,7 +108,6 @@ export const AgencyDashboard: React.FC<AgencyDashboardProps> = ({ onBack, onSele
               {activeTab === 'financeiro' && <FinanceiroTab />}
               {activeTab === 'prospeccao' && <ProspeccaoTab />}
               {activeTab === 'clientes' && <ClientesTab onSelectClient={onSelectClient} />}
-              {activeTab === 'maintenance' && <MaintenanceTab />}
             </motion.div>
           </AnimatePresence>
         </div>

@@ -2,6 +2,14 @@
 
 import { AdSetData, PlatformStrategy, WeeklyScheduleRow, MonthlyDetailedPlan } from './types';
 
+export const BRAZILIAN_STATES = [
+  'Acre', 'Alagoas', 'Amapá', 'Amazonas', 'Bahia', 'Ceará', 'Distrito Federal', 
+  'Espírito Santo', 'Goiás', 'Maranhão', 'Mato Grosso', 'Mato Grosso do Sul', 
+  'Minas Gerais', 'Pará', 'Paraíba', 'Paraná', 'Pernambuco', 'Piauí', 
+  'Rio de Janeiro', 'Rio Grande do Norte', 'Rio Grande do Sul', 'Rondônia', 
+  'Roraima', 'Santa Catarina', 'São Paulo', 'Sergipe', 'Tocantins'
+];
+
 export const getAnnualOverviewTemplate = (segment: string) => {
   const s = segment.toLowerCase();
   if (s.includes('advocacia') || s.includes('jurídico') || s.includes('direito')) {

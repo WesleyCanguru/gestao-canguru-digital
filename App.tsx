@@ -372,7 +372,7 @@ const MainApp: React.FC<MainAppProps> = ({ initialView, onExitAgencyDashboard, o
           </div>
           <div className="flex flex-col items-center md:items-end gap-2">
             <p className="text-[10px] text-gray-400 uppercase tracking-[0.4em] font-bold text-center md:text-right">
-              Bolsa • Canguru Digital 2026
+              Painel do Cliente • Canguru Digital 2026
             </p>
             <p className="text-[9px] text-gray-300 uppercase tracking-widest font-medium text-center md:text-right">
               Planejamento Estratégico & Editorial • Confidencial

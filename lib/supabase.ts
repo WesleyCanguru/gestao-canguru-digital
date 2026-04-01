@@ -89,7 +89,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       login('approver');
       return { success: true };
     } else if (cleanPass === 'Next2026') {
-      login('team');
+      login('approver');
       return { success: true };
     }
 

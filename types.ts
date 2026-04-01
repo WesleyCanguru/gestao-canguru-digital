@@ -112,6 +112,7 @@ export type PostStatus =
   | 'draft'               // Cinza (Em Produção)
   | 'pending_approval'    // Laranja (Em Aprovação)
   | 'changes_requested'   // Vermelho (Ajustes Solicitados)
+  | 'rejected'            // Vermelho Escuro (Reprovado)
   | 'internal_review'     // Deprecated (Mantido por segurança)
   | 'scheduled'           // Roxo (Programado)
   | 'approved'            // Azul (Aprovado e pronto)
@@ -212,6 +213,16 @@ export interface Client {
   traffic_strategy_data?: TrafficStrategyData | null;
 }
 
+export interface PostIdea {
+  id: string;
+  client_id: string;
+  month: string;
+  theme: string;
+  date: string | null;
+  format: string | null;
+  created_at: string;
+}
+
 // --- NOVOS TIPOS PARA GESTÃO DA AGÊNCIA ---
 
 export interface AgencyBilling {
@@ -260,6 +271,28 @@ export interface Lead {
   kanban_stage: LeadStage;
   next_followup_date: string | null;
   stage_changed_at: string;
+  created_at: string;
+}
+
+export interface ClientLeadConfig {
+  id: string;
+  client_id: string;
+  is_enabled: boolean;
+  location_options: string[];
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ClientLead {
+  id: string;
+  client_id: string;
+  lead_date: string;
+  origin: string;
+  quality: 'bom' | 'ruim';
+  quote_sent: boolean;
+  closed: boolean;
+  deal_value: number;
+  notes: string | null;
   created_at: string;
 }
 

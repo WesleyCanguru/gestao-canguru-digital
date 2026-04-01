@@ -47,6 +47,7 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
     logo_url: '',
     base_value: 0,
     due_day: 10,
+    is_lead_tracking_enabled: false,
   });
   const [uploading, setUploading] = useState(false);
 
@@ -101,6 +102,13 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
         
         if (error) throw error;
         clientData = data;
+
+        // Save lead tracking config
+        await supabase.from('client_lead_configs').upsert({
+          client_id: editingClientId,
+          is_enabled: form.is_lead_tracking_enabled,
+          updated_at: new Date().toISOString()
+        }, { onConflict: 'client_id' });
       } else {
         // Insert
         const { data, error } = await supabase
@@ -134,6 +142,12 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
           year: 2026,
           ...template
         }], { onConflict: 'client_id,year' });
+
+        // Save lead tracking config for new client
+        await supabase.from('client_lead_configs').insert([{
+          client_id: clientData.id,
+          is_enabled: form.is_lead_tracking_enabled
+        }]);
       }
 
       // 4. Criar usuário de acesso se preenchido (apenas se não existir ou se quiser atualizar senha)
@@ -221,12 +235,21 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
       logo_url: '',
       base_value: 0,
       due_day: 10,
+      is_lead_tracking_enabled: false,
     });
     setEditingClientId(null);
   };
 
-  const handleEdit = (client: Client) => {
+  const handleEdit = async (client: Client) => {
     const linkedinHandle = client.social_networks?.find(s => s.startsWith('linkedin_handle:'))?.split(':')[1] || '';
+    
+    // Fetch lead tracking config
+    const { data: leadConfig } = await supabase
+      .from('client_lead_configs')
+      .select('*')
+      .eq('client_id', client.id)
+      .single();
+
     setForm({
       name: client.name,
       segment: client.segment || '',
@@ -245,6 +268,7 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
       logo_url: client.logo_url || '',
       base_value: client.base_value || 0,
       due_day: client.due_day || 10,
+      is_lead_tracking_enabled: leadConfig?.is_enabled || false,
     });
     setEditingClientId(client.id);
     setShowForm(true);
@@ -271,7 +295,6 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
       setForm(f => ({ ...f, logo_url: data.publicUrl }));
     } catch (err) {
       console.error('Erro no upload do logo:', err);
-      alert('Erro ao enviar o logotipo.');
     } finally {
       setUploading(false);
     }
@@ -560,6 +583,28 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
                       className="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" 
                     />
                   </div>
+                </div>
+              </div>
+
+              {/* Seção de Acesso */}
+              <div className="sm:col-span-2 mt-4 pt-6 border-t border-gray-100">
+                <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-4">
+                  Acompanhamento de Leads
+                </h3>
+                <div className="flex items-center gap-3 mb-4">
+                  <button
+                    onClick={() => setForm(f => ({ ...f, is_lead_tracking_enabled: !f.is_lead_tracking_enabled }))}
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${
+                      form.is_lead_tracking_enabled ? 'bg-brand-dark' : 'bg-gray-200'
+                    }`}
+                  >
+                    <span
+                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                        form.is_lead_tracking_enabled ? 'translate-x-6' : 'translate-x-1'
+                      }`}
+                    />
+                  </button>
+                  <span className="text-sm font-medium text-gray-700">Ativar Acompanhamento de Leads</span>
                 </div>
               </div>
 

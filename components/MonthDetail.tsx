@@ -3,6 +3,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { MonthlyDetailedPlan, DailyContent, PostStatus, PostData } from '../types';
 import { Instagram, Linkedin, CalendarDays, Target, BarChart3, Repeat, FileCheck, CheckCircle2, ArrowLeft, MessageCircle, List, Calendar as CalendarIcon, Plus, Loader2, Check, Edit2, Save, X, Trash, Sparkles } from 'lucide-react';
 import { PostModal } from './PostModal';
+import { PostIdeasModal } from './PostIdeasModal';
 import { useAuth, supabase } from '../lib/supabase';
 import { StatusLegend } from './StatusLegend';
 import { useEditorialData, MONTH_NAMES, DAY_NAMES } from '../hooks/useEditorialData';
@@ -49,6 +50,9 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack }) =
   const [isEditingPlan, setIsEditingPlan] = useState(false);
   const [editTheme, setEditTheme] = useState('');
   const [isSavingPlan, setIsSavingPlan] = useState(false);
+  
+  // Post Ideas State
+  const [showPostIdeas, setShowPostIdeas] = useState(false);
 
   // Selection State
   const [selectedPosts, setSelectedPosts] = useState<Set<string>>(new Set());
@@ -520,6 +524,7 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack }) =
       case 'draft': return 'bg-gray-100 border-gray-200 hover:bg-gray-200';
       case 'pending_approval': return 'bg-orange-100 border-orange-200 hover:bg-orange-200';
       case 'changes_requested': return 'bg-red-100 border-red-200 hover:bg-red-200';
+      case 'rejected': return 'bg-rose-100 border-rose-200 hover:bg-rose-200';
       case 'internal_review': return 'bg-purple-100 border-purple-200 hover:bg-purple-200';
       case 'approved': return 'bg-blue-100 border-blue-200 hover:bg-blue-200';
       case 'scheduled': return 'bg-purple-100 border-purple-200 hover:bg-purple-200'; 
@@ -762,15 +767,24 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack }) =
                 </h2>
               </div>
               
-              {userRole === 'admin' && !isEditingPlan && (
+              <div className="flex items-center gap-3">
                 <motion.button 
                   whileHover={{ scale: 1.05 }}
-                  onClick={handleEditPlan}
+                  onClick={() => setShowPostIdeas(true)}
                   className="flex items-center gap-3 px-6 py-3 bg-white/10 hover:bg-white/20 rounded-2xl text-[10px] font-bold uppercase tracking-[0.2em] transition-all backdrop-blur-md border border-white/10 shadow-xl"
                 >
-                  <Edit2 size={14} /> Editar Plano
+                  <Sparkles size={14} /> Ideias de Publicações
                 </motion.button>
-              )}
+                {userRole === 'admin' && !isEditingPlan && (
+                  <motion.button 
+                    whileHover={{ scale: 1.05 }}
+                    onClick={handleEditPlan}
+                    className="flex items-center gap-3 px-6 py-3 bg-white/10 hover:bg-white/20 rounded-2xl text-[10px] font-bold uppercase tracking-[0.2em] transition-all backdrop-blur-md border border-white/10 shadow-xl"
+                  >
+                    <Edit2 size={14} /> Editar Plano
+                  </motion.button>
+                )}
+              </div>
             </div>
 
             {isEditingPlan ? (
@@ -882,6 +896,14 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack }) =
            )}
         </div>
       </div>
+      
+      {showPostIdeas && activeClient && (
+        <PostIdeasModal
+          clientId={activeClient.id}
+          monthName={monthName}
+          onClose={() => setShowPostIdeas(false)}
+        />
+      )}
     </motion.div>
   );
 };

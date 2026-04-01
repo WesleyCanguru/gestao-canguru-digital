@@ -5,12 +5,9 @@ const SUPABASE_KEY = 'sb_publishable_uLQGmz7lWazPN1Uqb4_4vQ_HggVpMz9';
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 async function main() {
-  const { data, error } = await supabase.from('posts').insert({
-    client_id: '75b00b27-61ee-4b23-8721-70748ccb0789',
-    date_key: 'test_rls',
-    status: 'draft'
-  }).select();
-  console.log('Insert error:', error);
+  const { data, error } = await supabase.from('posts').update({ status: 'approved' }).eq('date_key', 'test_rls');
+  console.log('Update error:', error);
+  console.log('Update data:', data);
 }
 
 main();

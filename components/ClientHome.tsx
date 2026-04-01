@@ -13,9 +13,13 @@ import {
   AlertCircle,
   Sparkles,
   BookOpen,
-  Camera
+  Camera,
+  ArrowLeft
 } from 'lucide-react';
 import { motion } from 'motion/react';
+import dayjs from 'dayjs';
+import { LeadTrackerView } from './LeadTrackerView';
+import { ClientLeadConfig } from '../types';
 
 interface ClientHomeProps {
   onNavigateToOnboarding: () => void;
@@ -52,42 +56,68 @@ export const ClientHome: React.FC<ClientHomeProps> = ({
   const { activeClient, userRole } = useAuth();
   const [briefingMissing, setBriefingMissing] = useState(false);
   const [smartLoading, setSmartLoading] = useState(true);
+  const [leadConfig, setLeadConfig] = useState<ClientLeadConfig | null>(null);
+  const [monthLeadsCount, setMonthLeadsCount] = useState<number>(0);
+  const [activeView, setActiveView] = useState<'dashboard' | 'leads'>('dashboard');
 
   const clientName = activeClient?.name || 'Cliente';
 
-  useEffect(() => {
-    const checkStatus = async () => {
-      if (!activeClient?.id) {
-        setSmartLoading(false);
-        return;
+  const checkStatus = async () => {
+    if (!activeClient?.id) {
+      setSmartLoading(false);
+      return;
+    }
+
+    try {
+      const now = new Date();
+      const currentMonth = now.getMonth() + 1;
+      const currentYear = now.getFullYear();
+
+      // c. Buscar briefing do mês atual
+      const { data: briefing } = await supabase
+        .from('briefings')
+        .select('id, status')
+        .eq('client_id', activeClient.id)
+        .eq('month', currentMonth)
+        .eq('year', currentYear)
+        .maybeSingle();
+
+      if (!briefing && now.getDate() >= 10) {
+        setBriefingMissing(true);
+      } else {
+        setBriefingMissing(false);
       }
 
-      try {
-        const now = new Date();
-        const currentMonth = now.getMonth() + 1;
-        const currentYear = now.getFullYear();
-
-        // c. Buscar briefing do mês atual
-        const { data: briefing } = await supabase
-          .from('briefings')
-          .select('id, status')
+      // Fetch lead config
+      const { data: configData } = await supabase
+        .from('client_lead_configs')
+        .select('*')
+        .eq('client_id', activeClient.id)
+        .single();
+      
+      if (configData) {
+        setLeadConfig(configData);
+        
+        // Fetch month leads count
+        const startOfMonth = dayjs().startOf('month').format('YYYY-MM-DD');
+        const endOfMonth = dayjs().endOf('month').format('YYYY-MM-DD');
+        const { count } = await supabase
+          .from('client_leads')
+          .select('*', { count: 'exact', head: true })
           .eq('client_id', activeClient.id)
-          .eq('month', currentMonth)
-          .eq('year', currentYear)
-          .maybeSingle();
-
-        if (!briefing && now.getDate() >= 10) {
-          setBriefingMissing(true);
-        } else {
-          setBriefingMissing(false);
-        }
-      } catch (error) {
-        console.error('Error checking client status:', error);
-      } finally {
-        setSmartLoading(false);
+          .gte('lead_date', startOfMonth)
+          .lte('lead_date', endOfMonth);
+        
+        setMonthLeadsCount(count || 0);
       }
-    };
+    } catch (error) {
+      console.error('Error checking client status:', error);
+    } finally {
+      setSmartLoading(false);
+    }
+  };
 
+  useEffect(() => {
     checkStatus();
   }, [activeClient?.id]);
 
@@ -111,7 +141,6 @@ export const ClientHome: React.FC<ClientHomeProps> = ({
         if (onRefreshClient) onRefreshClient();
       } catch (err) {
         console.error('Erro ao salvar URL:', err);
-        alert('Erro ao salvar a URL. Tente novamente.');
       }
     }
   };
@@ -150,6 +179,30 @@ export const ClientHome: React.FC<ClientHomeProps> = ({
       }
     }
   };
+
+  if (activeView === 'leads' && leadConfig && activeClient) {
+    return (
+      <div className="min-h-screen bg-[#FDFDFD]">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <button 
+            onClick={() => setActiveView('dashboard')}
+            className="flex items-center gap-2 text-gray-500 hover:text-brand-dark mb-6 transition-colors font-medium"
+          >
+            <ArrowLeft size={20} />
+            Voltar ao Dashboard
+          </button>
+          <LeadTrackerView 
+            clientId={activeClient.id} 
+            config={leadConfig} 
+            onBack={() => {
+              setActiveView('dashboard');
+              checkStatus();
+            }}
+          />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col items-center justify-center relative pb-10">
@@ -192,7 +245,7 @@ export const ClientHome: React.FC<ClientHomeProps> = ({
           className="max-w-6xl w-full mb-12"
         >
           <h2 className="text-xl font-bold text-brand-dark mb-6 tracking-tight">Acompanhamento de Resultados</h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {showPaidTraffic && (
               activeClient?.paid_reportei_url ? (
                 <a 
@@ -289,6 +342,27 @@ export const ClientHome: React.FC<ClientHomeProps> = ({
                   </div>
                 </div>
               )
+            )}
+            {leadConfig?.is_enabled && (
+              <motion.div
+                whileHover={{ y: -4, shadow: '0 20px 40px rgba(0,0,0,0.08)' }}
+                onClick={() => setActiveView('leads')}
+                className="bg-white p-6 rounded-[2rem] border border-black/[0.03] shadow-[0_10px_30px_rgba(0,0,0,0.02)] cursor-pointer group transition-all"
+              >
+                <div className="flex items-center justify-between mb-4">
+                  <div className="w-12 h-12 rounded-2xl bg-orange-50 flex items-center justify-center text-orange-600 group-hover:scale-110 transition-transform">
+                    <Target size={24} />
+                  </div>
+                  <div className="text-right">
+                    <div className="text-2xl font-bold tracking-tighter text-brand-dark">{monthLeadsCount}</div>
+                    <div className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Leads no Mês</div>
+                  </div>
+                </div>
+                <div>
+                  <h4 className="font-bold text-brand-dark">Acompanhamento de Leads</h4>
+                  <p className="text-xs text-gray-400 mt-1">Gestão e conversão de leads</p>
+                </div>
+              </motion.div>
             )}
           </div>
         </motion.div>

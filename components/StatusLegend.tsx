@@ -8,6 +8,7 @@ export const StatusLegend: React.FC = () => {
     { label: 'Em Produção', color: 'bg-gray-100 border-gray-200 text-gray-600' },
     { label: 'Em Aprovação', color: 'bg-orange-100 border-orange-200 text-orange-700' },
     { label: 'Ajustes Solicitados', color: 'bg-red-100 border-red-200 text-red-700' },
+    { label: 'Reprovado', color: 'bg-rose-100 border-rose-200 text-rose-700' },
     { label: 'Pronto / Aprovado', color: 'bg-blue-100 border-blue-200 text-blue-700' },
     { label: 'Programado', color: 'bg-purple-100 border-purple-200 text-purple-700' },
     { label: 'Publicado', color: 'bg-green-100 border-green-200 text-green-700' },
