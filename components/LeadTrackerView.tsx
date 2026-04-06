@@ -42,6 +42,7 @@ import {
   DragStartEvent,
   DragEndEvent,
   DragOverEvent,
+  useDroppable
 } from '@dnd-kit/core';
 import {
   arrayMove,
@@ -51,11 +52,23 @@ import {
   useSortable,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
+import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
 import { ClientLead, ClientLeadConfig } from '../types';
 import { useLeadTracker } from '../hooks/useLeadTracker';
 import { BRAZILIAN_STATES } from '../constants';
 
 dayjs.locale('pt-br');
+
+const CHART_COLORS = ['#ef4444', '#f97316', '#f59e0b', '#84cc16', '#22c55e', '#06b6d4', '#3b82f6', '#8b5cf6', '#d946ef', '#f43f5e'];
+
+const DroppableColumn = ({ id, children }: { id: string, children: React.ReactNode }) => {
+  const { setNodeRef } = useDroppable({ id });
+  return (
+    <div ref={setNodeRef} className="flex-1 overflow-y-auto space-y-3 pr-2 pb-2 custom-scrollbar min-h-[150px]">
+      {children}
+    </div>
+  );
+};
 
 interface LeadTrackerViewProps {
   clientId: string;
@@ -91,10 +104,14 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isLossModalOpen, setIsLossModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [isWonModalOpen, setIsWonModalOpen] = useState(false);
   const [leadToDelete, setLeadToDelete] = useState<string | null>(null);
   const [leadToLose, setLeadToLose] = useState<string | null>(null);
+  const [leadToWin, setLeadToWin] = useState<string | null>(null);
   const [lossReason, setLossReason] = useState('');
+  const [dealValue, setDealValue] = useState<number>(0);
   const [editingLead, setEditingLead] = useState<ClientLead | null>(null);
+  const [selectedMonth, setSelectedMonth] = useState<string>(dayjs().format('YYYY-MM'));
 
   // Drag and Drop State
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -111,7 +128,10 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
 
   // Kanban State
   const [showLost, setShowLost] = useState(false);
-  const stages = config.kanban_stages || ['Novo Lead', 'Em Contato', 'Reunião Agendada', 'Proposta Enviada', 'Fechado'];
+  const stages = useMemo(() => {
+    const s = config.kanban_stages || ['Novo Lead', 'Em Contato', 'Reunião Agendada', 'Proposta Enviada', 'Fechado'];
+    return s.filter(stage => stage !== 'Perdido');
+  }, [config.kanban_stages]);
   
   // Form state for new/edit lead
   const defaultLeadState: Partial<ClientLead> = {
@@ -144,29 +164,28 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
   }, [clientId]);
 
   const stats = useMemo(() => {
-    const currentMonth = dayjs().format('YYYY-MM');
-    const monthLeads = leads.filter(l => l.created_at.startsWith(currentMonth));
+    const monthLeads = leads.filter(l => (l.lead_date || l.created_at).startsWith(selectedMonth));
     
     const total = monthLeads.length;
-    const closedLeads = leads.filter(l => l.kanban_stage === 'Fechado');
-    const closedMonth = monthLeads.filter(l => l.kanban_stage === 'Fechado').length;
+    const closedLeads = monthLeads.filter(l => l.kanban_stage === 'Fechado');
+    const closedMonth = closedLeads.length;
     
     const revenue = closedLeads.reduce((acc, l) => acc + (Number(l.deal_value) || 0), 0);
     const conversionRate = total > 0 ? Math.round((closedMonth / total) * 100) : 0;
     
     // Loss reasons breakdown
-    const lostLeads = leads.filter(l => l.kanban_stage === 'Perdido' && l.loss_reason);
+    const lostLeads = monthLeads.filter(l => l.kanban_stage === 'Perdido' && l.loss_reason);
     const reasonCounts = lostLeads.reduce((acc, l) => {
       acc[l.loss_reason!] = (acc[l.loss_reason!] || 0) + 1;
       return acc;
     }, {} as Record<string, number>);
     
-    const topReasons = Object.entries(reasonCounts)
+    const reasonData = Object.entries(reasonCounts)
       .sort((a, b) => (b[1] as number) - (a[1] as number))
-      .slice(0, 3);
+      .map(([name, value]) => ({ name, value }));
       
-    return { total, closedMonth, conversionRate, revenue, topReasons, lostCount: lostLeads.length };
-  }, [leads]);
+    return { total, closedMonth, conversionRate, revenue, reasonData, lostCount: lostLeads.length };
+  }, [leads, selectedMonth]);
 
   const handleOpenAddModal = () => {
     setEditingLead(null);
@@ -311,6 +330,13 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
       return;
     }
 
+    if (targetStage === 'Fechado' && activeLead.kanban_stage !== 'Fechado') {
+      setLeadToWin(activeId);
+      setDealValue(0);
+      setIsWonModalOpen(true);
+      return;
+    }
+
     // Reorder within the same stage or move to new stage
     const stageLeads = leads.filter(l => l.kanban_stage === targetStage);
     const oldIndex = stageLeads.findIndex(l => l.id === activeId);
@@ -342,6 +368,13 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
       return;
     }
 
+    if (newStage === 'Fechado') {
+      setLeadToWin(leadId);
+      setDealValue(0);
+      setIsWonModalOpen(true);
+      return;
+    }
+
     try {
       await updateLeadStage(leadId, newStage);
       loadData();
@@ -356,6 +389,18 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
       await updateLeadStage(leadToLose, 'Perdido', lossReason);
       setIsLossModalOpen(false);
       setLeadToLose(null);
+      loadData();
+    } catch (error) {
+      console.error(error);
+    }
+  };
+
+  const handleConfirmWin = async () => {
+    if (!leadToWin) return;
+    try {
+      await updateLead(leadToWin, { kanban_stage: 'Fechado', deal_value: dealValue });
+      setIsWonModalOpen(false);
+      setLeadToWin(null);
       loadData();
     } catch (error) {
       console.error(error);
@@ -384,39 +429,70 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
   // Group leads by stage
   const leadsByStage = useMemo(() => {
     const grouped: Record<string, ClientLead[]> = {};
-    stages.forEach(s => grouped[s] = []);
+    stages.forEach(s => {
+      if (s !== 'Perdido') grouped[s] = [];
+    });
     grouped['Perdido'] = [];
     
     leads.forEach(lead => {
+      const isClosedOrLost = lead.kanban_stage === 'Fechado' || lead.kanban_stage === 'Perdido';
+      if (isClosedOrLost) {
+        if (!(lead.lead_date || lead.created_at).startsWith(selectedMonth)) {
+          return; // Skip closed/lost leads not from selected month
+        }
+      }
+
       const stage = lead.kanban_stage || stages[0];
       if (grouped[stage]) {
         grouped[stage].push(lead);
-      } else {
+      } else if (stage !== 'Perdido') {
         // Fallback if stage was removed from config
         grouped[stages[0]].push(lead);
       }
     });
     return grouped;
-  }, [leads, stages]);
+  }, [leads, stages, selectedMonth]);
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500 h-[calc(100vh-120px)] flex flex-col">
-      {/* Header Actions */}
-      <div className="flex items-center justify-between shrink-0">
-        <button 
-          onClick={onBack}
-          className="flex items-center gap-2 text-gray-500 hover:text-brand-dark transition-colors font-medium"
-        >
-          <ChevronLeft size={20} />
-          Voltar
-        </button>
-        <button 
-          onClick={handleOpenAddModal}
-          className="premium-button premium-button-primary"
-        >
-          <Plus size={20} />
-          Novo Lead
-        </button>
+      {/* Styled Title Header */}
+      <div className="relative overflow-hidden rounded-[2rem] bg-[#111111] text-white p-8 sm:p-12 shrink-0">
+        <div className="absolute top-0 right-0 w-1/2 h-full opacity-10 pointer-events-none">
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,_var(--tw-gradient-stops))] from-white/20 via-transparent to-transparent" />
+          <div className="w-full h-full" style={{ backgroundImage: 'radial-gradient(circle, #ffffff 2px, transparent 2px)', backgroundSize: '24px 24px' }} />
+        </div>
+        
+        <div className="relative z-10 flex flex-col sm:flex-row sm:items-center justify-between gap-6">
+          <div>
+            <div className="flex items-center gap-2 text-white/50 text-[10px] font-bold tracking-[0.2em] uppercase mb-4">
+              <Users size={12} />
+              <span>Acompanhamento de Leads</span>
+            </div>
+            <h1 className="text-4xl sm:text-5xl font-serif italic tracking-tight mb-6">
+              CRM & Oportunidades
+            </h1>
+            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/5 border border-white/10 text-xs font-medium text-white/70">
+              <TrendingUp size={14} />
+              <span>Gerencie seu funil de vendas</span>
+            </div>
+          </div>
+          
+          <div className="flex items-center gap-4">
+            <input 
+              type="month" 
+              value={selectedMonth}
+              onChange={(e) => setSelectedMonth(e.target.value)}
+              className="bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm font-medium text-white focus:ring-2 focus:ring-white/20 outline-none [color-scheme:dark]"
+            />
+            <button 
+              onClick={handleOpenAddModal}
+              className="flex items-center gap-2 px-6 py-2.5 bg-white text-black rounded-xl font-bold hover:bg-gray-100 transition-colors"
+            >
+              <Plus size={20} />
+              Novo Lead
+            </button>
+          </div>
+        </div>
       </div>
 
       {/* Mini Dashboard */}
@@ -466,16 +542,33 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
             </div>
             <span className="premium-label">Perdidos ({stats.lostCount})</span>
           </div>
-          <div className="space-y-2">
-            {stats.topReasons.length > 0 ? (
-              stats.topReasons.map(([reason, count], i) => (
-                <div key={i} className="flex justify-between items-center text-xs">
-                  <span className="text-gray-600 truncate pr-2" title={reason}>{reason}</span>
-                  <span className="font-bold text-gray-400">{count}</span>
-                </div>
-              ))
+          <div className="flex-1 min-h-[80px] -mx-2">
+            {stats.reasonData.length > 0 ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={stats.reasonData}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={25}
+                    outerRadius={40}
+                    paddingAngle={2}
+                    dataKey="value"
+                  >
+                    {stats.reasonData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip 
+                    contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                    itemStyle={{ fontSize: '12px', fontWeight: 'bold' }}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
             ) : (
-              <div className="text-sm text-gray-400">Nenhum lead perdido</div>
+              <div className="h-full flex items-center justify-center text-sm text-gray-400">
+                Nenhum lead perdido
+              </div>
             )}
           </div>
         </div>
@@ -506,7 +599,7 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
                   items={leadsByStage[stage]?.map(l => l.id) || []}
                   strategy={verticalListSortingStrategy}
                 >
-                  <div className="flex-1 overflow-y-auto space-y-3 pr-2 pb-2 custom-scrollbar min-h-[100px]">
+                  <DroppableColumn id={stage}>
                     {leadsByStage[stage]?.map(lead => (
                       <LeadCard 
                         key={lead.id} 
@@ -519,7 +612,7 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
                         getSourceIcon={getSourceIcon}
                       />
                     ))}
-                  </div>
+                  </DroppableColumn>
                 </SortableContext>
               </div>
             ))}
@@ -541,14 +634,12 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
                   </>
                 ) : (
                   <div className="flex flex-col items-center w-full gap-4 pt-2">
-                    <span className="bg-red-50 text-red-600 text-xs font-bold px-2 py-1 rounded-full">
-                      {leadsByStage['Perdido']?.length || 0}
-                    </span>
                     <button 
                       onClick={() => setShowLost(true)}
-                      className="writing-vertical-rl transform rotate-180 font-bold text-gray-400 hover:text-red-500 tracking-widest uppercase text-sm"
+                      className="bg-red-50 text-red-600 text-xs font-bold px-2 py-1 rounded-full hover:bg-red-100 transition-colors"
+                      title="Ver Perdidos"
                     >
-                      Ver Perdidos
+                      {leadsByStage['Perdido']?.length || 0}
                     </button>
                   </div>
                 )}
@@ -560,7 +651,7 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
                   items={leadsByStage['Perdido']?.map(l => l.id) || []}
                   strategy={verticalListSortingStrategy}
                 >
-                  <div className="flex-1 overflow-y-auto space-y-3 pr-2 pb-2 custom-scrollbar min-h-[100px]">
+                  <DroppableColumn id="Perdido">
                     {leadsByStage['Perdido']?.map(lead => (
                       <LeadCard 
                         key={lead.id} 
@@ -573,7 +664,7 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
                         getSourceIcon={getSourceIcon}
                       />
                     ))}
-                  </div>
+                  </DroppableColumn>
                 </SortableContext>
               )}
             </div>
@@ -787,6 +878,57 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
           </div>
         )}
 
+        {isWonModalOpen && (
+          <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsWonModalOpen(false)}
+              className="absolute inset-0 bg-brand-dark/40 backdrop-blur-sm"
+            />
+            
+            <motion.div 
+              initial={{ scale: 0.9, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.9, opacity: 0, y: 20 }}
+              className="bg-white rounded-[2.5rem] p-8 w-full max-w-sm relative z-10 shadow-2xl"
+            >
+              <div className="w-16 h-16 bg-emerald-50 text-emerald-500 rounded-full flex items-center justify-center mx-auto mb-6">
+                <DollarSign size={32} />
+              </div>
+              <h3 className="text-xl font-bold tracking-tight mb-2 text-center">Contrato Fechado! 🎉</h3>
+              <p className="text-sm text-gray-500 mb-6 text-center">Qual foi o valor do contrato fechado?</p>
+              
+              <div className="relative mb-6">
+                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 font-bold">R$</span>
+                <input 
+                  type="number"
+                  value={dealValue || ''}
+                  onChange={(e) => setDealValue(Number(e.target.value))}
+                  className="w-full bg-gray-50 border border-black/[0.05] rounded-2xl py-4 pl-12 pr-4 text-lg font-bold focus:ring-2 focus:ring-brand-green/20 outline-none"
+                  placeholder="0,00"
+                />
+              </div>
+
+              <div className="flex gap-3">
+                <button 
+                  onClick={() => setIsWonModalOpen(false)}
+                  className="flex-1 py-3 rounded-xl font-bold text-gray-500 hover:bg-gray-100 transition-colors"
+                >
+                  Cancelar
+                </button>
+                <button 
+                  onClick={handleConfirmWin}
+                  className="flex-1 py-3 rounded-xl font-bold bg-emerald-500 text-white hover:bg-emerald-600 transition-colors shadow-lg shadow-emerald-500/20"
+                >
+                  Confirmar
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+
         {isDeleteModalOpen && (
           <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
             <motion.div 
@@ -853,7 +995,6 @@ const LeadCard: React.FC<LeadCardProps & { isOverlay?: boolean }> = ({
   getSourceIcon,
   isOverlay 
 }) => {
-  const [showDropdown, setShowDropdown] = useState(false);
   const isClosed = lead.kanban_stage === 'Fechado';
   const isLost = lead.kanban_stage === 'Perdido';
 
@@ -984,36 +1125,20 @@ const LeadCard: React.FC<LeadCardProps & { isOverlay?: boolean }> = ({
         </span>
         
         <div className="relative" onPointerDown={e => e.stopPropagation()}>
-          <button 
-            onClick={() => setShowDropdown(!showDropdown)}
-            className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-gray-500 hover:text-brand-dark transition-colors"
+          <select
+            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+            value={lead.kanban_stage || ''}
+            onChange={(e) => onMove(lead.id, e.target.value)}
           >
+            <option value="" disabled>Mover para...</option>
+            {stages.map(s => (
+              <option key={s} value={s}>{s}</option>
+            ))}
+            <option value="Perdido">Perdido</option>
+          </select>
+          <div className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-gray-500 hover:text-brand-dark transition-colors pointer-events-none">
             Mover para <ChevronDown size={12} />
-          </button>
-          
-          {showDropdown && (
-            <>
-              <div className="fixed inset-0 z-10" onClick={() => setShowDropdown(false)} />
-              <div className="absolute right-0 bottom-full mb-1 w-48 bg-white rounded-xl shadow-xl border border-black/[0.05] py-1 z-20 overflow-hidden">
-                {stages.map(s => (
-                  <button
-                    key={s}
-                    onClick={() => { onMove(lead.id, s); setShowDropdown(false); }}
-                    className={`w-full text-left px-4 py-2 text-xs font-medium hover:bg-gray-50 ${lead.kanban_stage === s ? 'text-brand-green bg-green-50/50' : 'text-gray-700'}`}
-                  >
-                    {s}
-                  </button>
-                ))}
-                <div className="h-px bg-gray-100 my-1" />
-                <button
-                  onClick={() => { onMove(lead.id, 'Perdido'); setShowDropdown(false); }}
-                  className={`w-full text-left px-4 py-2 text-xs font-medium hover:bg-red-50 ${lead.kanban_stage === 'Perdido' ? 'text-red-600 bg-red-50/50' : 'text-red-500'}`}
-                >
-                  Perdido
-                </button>
-              </div>
-            </>
-          )}
+          </div>
         </div>
       </div>
     </div>
