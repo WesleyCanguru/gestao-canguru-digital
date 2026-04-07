@@ -137,6 +137,7 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
   const defaultLeadState: Partial<ClientLead> = {
     lead_name: '',
     phone: '',
+    lead_date: dayjs().format('YYYY-MM-DD'),
     source: LEAD_SOURCES[0],
     origin: config.location_options?.[0] || '',
     specialty: config.specialty_options?.[0] || '',
@@ -216,6 +217,7 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
         await updateLead(editingLead.id, {
           lead_name: formData.lead_name,
           phone: formData.phone,
+          lead_date: formData.lead_date,
           source: formData.source,
           origin: formData.origin,
           specialty: formData.specialty,
@@ -229,7 +231,7 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
 
         await addLead({
           client_id: clientId,
-          lead_date: dayjs().format('YYYY-MM-DD'),
+          lead_date: formData.lead_date || dayjs().format('YYYY-MM-DD'),
           lead_name: formData.lead_name,
           phone: formData.phone,
           source: formData.source,
@@ -732,15 +734,26 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
                   />
                 </div>
 
-                <div>
-                  <label className="premium-label mb-2 block">Telefone</label>
-                  <input 
-                    type="text"
-                    value={formData.phone || ''}
-                    onChange={(e) => setFormData(prev => ({ ...prev, phone: e.target.value }))}
-                    className="w-full bg-gray-50 border border-black/[0.05] rounded-2xl p-4 text-sm font-medium focus:ring-2 focus:ring-brand-green/20 outline-none"
-                    placeholder="Ex: 11 99999-9999"
-                  />
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="premium-label mb-2 block">Telefone</label>
+                    <input 
+                      type="text"
+                      value={formData.phone || ''}
+                      onChange={(e) => setFormData(prev => ({ ...prev, phone: e.target.value }))}
+                      className="w-full bg-gray-50 border border-black/[0.05] rounded-2xl p-4 text-sm font-medium focus:ring-2 focus:ring-brand-green/20 outline-none"
+                      placeholder="Ex: 11 99999-9999"
+                    />
+                  </div>
+                  <div>
+                    <label className="premium-label mb-2 block">Data de Contato</label>
+                    <input 
+                      type="date"
+                      value={formData.lead_date || ''}
+                      onChange={(e) => setFormData(prev => ({ ...prev, lead_date: e.target.value }))}
+                      className="w-full bg-gray-50 border border-black/[0.05] rounded-2xl p-4 text-sm font-medium focus:ring-2 focus:ring-brand-green/20 outline-none"
+                    />
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
@@ -1120,8 +1133,8 @@ const LeadCard: React.FC<LeadCardProps & { isOverlay?: boolean }> = ({
 
       {/* Footer */}
       <div className="flex items-center justify-between mt-2 pt-3 border-t border-black/[0.05]">
-        <span className="text-[10px] text-gray-400 font-medium">
-          {dayjs(lead.created_at).format('DD/MM/YYYY')}
+        <span className="text-[10px] text-gray-400 font-medium" title="Data de Contato">
+          {dayjs(lead.lead_date || lead.created_at).format('DD/MM/YYYY')}
         </span>
         
         <div className="relative" onPointerDown={e => e.stopPropagation()}>
