@@ -352,4 +352,5 @@ export interface AgencyTask {
   created_at: string;
   completed_at?: string | null;
   client?: { id: string; name: string; color: string; initials: string };
+  position?: number;
 }

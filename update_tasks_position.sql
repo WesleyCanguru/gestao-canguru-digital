@@ -1,0 +1,1 @@
+ALTER TABLE agency_tasks ADD COLUMN position INTEGER DEFAULT 0;

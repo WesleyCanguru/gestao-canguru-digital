@@ -15,8 +15,26 @@ import {
   MoreVertical,
   X,
   Check,
-  Edit2
+  Edit2,
+  GripVertical
 } from 'lucide-react';
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent
+} from '@dnd-kit/core';
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
+  useSortable
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import { supabase } from '../../lib/supabase';
 import { AgencyTask, AgencyTaskPriority, AgencyTaskRecurrenceType } from '../../types';
 import dayjs from 'dayjs';
@@ -216,10 +234,52 @@ export const AgencyTasksTab: React.FC = () => {
     return t.client_id === filterClient;
   });
 
-  const urgentTasks = filteredTasks.filter(t => t.priority === 'urgent' && t.status === 'pending');
-  const recurringTasks = filteredTasks.filter(t => t.recurrence_type !== 'none' && t.status === 'pending');
-  const otherTasks = filteredTasks.filter(t => t.priority !== 'urgent' && t.recurrence_type === 'none' && t.status === 'pending');
-  const completedTasks = filteredTasks.filter(t => t.status === 'done');
+  const urgentTasks = filteredTasks.filter(t => t.priority === 'urgent' && t.status === 'pending').sort((a, b) => (a.position || 0) - (b.position || 0));
+  const recurringTasks = filteredTasks.filter(t => t.recurrence_type !== 'none' && t.status === 'pending').sort((a, b) => (a.position || 0) - (b.position || 0));
+  const otherTasks = filteredTasks.filter(t => t.priority !== 'urgent' && t.recurrence_type === 'none' && t.status === 'pending').sort((a, b) => (a.position || 0) - (b.position || 0));
+  const completedTasks = filteredTasks.filter(t => t.status === 'done').sort((a, b) => (a.position || 0) - (b.position || 0));
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 5,
+      },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
+
+  const onDragEnd = async (event: DragEndEvent, taskGroup: AgencyTask[]) => {
+    const { active, over } = event;
+    
+    if (over && active.id !== over.id) {
+      const oldIndex = taskGroup.findIndex(t => t.id === active.id);
+      const newIndex = taskGroup.findIndex(t => t.id === over.id);
+      
+      const reordered = arrayMove(taskGroup, oldIndex, newIndex);
+      
+      const updatedTasks = [...tasks];
+      const updatesToDb: any[] = [];
+
+      reordered.forEach((task, index) => {
+        const taskIndex = updatedTasks.findIndex(t => t.id === task.id);
+        if (taskIndex !== -1) {
+          updatedTasks[taskIndex] = { ...updatedTasks[taskIndex], position: index };
+          updatesToDb.push({ id: task.id, position: index });
+        }
+      });
+      
+      setTasks(updatedTasks);
+
+      for (const update of updatesToDb) {
+        await supabase
+          .from('agency_tasks')
+          .update({ position: update.position })
+          .eq('id', update.id);
+      }
+    }
+  };
 
   const toggleDay = (dayId: number) => {
     setNewTask(prev => ({
@@ -534,11 +594,15 @@ export const AgencyTasksTab: React.FC = () => {
                 <AlertCircle size={20} />
                 <h3 className="font-bold uppercase tracking-[0.2em] text-xs">Urgentes</h3>
               </div>
-              <div className="grid gap-3">
-                {urgentTasks.map(task => (
-                  <TaskCard key={task.id} task={task} onToggle={toggleTaskStatus} onDelete={deleteTask} onEdit={setEditingTask} />
-                ))}
-              </div>
+              <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={(e) => onDragEnd(e, urgentTasks)}>
+                <SortableContext items={urgentTasks.map(t => t.id)} strategy={verticalListSortingStrategy}>
+                  <div className="grid gap-3">
+                    {urgentTasks.map(task => (
+                      <SortableTaskCard key={task.id} task={task} onToggle={toggleTaskStatus} onDelete={deleteTask} onEdit={setEditingTask} />
+                    ))}
+                  </div>
+                </SortableContext>
+              </DndContext>
             </section>
           )}
 
@@ -548,15 +612,19 @@ export const AgencyTasksTab: React.FC = () => {
               <Clock size={20} />
               <h3 className="font-bold uppercase tracking-[0.2em] text-xs">Processos Recorrentes</h3>
             </div>
-            <div className="grid gap-3">
-              {recurringTasks.length > 0 ? (
-                recurringTasks.map(task => (
-                  <TaskCard key={task.id} task={task} onToggle={toggleTaskStatus} onDelete={deleteTask} onEdit={setEditingTask} />
-                ))
-              ) : (
-                <EmptyState message="Nenhum processo recorrente pendente." />
-              )}
-            </div>
+            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={(e) => onDragEnd(e, recurringTasks)}>
+              <SortableContext items={recurringTasks.map(t => t.id)} strategy={verticalListSortingStrategy}>
+                <div className="grid gap-3">
+                  {recurringTasks.length > 0 ? (
+                    recurringTasks.map(task => (
+                      <SortableTaskCard key={task.id} task={task} onToggle={toggleTaskStatus} onDelete={deleteTask} onEdit={setEditingTask} />
+                    ))
+                  ) : (
+                    <EmptyState message="Nenhum processo recorrente pendente." />
+                  )}
+                </div>
+              </SortableContext>
+            </DndContext>
           </section>
 
           {/* Other Tasks Section */}
@@ -565,15 +633,19 @@ export const AgencyTasksTab: React.FC = () => {
               <ClipboardList size={20} />
               <h3 className="font-bold uppercase tracking-[0.2em] text-xs">Tarefas Únicas</h3>
             </div>
-            <div className="grid gap-3">
-              {otherTasks.length > 0 ? (
-                otherTasks.map(task => (
-                  <TaskCard key={task.id} task={task} onToggle={toggleTaskStatus} onDelete={deleteTask} onEdit={setEditingTask} />
-                ))
-              ) : (
-                <EmptyState message="Nenhuma outra tarefa pendente." />
-              )}
-            </div>
+            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={(e) => onDragEnd(e, otherTasks)}>
+              <SortableContext items={otherTasks.map(t => t.id)} strategy={verticalListSortingStrategy}>
+                <div className="grid gap-3">
+                  {otherTasks.length > 0 ? (
+                    otherTasks.map(task => (
+                      <SortableTaskCard key={task.id} task={task} onToggle={toggleTaskStatus} onDelete={deleteTask} onEdit={setEditingTask} />
+                    ))
+                  ) : (
+                    <EmptyState message="Nenhuma outra tarefa pendente." />
+                  )}
+                </div>
+              </SortableContext>
+            </DndContext>
           </section>
         </div>
 
@@ -584,15 +656,19 @@ export const AgencyTasksTab: React.FC = () => {
               <CheckCircle2 size={20} />
               <h3 className="font-bold uppercase tracking-[0.2em] text-xs">Concluídas</h3>
             </div>
-            <div className="grid gap-3 opacity-60">
-              {completedTasks.length > 0 ? (
-                completedTasks.map(task => (
-                  <TaskCard key={task.id} task={task} onToggle={toggleTaskStatus} onDelete={deleteTask} onEdit={setEditingTask} />
-                ))
-              ) : (
-                <EmptyState message="Nenhuma tarefa concluída ainda." />
-              )}
-            </div>
+            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={(e) => onDragEnd(e, completedTasks)}>
+              <SortableContext items={completedTasks.map(t => t.id)} strategy={verticalListSortingStrategy}>
+                <div className="grid gap-3 opacity-60">
+                  {completedTasks.length > 0 ? (
+                    completedTasks.map(task => (
+                      <SortableTaskCard key={task.id} task={task} onToggle={toggleTaskStatus} onDelete={deleteTask} onEdit={setEditingTask} />
+                    ))
+                  ) : (
+                    <EmptyState message="Nenhuma tarefa concluída ainda." />
+                  )}
+                </div>
+              </SortableContext>
+            </DndContext>
           </section>
         </div>
       </div>
@@ -605,9 +681,36 @@ interface TaskCardProps {
   onToggle: (task: AgencyTask) => void;
   onDelete: (id: string) => void;
   onEdit: (task: AgencyTask) => void;
+  dragListeners?: any;
+  dragAttributes?: any;
 }
 
-const TaskCard: React.FC<TaskCardProps> = ({ task, onToggle, onDelete, onEdit }) => {
+const SortableTaskCard: React.FC<TaskCardProps> = (props) => {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging
+  } = useSortable({ id: props.task.id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+    zIndex: isDragging ? 1 : 0,
+    position: 'relative' as const,
+  };
+
+  return (
+    <div ref={setNodeRef} style={style}>
+      <TaskCard {...props} dragListeners={listeners} dragAttributes={attributes} />
+    </div>
+  );
+};
+
+const TaskCard: React.FC<TaskCardProps> = ({ task, onToggle, onDelete, onEdit, dragListeners, dragAttributes }) => {
   const isDone = task.status === 'done';
   const dueDateInfo = getDueDateLabel(task.due_date);
 
@@ -654,6 +757,14 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, onToggle, onDelete, onEdit })
         ${isDone ? 'bg-gray-50/50' : ''}
       `}
     >
+      <div 
+        className="flex-shrink-0 text-gray-300 hover:text-gray-500 cursor-grab active:cursor-grabbing p-1"
+        {...dragAttributes} 
+        {...dragListeners}
+      >
+        <GripVertical size={16} />
+      </div>
+
       <button
         onClick={() => onToggle(task)}
         className={`
