@@ -18,6 +18,18 @@ import {
   FileArchive
 } from 'lucide-react';
 import { ClientFolder } from '../types';
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+  useDraggable,
+  useDroppable
+} from '@dnd-kit/core';
+import { CSS } from '@dnd-kit/utilities';
 
 interface Document {
   id: string;
@@ -32,6 +44,61 @@ interface Document {
   created_at: string;
 }
 
+const DraggableDocument = ({ doc, children, ...props }: any) => {
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
+    id: `doc-${doc.id}`,
+    data: { type: 'document', doc }
+  });
+
+  const style = {
+    transform: CSS.Translate.toString(transform),
+    opacity: isDragging ? 0.5 : 1,
+    zIndex: isDragging ? 100 : 1,
+    position: 'relative' as const,
+  };
+
+  return (
+    <div ref={setNodeRef} style={style} {...attributes} {...listeners} {...props}>
+      {children}
+    </div>
+  );
+};
+
+const DroppableFolder = ({ folder, children, onClick, ...props }: any) => {
+  const { isOver, setNodeRef } = useDroppable({
+    id: `folder-${folder.id}`,
+    data: { type: 'folder', folder }
+  });
+
+  return (
+    <div 
+      ref={setNodeRef} 
+      onClick={onClick}
+      className={`group bg-white border rounded-2xl p-4 flex items-center gap-3 cursor-pointer hover:shadow-md transition-all ${isOver ? 'border-brand-dark ring-2 ring-brand-dark/20 bg-brand-dark/5' : 'border-gray-200 hover:border-brand-dark/30'}`}
+      {...props}
+    >
+      {children}
+    </div>
+  );
+};
+
+const DroppableBreadcrumb = ({ folderId, children, onClick, isLast }: any) => {
+  const { isOver, setNodeRef } = useDroppable({
+    id: `breadcrumb-${folderId || 'root'}`,
+    data: { type: 'folder', folder: { id: folderId } }
+  });
+
+  return (
+    <button 
+      ref={setNodeRef}
+      onClick={onClick}
+      className={`hover:text-brand-dark transition-colors flex items-center gap-2 ${isLast ? 'text-brand-dark font-bold' : ''} ${isOver ? 'text-brand-dark underline decoration-2 underline-offset-4 bg-brand-dark/5 px-2 py-1 rounded-lg' : ''}`}
+    >
+      {children}
+    </button>
+  );
+};
+
 export const DocumentsView: React.FC<{ onBack?: () => void }> = ({ onBack }) => {
   const { activeClient, userRole } = useAuth();
   const [documents, setDocuments] = useState<Document[]>([]);
@@ -45,12 +112,25 @@ export const DocumentsView: React.FC<{ onBack?: () => void }> = ({ onBack }) => 
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Preview state
+  const [previewDoc, setPreviewDoc] = useState<Document | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+
   // Form state
   const [title, setTitle] = useState('');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [newFolderName, setNewFolderName] = useState('');
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 5,
+      },
+    }),
+    useSensor(KeyboardSensor)
+  );
 
   useEffect(() => {
     if (activeClient) {
@@ -144,7 +224,8 @@ export const DocumentsView: React.FC<{ onBack?: () => void }> = ({ onBack }) => 
         .getPublicUrl(doc.file_path);
       
       if (data?.publicUrl) {
-        window.open(data.publicUrl, '_blank');
+        setPreviewUrl(data.publicUrl);
+        setPreviewDoc(doc);
       }
     } catch (err) {
       console.error('Error previewing document:', err);
@@ -331,8 +412,37 @@ export const DocumentsView: React.FC<{ onBack?: () => void }> = ({ onBack }) => 
     setError(null);
   };
 
+  const handleDragEnd = async (event: DragEndEvent) => {
+    const { active, over } = event;
+    
+    if (!over) return;
+
+    if (active.data.current?.type === 'document' && over.data.current?.type === 'folder') {
+      const doc = active.data.current.doc as Document;
+      const targetFolderId = over.data.current.folder.id;
+
+      if (doc.folder_id === targetFolderId) return;
+
+      try {
+        setDocuments(documents.filter(d => d.id !== doc.id));
+
+        const { error: dbError } = await supabase
+          .from('documents')
+          .update({ folder_id: targetFolderId })
+          .eq('id', doc.id);
+
+        if (dbError) throw dbError;
+      } catch (err) {
+        console.error('Error moving document:', err);
+        alert('Erro ao mover arquivo.');
+        await fetchData();
+      }
+    }
+  };
+
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col">
+    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+      <div className="min-h-screen bg-gray-50 flex flex-col">
       {/* Header */}
       <div className="bg-white border-b border-gray-200 px-6 py-4 shrink-0">
         <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
@@ -378,22 +488,24 @@ export const DocumentsView: React.FC<{ onBack?: () => void }> = ({ onBack }) => 
       <div className="flex-1 max-w-6xl w-full mx-auto px-6 py-6 flex flex-col">
         {/* Breadcrumbs */}
         <div className="flex items-center gap-2 mb-8 text-sm font-medium text-gray-600 overflow-x-auto pb-2">
-          <button 
+          <DroppableBreadcrumb 
+            folderId={null} 
             onClick={() => navigateToBreadcrumb(-1)}
-            className={`hover:text-brand-dark transition-colors flex items-center gap-2 ${!currentFolderId ? 'text-brand-dark font-bold' : ''}`}
+            isLast={!currentFolderId}
           >
             <Folder className="w-4 h-4" />
             Meu Drive
-          </button>
+          </DroppableBreadcrumb>
           {breadcrumbs.map((crumb, index) => (
             <React.Fragment key={crumb.id}>
               <ChevronRight className="w-4 h-4 text-gray-400 shrink-0" />
-              <button 
+              <DroppableBreadcrumb 
+                folderId={crumb.id}
                 onClick={() => navigateToBreadcrumb(index)}
-                className={`hover:text-brand-dark transition-colors whitespace-nowrap ${index === breadcrumbs.length - 1 ? 'text-brand-dark font-bold' : ''}`}
+                isLast={index === breadcrumbs.length - 1}
               >
                 {crumb.name}
-              </button>
+              </DroppableBreadcrumb>
             </React.Fragment>
           ))}
         </div>
@@ -410,10 +522,10 @@ export const DocumentsView: React.FC<{ onBack?: () => void }> = ({ onBack }) => 
                 <h2 className="text-sm font-bold text-gray-900 mb-4 uppercase tracking-wider">Pastas</h2>
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
                   {folders.map(folder => (
-                    <div 
+                    <DroppableFolder 
                       key={folder.id}
+                      folder={folder}
                       onClick={() => navigateToFolder(folder)}
-                      className="group bg-white border border-gray-200 rounded-2xl p-4 flex items-center gap-3 cursor-pointer hover:border-brand-dark/30 hover:shadow-md transition-all"
                     >
                       <div className="w-10 h-10 bg-gray-100 rounded-xl flex items-center justify-center shrink-0 group-hover:bg-brand-dark/5 transition-colors">
                         <Folder className="w-5 h-5 text-gray-500 group-hover:text-brand-dark transition-colors" fill="currentColor" fillOpacity={0.2} />
@@ -421,13 +533,13 @@ export const DocumentsView: React.FC<{ onBack?: () => void }> = ({ onBack }) => 
                       <span className="font-medium text-gray-800 truncate flex-1">{folder.name}</span>
                       {(userRole === 'admin' || userRole === 'team') && (
                         <button 
-                          onClick={(e) => handleDeleteFolder(folder, e)}
+                          onClick={(e: any) => handleDeleteFolder(folder, e)}
                           className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg opacity-0 group-hover:opacity-100 transition-all"
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>
                       )}
-                    </div>
+                    </DroppableFolder>
                   ))}
                 </div>
               </section>
@@ -459,8 +571,9 @@ export const DocumentsView: React.FC<{ onBack?: () => void }> = ({ onBack }) => 
                 ) : (
                   <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
                     {documents.map(doc => (
-                      <div 
+                      <DraggableDocument 
                         key={doc.id}
+                        doc={doc}
                         onClick={() => handlePreview(doc)}
                         className="group bg-white border border-gray-200 rounded-2xl p-4 flex flex-col gap-3 cursor-pointer hover:border-brand-dark/30 hover:shadow-md transition-all"
                       >
@@ -470,7 +583,7 @@ export const DocumentsView: React.FC<{ onBack?: () => void }> = ({ onBack }) => 
                           </div>
                           <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                             <button 
-                              onClick={(e) => handleDownload(doc, e)}
+                              onClick={(e: any) => handleDownload(doc, e)}
                               className="p-1.5 text-gray-400 hover:text-brand-dark hover:bg-brand-dark/5 rounded-lg transition-colors"
                               title="Baixar"
                             >
@@ -478,7 +591,7 @@ export const DocumentsView: React.FC<{ onBack?: () => void }> = ({ onBack }) => 
                             </button>
                             {(userRole === 'admin' || userRole === 'team') && (
                               <button 
-                                onClick={(e) => handleDeleteDoc(doc, e)}
+                                onClick={(e: any) => handleDeleteDoc(doc, e)}
                                 className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
                                 title="Excluir"
                               >
@@ -496,7 +609,7 @@ export const DocumentsView: React.FC<{ onBack?: () => void }> = ({ onBack }) => 
                             <span>{formatFileSize(doc.file_size)}</span>
                           </div>
                         </div>
-                      </div>
+                      </DraggableDocument>
                     ))}
                   </div>
                 )}
@@ -638,6 +751,86 @@ export const DocumentsView: React.FC<{ onBack?: () => void }> = ({ onBack }) => 
           </div>
         </div>
       )}
+      {/* Preview Modal */}
+      {previewDoc && previewUrl && (
+        <div 
+          className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm" 
+          onClick={() => setPreviewDoc(null)}
+        >
+          <div 
+            className="relative w-full max-w-5xl max-h-[90vh] bg-white rounded-2xl flex flex-col overflow-hidden shadow-2xl" 
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex justify-between items-center p-4 border-b border-gray-200 bg-white">
+              <div className="flex items-center gap-3 overflow-hidden">
+                <div className="w-10 h-10 bg-gray-50 rounded-xl flex items-center justify-center shrink-0">
+                  {getFileIcon(previewDoc.file_type)}
+                </div>
+                <div className="truncate pr-4">
+                  <h3 className="font-bold text-gray-900 truncate">{previewDoc.title}</h3>
+                  <p className="text-xs text-gray-500">{formatFileSize(previewDoc.file_size)}</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <button 
+                  onClick={(e) => handleDownload(previewDoc, e)} 
+                  className="p-2 hover:bg-gray-100 rounded-xl transition-colors text-gray-600 hover:text-brand-dark"
+                  title="Fazer Download"
+                >
+                  <Download className="w-5 h-5" />
+                </button>
+                <button 
+                  onClick={() => setPreviewDoc(null)} 
+                  className="p-2 hover:bg-red-50 rounded-xl transition-colors text-gray-600 hover:text-red-500"
+                  title="Fechar"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+            
+            <div className="flex-1 overflow-auto bg-gray-100 flex items-center justify-center p-4 min-h-[50vh]">
+              {previewDoc.file_type.includes('image') ? (
+                <img 
+                  src={previewUrl} 
+                  alt={previewDoc.title} 
+                  className="max-w-full max-h-full object-contain rounded-lg shadow-sm" 
+                />
+              ) : previewDoc.file_type.includes('video') ? (
+                <video 
+                  src={previewUrl} 
+                  controls 
+                  className="max-w-full max-h-full rounded-lg shadow-sm" 
+                />
+              ) : previewDoc.file_type.includes('pdf') ? (
+                <iframe 
+                  src={previewUrl} 
+                  className="w-full h-full min-h-[70vh] rounded-lg shadow-sm bg-white" 
+                  title={previewDoc.title} 
+                />
+              ) : (
+                <div className="text-center bg-white p-12 rounded-2xl shadow-sm max-w-md w-full">
+                  <div className="w-20 h-20 bg-gray-50 rounded-2xl flex items-center justify-center mx-auto mb-6">
+                    {getFileIcon(previewDoc.file_type)}
+                  </div>
+                  <h3 className="text-lg font-bold text-gray-900 mb-2">Visualização indisponível</h3>
+                  <p className="text-gray-500 mb-8">
+                    Não é possível visualizar este tipo de arquivo diretamente no navegador.
+                  </p>
+                  <button 
+                    onClick={(e) => handleDownload(previewDoc, e)} 
+                    className="w-full bg-brand-dark text-white px-6 py-4 rounded-xl font-bold hover:bg-brand-dark/90 transition-colors flex items-center justify-center gap-2"
+                  >
+                    <Download className="w-5 h-5" />
+                    Fazer Download do Arquivo
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
+    </DndContext>
   );
 };
