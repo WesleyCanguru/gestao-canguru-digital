@@ -15,7 +15,14 @@ import {
   FolderPlus,
   Image as ImageIcon,
   Video,
-  FileArchive
+  FileArchive,
+  LayoutGrid,
+  List,
+  ArrowDown,
+  ArrowUp,
+  MoreVertical,
+  Check,
+  Menu
 } from 'lucide-react';
 import { ClientFolder } from '../types';
 import {
@@ -107,21 +114,27 @@ export const DocumentsView: React.FC<{ onBack?: () => void }> = ({ onBack }) => 
   const [breadcrumbs, setBreadcrumbs] = useState<{id: string, name: string}[]>([]);
   
   const [loading, setLoading] = useState(true);
-  const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
   const [isFolderModalOpen, setIsFolderModalOpen] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // View & Sort state
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  const [sortBy, setSortBy] = useState<'name' | 'date'>('date');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
+  const [foldersPosition, setFoldersPosition] = useState<'top' | 'mixed'>('top');
+  const [isSortMenuOpen, setIsSortMenuOpen] = useState(false);
+  const [isDraggingOver, setIsDraggingOver] = useState(false);
 
   // Preview state
   const [previewDoc, setPreviewDoc] = useState<Document | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
   // Form state
-  const [title, setTitle] = useState('');
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [newFolderName, setNewFolderName] = useState('');
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const sortMenuRef = useRef<HTMLDivElement>(null);
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -131,6 +144,16 @@ export const DocumentsView: React.FC<{ onBack?: () => void }> = ({ onBack }) => 
     }),
     useSensor(KeyboardSensor)
   );
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (sortMenuRef.current && !sortMenuRef.current.contains(event.target as Node)) {
+        setIsSortMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   useEffect(() => {
     if (activeClient) {
@@ -215,6 +238,10 @@ export const DocumentsView: React.FC<{ onBack?: () => void }> = ({ onBack }) => 
     if (fileType.includes('pdf')) return <FileText className="w-8 h-8 text-red-500" />;
     if (fileType.includes('zip') || fileType.includes('rar')) return <FileArchive className="w-8 h-8 text-orange-500" />;
     return <File className="w-8 h-8 text-gray-500" />;
+  };
+
+  const getFileUrl = (path: string) => {
+    return supabase.storage.from('client-documents').getPublicUrl(path).data.publicUrl;
   };
 
   const handlePreview = async (doc: Document) => {
@@ -306,67 +333,76 @@ export const DocumentsView: React.FC<{ onBack?: () => void }> = ({ onBack }) => 
     }
   };
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files.length > 0) {
-      const file = e.target.files[0];
-      if (file.size > 50 * 1024 * 1024) {
-        setError('O arquivo deve ter no máximo 50MB.');
-        setSelectedFile(null);
-        if (fileInputRef.current) fileInputRef.current.value = '';
-        return;
-      }
-      setSelectedFile(file);
-      if (!title) {
-        setTitle(file.name);
-      }
-      setError(null);
-    }
-  };
-
-  const handleUpload = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const processFiles = async (files: FileList | File[]) => {
     if (!activeClient) return;
-    if (!selectedFile) {
-      setError('Selecione um arquivo para fazer upload.');
-      return;
-    }
-
+    
     setUploading(true);
     setError(null);
 
     try {
-      const timestamp = new Date().getTime();
-      const safeFileName = selectedFile.name.replace(/[^a-zA-Z0-9.-]/g, '_');
-      const filePath = `${activeClient.id}/${timestamp}_${safeFileName}`;
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        if (file.size > 50 * 1024 * 1024) {
+          alert(`O arquivo ${file.name} excede o limite de 50MB.`);
+          continue;
+        }
 
-      const { error: uploadError } = await supabase.storage
-        .from('client-documents')
-        .upload(filePath, selectedFile);
+        const timestamp = new Date().getTime();
+        const safeFileName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_');
+        const filePath = `${activeClient.id}/${timestamp}_${safeFileName}`;
 
-      if (uploadError) throw uploadError;
+        const { error: uploadError } = await supabase.storage
+          .from('client-documents')
+          .upload(filePath, file);
 
-      const { error: dbError } = await supabase
-        .from('documents')
-        .insert({
-          client_id: activeClient.id,
-          folder_id: currentFolderId,
-          title: title.trim() || selectedFile.name,
-          file_name: selectedFile.name,
-          file_path: filePath,
-          file_type: selectedFile.type || 'application/octet-stream',
-          file_size: selectedFile.size,
-          category: 'other' // Keep for backwards compatibility if needed
-        });
+        if (uploadError) throw uploadError;
 
-      if (dbError) throw dbError;
+        const { error: dbError } = await supabase
+          .from('documents')
+          .insert({
+            client_id: activeClient.id,
+            folder_id: currentFolderId,
+            title: file.name,
+            file_name: file.name,
+            file_path: filePath,
+            file_type: file.type || 'application/octet-stream',
+            file_size: file.size,
+            category: 'other'
+          });
 
+        if (dbError) throw dbError;
+      }
       await fetchData();
-      closeUploadModal();
     } catch (err: any) {
       console.error('Error uploading document:', err);
       setError(err.message || 'Erro ao fazer upload do documento.');
     } finally {
       setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files.length > 0) {
+      processFiles(e.target.files);
+    }
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDraggingOver(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDraggingOver(false);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDraggingOver(false);
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      processFiles(e.dataTransfer.files);
     }
   };
 
@@ -398,13 +434,7 @@ export const DocumentsView: React.FC<{ onBack?: () => void }> = ({ onBack }) => 
     }
   };
 
-  const closeUploadModal = () => {
-    setIsUploadModalOpen(false);
-    setTitle('');
-    setSelectedFile(null);
-    setError(null);
-    if (fileInputRef.current) fileInputRef.current.value = '';
-  };
+
 
   const closeFolderModal = () => {
     setIsFolderModalOpen(false);
@@ -440,9 +470,61 @@ export const DocumentsView: React.FC<{ onBack?: () => void }> = ({ onBack }) => 
     }
   };
 
+  const sortedFolders = [...folders].sort((a, b) => {
+    const modifier = sortDirection === 'asc' ? 1 : -1;
+    if (sortBy === 'name') {
+      return a.name.localeCompare(b.name) * modifier;
+    }
+    return (new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) * modifier;
+  });
+
+  const sortedDocuments = [...documents].sort((a, b) => {
+    const modifier = sortDirection === 'asc' ? 1 : -1;
+    if (sortBy === 'name') {
+      return a.title.localeCompare(b.title) * modifier;
+    }
+    return (new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) * modifier;
+  });
+
+  const allItems = foldersPosition === 'mixed' 
+    ? [...sortedFolders.map(f => ({ ...f, isFolder: true })), ...sortedDocuments.map(d => ({ ...d, isFolder: false }))]
+        .sort((a: any, b: any) => {
+          const modifier = sortDirection === 'asc' ? 1 : -1;
+          if (sortBy === 'name') {
+            const nameA = a.isFolder ? a.name : a.title;
+            const nameB = b.isFolder ? b.name : b.title;
+            return nameA.localeCompare(nameB) * modifier;
+          }
+          return (new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) * modifier;
+        })
+    : [];
+
   return (
     <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-      <div className="min-h-screen bg-gray-50 flex flex-col">
+      <div 
+        className="min-h-screen bg-gray-50 flex flex-col relative"
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
+      >
+        {isDraggingOver && (
+          <div className="absolute inset-0 z-50 bg-brand-dark/10 border-4 border-dashed border-brand-dark rounded-3xl m-4 flex items-center justify-center pointer-events-none backdrop-blur-sm">
+            <div className="bg-white p-8 rounded-2xl shadow-2xl flex flex-col items-center gap-4">
+              <div className="w-20 h-20 bg-brand-dark/10 rounded-full flex items-center justify-center">
+                <UploadCloud className="w-10 h-10 text-brand-dark" />
+              </div>
+              <h2 className="text-2xl font-bold text-gray-900">Solte os arquivos aqui</h2>
+              <p className="text-gray-500">Eles serão enviados para a pasta atual</p>
+            </div>
+          </div>
+        )}
+        <input
+          type="file"
+          ref={fileInputRef}
+          onChange={handleFileChange}
+          className="hidden"
+          multiple
+        />
       {/* Header */}
       <div className="bg-white border-b border-gray-200 px-6 py-4 shrink-0">
         <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
@@ -465,6 +547,23 @@ export const DocumentsView: React.FC<{ onBack?: () => void }> = ({ onBack }) => 
             </div>
           </div>
           <div className="flex items-center gap-2">
+            <div className="flex items-center bg-gray-100 p-1 rounded-lg mr-2">
+              <button
+                onClick={() => setViewMode('list')}
+                className={`p-1.5 rounded-md transition-colors ${viewMode === 'list' ? 'bg-white shadow-sm text-brand-dark' : 'text-gray-500 hover:text-gray-700'}`}
+                title="Visualização em lista"
+              >
+                <List className="w-4 h-4" />
+              </button>
+              <button
+                onClick={() => setViewMode('grid')}
+                className={`p-1.5 rounded-md transition-colors ${viewMode === 'grid' ? 'bg-white shadow-sm text-brand-dark' : 'text-gray-500 hover:text-gray-700'}`}
+                title="Visualização em grade"
+              >
+                <LayoutGrid className="w-4 h-4" />
+              </button>
+            </div>
+
             {(userRole === 'admin' || userRole === 'team') && (
               <button
                 onClick={() => setIsFolderModalOpen(true)}
@@ -475,10 +574,15 @@ export const DocumentsView: React.FC<{ onBack?: () => void }> = ({ onBack }) => 
               </button>
             )}
             <button
-              onClick={() => setIsUploadModalOpen(true)}
-              className="flex items-center gap-2 bg-brand-dark text-white px-4 py-2 rounded-lg hover:bg-brand-dark/90 transition-colors text-sm font-medium shadow-sm"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={uploading}
+              className="flex items-center gap-2 bg-brand-dark text-white px-4 py-2 rounded-lg hover:bg-brand-dark/90 transition-colors text-sm font-medium shadow-sm disabled:opacity-50"
             >
-              <UploadCloud className="w-4 h-4" />
+              {uploading ? (
+                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+              ) : (
+                <UploadCloud className="w-4 h-4" />
+              )}
               Fazer Upload
             </button>
           </div>
@@ -486,28 +590,102 @@ export const DocumentsView: React.FC<{ onBack?: () => void }> = ({ onBack }) => 
       </div>
 
       <div className="flex-1 max-w-6xl w-full mx-auto px-6 py-6 flex flex-col">
-        {/* Breadcrumbs */}
-        <div className="flex items-center gap-2 mb-8 text-sm font-medium text-gray-600 overflow-x-auto pb-2">
-          <DroppableBreadcrumb 
-            folderId={null} 
-            onClick={() => navigateToBreadcrumb(-1)}
-            isLast={!currentFolderId}
-          >
-            <Folder className="w-4 h-4" />
-            Meu Drive
-          </DroppableBreadcrumb>
-          {breadcrumbs.map((crumb, index) => (
-            <React.Fragment key={crumb.id}>
-              <ChevronRight className="w-4 h-4 text-gray-400 shrink-0" />
-              <DroppableBreadcrumb 
-                folderId={crumb.id}
-                onClick={() => navigateToBreadcrumb(index)}
-                isLast={index === breadcrumbs.length - 1}
-              >
-                {crumb.name}
-              </DroppableBreadcrumb>
-            </React.Fragment>
-          ))}
+        {/* Breadcrumbs and Sort */}
+        <div className="flex items-center justify-between mb-8 pb-2">
+          <div className="flex items-center gap-2 text-sm font-medium text-gray-600 overflow-x-auto">
+            <DroppableBreadcrumb 
+              folderId={null} 
+              onClick={() => navigateToBreadcrumb(-1)}
+              isLast={!currentFolderId}
+            >
+              <Folder className="w-4 h-4" />
+              Meu Drive
+            </DroppableBreadcrumb>
+            {breadcrumbs.map((crumb, index) => (
+              <React.Fragment key={crumb.id}>
+                <ChevronRight className="w-4 h-4 text-gray-400 shrink-0" />
+                <DroppableBreadcrumb 
+                  folderId={crumb.id}
+                  onClick={() => navigateToBreadcrumb(index)}
+                  isLast={index === breadcrumbs.length - 1}
+                >
+                  {crumb.name}
+                </DroppableBreadcrumb>
+              </React.Fragment>
+            ))}
+          </div>
+
+          <div className="relative" ref={sortMenuRef}>
+            <button
+              onClick={() => setIsSortMenuOpen(!isSortMenuOpen)}
+              className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+            >
+              <Menu className="w-4 h-4" />
+              Classificado
+            </button>
+
+            {isSortMenuOpen && (
+              <div className="absolute right-0 mt-2 w-64 bg-white rounded-xl shadow-xl border border-gray-100 py-2 z-50">
+                <div className="px-4 py-2 text-xs font-bold text-gray-500 uppercase tracking-wider">
+                  Ordenar por
+                </div>
+                <button
+                  onClick={() => setSortBy('name')}
+                  className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center justify-between"
+                >
+                  Nome
+                  {sortBy === 'name' && <Check className="w-4 h-4 text-brand-dark" />}
+                </button>
+                <button
+                  onClick={() => setSortBy('date')}
+                  className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center justify-between"
+                >
+                  Data da modificação
+                  {sortBy === 'date' && <Check className="w-4 h-4 text-brand-dark" />}
+                </button>
+
+                <div className="border-t border-gray-100 my-2"></div>
+                
+                <div className="px-4 py-2 text-xs font-bold text-gray-500 uppercase tracking-wider">
+                  Direção de classif.
+                </div>
+                <button
+                  onClick={() => setSortDirection('asc')}
+                  className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center justify-between"
+                >
+                  A a Z / Mais antigo
+                  {sortDirection === 'asc' && <Check className="w-4 h-4 text-brand-dark" />}
+                </button>
+                <button
+                  onClick={() => setSortDirection('desc')}
+                  className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center justify-between"
+                >
+                  Z a A / Mais recente
+                  {sortDirection === 'desc' && <Check className="w-4 h-4 text-brand-dark" />}
+                </button>
+
+                <div className="border-t border-gray-100 my-2"></div>
+
+                <div className="px-4 py-2 text-xs font-bold text-gray-500 uppercase tracking-wider">
+                  Pastas
+                </div>
+                <button
+                  onClick={() => setFoldersPosition('top')}
+                  className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center justify-between"
+                >
+                  Acima
+                  {foldersPosition === 'top' && <Check className="w-4 h-4 text-brand-dark" />}
+                </button>
+                <button
+                  onClick={() => setFoldersPosition('mixed')}
+                  className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center justify-between"
+                >
+                  Misturado com arquivos
+                  {foldersPosition === 'mixed' && <Check className="w-4 h-4 text-brand-dark" />}
+                </button>
+              </div>
+            )}
+          </div>
         </div>
 
         {loading ? (
@@ -516,188 +694,291 @@ export const DocumentsView: React.FC<{ onBack?: () => void }> = ({ onBack }) => 
           </div>
         ) : (
           <div className="space-y-8">
-            {/* Folders Section */}
-            {folders.length > 0 && (
-              <section>
-                <h2 className="text-sm font-bold text-gray-900 mb-4 uppercase tracking-wider">Pastas</h2>
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                  {folders.map(folder => (
-                    <DroppableFolder 
-                      key={folder.id}
-                      folder={folder}
-                      onClick={() => navigateToFolder(folder)}
-                    >
-                      <div className="w-10 h-10 bg-gray-100 rounded-xl flex items-center justify-center shrink-0 group-hover:bg-brand-dark/5 transition-colors">
-                        <Folder className="w-5 h-5 text-gray-500 group-hover:text-brand-dark transition-colors" fill="currentColor" fillOpacity={0.2} />
-                      </div>
-                      <span className="font-medium text-gray-800 truncate flex-1">{folder.name}</span>
-                      {(userRole === 'admin' || userRole === 'team') && (
-                        <button 
-                          onClick={(e: any) => handleDeleteFolder(folder, e)}
-                          className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg opacity-0 group-hover:opacity-100 transition-all"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      )}
-                    </DroppableFolder>
-                  ))}
+            {documents.length === 0 && folders.length === 0 ? (
+              <div className="bg-white border border-dashed border-gray-300 rounded-3xl p-12 flex flex-col items-center justify-center text-center">
+                <div className="w-16 h-16 bg-gray-50 rounded-2xl flex items-center justify-center mb-4">
+                  <Folder className="w-8 h-8 text-gray-400" />
                 </div>
-              </section>
-            )}
+                <h3 className="text-lg font-bold text-gray-900 mb-2">Esta pasta está vazia</h3>
+                <p className="text-gray-500 mb-6 max-w-md">
+                  Faça upload de arquivos ou crie novas pastas para organizar seus documentos.
+                </p>
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  className="bg-brand-dark text-white px-6 py-3 rounded-xl font-bold hover:bg-brand-dark/90 transition-colors shadow-lg shadow-brand-dark/20"
+                >
+                  Fazer Upload de Arquivo
+                </button>
+              </div>
+            ) : viewMode === 'grid' ? (
+              <>
+                {foldersPosition === 'top' ? (
+                  <>
+                    {/* Folders Section */}
+                    {sortedFolders.length > 0 && (
+                      <section>
+                        <h2 className="text-sm font-bold text-gray-900 mb-4 uppercase tracking-wider">Pastas</h2>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                          {sortedFolders.map(folder => (
+                            <DroppableFolder 
+                              key={folder.id}
+                              folder={folder}
+                              onClick={() => navigateToFolder(folder)}
+                            >
+                              <div className="w-10 h-10 bg-gray-100 rounded-xl flex items-center justify-center shrink-0 group-hover:bg-brand-dark/5 transition-colors">
+                                <Folder className="w-5 h-5 text-gray-500 group-hover:text-brand-dark transition-colors" fill="currentColor" fillOpacity={0.2} />
+                              </div>
+                              <span className="font-medium text-gray-800 truncate flex-1">{folder.name}</span>
+                              {(userRole === 'admin' || userRole === 'team') && (
+                                <button 
+                                  onClick={(e: any) => handleDeleteFolder(folder, e)}
+                                  className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg opacity-0 group-hover:opacity-100 transition-all"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              )}
+                            </DroppableFolder>
+                          ))}
+                        </div>
+                      </section>
+                    )}
 
-            {/* Files Section */}
-            {(documents.length > 0 || folders.length === 0) && (
-              <section>
-                {folders.length > 0 && (
-                  <h2 className="text-sm font-bold text-gray-900 mb-4 uppercase tracking-wider">Arquivos</h2>
-                )}
-                
-                {documents.length === 0 && folders.length === 0 ? (
-                  <div className="bg-white border border-dashed border-gray-300 rounded-3xl p-12 flex flex-col items-center justify-center text-center">
-                    <div className="w-16 h-16 bg-gray-50 rounded-2xl flex items-center justify-center mb-4">
-                      <Folder className="w-8 h-8 text-gray-400" />
-                    </div>
-                    <h3 className="text-lg font-bold text-gray-900 mb-2">Esta pasta está vazia</h3>
-                    <p className="text-gray-500 mb-6 max-w-md">
-                      Faça upload de arquivos ou crie novas pastas para organizar seus documentos.
-                    </p>
-                    <button
-                      onClick={() => setIsUploadModalOpen(true)}
-                      className="bg-brand-dark text-white px-6 py-3 rounded-xl font-bold hover:bg-brand-dark/90 transition-colors shadow-lg shadow-brand-dark/20"
-                    >
-                      Fazer Upload de Arquivo
-                    </button>
-                  </div>
+                    {/* Files Section */}
+                    {sortedDocuments.length > 0 && (
+                      <section>
+                        {sortedFolders.length > 0 && (
+                          <h2 className="text-sm font-bold text-gray-900 mb-4 uppercase tracking-wider">Arquivos</h2>
+                        )}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                          {sortedDocuments.map(doc => (
+                            <DraggableDocument 
+                              key={doc.id}
+                              doc={doc}
+                              onClick={() => handlePreview(doc)}
+                              className="group bg-white border border-gray-200 rounded-2xl overflow-hidden flex flex-col cursor-pointer hover:border-brand-dark/30 hover:shadow-md transition-all h-48"
+                            >
+                              {/* Preview Area */}
+                              <div className="flex-1 bg-gray-50 relative flex items-center justify-center overflow-hidden">
+                                {doc.file_type.includes('image') ? (
+                                  <img src={getFileUrl(doc.file_path)} alt={doc.title} className="w-full h-full object-cover" />
+                                ) : (
+                                  <div className="w-16 h-16 bg-white rounded-2xl shadow-sm flex items-center justify-center">
+                                    {getFileIcon(doc.file_type)}
+                                  </div>
+                                )}
+                                
+                                {/* Hover Actions */}
+                                <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity bg-white/90 backdrop-blur-sm p-1 rounded-lg shadow-sm">
+                                  <button 
+                                    onClick={(e: any) => handleDownload(doc, e)}
+                                    className="p-1.5 text-gray-600 hover:text-brand-dark hover:bg-brand-dark/10 rounded-md transition-colors"
+                                    title="Baixar"
+                                  >
+                                    <Download className="w-4 h-4" />
+                                  </button>
+                                  {(userRole === 'admin' || userRole === 'team') && (
+                                    <button 
+                                      onClick={(e: any) => handleDeleteDoc(doc, e)}
+                                      className="p-1.5 text-gray-600 hover:text-red-500 hover:bg-red-50 rounded-md transition-colors"
+                                      title="Excluir"
+                                    >
+                                      <Trash2 className="w-4 h-4" />
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+                              
+                              {/* Details Area */}
+                              <div className="p-3 border-t border-gray-100 bg-white shrink-0">
+                                <div className="flex items-center gap-2 mb-1">
+                                  <div className="w-5 h-5 flex items-center justify-center shrink-0">
+                                    {getFileIcon(doc.file_type)}
+                                  </div>
+                                  <h4 className="font-medium text-gray-900 text-sm truncate flex-1" title={doc.title}>
+                                    {doc.title}
+                                  </h4>
+                                </div>
+                                <div className="flex items-center justify-between text-[11px] text-gray-500 pl-7">
+                                  <span>{new Date(doc.created_at).toLocaleDateString()}</span>
+                                  <span>{formatFileSize(doc.file_size)}</span>
+                                </div>
+                              </div>
+                            </DraggableDocument>
+                          ))}
+                        </div>
+                      </section>
+                    )}
+                  </>
                 ) : (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                    {documents.map(doc => (
-                      <DraggableDocument 
-                        key={doc.id}
-                        doc={doc}
-                        onClick={() => handlePreview(doc)}
-                        className="group bg-white border border-gray-200 rounded-2xl p-4 flex flex-col gap-3 cursor-pointer hover:border-brand-dark/30 hover:shadow-md transition-all"
-                      >
-                        <div className="flex items-start justify-between">
-                          <div className="w-12 h-12 bg-gray-50 rounded-xl flex items-center justify-center shrink-0">
-                            {getFileIcon(doc.file_type)}
+                  <section>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                      {allItems.map((item: any) => item.isFolder ? (
+                        <DroppableFolder 
+                          key={`folder-${item.id}`}
+                          folder={item}
+                          onClick={() => navigateToFolder(item)}
+                        >
+                          <div className="w-10 h-10 bg-gray-100 rounded-xl flex items-center justify-center shrink-0 group-hover:bg-brand-dark/5 transition-colors">
+                            <Folder className="w-5 h-5 text-gray-500 group-hover:text-brand-dark transition-colors" fill="currentColor" fillOpacity={0.2} />
                           </div>
-                          <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <span className="font-medium text-gray-800 truncate flex-1">{item.name}</span>
+                          {(userRole === 'admin' || userRole === 'team') && (
                             <button 
-                              onClick={(e: any) => handleDownload(doc, e)}
-                              className="p-1.5 text-gray-400 hover:text-brand-dark hover:bg-brand-dark/5 rounded-lg transition-colors"
+                              onClick={(e: any) => handleDeleteFolder(item, e)}
+                              className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg opacity-0 group-hover:opacity-100 transition-all"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          )}
+                        </DroppableFolder>
+                      ) : (
+                        <DraggableDocument 
+                          key={`doc-${item.id}`}
+                          doc={item}
+                          onClick={() => handlePreview(item)}
+                          className="group bg-white border border-gray-200 rounded-2xl overflow-hidden flex flex-col cursor-pointer hover:border-brand-dark/30 hover:shadow-md transition-all h-48"
+                        >
+                          {/* Preview Area */}
+                          <div className="flex-1 bg-gray-50 relative flex items-center justify-center overflow-hidden">
+                            {item.file_type.includes('image') ? (
+                              <img src={getFileUrl(item.file_path)} alt={item.title} className="w-full h-full object-cover" />
+                            ) : (
+                              <div className="w-16 h-16 bg-white rounded-2xl shadow-sm flex items-center justify-center">
+                                {getFileIcon(item.file_type)}
+                              </div>
+                            )}
+                            
+                            {/* Hover Actions */}
+                            <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity bg-white/90 backdrop-blur-sm p-1 rounded-lg shadow-sm">
+                              <button 
+                                onClick={(e: any) => handleDownload(item, e)}
+                                className="p-1.5 text-gray-600 hover:text-brand-dark hover:bg-brand-dark/10 rounded-md transition-colors"
+                                title="Baixar"
+                              >
+                                <Download className="w-4 h-4" />
+                              </button>
+                              {(userRole === 'admin' || userRole === 'team') && (
+                                <button 
+                                  onClick={(e: any) => handleDeleteDoc(item, e)}
+                                  className="p-1.5 text-gray-600 hover:text-red-500 hover:bg-red-50 rounded-md transition-colors"
+                                  title="Excluir"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                          
+                          {/* Details Area */}
+                          <div className="p-3 border-t border-gray-100 bg-white shrink-0">
+                            <div className="flex items-center gap-2 mb-1">
+                              <div className="w-5 h-5 flex items-center justify-center shrink-0">
+                                {getFileIcon(item.file_type)}
+                              </div>
+                              <h4 className="font-medium text-gray-900 text-sm truncate flex-1" title={item.title}>
+                                {item.title}
+                              </h4>
+                            </div>
+                            <div className="flex items-center justify-between text-[11px] text-gray-500 pl-7">
+                              <span>{new Date(item.created_at).toLocaleDateString()}</span>
+                              <span>{formatFileSize(item.file_size)}</span>
+                            </div>
+                          </div>
+                        </DraggableDocument>
+                      ))}
+                    </div>
+                  </section>
+                )}
+              </>
+            ) : (
+              <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="border-b border-gray-200 bg-gray-50/50">
+                      <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider w-1/2">
+                        <button onClick={() => { setSortBy('name'); setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc'); }} className="flex items-center gap-1 hover:text-gray-700">
+                          Nome
+                          {sortBy === 'name' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />)}
+                        </button>
+                      </th>
+                      <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">
+                        <button onClick={() => { setSortBy('date'); setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc'); }} className="flex items-center gap-1 hover:text-gray-700">
+                          Data da modificação
+                          {sortBy === 'date' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />)}
+                        </button>
+                      </th>
+                      <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Tamanho</th>
+                      <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-right">Ações</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {(foldersPosition === 'top' ? sortedFolders : allItems.filter((i: any) => i.isFolder)).map((folder: any) => (
+                      <tr key={`list-folder-${folder.id}`} className="hover:bg-gray-50 transition-colors group cursor-pointer" onClick={() => navigateToFolder(folder)}>
+                        <td className="px-6 py-4">
+                          <div className="flex items-center gap-3">
+                            <Folder className="w-5 h-5 text-gray-400 group-hover:text-brand-dark transition-colors" fill="currentColor" fillOpacity={0.2} />
+                            <span className="font-medium text-gray-900">{folder.name}</span>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 text-sm text-gray-500">
+                          {new Date(folder.created_at).toLocaleDateString()}
+                        </td>
+                        <td className="px-6 py-4 text-sm text-gray-500">—</td>
+                        <td className="px-6 py-4 text-right">
+                          {(userRole === 'admin' || userRole === 'team') && (
+                            <button 
+                              onClick={(e) => handleDeleteFolder(folder, e)}
+                              className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg opacity-0 group-hover:opacity-100 transition-all"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                    {(foldersPosition === 'top' ? sortedDocuments : allItems.filter((i: any) => !i.isFolder)).map((doc: any) => (
+                      <tr key={`list-doc-${doc.id}`} className="hover:bg-gray-50 transition-colors group cursor-pointer" onClick={() => handlePreview(doc)}>
+                        <td className="px-6 py-4">
+                          <div className="flex items-center gap-3">
+                            {getFileIcon(doc.file_type)}
+                            <span className="font-medium text-gray-900">{doc.title}</span>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 text-sm text-gray-500">
+                          {new Date(doc.created_at).toLocaleDateString()}
+                        </td>
+                        <td className="px-6 py-4 text-sm text-gray-500">
+                          {formatFileSize(doc.file_size)}
+                        </td>
+                        <td className="px-6 py-4 text-right">
+                          <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button 
+                              onClick={(e) => handleDownload(doc, e)}
+                              className="p-2 text-gray-400 hover:text-brand-dark hover:bg-brand-dark/5 rounded-lg transition-colors"
                               title="Baixar"
                             >
                               <Download className="w-4 h-4" />
                             </button>
                             {(userRole === 'admin' || userRole === 'team') && (
                               <button 
-                                onClick={(e: any) => handleDeleteDoc(doc, e)}
-                                className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                                onClick={(e) => handleDeleteDoc(doc, e)}
+                                className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
                                 title="Excluir"
                               >
                                 <Trash2 className="w-4 h-4" />
                               </button>
                             )}
                           </div>
-                        </div>
-                        <div>
-                          <h4 className="font-bold text-gray-900 text-sm line-clamp-2 mb-1" title={doc.title}>
-                            {doc.title}
-                          </h4>
-                          <div className="flex items-center justify-between text-xs text-gray-500">
-                            <span className="truncate max-w-[120px]">{new Date(doc.created_at).toLocaleDateString()}</span>
-                            <span>{formatFileSize(doc.file_size)}</span>
-                          </div>
-                        </div>
-                      </DraggableDocument>
+                        </td>
+                      </tr>
                     ))}
-                  </div>
-                )}
-              </section>
+                  </tbody>
+                </table>
+              </div>
             )}
           </div>
         )}
       </div>
-
-      {/* Upload Modal */}
-      {isUploadModalOpen && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-          <div className="bg-white rounded-3xl p-8 w-full max-w-md shadow-2xl">
-            <div className="flex justify-between items-center mb-6">
-              <h3 className="text-xl font-bold text-gray-900">Fazer Upload</h3>
-              <button onClick={closeUploadModal} className="p-2 hover:bg-gray-100 rounded-xl transition-colors">
-                <X className="w-5 h-5 text-gray-400" />
-              </button>
-            </div>
-
-            {error && (
-              <div className="mb-6 p-4 bg-red-50 border border-red-100 rounded-xl flex items-start gap-3 text-red-600">
-                <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />
-                <p className="text-sm font-medium">{error}</p>
-              </div>
-            )}
-
-            <form onSubmit={handleUpload} className="space-y-6">
-              <div className="space-y-2">
-                <label className="text-sm font-bold text-gray-700">Arquivo</label>
-                <div 
-                  className="border-2 border-dashed border-gray-300 rounded-2xl p-8 text-center hover:bg-gray-50 transition-colors cursor-pointer"
-                  onClick={() => fileInputRef.current?.click()}
-                >
-                  <input
-                    type="file"
-                    ref={fileInputRef}
-                    onChange={handleFileChange}
-                    className="hidden"
-                  />
-                  {selectedFile ? (
-                    <div className="flex flex-col items-center gap-2">
-                      <File className="w-8 h-8 text-brand-dark" />
-                      <span className="text-sm font-medium text-gray-900">{selectedFile.name}</span>
-                      <span className="text-xs text-gray-500">{formatFileSize(selectedFile.size)}</span>
-                    </div>
-                  ) : (
-                    <div className="flex flex-col items-center gap-2">
-                      <UploadCloud className="w-8 h-8 text-gray-400" />
-                      <span className="text-sm font-medium text-gray-600">Clique para selecionar um arquivo</span>
-                      <span className="text-xs text-gray-400">Máximo 50MB</span>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <label className="text-sm font-bold text-gray-700">Nome do Arquivo (Opcional)</label>
-                <input
-                  type="text"
-                  value={title}
-                  onChange={e => setTitle(e.target.value)}
-                  placeholder="Ex: Contrato Assinado"
-                  className="w-full px-4 py-3 rounded-xl bg-gray-50 border border-gray-200 focus:ring-2 focus:ring-brand-dark/20 focus:border-brand-dark outline-none transition-all"
-                />
-              </div>
-
-              <button
-                type="submit"
-                disabled={uploading || !selectedFile}
-                className="w-full py-4 bg-brand-dark text-white rounded-xl font-bold hover:bg-brand-dark/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-              >
-                {uploading ? (
-                  <>
-                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                    Enviando...
-                  </>
-                ) : (
-                  <>
-                    <UploadCloud className="w-5 h-5" />
-                    Fazer Upload
-                  </>
-                )}
-              </button>
-            </form>
-          </div>
-        </div>
-      )}
 
       {/* New Folder Modal */}
       {isFolderModalOpen && (
