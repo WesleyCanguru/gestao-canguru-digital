@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { useState } from 'react';
 import { motion } from 'motion/react';
 import { 
   X, 
@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { Lead, LeadStage } from '../../types';
 import dayjs from 'dayjs';
+import { ConfirmModal } from '../ConfirmModal';
 
 interface LeadModalProps {
   lead: Lead;
@@ -41,6 +42,7 @@ const STAGES: Record<LeadStage, { label: string; next?: LeadStage }> = {
 
 export const LeadModal: React.FC<LeadModalProps> = ({ lead, onClose, onUpdateStage, onUpdateLead, onDelete }) => {
   const currentStageInfo = STAGES[lead.kanban_stage];
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   const handleMoveToNext = () => {
     if (currentStageInfo.next) {
@@ -52,10 +54,8 @@ export const LeadModal: React.FC<LeadModalProps> = ({ lead, onClose, onUpdateSta
   const handleMarkAsLost = () => onUpdateStage(lead.id, 'lost');
 
   const handleDelete = () => {
-    if (window.confirm('Tem certeza que deseja excluir este lead?')) {
-      onDelete(lead.id);
-      onClose();
-    }
+    onDelete(lead.id);
+    onClose();
   };
 
   return (
@@ -207,7 +207,7 @@ export const LeadModal: React.FC<LeadModalProps> = ({ lead, onClose, onUpdateSta
               </div>
 
               <button 
-                onClick={handleDelete}
+                onClick={() => setConfirmDelete(true)}
                 className="w-full py-4 flex items-center justify-center gap-2 text-red-400 hover:text-red-600 font-bold text-[10px] uppercase tracking-widest transition-colors"
               >
                 <Trash2 size={14} />
@@ -217,6 +217,14 @@ export const LeadModal: React.FC<LeadModalProps> = ({ lead, onClose, onUpdateSta
           </div>
         </div>
       </motion.div>
+
+      <ConfirmModal
+        isOpen={confirmDelete}
+        title="Excluir Lead"
+        message="Tem certeza que deseja excluir este lead?"
+        onConfirm={handleDelete}
+        onCancel={() => setConfirmDelete(false)}
+      />
     </div>
   );
 };

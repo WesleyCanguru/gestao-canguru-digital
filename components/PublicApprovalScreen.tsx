@@ -390,9 +390,9 @@ export const PublicApprovalScreen: React.FC = () => {
                       <XCircle size={32} />
                   </button>
                   {typeof lightboxImage === 'string' && lightboxImage.match(/\.(mp4|webm|ogg)$/i) ? (
-                      <video src={lightboxImage} controls className="max-w-full max-h-[90vh] rounded-lg shadow-2xl" onClick={(e) => e.stopPropagation()} />
+                      <video src={lightboxImage} controls className="w-full h-full object-contain rounded-lg shadow-2xl" onClick={(e) => e.stopPropagation()} />
                   ) : (
-                      <img src={lightboxImage as string} alt="Full size" className="max-w-full max-h-[90vh] object-contain rounded-lg shadow-2xl" onClick={(e) => e.stopPropagation()} />
+                      <img src={lightboxImage as string} alt="Full size" className="w-full h-full object-contain rounded-lg shadow-2xl" onClick={(e) => e.stopPropagation()} />
                   )}
               </div>
           )}

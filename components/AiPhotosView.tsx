@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth, supabase } from '../lib/supabase';
 import { motion } from 'motion/react';
 import { Camera, Upload, Check, X, MessageSquare, Trash2, Settings, AlertCircle, Sparkles } from 'lucide-react';
+import { ConfirmModal } from './ConfirmModal';
 
 interface AiPhoto {
   id: string;
@@ -32,6 +33,10 @@ export const AiPhotosView: React.FC = () => {
   const [agencyFeedback, setAgencyFeedback] = useState('');
   const [replacingFile, setReplacingFile] = useState<File | null>(null);
   const [isReplacing, setIsReplacing] = useState(false);
+
+  // Confirm Modals
+  const [confirmDeletePhotoId, setConfirmDeletePhotoId] = useState<string | null>(null);
+  const [confirmDeleteFeedbackId, setConfirmDeleteFeedbackId] = useState<string | null>(null);
 
   const isAdmin = userRole === 'admin';
 
@@ -137,22 +142,24 @@ export const AiPhotosView: React.FC = () => {
   };
 
   const handleDeletePhoto = async (id: string) => {
-    if (!confirm('Tem certeza que deseja excluir esta foto?')) return;
     try {
       await supabase.from('ai_photos').delete().eq('id', id);
       fetchData();
     } catch (error) {
       console.error('Error deleting photo:', error);
+    } finally {
+      setConfirmDeletePhotoId(null);
     }
   };
 
   const handleDeleteFeedback = async (id: string) => {
-    if (!confirm('Tem certeza que deseja excluir este comentário?')) return;
     try {
       await supabase.from('ai_photos').update({ feedback: null }).eq('id', id);
       fetchData();
     } catch (error) {
       console.error('Error deleting feedback:', error);
+    } finally {
+      setConfirmDeleteFeedbackId(null);
     }
   };
 
@@ -396,7 +403,7 @@ export const AiPhotosView: React.FC = () => {
 
               {isAdmin && (
                 <button
-                  onClick={() => handleDeletePhoto(photo.id)}
+                  onClick={() => setConfirmDeletePhotoId(photo.id)}
                   className="absolute top-4 right-4 w-8 h-8 bg-white/90 backdrop-blur-sm text-red-500 rounded-full flex items-center justify-center shadow-lg hover:bg-red-500 hover:text-white transition-colors"
                 >
                   <Trash2 size={14} />
@@ -432,7 +439,7 @@ export const AiPhotosView: React.FC = () => {
                             )}
                             {isAdmin && (
                               <button
-                                onClick={() => handleDeleteFeedback(photo.id)}
+                                onClick={() => setConfirmDeleteFeedbackId(photo.id)}
                                 className="text-gray-400 hover:text-red-500 transition-colors"
                                 title="Excluir comentário"
                               >
@@ -594,6 +601,22 @@ export const AiPhotosView: React.FC = () => {
           </div>
         )}
       </div>
+
+      <ConfirmModal
+        isOpen={!!confirmDeletePhotoId}
+        title="Excluir Foto"
+        message="Tem certeza que deseja excluir esta foto?"
+        onConfirm={() => confirmDeletePhotoId && handleDeletePhoto(confirmDeletePhotoId)}
+        onCancel={() => setConfirmDeletePhotoId(null)}
+      />
+
+      <ConfirmModal
+        isOpen={!!confirmDeleteFeedbackId}
+        title="Excluir Comentário"
+        message="Tem certeza que deseja excluir este comentário?"
+        onConfirm={() => confirmDeleteFeedbackId && handleDeleteFeedback(confirmDeleteFeedbackId)}
+        onCancel={() => setConfirmDeleteFeedbackId(null)}
+      />
     </div>
   );
 };

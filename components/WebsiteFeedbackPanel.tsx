@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { X, MessageSquarePlus, Image as ImageIcon, Send, Clock, CheckCircle, AlertCircle, Trash2 } from 'lucide-react';
 import { supabase, useAuth } from '../lib/supabase';
+import { ConfirmModal } from './ConfirmModal';
 
 interface WebsiteFeedback {
   id: string;
@@ -24,6 +25,7 @@ export default function WebsiteFeedbackPanel({ isOpen, onClose }: WebsiteFeedbac
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
   useEffect(() => {
     if (isOpen && activeClient) {
@@ -125,8 +127,6 @@ export default function WebsiteFeedbackPanel({ isOpen, onClose }: WebsiteFeedbac
   const deleteFeedback = async (id: string) => {
     if (userRole !== 'admin') return;
     
-    if (!window.confirm('Tem certeza que deseja excluir esta observação?')) return;
-
     try {
       const { error } = await supabase
         .from('website_feedbacks')
@@ -137,6 +137,8 @@ export default function WebsiteFeedbackPanel({ isOpen, onClose }: WebsiteFeedbac
       loadFeedbacks();
     } catch (err) {
       console.error('Error deleting feedback:', err);
+    } finally {
+      setConfirmDeleteId(null);
     }
   };
 
@@ -289,7 +291,7 @@ export default function WebsiteFeedbackPanel({ isOpen, onClose }: WebsiteFeedbac
                           <option value="completed">Concluído</option>
                         </select>
                         <button
-                          onClick={() => deleteFeedback(feedback.id)}
+                          onClick={() => setConfirmDeleteId(feedback.id)}
                           className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                         >
                           <Trash2 size={16} />
@@ -303,6 +305,14 @@ export default function WebsiteFeedbackPanel({ isOpen, onClose }: WebsiteFeedbac
           </div>
         </div>
       </div>
+
+      <ConfirmModal
+        isOpen={!!confirmDeleteId}
+        title="Excluir Observação"
+        message="Tem certeza que deseja excluir esta observação?"
+        onConfirm={() => confirmDeleteId && deleteFeedback(confirmDeleteId)}
+        onCancel={() => setConfirmDeleteId(null)}
+      />
     </div>
   );
 }

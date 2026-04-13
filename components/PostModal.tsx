@@ -5,6 +5,7 @@ import { DailyContent, PostData, PostComment, PostStatus } from '../types';
 import { useAuth, supabase, parseImageUrl, stringifyImageUrl } from '../lib/supabase';
 import { X, Send, Image as ImageIcon, CheckCircle2, AlertTriangle, Save, UploadCloud, Trash2, Edit3, RefreshCw, Link, Check, Calendar, Instagram, Linkedin, ChevronDown, Layers, Copy, LayoutTemplate, Eye, FileText, XCircle } from 'lucide-react';
 import { InstagramView, LinkedInView } from './PlatformViews';
+import { ConfirmModal } from './ConfirmModal';
 
 interface PostModalProps {
   dayContent: DailyContent;
@@ -95,6 +96,10 @@ export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, onClo
   // Manual Status Change
   const [manualStatus, setManualStatus] = useState<PostStatus>('draft');
   const [newComment, setNewComment] = useState('');
+
+  // Confirm Modals State
+  const [confirmDeletePost, setConfirmDeletePost] = useState(false);
+  const [confirmDeleteCommentId, setConfirmDeleteCommentId] = useState<string | null>(null);
 
   // --------------------------------------------------------------------------------
   // INITIALIZATION
@@ -439,7 +444,6 @@ export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, onClo
   };
 
   const handleDeletePost = async () => {
-      if (!confirm("Tem certeza que deseja excluir esta publicação?")) return;
       try {
           setLoading(true);
           // Se houver múltiplas (grupo), deleta todas
@@ -462,14 +466,15 @@ export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, onClo
           alert("Erro ao excluir.");
       } finally {
           setLoading(false);
+          setConfirmDeletePost(false);
       }
   };
 
   // --- COMMENT LOGIC ---
   const handleDeleteComment = async (commentId: string) => {
-      if (!confirm("Excluir comentário?")) return;
       const { error } = await supabase.from('comments').delete().eq('id', commentId);
       if (!error) setComments(prev => prev.filter(c => c.id !== commentId));
+      setConfirmDeleteCommentId(null);
   };
   
   const changeStatus = async (newStatus: PostStatus) => {
@@ -945,7 +950,7 @@ export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, onClo
                                     <div className={`p-4 rounded-2xl text-[13px] shadow-sm relative group leading-relaxed ${comment.author_role === 'admin' ? 'bg-white text-brand-dark rounded-tr-none border border-black/[0.03]' : comment.author_role === 'approver' ? 'bg-green-50 text-green-900 rounded-tl-none border border-green-100' : 'bg-purple-50 text-purple-900 rounded-tl-none border border-purple-100'}`}>
                                        <p>{comment.content}</p>
                                        {userRole === 'admin' && (
-                                         <button onClick={() => handleDeleteComment(comment.id)} className="absolute -top-2 -right-2 bg-white text-gray-400 hover:text-red-500 rounded-full p-1.5 shadow-md border border-black/[0.05] opacity-0 group-hover:opacity-100 transition-all" title="Excluir"><Trash2 size={12} /></button>
+                                         <button onClick={() => setConfirmDeleteCommentId(comment.id)} className="absolute -top-2 -right-2 bg-white text-gray-400 hover:text-red-500 rounded-full p-1.5 shadow-md border border-black/[0.05] opacity-0 group-hover:opacity-100 transition-all" title="Excluir"><Trash2 size={12} /></button>
                                        )}
                                     </div>
                                 </div>
@@ -991,6 +996,22 @@ export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, onClo
            </button>
         </div>
       </motion.div>
+
+      <ConfirmModal
+        isOpen={confirmDeletePost}
+        title="Confirmar Exclusão"
+        message="Tem certeza que deseja excluir esta publicação?"
+        onConfirm={handleDeletePost}
+        onCancel={() => setConfirmDeletePost(false)}
+      />
+
+      <ConfirmModal
+        isOpen={!!confirmDeleteCommentId}
+        title="Excluir comentário"
+        message="Tem certeza que deseja excluir este comentário?"
+        onConfirm={() => confirmDeleteCommentId && handleDeleteComment(confirmDeleteCommentId)}
+        onCancel={() => setConfirmDeleteCommentId(null)}
+      />
     </div>
   );
 };

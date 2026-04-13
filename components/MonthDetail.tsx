@@ -6,6 +6,7 @@ import { PostModal } from './PostModal';
 import { PostIdeasModal } from './PostIdeasModal';
 import { useAuth, supabase } from '../lib/supabase';
 import { StatusLegend } from './StatusLegend';
+import { ConfirmModal } from './ConfirmModal';
 import { useEditorialData, MONTH_NAMES, DAY_NAMES } from '../hooks/useEditorialData';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -39,6 +40,16 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack }) =
   const [newPostDefaultDate, setNewPostDefaultDate] = useState<string>('');
 
   const [viewMode, setViewMode] = useState<ViewMode>('calendar');
+  
+  // Confirm Action State
+  const [confirmAction, setConfirmAction] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    onConfirm: () => void;
+    confirmButtonColor?: 'red' | 'brand';
+    confirmText?: string;
+  }>({ isOpen: false, title: '', message: '', onConfirm: () => {} });
   
   // Data States
   const [dbPosts, setDbPosts] = useState<Record<string, PostData>>({});
@@ -271,67 +282,75 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack }) =
       const originalDay = parseInt(originalKey.split('-')[0]);
       if (originalDay === targetDay) return;
 
-      if (!confirm(`Mover publicação para o dia ${d}/${m}?`)) return;
+      setConfirmAction({
+        isOpen: true,
+        title: 'Mover Publicação',
+        message: `Tem certeza que deseja mover esta publicação para o dia ${d}/${m}?`,
+        confirmText: 'Mover',
+        confirmButtonColor: 'brand',
+        onConfirm: async () => {
+          setConfirmAction(prev => ({ ...prev, isOpen: false }));
+          setLoadingPosts(true);
+          try {
+              const timestamp = Date.now();
+              for (const oldKey of postGroup.keys) {
+                  const parts = oldKey.split('-');
+                  // Format: DD-MM-YYYY-platform[-timestamp]
+                  // platform is at index 3 usually, but let's be safe
+                  // If oldKey is 20-02-2026-meta, parts[3] is meta.
+                  const platform = parts[3]; 
+                  
+                  const newKey = `${d}-${m}-${y}-${platform}-${timestamp}`;
 
-      setLoadingPosts(true);
-      try {
-          const timestamp = Date.now();
-          for (const oldKey of postGroup.keys) {
-              const parts = oldKey.split('-');
-              // Format: DD-MM-YYYY-platform[-timestamp]
-              // platform is at index 3 usually, but let's be safe
-              // If oldKey is 20-02-2026-meta, parts[3] is meta.
-              const platform = parts[3]; 
+                  const dbPost = dbPosts[oldKey];
+                  
+                  const payload = {
+                      date_key: newKey,
+                      client_id: activeClient?.id,
+                      status: dbPost?.status || 'draft',
+                      theme: dbPost?.theme || postGroup.theme,
+                      type: dbPost?.type || postGroup.type,
+                      bullets: dbPost?.bullets || postGroup.bullets,
+                      image_url: dbPost?.image_url || postGroup.content.initialImageUrl || null,
+                      caption: dbPost?.caption || null,
+                      last_updated: new Date().toISOString()
+                  };
+
+                  // 1. Create New
+                  const { error: insertError } = await supabase.from('posts').insert(payload);
+                  if (insertError) throw insertError;
+
+                  // 2. Delete Old (Hide)
+                  // We must provide enough data to satisfy constraints if this is a new insert (hiding a static post)
+                  const deletePayload = {
+                      date_key: oldKey,
+                      client_id: activeClient?.id,
+                      status: 'deleted',
+                      last_updated: new Date().toISOString(),
+                      // Include other fields just in case they are required
+                      theme: dbPost?.theme || postGroup.theme,
+                      type: dbPost?.type || postGroup.type,
+                      bullets: dbPost?.bullets || postGroup.bullets,
+                      image_url: dbPost?.image_url || postGroup.content.initialImageUrl || null,
+                      caption: dbPost?.caption || null
+                  };
+
+                  const { error: deleteError } = await supabase.from('posts').upsert(deletePayload, { onConflict: 'date_key' });
+                  if (deleteError) throw deleteError;
+                  
+                  // 3. Move Comments
+                  await supabase.from('comments').update({ post_id: newKey }).eq('post_id', oldKey);
+              }
               
-              const newKey = `${d}-${m}-${y}-${platform}-${timestamp}`;
-
-              const dbPost = dbPosts[oldKey];
-              
-              const payload = {
-                  date_key: newKey,
-                  client_id: activeClient?.id,
-                  status: dbPost?.status || 'draft',
-                  theme: dbPost?.theme || postGroup.theme,
-                  type: dbPost?.type || postGroup.type,
-                  bullets: dbPost?.bullets || postGroup.bullets,
-                  image_url: dbPost?.image_url || postGroup.content.initialImageUrl || null,
-                  caption: dbPost?.caption || null,
-                  last_updated: new Date().toISOString()
-              };
-
-              // 1. Create New
-              const { error: insertError } = await supabase.from('posts').insert(payload);
-              if (insertError) throw insertError;
-
-              // 2. Delete Old (Hide)
-              // We must provide enough data to satisfy constraints if this is a new insert (hiding a static post)
-              const deletePayload = {
-                  date_key: oldKey,
-                  client_id: activeClient?.id,
-                  status: 'deleted',
-                  last_updated: new Date().toISOString(),
-                  // Include other fields just in case they are required
-                  theme: dbPost?.theme || postGroup.theme,
-                  type: dbPost?.type || postGroup.type,
-                  bullets: dbPost?.bullets || postGroup.bullets,
-                  image_url: dbPost?.image_url || postGroup.content.initialImageUrl || null,
-                  caption: dbPost?.caption || null
-              };
-
-              const { error: deleteError } = await supabase.from('posts').upsert(deletePayload, { onConflict: 'date_key' });
-              if (deleteError) throw deleteError;
-              
-              // 3. Move Comments
-              await supabase.from('comments').update({ post_id: newKey }).eq('post_id', oldKey);
+              await fetchMonthPosts();
+          } catch (error) {
+              console.error(error);
+              alert("Erro ao mover publicação.");
+          } finally {
+              setLoadingPosts(false);
           }
-          
-          await fetchMonthPosts();
-      } catch (error) {
-          console.error(error);
-          alert("Erro ao mover publicação.");
-      } finally {
-          setLoadingPosts(false);
-      }
+        }
+      });
   };
 
   const handleOpenPost = (item: { content: DailyContent, key: string }) => {
@@ -368,39 +387,47 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack }) =
     if (userRole !== 'admin') return;
     if (group.status === 'published') return;
 
-    if (!confirm("Marcar esta publicação (todas as plataformas) como PUBLICADA?")) return;
+    setConfirmAction({
+      isOpen: true,
+      title: 'Publicar',
+      message: 'Marcar esta publicação (todas as plataformas) como PUBLICADA?',
+      confirmText: 'Publicar',
+      confirmButtonColor: 'brand',
+      onConfirm: async () => {
+        setConfirmAction(prev => ({ ...prev, isOpen: false }));
+        try {
+            setLoadingPosts(true);
+            
+            // Itera sobre todas as chaves do grupo (Meta e LinkedIn se existirem)
+            for (const key of group.keys) {
+                 const dbPost = dbPosts[key];
+                 
+                 const payload: any = {
+                    date_key: key,
+                    client_id: activeClient?.id,
+                    status: 'published',
+                    last_updated: new Date().toISOString(),
+                 };
 
-    try {
-        setLoadingPosts(true);
-        
-        // Itera sobre todas as chaves do grupo (Meta e LinkedIn se existirem)
-        for (const key of group.keys) {
-             const dbPost = dbPosts[key];
-             
-             const payload: any = {
-                date_key: key,
-                client_id: activeClient?.id,
-                status: 'published',
-                last_updated: new Date().toISOString(),
-             };
-
-             if (!dbPost) {
-                // Se era estático puro, copia dados para persistir
-                payload.theme = group.theme;
-                payload.type = group.type;
-                payload.bullets = group.bullets;
-                payload.image_url = group.content.initialImageUrl || null;
-             }
-             
-             await supabase.from('posts').upsert(payload, { onConflict: 'date_key' });
+                 if (!dbPost) {
+                    // Se era estático puro, copia dados para persistir
+                    payload.theme = group.theme;
+                    payload.type = group.type;
+                    payload.bullets = group.bullets;
+                    payload.image_url = group.content.initialImageUrl || null;
+                 }
+                 
+                 await supabase.from('posts').upsert(payload, { onConflict: 'date_key' });
+            }
+            
+            await fetchMonthPosts(); 
+        } catch (err) {
+            console.error(err);
+            alert("Erro ao publicar.");
+            setLoadingPosts(false);
         }
-        
-        await fetchMonthPosts(); 
-    } catch (err) {
-        console.error(err);
-        alert("Erro ao publicar.");
-        setLoadingPosts(false);
-    }
+      }
+    });
   };
 
   const handleCloseModal = () => {
@@ -421,48 +448,57 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack }) =
 
   const handleBulkDelete = async () => {
     if (selectedPosts.size === 0) return;
-    if (!window.confirm(`Tem certeza que deseja excluir ${selectedPosts.size} publicação(ões)?`)) return;
-
-    setIsDeleting(true);
     
-    const payloads: any[] = [];
-    groupedPosts.forEach(group => {
-      if (selectedPosts.has(group.primaryKey)) {
-        group.keys.forEach(key => {
-          const dbPost = dbPosts[key];
-          const payload: any = {
-            date_key: key,
-            client_id: activeClient?.id,
-            status: 'deleted',
-            last_updated: new Date().toISOString()
-          };
+    setConfirmAction({
+      isOpen: true,
+      title: 'Excluir Publicações',
+      message: `Tem certeza que deseja excluir ${selectedPosts.size} publicação(ões)?`,
+      confirmText: 'Excluir',
+      confirmButtonColor: 'red',
+      onConfirm: async () => {
+        setConfirmAction(prev => ({ ...prev, isOpen: false }));
+        setIsDeleting(true);
+        
+        const payloads: any[] = [];
+        groupedPosts.forEach(group => {
+          if (selectedPosts.has(group.primaryKey)) {
+            group.keys.forEach(key => {
+              const dbPost = dbPosts[key];
+              const payload: any = {
+                date_key: key,
+                client_id: activeClient?.id,
+                status: 'deleted',
+                last_updated: new Date().toISOString()
+              };
 
-          if (!dbPost) {
-            payload.theme = group.theme;
-            payload.type = group.type;
-            payload.bullets = group.bullets;
-            payload.image_url = group.content.initialImageUrl || null;
+              if (!dbPost) {
+                payload.theme = group.theme;
+                payload.type = group.type;
+                payload.bullets = group.bullets;
+                payload.image_url = group.content.initialImageUrl || null;
+              }
+
+              payloads.push(payload);
+            });
           }
-
-          payloads.push(payload);
         });
+
+        if (payloads.length > 0) {
+          const { error } = await supabase
+            .from('posts')
+            .upsert(payloads, { onConflict: 'date_key' });
+            
+          if (error) {
+            console.error("Erro ao excluir publicações:", error);
+            alert("Erro ao excluir publicações.");
+          } else {
+            setSelectedPosts(new Set());
+            fetchMonthPosts();
+          }
+        }
+        setIsDeleting(false);
       }
     });
-
-    if (payloads.length > 0) {
-      const { error } = await supabase
-        .from('posts')
-        .upsert(payloads, { onConflict: 'date_key' });
-        
-      if (error) {
-        console.error("Erro ao excluir publicações:", error);
-        alert("Erro ao excluir publicações.");
-      } else {
-        setSelectedPosts(new Set());
-        fetchMonthPosts();
-      }
-    }
-    setIsDeleting(false);
   };
 
   const handleEditPlan = () => {
@@ -904,6 +940,16 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack }) =
           onClose={() => setShowPostIdeas(false)}
         />
       )}
+
+      <ConfirmModal
+        isOpen={confirmAction.isOpen}
+        title={confirmAction.title}
+        message={confirmAction.message}
+        onConfirm={confirmAction.onConfirm}
+        onCancel={() => setConfirmAction(prev => ({ ...prev, isOpen: false }))}
+        confirmText={confirmAction.confirmText}
+        confirmButtonColor={confirmAction.confirmButtonColor}
+      />
     </motion.div>
   );
 };

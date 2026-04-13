@@ -5,6 +5,7 @@ import { arrayMove, SortableContext, sortableKeyboardCoordinates, verticalListSo
 import { CSS } from '@dnd-kit/utilities';
 import { AgencyCRM, KanbanStage, FormField } from '../../types';
 import { useAgencyCRM } from '../../hooks/useAgencyCRM';
+import { ConfirmModal } from '../ConfirmModal';
 
 interface CRMSettingsProps {
   crm: AgencyCRM;
@@ -143,17 +144,14 @@ export const CRMSettings: React.FC<CRMSettingsProps> = ({ crm, onClose }) => {
   };
 
   const handleDelete = async () => {
-    if (!isConfirmingDelete) {
-      setIsConfirmingDelete(true);
-      return;
-    }
-
     try {
       await deleteCRM(crm.id);
       onClose();
     } catch (err) {
       console.error('Error deleting CRM:', err);
       alert('Erro ao excluir CRM.');
+    } finally {
+      setIsConfirmingDelete(false);
     }
   };
 
@@ -288,31 +286,13 @@ export const CRMSettings: React.FC<CRMSettingsProps> = ({ crm, onClose }) => {
         </div>
 
         <div className="px-6 py-4 border-t border-gray-100 bg-gray-50/50 flex items-center justify-between shrink-0">
-          {isConfirmingDelete ? (
-            <div className="flex items-center gap-3">
-              <span className="text-sm font-bold text-red-600 animate-pulse">Tem certeza?</span>
-              <button
-                onClick={handleDelete}
-                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium text-sm shadow-sm"
-              >
-                Sim, Excluir
-              </button>
-              <button
-                onClick={() => setIsConfirmingDelete(false)}
-                className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors font-medium text-sm"
-              >
-                Cancelar
-              </button>
-            </div>
-          ) : (
-            <button
-              onClick={handleDelete}
-              className="flex items-center gap-2 px-4 py-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors font-medium text-sm"
-            >
-              <Trash2 className="w-4 h-4" />
-              Excluir CRM
-            </button>
-          )}
+          <button
+            onClick={() => setIsConfirmingDelete(true)}
+            className="flex items-center gap-2 px-4 py-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors font-medium text-sm"
+          >
+            <Trash2 className="w-4 h-4" />
+            Excluir CRM
+          </button>
           <div className="flex items-center gap-3">
             <button onClick={onClose} className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors font-medium text-sm">
               Cancelar
@@ -328,6 +308,14 @@ export const CRMSettings: React.FC<CRMSettingsProps> = ({ crm, onClose }) => {
           </div>
         </div>
       </div>
+
+      <ConfirmModal
+        isOpen={isConfirmingDelete}
+        title="Excluir CRM"
+        message="Tem certeza que deseja excluir este CRM? Esta ação não pode ser desfeita e excluirá todos os leads associados."
+        onConfirm={handleDelete}
+        onCancel={() => setIsConfirmingDelete(false)}
+      />
     </div>
   );
 };

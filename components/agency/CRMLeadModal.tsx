@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { X, Save, Trash2, Clock, Pause, Play } from 'lucide-react';
 import { AgencyCRM, AgencyLead } from '../../types';
 import { useAgencyCRM } from '../../hooks/useAgencyCRM';
+import { ConfirmModal } from '../ConfirmModal';
 
 interface CRMLeadModalProps {
   crm: AgencyCRM;
@@ -70,10 +71,6 @@ export const CRMLeadModal: React.FC<CRMLeadModalProps> = ({ crm, lead, isOpen, o
 
   const handleDelete = async () => {
     if (!lead) return;
-    if (!isConfirmingDelete) {
-      setIsConfirmingDelete(true);
-      return;
-    }
 
     try {
       await deleteLead(lead.id);
@@ -81,6 +78,8 @@ export const CRMLeadModal: React.FC<CRMLeadModalProps> = ({ crm, lead, isOpen, o
     } catch (err) {
       console.error('Error deleting lead:', err);
       alert('Erro ao excluir lead.');
+    } finally {
+      setIsConfirmingDelete(false);
     }
   };
 
@@ -246,31 +245,13 @@ export const CRMLeadModal: React.FC<CRMLeadModalProps> = ({ crm, lead, isOpen, o
         {/* Footer */}
         <div className="px-6 py-4 border-t border-gray-100 bg-gray-50/50 flex items-center justify-between shrink-0">
           {lead ? (
-            isConfirmingDelete ? (
-              <div className="flex items-center gap-3">
-                <span className="text-sm font-bold text-red-600 animate-pulse">Excluir lead?</span>
-                <button
-                  onClick={handleDelete}
-                  className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium text-sm shadow-sm"
-                >
-                  Confirmar
-                </button>
-                <button
-                  onClick={() => setIsConfirmingDelete(false)}
-                  className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors font-medium text-sm"
-                >
-                  Não
-                </button>
-              </div>
-            ) : (
-              <button
-                onClick={handleDelete}
-                className="flex items-center gap-2 px-4 py-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors font-medium text-sm"
-              >
-                <Trash2 className="w-4 h-4" />
-                Excluir Lead
-              </button>
-            )
+            <button
+              onClick={() => setIsConfirmingDelete(true)}
+              className="flex items-center gap-2 px-4 py-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors font-medium text-sm"
+            >
+              <Trash2 className="w-4 h-4" />
+              Excluir Lead
+            </button>
           ) : (
             <div></div>
           )}
@@ -292,6 +273,14 @@ export const CRMLeadModal: React.FC<CRMLeadModalProps> = ({ crm, lead, isOpen, o
           </div>
         </div>
       </div>
+
+      <ConfirmModal
+        isOpen={isConfirmingDelete}
+        title="Excluir Lead"
+        message="Tem certeza que deseja excluir este lead?"
+        onConfirm={handleDelete}
+        onCancel={() => setIsConfirmingDelete(false)}
+      />
     </div>
   );
 };

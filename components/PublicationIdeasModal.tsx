@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { X, Plus, Calendar, Type, Trash2, Edit2, Save, Loader2, Sparkles, MessageSquare } from 'lucide-react';
 import { supabase, useAuth } from '../lib/supabase';
 import { PublicationIdea } from '../types';
+import { ConfirmModal } from './ConfirmModal';
 
 interface PublicationIdeasModalProps {
   onClose: () => void;
@@ -15,6 +16,7 @@ export const PublicationIdeasModal: React.FC<PublicationIdeasModalProps> = ({ on
   const [loading, setLoading] = useState(true);
   const [isAdding, setIsAdding] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
   // Form State
   const [theme, setTheme] = useState('');
@@ -82,9 +84,12 @@ export const PublicationIdeasModal: React.FC<PublicationIdeasModalProps> = ({ on
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Excluir esta ideia?')) return;
-    const { error } = await supabase.from('publication_ideas').delete().eq('id', id);
-    if (!error) fetchIdeas();
+    try {
+      const { error } = await supabase.from('publication_ideas').delete().eq('id', id);
+      if (!error) fetchIdeas();
+    } finally {
+      setConfirmDeleteId(null);
+    }
   };
 
   const startEdit = (idea: PublicationIdea) => {
@@ -221,7 +226,7 @@ export const PublicationIdeasModal: React.FC<PublicationIdeasModalProps> = ({ on
                     {(userRole === 'admin' || (userRole === 'approver' && idea.created_by_role === 'approver')) && (
                       <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                         <button onClick={() => startEdit(idea)} className="p-2 text-gray-400 hover:text-blue-500 transition-colors"><Edit2 size={14} /></button>
-                        <button onClick={() => handleDelete(idea.id)} className="p-2 text-gray-400 hover:text-red-500 transition-colors"><Trash2 size={14} /></button>
+                        <button onClick={() => setConfirmDeleteId(idea.id)} className="p-2 text-gray-400 hover:text-red-500 transition-colors"><Trash2 size={14} /></button>
                       </div>
                     )}
                   </div>
@@ -244,6 +249,14 @@ export const PublicationIdeasModal: React.FC<PublicationIdeasModalProps> = ({ on
           </div>
         </div>
       </motion.div>
+
+      <ConfirmModal
+        isOpen={!!confirmDeleteId}
+        title="Excluir Ideia"
+        message="Tem certeza que deseja excluir esta ideia?"
+        onConfirm={() => confirmDeleteId && handleDelete(confirmDeleteId)}
+        onCancel={() => setConfirmDeleteId(null)}
+      />
     </div>
   );
 };

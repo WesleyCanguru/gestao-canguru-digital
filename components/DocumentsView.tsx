@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { supabase, useAuth } from '../lib/supabase';
+import { ConfirmModal } from './ConfirmModal';
 import {
   FileText,
   File,
@@ -1053,10 +1054,10 @@ export const DocumentsView: React.FC<{ onBack?: () => void }> = ({ onBack }) => 
           onClick={() => setPreviewDoc(null)}
         >
           <div 
-            className="relative w-full max-w-5xl max-h-[90vh] bg-white rounded-2xl flex flex-col overflow-hidden shadow-2xl" 
+            className="relative w-full max-w-[90vw] h-[90vh] bg-white rounded-2xl flex flex-col overflow-hidden shadow-2xl" 
             onClick={e => e.stopPropagation()}
           >
-            <div className="flex justify-between items-center p-4 border-b border-gray-200 bg-white">
+            <div className="flex justify-between items-center p-4 border-b border-gray-200 bg-white shrink-0">
               <div className="flex items-center gap-3 overflow-hidden">
                 <div className="w-10 h-10 bg-gray-50 rounded-xl flex items-center justify-center shrink-0">
                   {getFileIcon(previewDoc.file_type)}
@@ -1084,27 +1085,28 @@ export const DocumentsView: React.FC<{ onBack?: () => void }> = ({ onBack }) => 
               </div>
             </div>
             
-            <div className="flex-1 overflow-auto bg-gray-100 flex items-center justify-center p-4 min-h-[50vh]">
-              {previewDoc.file_type.includes('image') ? (
-                <img 
-                  src={previewUrl} 
-                  alt={previewDoc.title} 
-                  className="max-w-full max-h-full object-contain rounded-lg shadow-sm" 
-                />
-              ) : previewDoc.file_type.includes('video') ? (
-                <video 
-                  src={previewUrl} 
-                  controls 
-                  className="max-w-full max-h-full rounded-lg shadow-sm" 
-                />
-              ) : previewDoc.file_type.includes('pdf') ? (
-                <iframe 
-                  src={previewUrl} 
-                  className="w-full h-full min-h-[70vh] rounded-lg shadow-sm bg-white" 
-                  title={previewDoc.title} 
-                />
-              ) : (
-                <div className="text-center bg-white p-12 rounded-2xl shadow-sm max-w-md w-full">
+            <div className="flex-1 relative bg-gray-100">
+              <div className="absolute inset-4 flex items-center justify-center">
+                {previewDoc.file_type.includes('image') ? (
+                  <img 
+                    src={previewUrl} 
+                    alt={previewDoc.title} 
+                    className="w-full h-full object-contain rounded-lg shadow-sm" 
+                  />
+                ) : previewDoc.file_type.includes('video') ? (
+                  <video 
+                    src={previewUrl} 
+                    controls 
+                    className="w-full h-full rounded-lg shadow-sm" 
+                  />
+                ) : previewDoc.file_type.includes('pdf') ? (
+                  <iframe 
+                    src={previewUrl} 
+                    className="w-full h-full rounded-lg shadow-sm bg-white" 
+                    title={previewDoc.title} 
+                  />
+                ) : (
+                  <div className="text-center bg-white p-12 rounded-2xl shadow-sm max-w-md w-full">
                   <div className="w-20 h-20 bg-gray-50 rounded-2xl flex items-center justify-center mx-auto mb-6">
                     {getFileIcon(previewDoc.file_type)}
                   </div>
@@ -1121,38 +1123,24 @@ export const DocumentsView: React.FC<{ onBack?: () => void }> = ({ onBack }) => 
                   </button>
                 </div>
               )}
+              </div>
             </div>
           </div>
         </div>
       )}
       {/* Confirmation Modal */}
-      {confirmDelete && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[100] p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
-            <div className="p-6">
-              <h3 className="text-lg font-bold text-gray-900 mb-2">Confirmar Exclusão</h3>
-              <p className="text-sm text-gray-600">
-                Tem certeza que deseja excluir {confirmDelete.type === 'file' ? 'o arquivo' : 'a pasta'} <strong>"{confirmDelete.name}"</strong>?
-                {confirmDelete.type === 'folder' && " Todo o seu conteúdo será removido."} Esta ação não pode ser desfeita.
-              </p>
-            </div>
-            <div className="px-6 py-4 bg-gray-50 flex items-center justify-end gap-3">
-              <button
-                onClick={() => setConfirmDelete(null)}
-                className="px-4 py-2 text-gray-600 hover:bg-gray-200 rounded-lg transition-colors font-medium text-sm"
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={confirmDeleteAction}
-                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium text-sm shadow-sm"
-              >
-                Excluir
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <ConfirmModal
+        isOpen={!!confirmDelete}
+        title="Confirmar Exclusão"
+        message={
+          <>
+            Tem certeza que deseja excluir {confirmDelete?.type === 'file' ? 'o arquivo' : 'a pasta'} <strong>"{confirmDelete?.name}"</strong>?
+            {confirmDelete?.type === 'folder' && " Todo o seu conteúdo será removido."} Esta ação não pode ser desfeita.
+          </>
+        }
+        onConfirm={confirmDeleteAction}
+        onCancel={() => setConfirmDelete(null)}
+      />
     </div>
     </DndContext>
   );

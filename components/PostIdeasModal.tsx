@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase';
 import { PostIdea } from '../types';
 import { X, Plus, Trash2, Edit2, Loader2, Calendar, LayoutTemplate, Lightbulb } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { ConfirmModal } from './ConfirmModal';
 
 interface PostIdeasModalProps {
   clientId: string;
@@ -21,6 +22,8 @@ export const PostIdeasModal: React.FC<PostIdeasModalProps> = ({ clientId, monthN
   const [theme, setTheme] = useState('');
   const [date, setDate] = useState('');
   const [format, setFormat] = useState('');
+
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
   useEffect(() => {
     fetchIdeas();
@@ -106,8 +109,6 @@ export const PostIdeasModal: React.FC<PostIdeasModalProps> = ({ clientId, monthN
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Tem certeza que deseja excluir esta ideia?')) return;
-    
     try {
       const { error } = await supabase
         .from('post_ideas')
@@ -119,6 +120,8 @@ export const PostIdeasModal: React.FC<PostIdeasModalProps> = ({ clientId, monthN
     } catch (err) {
       console.error('Erro ao excluir ideia:', err);
       alert('Erro ao excluir ideia.');
+    } finally {
+      setConfirmDeleteId(null);
     }
   };
 
@@ -272,7 +275,7 @@ export const PostIdeasModal: React.FC<PostIdeasModalProps> = ({ clientId, monthN
                             <Edit2 size={14} />
                           </button>
                           <button
-                            onClick={() => handleDelete(idea.id)}
+                            onClick={() => setConfirmDeleteId(idea.id)}
                             className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
                             title="Excluir"
                           >
@@ -288,6 +291,14 @@ export const PostIdeasModal: React.FC<PostIdeasModalProps> = ({ clientId, monthN
           )}
         </div>
       </motion.div>
+
+      <ConfirmModal
+        isOpen={!!confirmDeleteId}
+        title="Excluir Ideia"
+        message="Tem certeza que deseja excluir esta ideia?"
+        onConfirm={() => confirmDeleteId && handleDelete(confirmDeleteId)}
+        onCancel={() => setConfirmDeleteId(null)}
+      />
     </div>
   );
 };

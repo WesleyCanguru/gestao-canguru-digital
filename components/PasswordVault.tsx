@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { usePasswordVault, Credential } from '../hooks/usePasswordVault';
 import { Eye, EyeOff, Copy, Edit, Trash2, Lock, Plus, ExternalLink, AlertCircle, Check } from 'lucide-react';
+import { ConfirmModal } from './ConfirmModal';
 
 interface PasswordVaultProps {
   clientId: string;
@@ -38,6 +39,7 @@ export const PasswordVault: React.FC<PasswordVaultProps> = ({ clientId, userRole
   const [saving, setSaving] = useState(false);
   const [visiblePasswords, setVisiblePasswords] = useState<Record<string, boolean>>({});
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
   const canEdit = userRole === 'admin' || userRole === 'approver';
 
@@ -104,13 +106,13 @@ export const PasswordVault: React.FC<PasswordVaultProps> = ({ clientId, userRole
   };
 
   const handleDelete = async (id: string) => {
-    if (window.confirm('Tem certeza que deseja excluir esta credencial?')) {
-      try {
-        await deleteCredential(id);
-      } catch (err) {
-        console.error('Failed to delete credential', err);
-        alert('Erro ao excluir credencial.');
-      }
+    try {
+      await deleteCredential(id);
+    } catch (err) {
+      console.error('Failed to delete credential', err);
+      alert('Erro ao excluir credencial.');
+    } finally {
+      setConfirmDeleteId(null);
     }
   };
 
@@ -200,7 +202,7 @@ export const PasswordVault: React.FC<PasswordVaultProps> = ({ clientId, userRole
                         <button onClick={() => handleOpenModal(cred)} className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg">
                           <Edit size={14} />
                         </button>
-                        <button onClick={() => handleDelete(cred.id)} className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg">
+                        <button onClick={() => setConfirmDeleteId(cred.id)} className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg">
                           <Trash2 size={14} />
                         </button>
                       </div>
@@ -370,6 +372,14 @@ export const PasswordVault: React.FC<PasswordVaultProps> = ({ clientId, userRole
           </div>
         </div>
       )}
+
+      <ConfirmModal
+        isOpen={!!confirmDeleteId}
+        title="Excluir Credencial"
+        message="Tem certeza que deseja excluir esta credencial?"
+        onConfirm={() => confirmDeleteId && handleDelete(confirmDeleteId)}
+        onCancel={() => setConfirmDeleteId(null)}
+      />
     </div>
   );
 };
