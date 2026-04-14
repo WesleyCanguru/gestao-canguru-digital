@@ -141,12 +141,15 @@ export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, onClo
             .maybeSingle();
 
          // Load COUNTERPART post data (se abri o Meta, tenta achar o Linkedin do mesmo dia)
-         // A chave counterpart tem a mesma estrutura, só muda a plataforma
-         // Nota: Isso assume chave padrão DD-MM-YYYY-platform. Se tiver sufixo numérico (posts extras), não busca automático.
          const currentPlat = dateKey.includes('linkedin') ? 'linkedin' : 'meta';
          const otherPlat = currentPlat === 'linkedin' ? 'meta' : 'linkedin';
          const baseKey = `${currentD}-${currentM}-${currentY}`;
-         const otherKey = `${baseKey}-${otherPlat}`;
+         
+         // Extract suffix if present (e.g. timestamp or client_id)
+         const parts = dateKey.split('-');
+         const suffix = parts.length > 4 ? parts.slice(4).join('-') : '';
+         
+         const otherKey = suffix ? `${baseKey}-${otherPlat}-${suffix}` : `${baseKey}-${otherPlat}`;
 
          const { data: otherPostData } = await supabase
             .from('posts')
@@ -364,6 +367,19 @@ export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, onClo
                       last_updated: new Date().toISOString()
                   }, { onConflict: 'date_key' });
               }
+          } else {
+              // A data NÃO mudou, mas precisamos verificar se alguma plataforma foi desmarcada
+              for (const oldKey of originalKeys) {
+                  const plat = oldKey.split('-')[3]; // meta ou linkedin
+                  if (!selectedPlatforms.includes(plat as any)) {
+                      await supabase.from('posts').upsert({
+                          date_key: oldKey,
+                          client_id: activeClient?.id,
+                          status: 'deleted',
+                          last_updated: new Date().toISOString()
+                      }, { onConflict: 'date_key' });
+                  }
+              }
           }
       }
 
@@ -387,6 +403,15 @@ export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, onClo
               
               if (existingKeyForPlat) {
                   targetKey = existingKeyForPlat;
+              } else if (originalKeys.length > 0) {
+                  // Se estamos adicionando uma nova plataforma a um post existente,
+                  // precisamos usar o mesmo sufixo das chaves originais para manter o vínculo.
+                  const firstOriginalKey = originalKeys[0];
+                  const parts = firstOriginalKey.split('-');
+                  const suffix = parts.length > 4 ? parts.slice(4).join('-') : '';
+                  if (suffix) {
+                      targetKey = `${targetKey}-${suffix}`;
+                  }
               }
           }
 

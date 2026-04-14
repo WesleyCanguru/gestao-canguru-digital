@@ -292,15 +292,25 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack }) =
           setConfirmAction(prev => ({ ...prev, isOpen: false }));
           setLoadingPosts(true);
           try {
-              const timestamp = Date.now();
-              for (const oldKey of postGroup.keys) {
+              const uniqueKeys: string[] = Array.from(new Set(postGroup.keys));
+              const suffixMap = new Map<string, string>();
+              const baseTimestamp = Date.now();
+              let suffixCounter = 0;
+              
+              for (const oldKey of uniqueKeys) {
                   const parts = oldKey.split('-');
-                  // Format: DD-MM-YYYY-platform[-timestamp]
-                  // platform is at index 3 usually, but let's be safe
-                  // If oldKey is 20-02-2026-meta, parts[3] is meta.
+                  // Format: DD-MM-YYYY-platform[-suffix]
                   const platform = parts[3]; 
+                  const oldSuffix = parts.length > 4 ? parts.slice(4).join('-') : '';
                   
-                  const newKey = `${d}-${m}-${y}-${platform}-${timestamp}`;
+                  let newSuffix = suffixMap.get(oldSuffix);
+                  if (!newSuffix) {
+                      newSuffix = `${baseTimestamp + suffixCounter}`;
+                      suffixMap.set(oldSuffix, newSuffix);
+                      suffixCounter++;
+                  }
+                  
+                  const newKey = `${d}-${m}-${y}-${platform}-${newSuffix}`;
 
                   const dbPost = dbPosts[oldKey];
                   
