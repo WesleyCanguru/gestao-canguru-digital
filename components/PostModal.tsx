@@ -395,7 +395,7 @@ export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, group
           } else {
               // A data NÃO mudou, mas precisamos verificar se alguma plataforma foi desmarcada
               for (const oldKey of originalKeys) {
-                  const plat = oldKey.split('-')[3]; // meta ou linkedin
+                  const plat = oldKey.includes('linkedin') ? 'linkedin' : 'meta';
                   if (!selectedPlatforms.includes(plat as any)) {
                       const { error: delErr } = await supabase.from('posts').upsert({
                           date_key: oldKey,
@@ -531,7 +531,7 @@ export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, group
   const changeStatus = async (newStatus: PostStatus) => {
       const keysToUpdate = originalKeys.length > 0 ? originalKeys : [dateKey];
       for (const k of keysToUpdate) {
-          const plat = k.split('-').pop();
+          const plat = k.includes('linkedin') ? 'linkedin' : 'meta';
           let finalCaption = captionMeta;
           if (useDifferentCaptions) {
               finalCaption = plat === 'meta' ? captionMeta : captionLinkedin;
