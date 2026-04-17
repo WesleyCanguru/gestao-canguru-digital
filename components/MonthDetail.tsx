@@ -1,9 +1,10 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { MonthlyDetailedPlan, DailyContent, PostStatus, PostData } from '../types';
-import { Instagram, Linkedin, CalendarDays, Target, BarChart3, Repeat, FileCheck, CheckCircle2, ArrowLeft, MessageCircle, List, Calendar as CalendarIcon, Plus, Loader2, Check, Edit2, Save, X, Trash, Sparkles } from 'lucide-react';
+import { Instagram, Linkedin, CalendarDays, Target, BarChart3, Repeat, FileCheck, CheckCircle2, ArrowLeft, MessageCircle, List, Calendar as CalendarIcon, Plus, Loader2, Check, Edit2, Save, X, Trash, Sparkles, FileText } from 'lucide-react';
 import { PostModal } from './PostModal';
 import { PostIdeasModal } from './PostIdeasModal';
+import { ImportPdfModal } from './ImportPdfModal';
 import { useAuth, supabase } from '../lib/supabase';
 import { StatusLegend } from './StatusLegend';
 import { ConfirmModal } from './ConfirmModal';
@@ -27,6 +28,7 @@ interface GroupedPost {
     theme: string;
     type: string;
     bullets: string[];
+    scheduled_time?: string | null;
 }
 
 export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack }) => {
@@ -64,6 +66,7 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack }) =
   
   // Post Ideas State
   const [showPostIdeas, setShowPostIdeas] = useState(false);
+  const [showImportPdf, setShowImportPdf] = useState(false);
 
   // Selection State
   const [selectedPosts, setSelectedPosts] = useState<Set<string>>(new Set());
@@ -207,7 +210,8 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack }) =
             status: dbPost?.status || 'draft',
             theme: currentTheme,
             type: dbPost?.type || post.content.type,
-            bullets: dbPost?.bullets || post.content.bullets || []
+            bullets: dbPost?.bullets || post.content.bullets || [],
+            scheduled_time: dbPost?.scheduled_time || null
         };
         
         usedIndices.add(i);
@@ -323,6 +327,7 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack }) =
                       bullets: dbPost?.bullets || postGroup.bullets,
                       image_url: dbPost?.image_url || postGroup.content.initialImageUrl || null,
                       caption: dbPost?.caption || null,
+                      scheduled_time: dbPost?.scheduled_time || postGroup.scheduled_time || null,
                       last_updated: new Date().toISOString()
                   };
 
@@ -416,6 +421,7 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack }) =
                     date_key: key,
                     client_id: activeClient?.id,
                     status: 'published',
+                    scheduled_time: dbPost?.scheduled_time || group.scheduled_time || null,
                     last_updated: new Date().toISOString(),
                  };
 
@@ -669,6 +675,12 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack }) =
                   <p className="text-[11px] font-bold text-brand-dark leading-tight line-clamp-2 mb-2" title={group.theme}>
                     {group.theme}
                   </p>
+                  {group.scheduled_time && (
+                      <div className="flex items-center gap-1.5 text-[9px] text-gray-500 font-medium mb-2">
+                          <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+                          {group.scheduled_time}
+                      </div>
+                  )}
                   <div className="flex items-center justify-between mt-2 h-6">
                       <span className="text-[7px] font-bold uppercase tracking-widest text-gray-500 border border-black/[0.05] px-1.5 py-0.5 rounded-md bg-white/50 backdrop-blur-sm">
                          {getStatusLabel(group.status)}
@@ -732,6 +744,22 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack }) =
             onUpdate={fetchMonthPosts}
             isNew={isCreatingNew} 
             defaultDate={newPostDefaultDate}
+          />
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {showImportPdf && (
+          <ImportPdfModal
+            monthIndex={monthIndex}
+            year={year}
+            isOpen={showImportPdf}
+            onClose={() => setShowImportPdf(false)}
+            onSuccess={(count) => {
+              setShowImportPdf(false);
+              fetchMonthPosts();
+              alert(`${count} publicações foram importadas com sucesso!`);
+            }}
           />
         )}
       </AnimatePresence>
@@ -813,7 +841,16 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack }) =
                 </h2>
               </div>
               
-              <div className="flex items-center gap-3">
+              <div className="flex flex-wrap items-center gap-3">
+                {userRole === 'admin' && (
+                  <motion.button 
+                    whileHover={{ scale: 1.05 }}
+                    onClick={() => setShowImportPdf(true)}
+                    className="flex items-center gap-3 px-6 py-3 bg-white/10 hover:bg-white/20 rounded-2xl text-[10px] font-bold uppercase tracking-[0.2em] transition-all backdrop-blur-md border border-white/10 shadow-xl"
+                  >
+                    <FileText size={14} /> Importar PDF
+                  </motion.button>
+                )}
                 <motion.button 
                   whileHover={{ scale: 1.05 }}
                   onClick={() => setShowPostIdeas(true)}

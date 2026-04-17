@@ -6,6 +6,7 @@ import { useAuth, supabase, parseImageUrl, stringifyImageUrl } from '../lib/supa
 import { X, Send, Image as ImageIcon, CheckCircle2, AlertTriangle, Save, UploadCloud, Trash2, Edit3, RefreshCw, Link, Check, Calendar, Instagram, Linkedin, ChevronDown, Layers, Copy, LayoutTemplate, Eye, FileText, XCircle } from 'lucide-react';
 import { InstagramView, LinkedInView } from './PlatformViews';
 import { ConfirmModal } from './ConfirmModal';
+import { CustomDatePicker, CustomTimePicker } from './CustomPickers';
 
 interface PostModalProps {
   dayContent: DailyContent;
@@ -93,6 +94,7 @@ export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, group
   
   // Date State
   const [postDate, setPostDate] = useState(''); // YYYY-MM-DD
+  const [postTime, setPostTime] = useState(''); // HH:MM
   
   // Manual Status Change
   const [manualStatus, setManualStatus] = useState<PostStatus>('draft');
@@ -210,6 +212,7 @@ export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, group
 
          setPost(primaryData as PostData);
          setManualStatus(primaryData.status);
+         setPostTime(primaryData.scheduled_time || '');
          
          const parsedUrl = parseImageUrl(primaryData.image_url || dayContent.initialImageUrl || '');
          setImageUrl(parsedUrl || '');
@@ -456,6 +459,7 @@ export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, group
             theme: editedTheme,
             type: editedType,
             bullets: editedBullets.split('\n').filter(l => l.trim() !== ''),
+            scheduled_time: postTime || null,
             last_updated: new Date().toISOString()
           };
 
@@ -546,6 +550,7 @@ export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, group
               theme: editedTheme || dayContent.theme,
               type: editedType || dayContent.type,
               bullets: editedBullets ? editedBullets.split('\n').filter(l => l.trim() !== '') : dayContent.bullets,
+              scheduled_time: postTime || null,
               last_updated: new Date().toISOString()
           }, { onConflict: 'date_key' });
       }
@@ -797,9 +802,15 @@ export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, group
                     <div className="bg-white p-5 rounded-2xl border border-black/[0.05] shadow-sm mb-5">
                         <h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-[0.2em] mb-4 flex items-center gap-2"><Calendar size={14} className="text-brand-dark" /> Agendamento</h3>
                         <div className="flex flex-col gap-5">
-                            <div>
-                                <label className="text-[9px] font-bold text-gray-400 uppercase tracking-widest block mb-2">Data da Publicação</label>
-                                <input type="date" value={postDate} onChange={e => setPostDate(e.target.value)} className="w-full text-xs font-bold p-3 border border-black/[0.08] rounded-xl outline-none focus:ring-2 focus:ring-brand-dark/10 focus:border-brand-dark transition-all" />
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="z-20">
+                                    <label className="text-[9px] font-bold text-gray-400 uppercase tracking-widest block mb-2">Data da Publicação</label>
+                                    <CustomDatePicker value={postDate} onChange={setPostDate} />
+                                </div>
+                                <div className="z-10">
+                                    <label className="text-[9px] font-bold text-gray-400 uppercase tracking-widest block mb-2">Horário</label>
+                                    <CustomTimePicker value={postTime} onChange={setPostTime} />
+                                </div>
                             </div>
                             <div>
                                 <label className="text-[9px] font-bold text-gray-400 uppercase tracking-widest block mb-2">Plataformas</label>
@@ -940,7 +951,7 @@ export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, group
                  >
                     {/* Post Details View Mode */}
                     <div className="p-6 border-b border-black/[0.03] space-y-6 bg-white/30">
-                        <div className="grid grid-cols-2 gap-4">
+                        <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
                             <div className="bg-white p-4 rounded-2xl border border-black/[0.03] shadow-sm">
                                 <span className="text-[8px] font-bold text-gray-400 uppercase tracking-widest block mb-1">Tema</span>
                                 <p className="text-[11px] font-bold text-brand-dark leading-tight">{editedTheme}</p>
@@ -948,6 +959,10 @@ export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, group
                             <div className="bg-white p-4 rounded-2xl border border-black/[0.03] shadow-sm">
                                 <span className="text-[8px] font-bold text-gray-400 uppercase tracking-widest block mb-1">Formato</span>
                                 <p className="text-[11px] font-bold text-brand-dark leading-tight">{editedType}</p>
+                            </div>
+                            <div className="bg-white p-4 rounded-2xl border border-black/[0.03] shadow-sm col-span-2 lg:col-span-1">
+                                <span className="text-[8px] font-bold text-gray-400 uppercase tracking-widest block mb-1">Horário Previsto</span>
+                                <p className="text-[11px] font-bold text-brand-dark leading-tight">{postTime || 'Não definido'}</p>
                             </div>
                         </div>
                         {editedBullets && (

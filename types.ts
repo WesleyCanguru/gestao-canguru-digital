@@ -137,6 +137,7 @@ export interface PostData {
   caption: string | null;
   status: PostStatus;
   last_updated: string;
+  scheduled_time?: string | null;
   
   // Overrides do Planejamento (Editáveis pelo Admin)
   theme?: string;
