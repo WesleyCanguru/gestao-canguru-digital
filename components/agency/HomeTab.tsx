@@ -185,6 +185,28 @@ export const HomeTab: React.FC<{ onNavigateToClients: (client: Client) => void }
 
   useEffect(() => {
     fetchData();
+
+    const channel = supabase.channel('home_tab_changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'agency_tasks' }, () => {
+        fetchData();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'agency_crms' }, () => {
+        fetchData();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'agency_leads' }, () => {
+        fetchData();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'agency_billing' }, () => {
+        fetchData();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'agency_expenses' }, () => {
+        fetchData();
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   const handleAddDashboard = () => {

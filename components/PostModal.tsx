@@ -466,14 +466,25 @@ export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, group
           const { error } = await supabase.from('posts').upsert(payload, { onConflict: 'date_key' });
           if (error) throw error;
 
-          // --- MIGRAÇÃO DE COMENTÁRIOS ---
+          // --- MIGRAÇÃO DE COMENTÁRIOS E EXCLUSÃO DO ANTIGO ---
           // Se a data mudou, precisamos mover os comentários da chave antiga para a nova
           if (dateChanged && !isNew) {
-              const oldKeyForPlat = originalKeys.find(k => k.includes(plat));
-              if (oldKeyForPlat) {
+              const oldKeysForPlat = originalKeys.filter(k => k.includes(plat));
+              for (const oldKeyForPlat of oldKeysForPlat) {
+                  // Mover comentários
                   await supabase.from('comments')
                       .update({ post_id: targetKey })
                       .eq('post_id', oldKeyForPlat);
+                      
+                  // Excluir post antigo da visualização
+                  await supabase.from('posts').upsert({
+                      date_key: oldKeyForPlat,
+                      client_id: activeClient?.id,
+                      status: 'deleted',
+                      theme: editedTheme || dayContent.theme,
+                      type: editedType || dayContent.type,
+                      last_updated: new Date().toISOString()
+                  }, { onConflict: 'date_key' });
               }
           }
       }
