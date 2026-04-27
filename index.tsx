@@ -1,7 +1,6 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
-import { AgencyProvider } from './contexts/AgencyContext';
 
 const rootElement = document.getElementById('root');
 if (!rootElement) {
@@ -11,8 +10,6 @@ if (!rootElement) {
 const root = ReactDOM.createRoot(rootElement);
 root.render(
   <React.StrictMode>
-    <AgencyProvider>
-      <App />
-    </AgencyProvider>
+    <App />
   </React.StrictMode>
 );

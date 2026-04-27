@@ -18,7 +18,6 @@ import WebsiteView from './components/WebsiteView';
 import { useEditorialData, MONTH_NAMES } from './hooks/useEditorialData';
 import { Map, ChevronRight, LogOut, Home, Building2, ClipboardList, LayoutDashboard, FileText, FolderOpen, TrendingUp, Globe, Shield } from 'lucide-react';
 import { AuthProvider, useAuth } from './lib/supabase';
-import { useAgency } from './contexts/AgencyContext';
 import { motion, AnimatePresence } from 'motion/react';
 
 import { PasswordVault } from './components/PasswordVault';
@@ -44,7 +43,6 @@ const MainApp: React.FC<MainAppProps> = ({ initialView, onExitAgencyDashboard, o
   const [selectedMonth, setSelectedMonth] = useState<string | null>(null);
   const { userRole, logout, activeClient, setActiveClient, refreshActiveClient } = useAuth();
   const { monthlyPlans } = useEditorialData();
-  const { agency } = useAgency();
 
   // Redirecionar cliente para briefings estratégicos se onboarding não estiver completo
   useEffect(() => {
@@ -69,9 +67,9 @@ const MainApp: React.FC<MainAppProps> = ({ initialView, onExitAgencyDashboard, o
 
   const getRoleLabel = () => {
     switch(userRole) {
-      case 'admin': return 'Diretoria';
-      case 'approver': return activeClient?.responsible || 'Diretoria';
-      case 'team': return `Equipe ${agency?.name || ''}`;
+      case 'admin': return 'Wesley (Diretor)';
+      case 'approver': return activeClient?.responsible || 'Wesley (Diretor)';
+      case 'team': return 'Equipe Canguru';
       default: return '';
     }
   };
@@ -144,10 +142,10 @@ const MainApp: React.FC<MainAppProps> = ({ initialView, onExitAgencyDashboard, o
                         ? 'bg-brand-dark text-white shadow-xl shadow-brand-dark/20'
                         : 'bg-gray-50/50 text-gray-500 hover:text-brand-dark hover:bg-gray-100 border border-black/[0.02]'
                     }`}
-                    title={`Painel ${agency?.name || ''}`}
+                    title="Painel Canguru"
                   >
                     <Shield size={14} />
-                    <span className="hidden sm:inline">Painel Agência</span>
+                    <span className="hidden sm:inline">Painel Canguru</span>
                   </button>
                 )}
                 {userRole === 'admin' && (
@@ -373,7 +371,7 @@ const MainApp: React.FC<MainAppProps> = ({ initialView, onExitAgencyDashboard, o
           </div>
           <div className="flex flex-col items-center md:items-end gap-2">
             <p className="text-[10px] text-gray-400 uppercase tracking-[0.4em] font-bold text-center md:text-right">
-              Painel do Cliente • {agency?.name || 'Agência'} {dayjs().year()}
+              Painel do Cliente • Canguru Digital 2026
             </p>
             <p className="text-[9px] text-gray-300 uppercase tracking-widest font-medium text-center md:text-right">
               Planejamento Estratégico & Editorial • Confidencial
@@ -439,8 +437,6 @@ const AppContent: React.FC = () => {
   />;
 };
 
-import { AgencyProvider } from './contexts/AgencyContext';
-
 const App: React.FC = () => {
   const [isPublicMode, setIsPublicMode] = useState(false);
 
@@ -456,11 +452,9 @@ const App: React.FC = () => {
   }
 
   return (
-    <AgencyProvider>
-      <AuthProvider>
-        <AppContent />
-      </AuthProvider>
-    </AgencyProvider>
+    <AuthProvider>
+      <AppContent />
+    </AuthProvider>
   );
 };
 

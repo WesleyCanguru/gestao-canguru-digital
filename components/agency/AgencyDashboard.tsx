@@ -19,23 +19,19 @@ import { HomeTab } from './HomeTab';
 import { FinanceiroTab } from './FinanceiroTab';
 import { AgencyCRMTab } from './AgencyCRMTab';
 import { AgencyTasksTab } from './AgencyTasksTab';
-import { AgencySettingsTab } from './AgencySettingsTab';
 import { Logo } from '../Logo';
 
 import { useAuth } from '../../lib/supabase';
-
-import { useAgency } from '../../contexts/AgencyContext';
 
 interface AgencyDashboardProps {
   onBack: () => void;
   onSelectClient: (client: any) => void;
 }
 
-type Tab = 'home' | 'tasks' | 'financeiro' | 'prospeccao' | 'settings';
+type Tab = 'home' | 'tasks' | 'financeiro' | 'prospeccao';
 
 export const AgencyDashboard: React.FC<AgencyDashboardProps> = ({ onBack, onSelectClient }) => {
   const { userRole } = useAuth();
-  const { agency } = useAgency();
   const [activeTab, setActiveTab] = useState<Tab>('home');
 
   if (userRole !== 'admin') {
@@ -47,7 +43,6 @@ export const AgencyDashboard: React.FC<AgencyDashboardProps> = ({ onBack, onSele
     { id: 'tasks', label: 'Processos', icon: ClipboardList },
     { id: 'financeiro', label: 'Financeiro', icon: DollarSign },
     { id: 'prospeccao', label: 'CRM', icon: Search },
-    { id: 'settings', label: 'Configurações', icon: Shield },
   ];
 
   return (
@@ -69,7 +64,7 @@ export const AgencyDashboard: React.FC<AgencyDashboardProps> = ({ onBack, onSele
               </button>
               <div className="flex flex-col">
                 <span className="text-[10px] uppercase tracking-[0.3em] text-gray-400 font-bold">Painel Interno</span>
-                <span className="text-sm font-bold text-brand-dark uppercase tracking-widest">{agency?.name || 'Agência'}</span>
+                <span className="text-sm font-bold text-brand-dark uppercase tracking-widest">Canguru Digital</span>
               </div>
             </div>
 
@@ -113,7 +108,6 @@ export const AgencyDashboard: React.FC<AgencyDashboardProps> = ({ onBack, onSele
               {activeTab === 'home' && <HomeTab onNavigateToClients={(client) => onSelectClient(client)} />}
               {activeTab === 'tasks' && <AgencyTasksTab />}
               {activeTab === 'financeiro' && <FinanceiroTab />}
-              {activeTab === 'settings' && <AgencySettingsTab />}
               {activeTab === 'prospeccao' && (
                 <div className="h-[calc(100vh-12rem)] bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden">
                   <AgencyCRMTab />
