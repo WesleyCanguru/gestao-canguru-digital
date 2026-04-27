@@ -57,9 +57,9 @@ export const ImportPdfModal: React.FC<ImportPdfModalProps> = ({ monthIndex, year
         reader.onerror = error => reject(error);
       });
 
-      const apiKey = process.env.GEMINI_API_KEY;
-      if (!apiKey) {
-        throw new Error('Chave da API do Gemini não configurada.');
+      const apiKey = process.env.GEMINI_API_KEY || import.meta.env.VITE_GEMINI_API_KEY;
+      if (!apiKey || apiKey === 'undefined') {
+        throw new Error('Chave da API do Gemini não configurada ou inválida.');
       }
 
       const ai = new GoogleGenAI({ apiKey });
