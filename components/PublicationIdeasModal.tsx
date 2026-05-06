@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { X, Plus, Calendar, Type, Trash2, Edit2, Save, Loader2, Sparkles, MessageSquare } from 'lucide-react';
 import { supabase, useAuth } from '../lib/supabase';
-import { PublicationIdea } from '../types';
+import { PostIdea } from '../types';
 import { ConfirmModal } from './ConfirmModal';
 
 interface PublicationIdeasModalProps {
@@ -12,7 +12,7 @@ interface PublicationIdeasModalProps {
 
 export const PublicationIdeasModal: React.FC<PublicationIdeasModalProps> = ({ onClose }) => {
   const { userRole, activeClient } = useAuth();
-  const [ideas, setIdeas] = useState<PublicationIdea[]>([]);
+  const [ideas, setIdeas] = useState<PostIdea[]>([]);
   const [loading, setLoading] = useState(true);
   const [isAdding, setIsAdding] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -32,13 +32,13 @@ export const PublicationIdeasModal: React.FC<PublicationIdeasModalProps> = ({ on
     if (!activeClient?.id) return;
     setLoading(true);
     const { data, error } = await supabase
-      .from('publication_ideas')
+      .from('post_ideas')
       .select('*')
       .eq('client_id', activeClient.id)
       .order('created_at', { ascending: false });
 
     if (!error && data) {
-      setIdeas(data as PublicationIdea[]);
+      setIdeas(data as PostIdea[]);
     }
     setLoading(false);
   };
@@ -50,16 +50,14 @@ export const PublicationIdeasModal: React.FC<PublicationIdeasModalProps> = ({ on
     const payload: any = {
       client_id: activeClient.id,
       theme,
-      suggested_date: date || null,
+      date: date || null,
       format: format || null,
-      created_by_role: userRole,
-      created_by_name: userRole === 'admin' ? 'Canguru' : (activeClient?.responsible || 'Wesley'),
-      updated_at: new Date().toISOString()
+      created_at: new Date().toISOString()
     };
 
     if (editingId) {
       const { error } = await supabase
-        .from('publication_ideas')
+        .from('post_ideas')
         .update(payload)
         .eq('id', editingId);
       if (!error) {
@@ -69,8 +67,8 @@ export const PublicationIdeasModal: React.FC<PublicationIdeasModalProps> = ({ on
       }
     } else {
       const { error } = await supabase
-        .from('publication_ideas')
-        .insert({ ...payload, created_at: new Date().toISOString() });
+        .from('post_ideas')
+        .insert([payload]);
       if (!error) {
         setIsAdding(false);
         fetchIdeas();
@@ -85,17 +83,17 @@ export const PublicationIdeasModal: React.FC<PublicationIdeasModalProps> = ({ on
 
   const handleDelete = async (id: string) => {
     try {
-      const { error } = await supabase.from('publication_ideas').delete().eq('id', id);
+      const { error } = await supabase.from('post_ideas').delete().eq('id', id);
       if (!error) fetchIdeas();
     } finally {
       setConfirmDeleteId(null);
     }
   };
 
-  const startEdit = (idea: PublicationIdea) => {
+  const startEdit = (idea: PostIdea) => {
     setEditingId(idea.id);
     setTheme(idea.theme);
-    setDate(idea.suggested_date || '');
+    setDate(idea.date || '');
     setFormat(idea.format || '');
     setIsAdding(true);
   };
@@ -232,9 +230,9 @@ export const PublicationIdeasModal: React.FC<PublicationIdeasModalProps> = ({ on
                   </div>
 
                   <div className="flex flex-wrap gap-3">
-                    {idea.suggested_date && (
+                    {idea.date && (
                       <div className="flex items-center gap-2 px-3 py-1.5 bg-gray-50 rounded-lg text-[10px] font-bold text-gray-500 border border-black/[0.02]">
-                        <Calendar size={12} /> {new Date(idea.suggested_date).toLocaleDateString('pt-BR')}
+                        <Calendar size={12} /> {new Date(idea.date).toLocaleDateString('pt-BR')}
                       </div>
                     )}
                     {idea.format && (

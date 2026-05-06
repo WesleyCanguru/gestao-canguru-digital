@@ -31,8 +31,10 @@ import {
   BarChart3,
   ArrowUpRight,
   ArrowDownRight,
-  FolderOpen
+  FolderOpen,
+  Trash2
 } from 'lucide-react';
+import { ConfirmModal } from './ConfirmModal';
 import { 
   DndContext, 
   closestCenter, 
@@ -103,6 +105,8 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
   const [showForm, setShowForm] = useState(false);
   const [editingClientId, setEditingClientId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [deletingClient, setDeletingClient] = useState<Client | null>(null);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -394,6 +398,30 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
     setEditingClientId(client.id);
     setShowForm(true);
     window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleDelete = async () => {
+    if (!deletingClient) return;
+
+    try {
+      const { error } = await supabase
+        .from('clients')
+        .delete()
+        .eq('id', deletingClient.id);
+
+      if (error) throw error;
+
+      setSuccessMsg(`Cliente "${deletingClient.name}" excluído com sucesso!`);
+      setErrorMsg('');
+      fetchClients();
+    } catch (err: any) {
+      console.error('Erro ao excluir cliente:', err);
+      setErrorMsg('Não foi possível excluir o cliente. Verifique se existem dependências ou tente novamente.');
+    } finally {
+      setIsDeleteModalOpen(false);
+      setDeletingClient(null);
+      setTimeout(() => setSuccessMsg(''), 5000);
+    }
   };
 
   const autoInitials = (name: string) => {
@@ -938,6 +966,17 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
                     <Edit2 size={18} />
                     <span className="text-[9px] font-bold uppercase tracking-widest">Editar</span>
                   </button>
+                  <button 
+                    onClick={() => {
+                      setDeletingClient(client);
+                      setIsDeleteModalOpen(true);
+                    }}
+                    className="flex flex-col items-center justify-center gap-1 p-2 text-gray-400 hover:text-red-500 transition-colors"
+                    title="Excluir Cliente"
+                  >
+                    <Trash2 size={18} />
+                    <span className="text-[9px] font-bold uppercase tracking-widest">Excluir</span>
+                  </button>
                   <span className={`text-[10px] px-3 py-1.5 rounded-xl font-bold uppercase tracking-widest h-fit ${client.is_active ? 'bg-green-50 text-green-600 border border-green-100' : 'bg-gray-50 text-gray-500 border border-gray-100'}`}>
                     {client.is_active ? 'Ativo' : 'Inativo'}
                   </span>
@@ -947,6 +986,26 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
           </div>
         )}
       </motion.div>
+
+      <ConfirmModal
+        isOpen={isDeleteModalOpen}
+        title="Excluir Cliente"
+        message={
+          <>
+            Tem certeza que deseja excluir o cliente <strong>{deletingClient?.name}</strong>?
+            <br /><br />
+            Esta ação é irreversível e excluirá todos os dados vinculados a este cliente (publicações, leads, faturamentos, etc).
+          </>
+        }
+        confirmText="Excluir Permanentemente"
+        cancelText="Cancelar"
+        onConfirm={handleDelete}
+        onCancel={() => {
+          setIsDeleteModalOpen(false);
+          setDeletingClient(null);
+        }}
+        confirmButtonColor="red"
+      />
     </div>
   );
 };
