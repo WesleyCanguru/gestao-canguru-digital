@@ -32,7 +32,8 @@ import {
   ArrowUpRight,
   ArrowDownRight,
   FolderOpen,
-  Trash2
+  Trash2,
+  LayoutDashboard
 } from 'lucide-react';
 import { ConfirmModal } from './ConfirmModal';
 import { 
@@ -107,6 +108,8 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
   const [saving, setSaving] = useState(false);
   const [deletingClient, setDeletingClient] = useState<Client | null>(null);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [clientContract, setClientContract] = useState<any | null>(null);
+  const [loadingContract, setLoadingContract] = useState(false);
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -161,6 +164,7 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
     base_value: 0,
     due_day: 10,
     is_lead_tracking_enabled: false,
+    features_settings: {} as Record<string, boolean>,
   });
   const [uploading, setUploading] = useState(false);
 
@@ -201,6 +205,7 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
         logo_url: form.logo_url || null,
         base_value: form.base_value,
         due_day: form.due_day,
+        features_settings: form.features_settings,
       };
 
       let clientData;
@@ -355,20 +360,33 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
       base_value: 0,
       due_day: 10,
       is_lead_tracking_enabled: false,
+      features_settings: {},
       ...{ kanban_stages: ['Novo Lead', 'Em Contato', 'Reunião Agendada', 'Proposta Enviada', 'Fechado'], specialty_options: [] }
     });
     setEditingClientId(null);
+    setClientContract(null);
   };
 
   const handleEdit = async (client: Client) => {
     const linkedinHandle = client.social_networks?.find(s => s.startsWith('linkedin_handle:'))?.split(':')[1] || '';
     
-    // Fetch lead tracking config
-    const { data: leadConfig } = await supabase
-      .from('client_lead_configs')
-      .select('*')
-      .eq('client_id', client.id)
-      .single();
+    setLoadingContract(true);
+    let config = null;
+    let contract = null;
+    try {
+      const [configResponse, contractResponse] = await Promise.all([
+        supabase.from('client_lead_configs').select('*').eq('client_id', client.id).single(),
+        supabase.from('contract_forms').select('*').eq('client_id', client.id).maybeSingle()
+      ]);
+      config = configResponse.data;
+      contract = contractResponse.data;
+    } catch (e) {
+      console.error('Error fetching client details', e);
+    } finally {
+      setLoadingContract(false);
+    }
+    const leadConfig = config;
+    setClientContract(contract);
 
     setForm({
       name: client.name,
@@ -390,6 +408,7 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
       base_value: client.base_value || 0,
       due_day: client.due_day || 10,
       is_lead_tracking_enabled: leadConfig?.is_enabled || false,
+      features_settings: client.features_settings || {},
       ...{ 
         kanban_stages: leadConfig?.kanban_stages || ['Novo Lead', 'Em Contato', 'Reunião Agendada', 'Proposta Enviada', 'Fechado'], 
         specialty_options: leadConfig?.specialty_options || [] 
@@ -703,12 +722,32 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
                         checked={form.services.includes(service)}
                         onChange={(e) => {
                           if (e.target.checked) {
-                            setForm(f => ({ ...f, services: [...f.services, service] }));
+                            setForm(f => {
+                              const newFeatures = { ...(f.features_settings || {}) };
+                              if (service === 'Social Media') {
+                                newFeatures.reportei_organic = true;
+                                newFeatures.mapa = true;
+                                newFeatures.briefings = true;
+                              } else if (service === 'Tráfego Pago') {
+                                newFeatures.reportei_paid = true;
+                                newFeatures.briefings = true;
+                              } else if (service === 'Website') {
+                                newFeatures.website = true;
+                              } else if (service === 'Fotos com IA') {
+                                newFeatures.ai_photos = true;
+                              }
+
+                              return { 
+                                ...f, 
+                                services: [...f.services, service],
+                                features_settings: newFeatures
+                              };
+                            });
                           } else {
                             setForm(f => ({ ...f, services: f.services.filter(s => s !== service) }));
                           }
                         }}
-                        className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                        className="w-4 h-4 text-brand-dark border-gray-300 rounded focus:ring-brand-dark"
                       />
                       <span className="text-sm text-gray-700">{service}</span>
                     </label>
@@ -903,6 +942,167 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
                   <span className="block text-[10px] text-gray-400 uppercase tracking-wider">{form.segment || 'Segmento'}</span>
                 </div>
               </div>
+
+              {/* Contrato de Prestação de Serviços */}
+              {editingClientId && (
+                <div className="sm:col-span-2 mt-4 pt-6 border-t border-gray-100">
+                  <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-4 flex items-center gap-2">
+                    <FileText size={16} className="text-brand-dark" /> Contrato de Prestação de Serviços
+                  </h3>
+                  {loadingContract ? (
+                    <div className="flex items-center gap-2 text-sm text-gray-500">
+                      <span className="animate-spin w-4 h-4 border-2 border-gray-300 border-t-brand-dark rounded-full" /> Buscando contrato...
+                    </div>
+                  ) : !clientContract ? (
+                    <div className="bg-gray-50 border border-gray-200 rounded-xl p-6 flex flex-col items-center justify-center text-center">
+                      <FileText size={32} className="text-gray-300 mb-3" />
+                      <p className="text-gray-600 font-bold mb-1">Nenhum contrato gerado</p>
+                      <p className="text-xs text-gray-400 max-w-sm mb-4">Gere um link para que o cliente preencha seus dados para elaboração do contrato.</p>
+                      <button 
+                        type="button"
+                        onClick={async () => {
+                          setLoadingContract(true);
+                          const token = Array.from(crypto.getRandomValues(new Uint8Array(20))).map(b => b.toString(16).padStart(2, '0')).join('');
+                          const { data, error } = await supabase.from('contract_forms').insert({
+                            client_id: editingClientId,
+                            agency_id: 1, // Default tracking or dynamic
+                            form_token: token,
+                            status: 'pending'
+                          }).select().single();
+                          
+                          if (!error) {
+                            setClientContract(data);
+                          } else {
+                            alert('Erro ao gerar link do contrato.');
+                          }
+                          setLoadingContract(false);
+                        }}
+                        className="px-6 py-2 bg-brand-dark text-white rounded-lg text-xs font-bold uppercase tracking-wider hover:bg-opacity-90 flex items-center gap-2"
+                      >
+                        <Plus size={14} /> Gerar link de captação
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
+                      <div className="bg-gray-50 px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+                        <div>
+                          <p className="text-sm font-bold text-gray-800">Link de Captação</p>
+                          <a href={`/contrato/${clientContract.form_token}`} target="_blank" rel="noreferrer" className="text-xs text-blue-500 hover:underline">
+                            bolsa.cangurudigital.com.br/contrato/{clientContract.form_token}
+                          </a>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            navigator.clipboard.writeText(`https://bolsa.cangurudigital.com.br/contrato/${clientContract.form_token}`);
+                            alert('Link copiado!');
+                          }}
+                          className="text-xs font-bold bg-white text-gray-600 px-3 py-1.5 rounded-lg border border-gray-200 hover:bg-gray-50 flex items-center gap-1"
+                        >
+                          Copiar
+                        </button>
+                      </div>
+                      
+                      {clientContract.status === 'pending' ? (
+                        <div className="p-6 flex items-center gap-3 text-amber-600">
+                          <AlertCircle size={20} />
+                          <div>
+                            <span className="block text-sm font-bold">Aguardando preenchimento</span>
+                            <span className="block text-xs opacity-80">O cliente ainda não enviou os dados do contrato.</span>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="p-6">
+                            <div className="flex items-center gap-3 text-green-600 mb-6 border-b border-green-100 pb-4">
+                                <Check size={20} />
+                                <div>
+                                    <span className="block text-sm font-bold">Dados Recebidos</span>
+                                    <span className="block text-xs opacity-80">Preenchido em {new Date(clientContract.submitted_at).toLocaleString('pt-BR')}</span>
+                                </div>
+                            </div>
+                            
+                            <div className="grid grid-cols-2 gap-y-4 gap-x-8 text-sm">
+                                {Object.entries(clientContract.form_data || {}).map(([key, value]) => {
+                                    if (!value) return null;
+                                    if (key === 'cartao_cnpj_url') {
+                                        return (
+                                            <div key={key} className="col-span-2">
+                                                <span className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Cartão CNPJ</span>
+                                                <a href={value as string} target="_blank" rel="noreferrer" className="text-blue-500 hover:underline font-medium text-xs flex items-center gap-1">
+                                                    <FileText size={14} /> Abrir documento anexo
+                                                </a>
+                                            </div>
+                                        );
+                                    }
+                                    const labels: Record<string, string> = {
+                                        client_type: 'Tipo de Cadastro',
+                                        pf_name: 'Nome (PF)', pf_cpf: 'CPF', pf_rg: 'RG', pf_orgao_emissor: 'Órgão Emissor', pf_birth_date: 'Data Nasc.',
+                                        pf_marital_status: 'Estado Civil', pf_profession: 'Profissão', pf_whatsapp: 'WhatsApp', pf_email: 'E-mail',
+                                        pj_razao_social: 'Razão Social', pj_nome_fantasia: 'Nome Fantasia', pj_cnpj: 'CNPJ', pj_inscricao_estadual: 'Inscr. Estadual', pj_inscricao_municipal: 'Inscr. Municipal',
+                                        pj_rep_name: 'Nome do Rep.', pj_rep_cpf: 'CPF do Rep.', pj_rep_rg: 'RG do Rep.', pj_rep_birth_date: 'Data Nasc. Rep.', pj_rep_whatsapp: 'WhatsApp Rep.', pj_rep_email: 'E-mail Rep.',
+                                        address_street: 'Rua', address_number: 'Número', address_complement: 'Complemento', address_neighborhood: 'Bairro', address_city: 'Cidade', address_state: 'UF', address_zip: 'CEP'
+                                    };
+                                    let displayVal = value as string;
+                                    if (key.includes('birth_date') && String(value).includes('-')) {
+                                        displayVal = new Date(value as string).toLocaleDateString('pt-BR', { timeZone: 'UTC' }); // prevent off-by-one from UTC
+                                    }
+                                    return (
+                                        <div key={key} className="break-words">
+                                            <span className="block text-xs font-bold text-gray-500 uppercase tracking-wider truncate" title={labels[key] || key}>{labels[key] || key}</span>
+                                            <span className="font-medium text-gray-800">{displayVal}</span>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Controle de Exibição */}
+              {editingClientId && (
+                <div className="sm:col-span-2 mt-4 pt-6 border-t border-gray-100">
+                  <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-2 flex items-center gap-2">
+                    <LayoutDashboard size={16} className="text-brand-dark" /> Controle de Exibição (Página do Cliente)
+                  </h3>
+                  <p className="text-xs text-gray-500 mb-6">Escolha quais módulos o cliente pode visualizar no seu painel. Se desmarcado, ficará oculto (mesmo se o serviço estiver pago).</p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                    {[
+                      { id: 'reportei_paid', label: 'Reportei Pago' },
+                      { id: 'reportei_organic', label: 'Reportei Orgânico' },
+                      { id: 'drive', label: 'Arquivos/Drive' },
+                      { id: 'tutorials', label: 'Central de Tutoriais' },
+                      { id: 'briefings', label: 'Briefings Estratégicos' },
+                      { id: 'mapa', label: 'Mapa de Conteúdo' },
+                      { id: 'website', label: 'Aprovação Website' },
+                      { id: 'ai_photos', label: 'Fotos com IA' },
+                    ].map(feature => {
+                      const isChecked = form.features_settings?.[feature.id] ?? true;
+                      return (
+                        <label key={feature.id} className={`flex items-center gap-3 p-4 border rounded-xl cursor-pointer transition-all duration-200 ${isChecked ? 'border-brand-dark bg-brand-dark/5' : 'border-gray-200 bg-white hover:bg-gray-50'}`}>
+                          <input 
+                            type="checkbox"
+                            checked={isChecked}
+                            onChange={(e) => {
+                              setForm(f => ({
+                                ...f,
+                                features_settings: {
+                                  ...f.features_settings,
+                                  [feature.id]: e.target.checked
+                                }
+                              }));
+                            }}
+                            className="w-4 h-4 text-brand-dark rounded border-gray-300 focus:ring-brand-dark"
+                          />
+                          <span className={`text-sm font-bold ${isChecked ? 'text-brand-dark' : 'text-gray-500'}`}>{feature.label}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className="flex gap-4 mt-8">

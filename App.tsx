@@ -14,6 +14,7 @@ import { ClientHome } from './components/ClientHome';
 import { BriefingsView } from './components/BriefingsView';
 import { PaidTrafficView } from './components/PaidTrafficView';
 import WebsiteView from './components/WebsiteView';
+import { ContractFormScreen } from './components/ContractFormScreen';
 // import AdminView from './components/AdminView'; // Removed redundant view
 import { useEditorialData, MONTH_NAMES } from './hooks/useEditorialData';
 import { Map, ChevronRight, LogOut, Home, Building2, ClipboardList, LayoutDashboard, FileText, FolderOpen, TrendingUp, Globe, Shield } from 'lucide-react';
@@ -439,13 +440,23 @@ const AppContent: React.FC = () => {
 
 const App: React.FC = () => {
   const [isPublicMode, setIsPublicMode] = useState(false);
+  const [contractToken, setContractToken] = useState<string | null>(null);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     if (params.get('mode') === 'public' && params.get('id')) {
       setIsPublicMode(true);
     }
+    const pathname = window.location.pathname;
+    const contractMatch = pathname.match(/^\/contrato\/([^/]+)\/?$/);
+    if (contractMatch) {
+      setContractToken(contractMatch[1]);
+    }
   }, []);
+
+  if (contractToken) {
+    return <ContractFormScreen formToken={contractToken} />;
+  }
 
   if (isPublicMode) {
     return <PublicApprovalScreen />;

@@ -232,6 +232,7 @@ export interface Client {
   due_day?: number;
   created_at?: string;
   traffic_strategy_data?: TrafficStrategyData | null;
+  features_settings?: Record<string, boolean> | null;
 }
 
 export interface PostIdea {
@@ -331,6 +332,17 @@ export interface ClientLead {
 }
 
 export type QuickLinkType = 'google_ads' | 'meta_ads' | 'reportei' | 'instagram' | 'other';
+
+export interface ContractForm {
+  id: string;
+  client_id: string;
+  agency_id: number;
+  form_token: string;
+  status: 'pending' | 'submitted';
+  submitted_at: string | null;
+  form_data: any;
+  created_at: string;
+}
 
 export interface ClientQuickLink {
   id: string;

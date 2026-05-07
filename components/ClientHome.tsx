@@ -163,16 +163,19 @@ export const ClientHome: React.FC<ClientHomeProps> = ({
 
   const services = activeClient?.services || [];
   const hasService = (s: string) => services.length === 0 || services.includes(s);
+  const getFeature = (feature: string, defaultVal: boolean) => activeClient?.features_settings?.[feature] ?? defaultVal;
 
-  const showMapa = hasService('Social Media');
-  const showPaidTraffic = hasService('Tráfego Pago');
+  const showMapa = getFeature('mapa', hasService('Social Media'));
+  const showPaidTraffic = getFeature('reportei_paid', hasService('Tráfego Pago'));
   // Esconder o card de estratégia para Next Safety (ID: 75b00b27-61ee-4b23-8721-70748ccb0789)
   const showPaidTrafficCard = showPaidTraffic && activeClient?.id !== '75b00b27-61ee-4b23-8721-70748ccb0789';
-  const showAiPhotos = hasService('Fotos com IA');
-  const showOrganicTraffic = hasService('Social Media');
-  const showBriefings = hasService('Social Media') || hasService('Tráfego Pago');
-  const showWebsite = hasService('Website');
-  const showDocuments = true; // Sempre mostrar
+  const showAiPhotos = getFeature('ai_photos', hasService('Fotos com IA'));
+  const showOrganicTraffic = getFeature('reportei_organic', hasService('Social Media'));
+  const showBriefings = getFeature('briefings', hasService('Social Media') || hasService('Tráfego Pago'));
+  const showWebsite = getFeature('website', hasService('Website'));
+  const showDocuments = getFeature('drive', true);
+  const showLeadConfig = getFeature('tracking', true);
+  const showTutorials = getFeature('tutorials', true);
 
   const containerVariants = {
     hidden: { opacity: 0 },
@@ -359,7 +362,7 @@ export const ClientHome: React.FC<ClientHomeProps> = ({
                 </div>
               )
             )}
-            {leadConfig?.is_enabled && (
+            {leadConfig?.is_enabled && showLeadConfig && (
               <motion.div
                 whileHover={{ y: -4, shadow: '0 20px 40px rgba(0,0,0,0.08)' }}
                 onClick={() => setActiveView('leads')}
@@ -567,22 +570,24 @@ export const ClientHome: React.FC<ClientHomeProps> = ({
         )}
 
         {/* Central de Tutoriais */}
-        <motion.div 
-          variants={itemVariants}
-          onClick={onNavigateToTutorials}
-          className="group bg-white rounded-[2.5rem] p-10 shadow-[0_4px_25px_rgba(0,0,0,0.02)] border border-black/[0.02] hover:shadow-[0_15px_45px_rgba(0,0,0,0.05)] hover:border-brand-dark/10 transition-all duration-500 cursor-pointer flex flex-col"
-        >
-          <div className="flex justify-between items-start mb-8">
-            <div className="w-16 h-16 bg-blue-50/50 rounded-[20px] flex items-center justify-center text-blue-600 group-hover:bg-blue-600 group-hover:text-white transition-all duration-500 shadow-sm">
-              <BookOpen size={32} />
+        {showTutorials && (
+          <motion.div 
+            variants={itemVariants}
+            onClick={onNavigateToTutorials}
+            className="group bg-white rounded-[2.5rem] p-10 shadow-[0_4px_25px_rgba(0,0,0,0.02)] border border-black/[0.02] hover:shadow-[0_15px_45px_rgba(0,0,0,0.05)] hover:border-brand-dark/10 transition-all duration-500 cursor-pointer flex flex-col"
+          >
+            <div className="flex justify-between items-start mb-8">
+              <div className="w-16 h-16 bg-blue-50/50 rounded-[20px] flex items-center justify-center text-blue-600 group-hover:bg-blue-600 group-hover:text-white transition-all duration-500 shadow-sm">
+                <BookOpen size={32} />
+              </div>
+              <ArrowRight size={22} className="text-gray-200 group-hover:text-brand-dark transform group-hover:-rotate-45 transition-all duration-500" />
             </div>
-            <ArrowRight size={22} className="text-gray-200 group-hover:text-brand-dark transform group-hover:-rotate-45 transition-all duration-500" />
-          </div>
-          <h3 className="text-2xl font-bold text-brand-dark mb-3 tracking-tight">Tutoriais</h3>
-          <p className="text-gray-500 text-sm leading-relaxed font-medium">
-            Aprenda a gerenciar suas plataformas e aprovar conteúdos.
-          </p>
-        </motion.div>
+            <h3 className="text-2xl font-bold text-brand-dark mb-3 tracking-tight">Tutoriais</h3>
+            <p className="text-gray-500 text-sm leading-relaxed font-medium">
+              Aprenda a gerenciar suas plataformas e aprovar conteúdos.
+            </p>
+          </motion.div>
+        )}
 
         {/* Briefings Estratégicos */}
         {showBriefings && (
