@@ -13,12 +13,14 @@ import {
   DollarSign,
   Search,
   ClipboardList,
-  Home
+  Home,
+  FileText
 } from 'lucide-react';
 import { HomeTab } from './HomeTab';
 import { FinanceiroTab } from './FinanceiroTab';
 import { AgencyCRMTab } from './AgencyCRMTab';
 import { AgencyTasksTab } from './AgencyTasksTab';
+import { AgencyContractsTab } from './AgencyContractsTab';
 import { Logo } from '../Logo';
 
 import { useAuth } from '../../lib/supabase';
@@ -28,7 +30,7 @@ interface AgencyDashboardProps {
   onSelectClient: (client: any) => void;
 }
 
-type Tab = 'home' | 'tasks' | 'financeiro' | 'prospeccao';
+type Tab = 'home' | 'tasks' | 'financeiro' | 'prospeccao' | 'contratos';
 
 export const AgencyDashboard: React.FC<AgencyDashboardProps> = ({ onBack, onSelectClient }) => {
   const { userRole } = useAuth();
@@ -40,6 +42,7 @@ export const AgencyDashboard: React.FC<AgencyDashboardProps> = ({ onBack, onSele
 
   const tabs = [
     { id: 'home', label: 'Início', icon: Home },
+    { id: 'contratos', label: 'Contratos', icon: FileText },
     { id: 'tasks', label: 'Processos', icon: ClipboardList },
     { id: 'financeiro', label: 'Financeiro', icon: DollarSign },
     { id: 'prospeccao', label: 'CRM', icon: Search },
@@ -106,6 +109,7 @@ export const AgencyDashboard: React.FC<AgencyDashboardProps> = ({ onBack, onSele
               transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
             >
               {activeTab === 'home' && <HomeTab onNavigateToClients={(client) => onSelectClient(client)} />}
+              {activeTab === 'contratos' && <AgencyContractsTab />}
               {activeTab === 'tasks' && <AgencyTasksTab />}
               {activeTab === 'financeiro' && <FinanceiroTab />}
               {activeTab === 'prospeccao' && (

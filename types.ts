@@ -338,8 +338,12 @@ export interface ContractForm {
   client_id: string;
   agency_id: number;
   form_token: string;
-  status: 'pending' | 'submitted';
+  status: 'pending' | 'submitted' | 'signed';
   submitted_at: string | null;
+  signed_at?: string | null;
+  signed_contract_url?: string | null;
+  contract_value?: number | null;
+  contract_start_date?: string | null;
   form_data: any;
   created_at: string;
 }

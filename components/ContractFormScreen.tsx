@@ -181,7 +181,7 @@ export const ContractFormScreen: React.FC<ContractFormScreenProps> = ({ formToke
     );
   }
 
-  if (contractData.status === 'submitted' || success) {
+  if (contractData.status !== 'pending' || success) {
     return (
       <div className="min-h-screen bg-[#FDFDFD] flex flex-col items-center p-6 justify-center">
         <motion.div

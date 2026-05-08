@@ -33,7 +33,8 @@ import {
   ArrowDownRight,
   FolderOpen,
   Trash2,
-  LayoutDashboard
+  LayoutDashboard,
+  Copy
 } from 'lucide-react';
 import { ConfirmModal } from './ConfirmModal';
 import { 
@@ -167,6 +168,7 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
     features_settings: {} as Record<string, boolean>,
   });
   const [uploading, setUploading] = useState(false);
+  const [newContractLinkInfo, setNewContractLinkInfo] = useState<{ clientId: string, token: string } | null>(null);
 
   const fetchClients = async () => {
     setLoading(true);
@@ -271,6 +273,19 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
           kanban_stages: (form as any).kanban_stages || ['Novo Lead', 'Em Contato', 'Reunião Agendada', 'Proposta Enviada', 'Fechado'],
           specialty_options: (form as any).specialty_options || []
         }]);
+
+        // Generate contract form automatically
+        const token = Array.from(crypto.getRandomValues(new Uint8Array(20))).map(b => b.toString(16).padStart(2, '0')).join('');
+        const { data: contractData, error: contractError } = await supabase.from('contract_forms').insert({
+          client_id: clientData.id,
+          agency_id: 1, // Default tracking or dynamic
+          form_token: token,
+          status: 'pending'
+        }).select().single();
+        
+        if (!contractError && contractData) {
+          setNewContractLinkInfo({ clientId: clientData.id, token: contractData.form_token });
+        }
       }
 
       // 4. Criar usuário de acesso se preenchido (apenas se não existir ou se quiser atualizar senha)
@@ -963,6 +978,7 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
                         onClick={async () => {
                           setLoadingContract(true);
                           const token = Array.from(crypto.getRandomValues(new Uint8Array(20))).map(b => b.toString(16).padStart(2, '0')).join('');
+                          const currentClient = clients.find(c => c.id === editingClientId);
                           const { data, error } = await supabase.from('contract_forms').insert({
                             client_id: editingClientId,
                             agency_id: 1, // Default tracking or dynamic
@@ -1186,6 +1202,45 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
           </div>
         )}
       </motion.div>
+
+      {newContractLinkInfo && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-white rounded-[2rem] p-8 max-w-md w-full shadow-2xl relative"
+          >
+            <div className="w-16 h-16 bg-green-50 rounded-full flex items-center justify-center mx-auto mb-6">
+              <Check className="text-green-500 w-8 h-8" />
+            </div>
+            
+            <h2 className="text-2xl font-bold text-center text-brand-dark mb-4">Cliente Criado com Sucesso!</h2>
+            <p className="text-center text-gray-500 mb-6 font-medium">O cliente foi cadastrado no sistema. Agora você já pode enviar o formulário de onboarding para ele preencher os dados do contrato:</p>
+            
+            <div className="bg-gray-50 p-4 rounded-xl border border-gray-200 flex items-center justify-between gap-4 mb-6">
+              <span className="text-sm font-mono text-gray-700 truncate select-all flex-1">
+                {`${window.location.host}/contrato/${newContractLinkInfo.token}`}
+              </span>
+              <button
+                onClick={() => {
+                  navigator.clipboard.writeText(`${window.location.protocol}//${window.location.host}/contrato/${newContractLinkInfo.token}`);
+                  alert('Link copiado!');
+                }}
+                className="w-10 h-10 rounded-lg bg-white border border-gray-200 flex items-center justify-center text-gray-600 hover:text-brand-dark hover:border-brand-dark transition-colors flex-shrink-0"
+              >
+                <Copy size={18} />
+              </button>
+            </div>
+            
+            <button
+              onClick={() => setNewContractLinkInfo(null)}
+              className="w-full py-4 bg-brand-dark text-white rounded-xl font-bold hover:bg-brand-dark/90 transition-colors shadow-lg"
+            >
+              Concluir
+            </button>
+          </motion.div>
+        </div>
+      )}
 
       <ConfirmModal
         isOpen={isDeleteModalOpen}
