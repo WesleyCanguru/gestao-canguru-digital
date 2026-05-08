@@ -7,6 +7,149 @@ import ptBr from 'dayjs/locale/pt-br';
 import { FileText, Link as LinkIcon, Upload, Eye, FileSignature, CheckCircle, Clock, DollarSign, Copy } from 'lucide-react';
 import { motion } from 'motion/react';
 
+const fieldLabels: Record<string, string> = {
+  client_type: 'Tipo de Contrato',
+  pf_name: 'Nome Completo (PF)',
+  pf_cpf: 'CPF',
+  pf_rg: 'RG',
+  pf_orgao_emissor: 'Órgão Emissor',
+  pf_birth_date: 'Data de Nascimento',
+  pf_marital_status: 'Estado Civil',
+  pf_profession: 'Profissão',
+  pf_whatsapp: 'WhatsApp',
+  pf_email: 'E-mail',
+  
+  pj_razao_social: 'Razão Social',
+  pj_nome_fantasia: 'Nome Fantasia',
+  pj_cnpj: 'CNPJ',
+  pj_inscricao_estadual: 'Inscrição Estadual',
+  pj_inscricao_municipal: 'Inscrição Municipal',
+  
+  pj_rep_name: 'Nome do Representante Legal',
+  pj_rep_cpf: 'CPF do Representante Legal',
+  pj_rep_rg: 'RG do Representante Legal',
+  pj_rep_birth_date: 'Data Nasc. do Representante',
+  pj_rep_whatsapp: 'WhatsApp do Representante',
+  pj_rep_email: 'E-mail do Representante',
+  
+  address_zip: 'CEP',
+  address_street: 'Rua / Avenida',
+  address_number: 'Número',
+  address_complement: 'Complemento',
+  address_neighborhood: 'Bairro',
+  address_city: 'Cidade',
+  address_state: 'Estado',
+  
+  pf_partner_name: 'Nome do Sócio/Cônjuge',
+  pf_partner_cpf: 'CPF do Sócio/Cônjuge',
+  pf_partner_whatsapp: 'WhatsApp do Sócio/Cônjuge',
+  pf_partner_email: 'E-mail do Sócio/Cônjuge',
+  
+  pj_partner_name: 'Nome do Sócio/Cônjuge',
+  pj_partner_cpf: 'CPF do Sócio/Cônjuge',
+  pj_partner_whatsapp: 'WhatsApp do Sócio/Cônjuge',
+  pj_partner_email: 'E-mail do Sócio/Cônjuge',
+
+  cartao_cnpj_url: 'Link do Cartão CNPJ'
+};
+
+const ContractDataViewer: React.FC<{ data: any, onClose: () => void }> = ({ data, onClose }) => {
+  const [showEmpty, setShowEmpty] = useState(false);
+
+  if (!data) return null;
+
+  const clientType = data.client_type || 'PF';
+
+  const filledFields: { label: string, value: string | React.ReactNode }[] = [];
+  const emptyFields: { label: string }[] = [];
+
+  const relevantKeys = Object.keys(data).filter(k => {
+    if (k === 'client_type') return true;
+    if (k.startsWith('address_')) return true;
+    if (k === 'cartao_cnpj_url') return clientType === 'PJ';
+    if (clientType === 'PF' && k.startsWith('pf_')) return true;
+    if (clientType === 'PJ' && k.startsWith('pj_')) return true;
+    return false;
+  });
+
+  relevantKeys.forEach(key => {
+    let value = data[key];
+    const label = fieldLabels[key] || key.replace(/([A-Z])/g, ' $1').trim();
+    
+    if (key === 'client_type') {
+      value = value === 'PF' ? 'Pessoa Física (PF)' : 'Pessoa Jurídica (PJ)';
+      filledFields.unshift({ label, value });
+      return;
+    }
+
+    if (value === null || value === undefined || value === '') {
+      emptyFields.push({ label });
+    } else {
+      if (key === 'cartao_cnpj_url') {
+        filledFields.push({ 
+          label, 
+          value: <a href={value} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline">Ver Documento</a> 
+        });
+      } else {
+        filledFields.push({ label, value: String(value) });
+      }
+    }
+  });
+
+  return (
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        className="bg-white rounded-3xl p-6 sm:p-8 max-w-2xl w-full shadow-2xl relative max-h-[90vh] overflow-y-auto"
+      >
+        <h2 className="text-2xl font-bold text-brand-dark mb-6 border-b border-gray-100 pb-4">Dados do Contrato</h2>
+        
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 mb-6 text-sm">
+          {filledFields.map((field, i) => (
+            <div key={i} className="border-b border-gray-50 pb-3">
+              <p className="text-[11px] text-gray-400 uppercase tracking-widest font-bold mb-1">{field.label}</p>
+              <div className="font-medium text-gray-800 break-words">{field.value}</div>
+            </div>
+          ))}
+        </div>
+
+        {emptyFields.length > 0 && (
+          <div className="mt-8 mb-6">
+            <button 
+              onClick={() => setShowEmpty(!showEmpty)}
+              className="text-xs font-bold text-gray-500 hover:text-gray-700 flex items-center gap-2 mb-4 uppercase tracking-widest"
+            >
+              {showEmpty ? 'Ocultar campos não preenchidos' : `Ver campos não preenchidos (${emptyFields.length})`}
+            </button>
+            
+            {showEmpty && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 text-sm bg-gray-50 p-4 rounded-xl border border-gray-100">
+                {emptyFields.map((field, i) => (
+                  <div key={i} className="pb-2">
+                    <p className="text-[11px] text-gray-400 uppercase tracking-widest font-bold mb-1">{field.label}</p>
+                    <div className="font-medium text-gray-400 italic">Não preenchido</div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+        
+        <div className="pt-4 border-t border-gray-100 mt-6">
+          <button
+            onClick={onClose}
+            className="w-full py-4 bg-brand-dark text-white rounded-xl font-bold hover:bg-brand-dark/90 transition-colors shadow-lg"
+          >
+            Fechar
+          </button>
+        </div>
+      </motion.div>
+    </div>
+  );
+};
+
+
 dayjs.extend(relativeTime);
 dayjs.locale(ptBr);
 
@@ -241,12 +384,12 @@ export const AgencyContractsTab: React.FC = () => {
                       
                       {isSubmitted && client.contract?.submitted_at && (
                         <div className="text-[10px] text-gray-400 mt-1">
-                          Enviado em {dayjs(client.contract.submitted_at).format('DD/MM/YYYY')}
+                          Enviado em {dayjs(client.contract.submitted_at).format('DD/MM/YYYY [às] HH:mm')}
                         </div>
                       )}
                       {isSigned && client.contract?.signed_at && (
                         <div className="text-[10px] text-gray-400 mt-1">
-                          Assinado em {dayjs(client.contract.signed_at).format('DD/MM/YYYY')}
+                          Assinado em {dayjs(client.contract.signed_at).format('DD/MM/YYYY [às] HH:mm')}
                         </div>
                       )}
                     </td>
@@ -413,30 +556,10 @@ export const AgencyContractsTab: React.FC = () => {
       )}
 
       {viewDataModalOpen && selectedClient?.contract && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="bg-white rounded-3xl p-6 sm:p-8 max-w-lg w-full shadow-2xl relative max-h-[80vh] overflow-y-auto"
-          >
-            <h2 className="text-xl font-bold text-brand-dark mb-4">Dados Enviados</h2>
-            <div className="space-y-4 mb-6 text-sm">
-              {Object.entries(selectedClient.contract.form_data || {}).map(([key, value]) => (
-                <div key={key} className="border-b border-gray-100 pb-3">
-                  <p className="text-xs text-gray-400 capitalize font-bold mb-1">{key.replace(/([A-Z])/g, ' $1').trim()}</p>
-                  <p className="font-medium text-gray-800 break-words">{String(value)}</p>
-                </div>
-              ))}
-            </div>
-            
-            <button
-              onClick={() => setViewDataModalOpen(false)}
-              className="w-full py-3 bg-brand-dark text-white rounded-xl font-bold hover:bg-brand-dark/90 transition-colors"
-            >
-              Fechar
-            </button>
-          </motion.div>
-        </div>
+        <ContractDataViewer
+          data={selectedClient.contract.form_data}
+          onClose={() => setViewDataModalOpen(false)}
+        />
       )}
     </div>
   );
