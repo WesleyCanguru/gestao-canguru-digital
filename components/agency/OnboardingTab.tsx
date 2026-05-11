@@ -5,6 +5,17 @@ import { CheckCircle, Clock, FileText, Target, ChevronRight, Check } from 'lucid
 import { motion } from 'motion/react';
 import dayjs from 'dayjs';
 
+import { ClientOnboarding } from '../ClientOnboarding';
+
+const SERVICE_TO_BRIEFINGS: Record<string, string[]> = {
+  'Social Media': ['persona', 'publico_alvo', 'tom_voz', 'posicionamento'],
+  'Tráfego Pago': ['trafego_pago'],
+  'Website': ['site'],
+  'Identidade Visual': ['persona', 'posicionamento'],
+  'E-mail Marketing': ['publico_alvo', 'tom_voz'],
+  'Fotos com IA': ['persona', 'publico_alvo']
+};
+
 interface OnboardingData extends Client {
   contract?: ContractForm;
   briefings?: ClientBriefing[];
@@ -22,6 +33,7 @@ interface OnboardingData extends Client {
 export const OnboardingTab: React.FC<{ onNavigateToClients: (client: Client) => void }> = ({ onNavigateToClients }) => {
   const [clients, setClients] = useState<OnboardingData[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
 
   useEffect(() => {
     fetchOnboardingData();
@@ -67,21 +79,55 @@ export const OnboardingTab: React.FC<{ onNavigateToClients: (client: Client) => 
     );
   }
 
+  if (selectedClientId) {
+    return (
+      <div className="p-4 sm:p-8 max-w-7xl mx-auto flex flex-col gap-8 pb-32">
+        <button 
+          onClick={() => {
+            setSelectedClientId(null);
+            fetchOnboardingData();
+          }}
+          className="flex items-center gap-2 text-sm font-bold uppercase tracking-widest text-gray-500 hover:text-brand-dark transition-colors w-fit"
+        >
+          <ChevronRight className="rotate-180" size={16} /> Voltar
+        </button>
+        <div className="bg-white rounded-[2.5rem] p-6 shadow-sm border border-gray-100">
+           <ClientOnboarding clientId={selectedClientId} />
+        </div>
+      </div>
+    );
+  }
+
   const activeClientsCount = clients.length;
   
   const pendingBriefingsCount = clients.filter(c => {
-    // If they have contracted services, and we need a briefing for each
+    if (c.briefings_waived) return false;
     if (!c.services || c.services.length === 0) return false;
-    const completedBriefings = c.briefings?.filter(b => b.completed).length || 0;
-    return completedBriefings < c.services.length;
+    
+    const requiredTypes = new Set<string>();
+    c.services.forEach(service => {
+      const types = SERVICE_TO_BRIEFINGS[service] || [];
+      types.forEach(t => requiredTypes.add(t));
+    });
+    
+    const completedBriefings = c.briefings?.filter(b => requiredTypes.has(b.briefing_type) && b.is_completed).length || 0;
+    return completedBriefings < requiredTypes.size;
   }).length;
 
   const completedOnboardingCount = clients.filter(c => {
     const hasSignedContract = c.contract?.status === 'signed';
-    const completedBriefings = c.briefings?.filter(b => b.completed).length || 0;
-    const hasAllBriefings = c.services && c.services.length > 0 && completedBriefings === c.services.length;
-    // Just count those who have signed contract and all briefings completed (or no services required to brief)
-    if (!c.services || c.services.length === 0) return hasSignedContract;
+    
+    if (c.briefings_waived) return hasSignedContract;
+
+    const requiredTypes = new Set<string>();
+    (c.services || []).forEach(service => {
+      const types = SERVICE_TO_BRIEFINGS[service] || [];
+      types.forEach(t => requiredTypes.add(t));
+    });
+
+    const completedBriefings = c.briefings?.filter(b => requiredTypes.has(b.briefing_type) && b.is_completed).length || 0;
+    const hasAllBriefings = requiredTypes.size > 0 ? (completedBriefings === requiredTypes.size) : true;
+    
     return hasSignedContract && hasAllBriefings;
   }).length;
 
@@ -145,8 +191,14 @@ export const OnboardingTab: React.FC<{ onNavigateToClients: (client: Client) => 
               {clients.map((client) => {
                 const contractStatus = client.contract?.status || 'none';
                 
-                const expectedBriefings = client.services?.length || 0;
-                const completedBriefings = client.briefings?.filter(b => b.completed).length || 0;
+                const requiredTypes = new Set<string>();
+                (client.services || []).forEach(service => {
+                  const types = SERVICE_TO_BRIEFINGS[service] || [];
+                  types.forEach(t => requiredTypes.add(t));
+                });
+                
+                const expectedBriefings = requiredTypes.size;
+                const completedBriefings = client.briefings?.filter(b => requiredTypes.has(b.briefing_type) && b.is_completed).length || 0;
                 const totalChecklist = client.onboarding?.steps?.length || 0;
                 const completedChecklist = client.onboarding?.steps?.filter(s => s.completed).length || 0;
                 const checklistPercentage = totalChecklist > 0 ? (completedChecklist / totalChecklist) * 100 : 0;
@@ -228,9 +280,9 @@ export const OnboardingTab: React.FC<{ onNavigateToClients: (client: Client) => 
 
                     <td className="p-6">
                       <button 
-                        onClick={() => onNavigateToClients(client)}
+                        onClick={() => setSelectedClientId(client.id)}
                         className="p-2 hover:bg-gray-100 rounded-xl transition-colors text-gray-400 hover:text-brand-dark"
-                        title="Ver detalhes"
+                        title="Ver Checklist"
                       >
                         <ChevronRight size={20} />
                       </button>

@@ -228,6 +228,7 @@ export interface Client {
   paid_reportei_url?: string | null;
   drive_link?: string | null;
   onboarding_completed?: boolean;
+  briefings_waived?: boolean;
   base_value?: number;
   due_day?: number;
   created_at?: string;
@@ -407,9 +408,9 @@ export interface ClientBriefing {
   id: string;
   client_id: string;
   agency_id: number;
-  service_type: string;
-  answers: Record<string, any>;
-  completed: boolean;
+  briefing_type: string;
+  responses: Record<string, any>;
+  is_completed: boolean;
   completed_at: string | null;
   created_at: string;
 }

@@ -101,14 +101,15 @@ export const generateOnboardingSteps = (services: string[]): OnboardingStep[] =>
   return steps;
 };
 
-export const useClientOnboarding = () => {
+export const useClientOnboarding = (clientId?: string) => {
   const { activeClient, userRole } = useAuth();
   const [onboarding, setOnboarding] = useState<ClientOnboarding | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchOnboarding = async () => {
-      if (!activeClient || userRole !== 'admin') {
+      const targetId = clientId || activeClient?.id;
+      if (!targetId || userRole !== 'admin') {
         setOnboarding(null);
         setLoading(false);
         return;
@@ -119,7 +120,7 @@ export const useClientOnboarding = () => {
         const { data, error } = await supabase
           .from('client_onboarding')
           .select('*')
-          .eq('client_id', activeClient.id)
+          .eq('client_id', targetId)
           .maybeSingle();
 
         if (error) throw error;
@@ -128,9 +129,16 @@ export const useClientOnboarding = () => {
           setOnboarding(data as ClientOnboarding);
         } else {
           // Create automatically if it doesn't exist
-          const steps = generateOnboardingSteps(activeClient.services || []);
+          let services: string[] = [];
+          if (clientId && clientId !== activeClient?.id) {
+             const { data: cData } = await supabase.from('clients').select('services').eq('id', clientId).single();
+             if (cData?.services) services = cData.services;
+          } else if (activeClient?.services) {
+             services = activeClient.services;
+          }
+          const steps = generateOnboardingSteps(services);
           const newOnboarding = {
-            client_id: activeClient.id,
+            client_id: targetId,
             steps,
             is_completed: false,
             completed_at: null

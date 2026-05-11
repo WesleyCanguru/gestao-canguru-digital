@@ -15,9 +15,9 @@ const PHASE_LABELS: Record<OnboardingPhase, string> = {
   final: 'Etapas Finais'
 };
 
-export const ClientOnboarding: React.FC = () => {
+export const ClientOnboarding: React.FC<{ clientId?: string }> = ({ clientId }) => {
   const { userRole } = useAuth();
-  const { onboarding, loading, toggleStep, progress, isCompleted } = useClientOnboarding();
+  const { onboarding, loading, toggleStep, progress, isCompleted } = useClientOnboarding(clientId);
 
   if (userRole !== 'admin') return null;
   if (loading) {

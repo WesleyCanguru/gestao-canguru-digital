@@ -164,6 +164,7 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
     logo_url: '',
     base_value: 0,
     due_day: 10,
+    briefings_waived: false,
     is_lead_tracking_enabled: false,
     features_settings: {} as Record<string, boolean>,
   });
@@ -207,6 +208,7 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
         logo_url: form.logo_url || null,
         base_value: form.base_value,
         due_day: form.due_day,
+        briefings_waived: form.briefings_waived,
         features_settings: form.features_settings,
       };
 
@@ -374,6 +376,7 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
       logo_url: '',
       base_value: 0,
       due_day: 10,
+      briefings_waived: false,
       is_lead_tracking_enabled: false,
       features_settings: {},
       ...{ kanban_stages: ['Novo Lead', 'Em Contato', 'Reunião Agendada', 'Proposta Enviada', 'Fechado'], specialty_options: [] }
@@ -422,6 +425,7 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
       logo_url: client.logo_url || '',
       base_value: client.base_value || 0,
       due_day: client.due_day || 10,
+      briefings_waived: client.briefings_waived || false,
       is_lead_tracking_enabled: leadConfig?.is_enabled || false,
       features_settings: client.features_settings || {},
       ...{ 
@@ -796,6 +800,19 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
                       className="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" 
                     />
                   </div>
+                </div>
+
+                <div className="flex items-center mt-6">
+                  <input
+                    type="checkbox"
+                    id="briefings_waived"
+                    checked={form.briefings_waived}
+                    onChange={e => setForm(f => ({ ...f, briefings_waived: e.target.checked }))}
+                    className="w-4 h-4 text-brand-dark border-gray-300 rounded focus:ring-brand-dark"
+                  />
+                  <label htmlFor="briefings_waived" className="ml-2 block text-sm font-semibold text-gray-700">
+                    Briefings Dispensados (Cliente Antigo)
+                  </label>
                 </div>
               </div>
 

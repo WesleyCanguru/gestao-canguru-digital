@@ -48,7 +48,7 @@ const MainApp: React.FC<MainAppProps> = ({ initialView, onExitAgencyDashboard, o
   // Redirecionar cliente para briefings estratégicos se onboarding não estiver completo
   useEffect(() => {
     if (userRole === 'approver' && activeClient) {
-      if (!activeClient.onboarding_completed && view !== 'strategic-briefings') {
+      if (!activeClient.onboarding_completed && !activeClient.briefings_waived && view !== 'strategic-briefings') {
         setView('strategic-briefings');
       }
     }
