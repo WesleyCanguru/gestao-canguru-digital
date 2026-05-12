@@ -177,6 +177,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setActiveClientState(null);
     localStorage.removeItem('next_app_role');
     localStorage.removeItem('next_app_client');
+    window.location.href = '/';
   };
 
   const setActiveClient = (client: Client | null) => {

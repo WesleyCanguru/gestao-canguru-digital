@@ -170,6 +170,7 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
   });
   const [uploading, setUploading] = useState(false);
   const [newContractLinkInfo, setNewContractLinkInfo] = useState<{ clientId: string, token: string } | null>(null);
+  const [formTab, setFormTab] = useState<'dados_basicos' | 'servicos' | 'acesso'>('dados_basicos');
 
   const fetchClients = async () => {
     setLoading(true);
@@ -383,6 +384,7 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
     });
     setEditingClientId(null);
     setClientContract(null);
+    setFormTab('dados_basicos');
   };
 
   const handleEdit = async (client: Client) => {
@@ -434,6 +436,7 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
       }
     });
     setEditingClientId(client.id);
+    setFormTab('dados_basicos');
     setShowForm(true);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -546,9 +549,36 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
             className="mb-10 p-8 bg-white rounded-[2rem] border border-black/[0.03] shadow-[0_20px_50px_rgba(0,0,0,0.04)] overflow-hidden"
           >
             <h2 className="text-xl font-bold text-brand-dark mb-6">{editingClientId ? 'Editar Cliente' : 'Novo Cliente'}</h2>
+            
+            <div className="flex border-b border-gray-100 mb-8 overflow-x-auto hide-scrollbar">
+              <button
+                type="button"
+                onClick={() => setFormTab('dados_basicos')}
+                className={`py-3 px-6 text-sm font-bold border-b-2 transition-colors whitespace-nowrap ${formTab === 'dados_basicos' ? 'border-brand-dark text-brand-dark' : 'border-transparent text-gray-400 hover:text-gray-600'}`}
+              >
+                Dados Básicos
+              </button>
+              <button
+                type="button"
+                onClick={() => setFormTab('servicos')}
+                className={`py-3 px-6 text-sm font-bold border-b-2 transition-colors whitespace-nowrap ${formTab === 'servicos' ? 'border-brand-dark text-brand-dark' : 'border-transparent text-gray-400 hover:text-gray-600'}`}
+              >
+                Serviços & Financeiro
+              </button>
+              <button
+                type="button"
+                onClick={() => setFormTab('acesso')}
+                className={`py-3 px-6 text-sm font-bold border-b-2 transition-colors whitespace-nowrap ${formTab === 'acesso' ? 'border-brand-dark text-brand-dark' : 'border-transparent text-gray-400 hover:text-gray-600'}`}
+              >
+                Acesso & Exibição
+              </button>
+            </div>
+
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
               
-              <div className="sm:col-span-2">
+              {formTab === 'dados_basicos' && (
+                <>
+                  <div className="sm:col-span-2">
                 <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Nome *</label>
                 <input
                   type="text"
@@ -730,7 +760,11 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
                   <span className="text-xs text-gray-500 font-mono uppercase">{form.color}</span>
                 </div>
               </div>
+              </>
+              )}
 
+              {formTab === 'servicos' && (
+                <>
               <div className="sm:col-span-2">
                 <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Serviços Contratados</label>
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
@@ -939,7 +973,11 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
                   </div>
                 )}
               </div>
+              </>
+              )}
 
+              {formTab === 'acesso' && (
+                <>
               {/* Seção de Acesso */}
               <div className="sm:col-span-2 mt-4 pt-6 border-t border-gray-100">
                 <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-4">
@@ -1135,6 +1173,8 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
                     })}
                   </div>
                 </div>
+              )}
+              </>
               )}
             </div>
 
