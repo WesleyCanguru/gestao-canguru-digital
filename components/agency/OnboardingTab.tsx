@@ -393,9 +393,8 @@ export const OnboardingTab: React.FC<{ onNavigateToClients: (client: Client) => 
                                 Array.isArray(b.responses[q.key]) 
                                   ? (b.responses[q.key] as string[]).join(', ') 
                                   : Object.entries(b.responses[q.key] as Record<string, any>)
-                                      .filter(([_, v]) => v)
-                                      .map(([k]) => k)
-                                      .join(', ')
+                                      .map(([k, v]) => `${k}: ${v}`)
+                                      .join(' | ')
                               ) : (
                                 String(b.responses[q.key])
                               )}
