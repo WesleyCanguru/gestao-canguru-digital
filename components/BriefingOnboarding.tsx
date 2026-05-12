@@ -7,48 +7,115 @@ export const BRIEFING_QUESTIONS: Record<string, { title: string, questions: any[
   'persona': {
     title: 'Persona',
     questions: [
-      { key: 'cliente_ideal', label: 'Quem é o seu cliente ideal?', type: 'textarea' },
-      { key: 'dores_desejos', label: 'Quais são as principais dores e desejos dele?', type: 'textarea' }
+      { 
+        key: 'cliente_ideal', 
+        label: 'Quem é o seu cliente ideal (Perfil)?', 
+        type: 'textarea',
+        placeholder: 'Ex: Homens e mulheres de 30-45 anos, empreendedores de médio porte, que buscam automatizar processos.',
+        help: 'Pense em quem é a pessoa que toma a decisão de compra. Quais são suas características demográficas e comportamentais?'
+      },
+      { 
+        key: 'dores_desejos', 
+        label: 'Quais são as principais dores e desejos dele?', 
+        type: 'textarea',
+        placeholder: '1. Falha na comunicação interna...\n2. Perda de prazos...\n3. Dificuldade em escalar...',
+        help: 'O que tira o sono do seu cliente? Qual problema ele tenta resolver quando procura sua empresa?'
+      },
+      { 
+        key: 'sonhos_desejos', 
+        label: 'Quais são os grandes sonhos e desejos dele a longo prazo?', 
+        type: 'textarea',
+        placeholder: 'Ex: Ter mais tempo com a família, ser referência no setor, faturar 1 milhão/ano...',
+        help: 'Para onde ele quer ir? O que ele espera alcançar?'
+      },
+      { 
+        key: 'objecoes_comuns', 
+        label: 'Quais as principais objeções que ele apresenta na hora de comprar?', 
+        type: 'textarea',
+        placeholder: 'Ex: Preço alto, falta de tempo para implementar, medo de não funcionar...',
+        help: 'O que faz ele travar na hora de fechar negócio?'
+      }
     ]
   },
   'publico_alvo': {
     title: 'Público-Alvo',
     questions: [
-      { key: 'descricao_publico', label: 'Descreva seu público-alvo ideal', type: 'textarea', placeholder: 'idade, gênero, localização, interesses' }
+      { 
+        key: 'descricao_publico', 
+        label: 'Descreva seu público-alvo ideal', 
+        type: 'textarea', 
+        placeholder: 'Ex: Todo o Brasil, apenas São Paulo (Capital), Região Sul...',
+        help: 'Onde eles estão? O que eles fazem? Idade, gênero, localização, interesses.'
+      },
+      { 
+        key: 'poder_aquisitivo', 
+        label: 'Qual a classe social ou poder aquisitivo estimado?', 
+        type: 'text', 
+        placeholder: 'Ex: Classe A/B, Renda mensal acima de R$ 5.000...',
+        help: 'Isso ajuda a definir o tipo de linguagem.'
+      }
     ]
   },
   'tom_voz': {
     title: 'Tom de Voz',
     questions: [
-      { key: 'tom_marca', label: 'Qual o tom de voz da sua marca?', type: 'text', placeholder: 'formal, descontraído, técnico, inspiracional, divertido' }
+      { 
+        key: 'tom_marca', 
+        label: 'Qual o tom de voz da sua marca?', 
+        type: 'text', 
+        placeholder: 'Ex: Um mentor experiente, um amigo descontraído, um especialista técnico...',
+        help: 'Se sua marca fosse uma pessoa, como ela seria? Formal, descontraído, técnico, inspiracional, divertido?'
+      },
+      { 
+        key: 'palavras_chave', 
+        label: 'Quais palavras NUNCA devem ser usadas na comunicação?', 
+        type: 'text', 
+        placeholder: 'Ex: Oferta, promoção, barato (preferimos "oportunidade", "investimento")...',
+        help: 'Termos que não combinam com o seu posicionamento.'
+      }
     ]
   },
   'posicionamento': {
     title: 'Posicionamento',
     questions: [
-      { key: 'diferencial', label: 'Qual o principal diferencial em relação à concorrência?', type: 'textarea' },
-      { key: 'visao_mercado', label: 'Como você quer que a sua marca seja vista no mercado?', type: 'textarea' }
+      { 
+        key: 'diferencial', 
+        label: 'Qual o principal diferencial em relação à concorrência?', 
+        type: 'textarea',
+        placeholder: 'Ex: Nós ajudamos empresas a reduzirem custos operacionais em até 30% em 90 dias.',
+        help: 'Por que o cliente deve escolher você?'
+      },
+      { 
+        key: 'visao_mercado', 
+        label: 'Como você quer que a sua marca seja vista no mercado?', 
+        type: 'textarea',
+        placeholder: 'Ex: Líder em tecnologia, a mais humana do setor...',
+        help: 'Qual imagem você quer passar?'
+      }
     ]
   },
   'site': {
     title: 'Website',
     questions: [
       { key: 'objetivo', label: 'Qual o objetivo principal do site?', type: 'text', placeholder: 'institucional, e-commerce, landing page, portfólio'},
+      { key: 'proposta_valor_destaque', label: 'Qual mensagem principal deve aparecer logo no topo (Hero Section)?', type: 'textarea', help: 'A primeira coisa que o visitante deve ler.'},
       { key: 'paginas', label: 'Quais páginas são necessárias?', type: 'text', placeholder: 'ex: home, sobre, serviços, contato, blog'},
-      { key: 'referencias', label: 'Tem referências de sites que gosta? (cole as URLs)', type: 'textarea'},
+      { key: 'chamadas_acao', label: 'Quais os principais CTAs (Botões de Ação)?', type: 'text', placeholder: 'Ex: Fale no WhatsApp, Solicite Orçamento, Baixe o E-book...'},
+      { key: 'referencias', label: 'Tem referências de sites que gosta? (cole as URLs)', type: 'textarea', help: 'Podem ser concorrentes ou sites de outros setores que tenham um visual que você admira.'},
+      { key: 'integracoes', label: 'Precisa de integrações específicas?', type: 'text', placeholder: 'Ex: RD Station, Mailchimp, CRM Próprio, PagSeguro...'},
       { key: 'dominio_hospedagem', label: 'Já possui domínio registrado? Tem hospedagem?', type: 'text'},
-      { key: 'textos_prontos', label: 'Tem textos prontos ou precisaremos criar do zero?', type: 'text'},
       { key: 'identidade_visual', label: 'Já tem identidade visual definida (cores, fontes, logo)?', type: 'text'}
     ]
   },
   'trafego_pago': {
     title: 'Tráfego Pago',
     questions: [
-      { key: 'produtos_anuncio', label: 'Quais produtos ou serviços serão anunciados?', type: 'textarea'},
-      { key: 'ticket_medio', label: 'Qual o ticket médio do seu produto/serviço principal?', type: 'text'},
-      { key: 'objetivo_campanha', label: 'Qual o objetivo das campanhas?', type: 'text', placeholder: 'geração de leads, vendas diretas, tráfego para site, reconhecimento de marca'},
-      { key: 'investimento_mensal', label: 'Qual o investimento mensal disponível para anúncios (verba de mídia)?', type: 'text'},
-      { key: 'tem_pixel', label: 'Já possui pixel/tag instalado no site? Tem conta de anúncios ativa?', type: 'text'}
+      { key: 'produtos_destaque', label: 'Quais produtos ou serviços têm maior margem e devem ser priorizados?', type: 'textarea', help: 'Onde o seu lucro é maior?'},
+      { key: 'geolocalizacao_anuncios', label: 'Para quais regiões devemos anunciar?', type: 'text', placeholder: 'Ex: Brasil todo, apenas cidades com mais de 500k habitantes, raio de 10km da loja...'},
+      { key: 'historico_anuncios', label: 'Já fez anúncios antes? O que funcionou e o que não funcionou?', type: 'textarea'},
+      { key: 'objetivo_campanha', label: 'Qual o objetivo imediato?', type: 'text', placeholder: 'geração de leads, vendas diretas, tráfego para site, reconhecimento de marca'},
+      { key: 'investimento_mensal', label: 'Qual a verba mensal destinada aos anúncios?', type: 'text', placeholder: 'Ex: R$ 2.000,00 por plataforma'},
+      { key: 'canais_preferenciais', label: 'Quais canais você acredita que seu público mais utiliza?', type: 'text', placeholder: 'Ex: Instagram e Google Search...'}
     ]
   }
 };
@@ -216,10 +283,13 @@ export const BriefingOnboarding: React.FC<{ isDashboardView?: boolean }> = ({ is
         <div className="space-y-8 flex-1">
           {questions.map((q) => (
             <div key={q.key}>
-              <label className="block text-sm font-bold text-gray-800 mb-3">{q.label}</label>
+              <label className="block text-sm font-bold text-gray-800 mb-2">{q.label}</label>
+              {q.help && <p className="text-[11px] text-gray-500 mb-3 leading-relaxed">{q.help}</p>}
               {q.type === 'textarea' ? (
                 <textarea
-                  value={formData[q.key] || ''}
+                  value={typeof formData[q.key] === 'object' 
+                    ? (Array.isArray(formData[q.key]) ? formData[q.key].join(', ') : Object.entries(formData[q.key] || {}).filter(([_, v]) => v).map(([k]) => k).join(', ')) 
+                    : (formData[q.key] || '')}
                   onChange={(e) => setFormData({ ...formData, [q.key]: e.target.value })}
                   placeholder={q.placeholder}
                   className="w-full border border-gray-200 rounded-2xl px-5 py-4 text-sm focus:outline-none focus:ring-2 focus:ring-brand-dark resize-none shadow-sm transition-all bg-gray-50/50"
@@ -228,7 +298,9 @@ export const BriefingOnboarding: React.FC<{ isDashboardView?: boolean }> = ({ is
               ) : (
                 <input
                   type="text"
-                  value={formData[q.key] || ''}
+                  value={typeof formData[q.key] === 'object' 
+                    ? (Array.isArray(formData[q.key]) ? formData[q.key].join(', ') : Object.entries(formData[q.key] || {}).filter(([_, v]) => v).map(([k]) => k).join(', ')) 
+                    : (formData[q.key] || '')}
                   onChange={(e) => setFormData({ ...formData, [q.key]: e.target.value })}
                   placeholder={q.placeholder}
                   className="w-full border border-gray-200 rounded-2xl px-5 py-4 text-sm focus:outline-none focus:ring-2 focus:ring-brand-dark shadow-sm transition-all bg-gray-50/50"

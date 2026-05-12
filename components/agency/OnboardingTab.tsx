@@ -6,6 +6,8 @@ import { motion } from 'motion/react';
 import dayjs from 'dayjs';
 
 import { ClientOnboarding } from '../ClientOnboarding';
+import { BRIEFING_QUESTIONS } from '../BriefingOnboarding';
+import { X } from 'lucide-react';
 
 const SERVICE_TO_BRIEFINGS: Record<string, string[]> = {
   'Social Media': ['persona', 'publico_alvo', 'tom_voz', 'posicionamento'],
@@ -34,6 +36,7 @@ export const OnboardingTab: React.FC<{ onNavigateToClients: (client: Client) => 
   const [clients, setClients] = useState<OnboardingData[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
+  const [viewingBriefingsClient, setViewingBriefingsClient] = useState<OnboardingData | null>(null);
 
   useEffect(() => {
     fetchOnboardingData();
@@ -56,12 +59,23 @@ export const OnboardingTab: React.FC<{ onNavigateToClients: (client: Client) => 
 
       if (clientsData) {
         // Map data to handle 1:N relations gracefully
-        const mappedClients = clientsData.map((client: any) => ({
-          ...client,
-          contract: client.contract && client.contract.length > 0 ? client.contract[0] : null,
-          briefings: client.briefings || [],
-          onboarding: client.onboarding && client.onboarding.length > 0 ? client.onboarding[0] : null,
-        }));
+        const mappedClients = clientsData.map((client: any) => {
+          // Handle cases where foreign relations might be returned as objects or arrays
+          const contract = Array.isArray(client.contract) 
+            ? (client.contract.length > 0 ? client.contract[0] : null)
+            : client.contract;
+          
+          let onboarding = Array.isArray(client.onboarding)
+            ? (client.onboarding.length > 0 ? client.onboarding[0] : null)
+            : client.onboarding;
+
+          return {
+            ...client,
+            contract,
+            briefings: client.briefings || [],
+            onboarding,
+          };
+        });
         setClients(mappedClients);
       }
     } catch (error) {
@@ -128,7 +142,10 @@ export const OnboardingTab: React.FC<{ onNavigateToClients: (client: Client) => 
     const completedBriefings = c.briefings?.filter(b => requiredTypes.has(b.briefing_type) && b.is_completed).length || 0;
     const hasAllBriefings = requiredTypes.size > 0 ? (completedBriefings === requiredTypes.size) : true;
     
-    return hasSignedContract && hasAllBriefings;
+    // Check internal onboarding as well
+    const internalOnboardingCompleted = c.onboarding?.is_completed || false;
+    
+    return hasSignedContract && hasAllBriefings && internalOnboardingCompleted;
   }).length;
 
   return (
@@ -199,8 +216,31 @@ export const OnboardingTab: React.FC<{ onNavigateToClients: (client: Client) => 
                 
                 const expectedBriefings = requiredTypes.size;
                 const completedBriefings = client.briefings?.filter(b => requiredTypes.has(b.briefing_type) && b.is_completed).length || 0;
-                const totalChecklist = client.onboarding?.steps?.length || 0;
-                const completedChecklist = client.onboarding?.steps?.filter(s => s.completed).length || 0;
+                
+                // Checklist Logic (Internal Onboarding)
+                let totalChecklist = 0;
+                let completedChecklist = 0;
+
+                if (client.onboarding && client.onboarding.steps) {
+                  totalChecklist = client.onboarding.steps.length;
+                  completedChecklist = client.onboarding.steps.filter((s: any) => s.completed).length;
+                } else {
+                  // Fallback: If no onboarding record exists, calculate potential steps
+                  // We import this dynamically if possible, or just mock the length for UI
+                  // Based on hooks/useClientOnboarding.ts, universal(5) + final(2) = 7 steps base
+                  const serviceExtraSteps = (client.services || []).reduce((acc: number, s: string) => {
+                    if (s === 'Social Media') return acc + 4;
+                    if (s === 'Tráfego Pago') return acc + 6;
+                    if (s.includes('Site')) return acc + 4;
+                    if (s === 'Identidade Visual') return acc + 3;
+                    if (s === 'Papelaria') return acc + 3;
+                    if (s === 'Email Marketing') return acc + 3;
+                    return acc;
+                  }, 0);
+                  totalChecklist = 7 + serviceExtraSteps;
+                  completedChecklist = 0;
+                }
+
                 const checklistPercentage = totalChecklist > 0 ? (completedChecklist / totalChecklist) * 100 : 0;
 
                 return (
@@ -254,13 +294,16 @@ export const OnboardingTab: React.FC<{ onNavigateToClients: (client: Client) => 
                     </td>
 
                     <td className="p-6">
-                      <div className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-widest ${
-                        expectedBriefings === 0 ? 'bg-gray-50 text-gray-500' :
-                        completedBriefings === expectedBriefings ? 'bg-green-50 text-green-600' :
-                        completedBriefings > 0 ? 'bg-yellow-50 text-yellow-600' : 'bg-red-50 text-red-600'
-                      }`}>
+                      <button 
+                        onClick={() => setViewingBriefingsClient(client)}
+                        className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-colors ${
+                          expectedBriefings === 0 ? 'bg-gray-50 text-gray-500' :
+                          completedBriefings === expectedBriefings ? 'bg-green-50 text-green-600 hover:bg-green-100' :
+                          completedBriefings > 0 ? 'bg-yellow-50 text-yellow-600 hover:bg-yellow-100' : 'bg-red-50 text-red-600 hover:bg-red-100'
+                        }`}
+                      >
                         {completedBriefings} / {expectedBriefings}
-                      </div>
+                      </button>
                     </td>
 
                     <td className="p-6">
@@ -302,6 +345,86 @@ export const OnboardingTab: React.FC<{ onNavigateToClients: (client: Client) => 
           </table>
         </div>
       </div>
+
+      {/* Strategic Briefing Viewer Modal */}
+      {viewingBriefingsClient && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-white rounded-[2.5rem] shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col"
+          >
+            <div className="p-8 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
+              <div>
+                <h3 className="text-2xl font-black text-brand-dark tracking-tight">Briefings Estratégicos</h3>
+                <p className="text-sm font-bold text-gray-500 uppercase tracking-widest mt-1">Cliente: {viewingBriefingsClient.name}</p>
+              </div>
+              <button 
+                onClick={() => setViewingBriefingsClient(null)}
+                className="p-3 hover:bg-white rounded-2xl transition-all shadow-sm group"
+              >
+                <X size={24} className="text-gray-400 group-hover:text-red-500 transition-colors" />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-8 space-y-12 hide-scrollbar">
+              {viewingBriefingsClient.briefings && viewingBriefingsClient.briefings.length > 0 ? (
+                viewingBriefingsClient.briefings.map(b => {
+                  const spec = BRIEFING_QUESTIONS[b.briefing_type];
+                  if (!spec) return null;
+                  
+                  return (
+                    <div key={b.id} className="space-y-6">
+                      <div className="flex items-center gap-3 border-b border-gray-100 pb-4">
+                        <div className="w-10 h-10 bg-brand-dark/5 rounded-xl flex items-center justify-center text-brand-dark">
+                          <FileText size={20} />
+                        </div>
+                        <h4 className="text-xl font-bold text-gray-900">{spec.title}</h4>
+                      </div>
+
+                      <div className="grid gap-6">
+                        {spec.questions.map(q => (
+                          <div key={q.key} className="bg-gray-50/50 rounded-2xl p-6 border border-black/[0.02]">
+                            <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">{q.label}</p>
+                            <p className="text-gray-700 leading-relaxed whitespace-pre-wrap">
+                              {!b.responses[q.key] ? (
+                                <span className="text-gray-300 italic">Não respondido</span>
+                              ) : typeof b.responses[q.key] === 'object' ? (
+                                Array.isArray(b.responses[q.key]) 
+                                  ? (b.responses[q.key] as string[]).join(', ') 
+                                  : Object.entries(b.responses[q.key] as Record<string, any>)
+                                      .filter(([_, v]) => v)
+                                      .map(([k]) => k)
+                                      .join(', ')
+                              ) : (
+                                String(b.responses[q.key])
+                              )}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })
+              ) : (
+                <div className="text-center py-20">
+                  <FileText size={48} className="text-gray-200 mx-auto mb-4" />
+                  <p className="text-gray-500 font-medium">Nenhum briefing preenchido por este cliente ainda.</p>
+                </div>
+              )}
+            </div>
+
+            <div className="p-8 bg-gray-50/50 border-t border-gray-100 flex justify-end">
+              <button 
+                onClick={() => setViewingBriefingsClient(null)}
+                className="px-8 py-4 bg-brand-dark text-white rounded-2xl font-bold uppercase tracking-widest text-xs hover:opacity-90 transition-all shadow-lg"
+              >
+                Fechar Visualização
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
     </div>
   );
 };
