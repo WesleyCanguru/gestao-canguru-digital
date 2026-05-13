@@ -117,6 +117,19 @@ export const BriefingOnboarding: React.FC<{ isDashboardView?: boolean }> = ({ is
     }
   }, [activeClient]);
 
+  useEffect(() => {
+    if (briefings.length > 0) {
+      const params = new URLSearchParams(window.location.search);
+      const typeParam = params.get('type');
+      if (typeParam) {
+        const targetBriefing = briefings.find(b => b.briefing_type === typeParam);
+        if (targetBriefing && !selectedBriefingType) {
+          handleSelectBriefing(targetBriefing);
+        }
+      }
+    }
+  }, [briefings]);
+
   const loadBriefings = async () => {
     setLoading(true);
     try {

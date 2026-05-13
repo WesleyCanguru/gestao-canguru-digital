@@ -45,6 +45,16 @@ const MainApp: React.FC<MainAppProps> = ({ initialView, onExitAgencyDashboard, o
   const { userRole, logout, activeClient, setActiveClient, refreshActiveClient } = useAuth();
   const { monthlyPlans } = useEditorialData();
 
+  // Deep linking: Handle direct links to briefings or other views
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const viewParam = params.get('view');
+    
+    if (viewParam === 'briefing') {
+      setView('strategic-briefings');
+    }
+  }, []);
+
   // Redirecionar cliente para briefings estratégicos se onboarding não estiver completo
   useEffect(() => {
     if (userRole === 'approver' && activeClient) {
