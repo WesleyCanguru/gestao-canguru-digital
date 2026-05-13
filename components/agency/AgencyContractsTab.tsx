@@ -180,10 +180,20 @@ export const AgencyContractsTab: React.FC = () => {
     const { data: contractsData } = await supabase.from('contract_forms').select('*');
 
     if (clientsData) {
-      const merged = clientsData.map(c => ({
-        ...c,
-        contract: contractsData?.find(cf => cf.client_id === c.id) || null
-      }));
+      const merged = clientsData.map(c => {
+        const clientContracts = contractsData?.filter(cf => cf.client_id === c.id) || [];
+        // Prioritize by status: signed > submitted > pending
+        const sortedContracts = clientContracts.sort((a, b) => {
+          const statusOrder = { signed: 0, submitted: 1, pending: 2 };
+          return (statusOrder[a.status as keyof typeof statusOrder] ?? 99) - 
+                 (statusOrder[b.status as keyof typeof statusOrder] ?? 99);
+        });
+        
+        return {
+          ...c,
+          contract: sortedContracts[0] || null
+        };
+      });
       setClients(merged);
     }
     setLoading(false);
@@ -276,15 +286,32 @@ export const AgencyContractsTab: React.FC = () => {
         signed_contract_url: urlData.publicUrl
       };
 
+      const {
+        client_id,
+        agency_id,
+        ...updatePayload
+      } = payload;
+
       if (selectedClient.contract) {
-        const { error: updateError } = await supabase
+        const { error: updateError, data: updateData } = await supabase
           .from('contract_forms')
-          .update(payload)
-          .eq('id', selectedClient.contract.id);
+          .update(updatePayload)
+          .eq('id', selectedClient.contract.id)
+          .select();
         
         if (updateError) {
           console.error('Update Error:', updateError);
           throw new Error(`Erro ao atualizar banco: ${updateError.message}`);
+        }
+        
+        if (!updateData || updateData.length === 0) {
+          console.warn('No rows updated. Trying insert fallback.');
+          // If update failed to find the row (unlikely but possible), try insert
+          const { error: insertError } = await supabase
+            .from('contract_forms')
+            .insert([{ ...payload, form_token: Array.from(crypto.getRandomValues(new Uint8Array(20))).map(b => b.toString(16).padStart(2, '0')).join('') }]);
+          
+          if (insertError) throw insertError;
         }
       } else {
         const token = Array.from(crypto.getRandomValues(new Uint8Array(20))).map(b => b.toString(16).padStart(2, '0')).join('');
