@@ -17,6 +17,7 @@ import {
   Calendar,
   Globe,
   Zap,
+  TrendingUp,
   FolderOpen,
   ShieldCheck,
   BookOpen,
@@ -94,17 +95,38 @@ export const Navigation: React.FC<SidebarProps> = ({
     const allModules = [
       { id: 'dashboard', label: 'Início', icon: Home, featureKey: null, defaultVisible: true },
       { id: 'month-detail', label: 'Mapa Editorial', icon: Calendar, featureKey: 'mapa', defaultVisible: hasService('Social Media') },
-      { id: 'briefings', label: 'Briefings', icon: ClipboardList, featureKey: 'briefings', defaultVisible: hasService('Social Media') || hasService('Tráfego Pago') },
-      { id: 'strategic-briefings', label: 'Estratégico', icon: Target, featureKey: 'briefings', defaultVisible: hasService('Social Media') || hasService('Tráfego Pago') },
+      { id: 'strategic-briefings', label: 'Briefings', icon: Target, featureKey: 'briefings', defaultVisible: hasService('Social Media') || hasService('Tráfego Pago') },
       { id: 'paid-traffic', label: 'Tráfego Pago', icon: Zap, featureKey: 'reportei_paid', defaultVisible: hasService('Tráfego Pago') },
+      { id: 'reportei_paid', label: 'Dashboard Pago', icon: BarChart3, featureKey: 'reportei_paid', defaultVisible: hasService('Tráfego Pago') },
+      { id: 'reportei_organic', label: 'Dashboard Orgânico', icon: TrendingUp, featureKey: 'reportei_organic', defaultVisible: hasService('Social Media') },
       { id: 'website', label: 'Website', icon: Globe, featureKey: 'website', defaultVisible: hasService('Tráfego Pago') },
       { id: 'ai-photos', label: 'Fotos IA', icon: Camera, featureKey: 'ai_photos', defaultVisible: hasService('Fotos com IA') },
       { id: 'password-vault', label: 'Senhas', icon: ShieldCheck, featureKey: null, defaultVisible: true },
+      { id: 'drive', label: 'Documentos', icon: FolderOpen, featureKey: 'drive', defaultVisible: true },
       { id: 'tutorials', label: 'Tutoriais', icon: BookOpen, featureKey: 'tutorials', defaultVisible: true }
     ];
 
     if (activeClient?.is_lead_tracking_enabled || userRole === 'admin') {
-      allModules.splice(1, 0, { id: 'crm', label: 'CRM / Leads', icon: Users, featureKey: 'crm', defaultVisible: activeClient?.is_lead_tracking_enabled });
+      const isLeadEnabled = activeClient?.is_lead_tracking_enabled ?? false;
+      allModules.push({ id: 'crm', label: 'CRM / Leads', icon: Users, featureKey: 'crm', defaultVisible: isLeadEnabled });
+    }
+
+    // Aplicar ordem personalizada se existir
+    const menuOrder = activeClient.features_settings?.menu_order;
+    if (menuOrder && Array.isArray(menuOrder)) {
+      allModules.sort((a, b) => {
+        let indexA = menuOrder.indexOf(a.id);
+        let indexB = menuOrder.indexOf(b.id);
+        // Novos módulos (não na lista salva) vão para o final
+        if (indexA === -1) indexA = 999;
+        if (indexB === -1) indexB = 999;
+        return indexA - indexB;
+      });
+    } else if (allModules.some(m => m.id === 'crm')) {
+      // Ordem padrão: CRM em segundo se não houver ordem personalizada
+      const crmIndex = allModules.findIndex(m => m.id === 'crm');
+      const [crmModule] = allModules.splice(crmIndex, 1);
+      allModules.splice(1, 0, crmModule);
     }
 
     const mapped = allModules.filter(item => {
@@ -113,10 +135,14 @@ export const Navigation: React.FC<SidebarProps> = ({
       return getFeature(item.featureKey, item.defaultVisible);
     }).map(item => {
       const isHiddenForClient = item.featureKey && !getFeature(item.featureKey, item.defaultVisible);
+      // CRM is special: if is_lead_tracking_enabled is true, it shouldn't show as Hidden for Admin even if feature is explicitly off
+      const forceShowAsActive = item.id === 'crm' && activeClient?.is_lead_tracking_enabled;
+      const shouldShowHiddenTag = userRole === 'admin' && isHiddenForClient && !forceShowAsActive;
+      
       return {
         ...item,
-        label: (userRole === 'admin' && isHiddenForClient) ? `${item.label} (Oculto)` : item.label,
-        isInactive: isHiddenForClient
+        label: shouldShowHiddenTag ? `${item.label} (Oculto)` : item.label,
+        isInactive: isHiddenForClient && !forceShowAsActive
       };
     });
 

@@ -15,7 +15,8 @@ import {
   BookOpen,
   Camera,
   ArrowLeft,
-  Link
+  Link,
+  BarChart3
 } from 'lucide-react';
 import { motion } from 'motion/react';
 import dayjs from 'dayjs';
@@ -25,6 +26,7 @@ import { ClientLeadConfig, Client } from '../types';
 import { AgencyLogo } from './AgencyLogo';
 
 interface ClientHomeProps {
+  initialActiveView?: 'dashboard' | 'leads';
   onNavigateToOnboarding: () => void;
   onNavigateToMapa: () => void;
   onNavigateToBriefings: () => void;
@@ -44,6 +46,7 @@ const MONTHS = [
 ];
 
 export const ClientHome: React.FC<ClientHomeProps> = ({
+  initialActiveView,
   onNavigateToOnboarding,
   onNavigateToMapa,
   onNavigateToBriefings,
@@ -61,18 +64,25 @@ export const ClientHome: React.FC<ClientHomeProps> = ({
   const [smartLoading, setSmartLoading] = useState(true);
   const [leadConfig, setLeadConfig] = useState<ClientLeadConfig | null>(null);
   const [monthLeadsCount, setMonthLeadsCount] = useState<number>(0);
-  const [activeView, setActiveView] = useState<'dashboard' | 'leads'>('dashboard');
+  const [activeView, setActiveView] = useState<'dashboard' | 'leads'>(initialActiveView || 'dashboard');
 
-  const { isCompleted: isOnboardingCompleted } = useClientOnboarding(activeClient?.id);
+  useEffect(() => {
+    if (initialActiveView) {
+      setActiveView(initialActiveView);
+    }
+  }, [initialActiveView]);
+
+  const { isCompleted: isOnboardingCompleted, loading: loadingOnboarding } = useClientOnboarding(activeClient?.id);
+  const isAdmin = userRole === 'admin';
 
   // Handle deep link to CRM
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const destino = params.get('destino') || params.get('active_view');
-    if (destino === 'crm' && activeClient?.is_lead_tracking_enabled) {
+    if (destino === 'crm' && (activeClient?.is_lead_tracking_enabled || isAdmin)) {
       setActiveView('leads');
     }
-  }, [activeClient]);
+  }, [activeClient, isAdmin]);
 
   const clientName = activeClient?.name || 'Cliente';
 
@@ -135,8 +145,6 @@ export const ClientHome: React.FC<ClientHomeProps> = ({
     checkStatus();
   }, [activeClient?.id]);
 
-  const isAdmin = userRole === 'admin';
-
   const handleSetUrl = async (type: 'organic' | 'paid' | 'drive') => {
     if (!isAdmin || !activeClient) return;
     
@@ -191,6 +199,8 @@ export const ClientHome: React.FC<ClientHomeProps> = ({
   const showLeadConfig = getFeature('tracking', true);
   const showTutorials = getFeature('tutorials', true);
 
+  const isActuallyOnboardingCompleted = activeClient?.onboarding_completed || isOnboardingCompleted;
+
   const containerVariants = {
     hidden: { opacity: 0 },
     visible: {
@@ -213,7 +223,401 @@ export const ClientHome: React.FC<ClientHomeProps> = ({
     }
   };
 
-  if (activeView === 'leads' && leadConfig && activeClient) {
+  const allCards = [
+    {
+      id: 'mapa_editorial',
+      visible: showMapa,
+      render: () => (
+        <motion.div 
+          key="mapa_editorial"
+          variants={itemVariants}
+          onClick={onNavigateToMapa}
+          className="group bg-white rounded-[2.5rem] p-10 shadow-[0_4px_25px_rgba(0,0,0,0.02)] border border-black/[0.02] hover:shadow-[0_15px_45px_rgba(0,0,0,0.05)] hover:border-brand-dark/10 transition-all duration-500 cursor-pointer flex flex-col relative"
+        >
+          <div className="flex justify-between items-start mb-8">
+            <div className="w-16 h-16 bg-gray-50 rounded-[20px] flex items-center justify-center text-brand-dark group-hover:bg-brand-dark group-hover:text-white transition-all duration-500 shadow-sm">
+              <Calendar size={32} />
+            </div>
+            <ArrowRight size={22} className="text-gray-200 group-hover:text-brand-dark transform group-hover:-rotate-45 transition-all duration-500" />
+          </div>
+          <h3 className="text-2xl font-bold text-brand-dark mb-3 tracking-tight">Mapa Editorial</h3>
+          <p className="text-gray-500 text-sm leading-relaxed font-medium">
+            Acesse o calendário completo de publicações. Visualize, aprove e acompanhe o status de cada conteúdo planejado.
+          </p>
+        </motion.div>
+      )
+    },
+    {
+      id: 'trafego_pago',
+      visible: showPaidTrafficCard,
+      render: () => (
+        <motion.div 
+          key="trafego_pago"
+          variants={itemVariants}
+          onClick={onNavigateToPaidTraffic}
+          className="group bg-white rounded-[2.5rem] p-10 shadow-[0_4px_25px_rgba(0,0,0,0.02)] border border-black/[0.02] hover:shadow-[0_15px_45px_rgba(0,0,0,0.05)] hover:border-brand-dark/10 transition-all duration-500 cursor-pointer flex flex-col relative"
+        >
+          <div className="flex justify-between items-start mb-8">
+            <div className="w-16 h-16 bg-blue-50/50 rounded-[20px] flex items-center justify-center text-blue-600 group-hover:bg-blue-600 group-hover:text-white transition-all duration-500 shadow-sm">
+              <Zap size={32} />
+            </div>
+            <ArrowRight size={22} className="text-gray-200 group-hover:text-brand-dark transform group-hover:-rotate-45 transition-all duration-500" />
+          </div>
+          <h3 className="text-2xl font-bold text-brand-dark mb-3 tracking-tight">Tráfego Pago</h3>
+          <p className="text-gray-500 text-sm leading-relaxed font-medium">
+            Estratégias, performance de anúncios e campanhas ativas.
+          </p>
+        </motion.div>
+      )
+    },
+    {
+      id: 'reportei_paid',
+      visible: showPaidTraffic,
+      render: () => (
+        activeClient?.paid_reportei_url ? (
+          <motion.a 
+            key="reportei_paid"
+            href={activeClient.paid_reportei_url}
+            target="_blank"
+            rel="noopener noreferrer"
+            variants={itemVariants}
+            className="group bg-white rounded-[2.5rem] p-10 shadow-[0_4px_25px_rgba(0,0,0,0.02)] border border-black/[0.02] hover:shadow-[0_15px_45px_rgba(0,0,0,0.05)] hover:border-brand-dark/10 transition-all duration-300 flex flex-col relative h-full"
+          >
+            {isAdmin && (
+              <button 
+                onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleSetUrl('paid'); }}
+                className="absolute top-10 right-20 p-2 bg-gray-50 rounded-full opacity-0 group-hover:opacity-100 transition-opacity hover:bg-gray-100"
+              >
+                <Globe size={18} className="text-gray-400" />
+              </button>
+            )}
+            <div className="flex justify-between items-start mb-8">
+              <div className="w-16 h-16 bg-blue-50/50 rounded-[20px] flex items-center justify-center text-blue-600 group-hover:bg-blue-600 group-hover:text-white transition-all duration-300 shadow-sm">
+                <BarChart3 size={32} />
+              </div>
+              <ArrowRight size={22} className="text-gray-200 group-hover:text-brand-dark transform group-hover:-rotate-45 transition-all duration-300" />
+            </div>
+            <h3 className="text-2xl font-bold text-brand-dark mb-3 tracking-tight">Dashboard Pago</h3>
+            <p className="text-gray-500 text-sm leading-relaxed font-medium">Acompanhe seus resultados via Reportei.</p>
+          </motion.a>
+        ) : (
+          <motion.div 
+            key="reportei_paid"
+            variants={itemVariants}
+            onClick={() => isAdmin && handleSetUrl('paid')}
+            className={`group bg-white rounded-[2.5rem] p-10 shadow-[0_4px_25px_rgba(0,0,0,0.02)] border border-black/[0.02] ${isAdmin ? 'cursor-pointer hover:border-brand-dark/10 hover:shadow-md' : 'opacity-60 cursor-default'} transition-all duration-300 flex flex-col relative h-full`}
+          >
+            <div className="flex justify-between items-start mb-8">
+              <div className="w-16 h-16 bg-blue-50/50 rounded-[20px] flex items-center justify-center text-blue-600 shadow-sm">
+                <BarChart3 size={32} />
+              </div>
+              <div className="flex flex-col items-end gap-1">
+                <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-gray-400">Em breve</span>
+                {isAdmin && <span className="text-[8px] text-brand-dark font-bold uppercase tracking-widest opacity-40 group-hover:opacity-100 transition-opacity">Configurar Link</span>}
+              </div>
+            </div>
+            <h3 className="text-2xl font-bold text-brand-dark mb-3 tracking-tight">Dashboard Pago</h3>
+            <p className="text-gray-500 text-sm leading-relaxed font-medium">Acompanhe seus resultados via Reportei.</p>
+          </motion.div>
+        )
+      )
+    },
+    {
+      id: 'reportei_organic',
+      visible: showOrganicTraffic,
+      render: () => (
+        activeClient?.organic_reportei_url ? (
+          <motion.a 
+            key="reportei_organic"
+            href={activeClient.organic_reportei_url}
+            target="_blank"
+            rel="noopener noreferrer"
+            variants={itemVariants}
+            className="group bg-white rounded-[2.5rem] p-10 shadow-[0_4px_25px_rgba(0,0,0,0.02)] border border-black/[0.02] hover:shadow-[0_15px_45px_rgba(0,0,0,0.05)] hover:border-brand-dark/10 transition-all duration-300 flex flex-col relative h-full"
+          >
+            {isAdmin && (
+              <button 
+                onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleSetUrl('organic'); }}
+                className="absolute top-10 right-20 p-2 bg-gray-50 rounded-full opacity-0 group-hover:opacity-100 transition-opacity hover:bg-gray-100"
+              >
+                <Globe size={18} className="text-gray-400" />
+              </button>
+            )}
+            <div className="flex justify-between items-start mb-8">
+              <div className="w-16 h-16 bg-purple-50/50 rounded-[20px] flex items-center justify-center text-purple-600 group-hover:bg-purple-600 group-hover:text-white transition-all duration-300 shadow-sm">
+                <TrendingUp size={32} />
+              </div>
+              <ArrowRight size={22} className="text-gray-200 group-hover:text-brand-dark transform group-hover:-rotate-45 transition-all duration-300" />
+            </div>
+            <h3 className="text-2xl font-bold text-brand-dark mb-3 tracking-tight">Dashboard Orgânico</h3>
+            <p className="text-gray-500 text-sm leading-relaxed font-medium">Acessar métricas do Reportei.</p>
+          </motion.a>
+        ) : (
+          <motion.div 
+            key="reportei_organic"
+            variants={itemVariants}
+            onClick={() => isAdmin && handleSetUrl('organic')}
+            className={`group bg-white rounded-[2.5rem] p-10 shadow-[0_4px_25px_rgba(0,0,0,0.02)] border border-black/[0.02] ${isAdmin ? 'cursor-pointer hover:border-brand-dark/10 hover:shadow-md' : 'opacity-60 cursor-default'} transition-all duration-300 flex flex-col relative h-full`}
+          >
+            <div className="flex justify-between items-start mb-8">
+              <div className="w-16 h-16 bg-purple-50/50 rounded-[20px] flex items-center justify-center text-purple-600 shadow-sm">
+                <TrendingUp size={32} />
+              </div>
+              <div className="flex flex-col items-end gap-1">
+                <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-gray-400">Em breve</span>
+                {isAdmin && <span className="text-[8px] text-brand-dark font-bold uppercase tracking-widest opacity-40 group-hover:opacity-100 transition-opacity">Configurar Link</span>}
+              </div>
+            </div>
+            <h3 className="text-2xl font-bold text-brand-dark mb-3 tracking-tight">Dashboard Orgânico</h3>
+            <p className="text-gray-500 text-sm leading-relaxed font-medium">Acessar métricas do Reportei.</p>
+          </motion.div>
+        )
+      )
+    },
+    {
+      id: 'crm',
+      visible: leadConfig?.is_enabled && showLeadConfig,
+      render: () => (
+        <motion.div
+          key="crm"
+          variants={itemVariants}
+          whileHover={{ y: -4, shadow: '0 20px 40px rgba(0,0,0,0.08)' }}
+          onClick={() => setActiveView('leads')}
+          className="bg-white p-10 rounded-[2.5rem] border border-black/[0.03] shadow-[0_10px_30px_rgba(0,0,0,0.02)] cursor-pointer group transition-all h-full"
+        >
+          <div className="flex items-center justify-between mb-8">
+            <div className="w-16 h-16 rounded-[20px] bg-orange-50 flex items-center justify-center text-orange-600 group-hover:bg-orange-600 group-hover:text-white transition-all">
+              <Target size={32} />
+            </div>
+            <div className="text-right">
+              <div className="text-3xl font-bold tracking-tighter text-brand-dark">{monthLeadsCount}</div>
+              <div className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Leads no Mês</div>
+            </div>
+          </div>
+          <div>
+            <h3 className="text-2xl font-bold text-brand-dark mb-3 tracking-tight">CRM / Leads</h3>
+            <p className="text-gray-500 text-sm leading-relaxed font-medium">Gestão e conversão de leads e oportunidades.</p>
+          </div>
+          {isAdmin && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                const chave = window.prompt('Para gerar o link direto do CRM, preciso da senha (chave) deste cliente:');
+                if (chave) {
+                  const baseUrl = `${window.location.protocol}//${window.location.host}`;
+                  const directLink = `${baseUrl}/?chave=${chave}&destino=crm`;
+                  navigator.clipboard.writeText(directLink);
+                  alert('Link direto do CRM copiado!');
+                }
+              }}
+              className="mt-6 w-full py-3 bg-gray-50 text-gray-500 hover:text-brand-dark hover:bg-gray-100 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2"
+            >
+              <Link size={14} />
+              Copiar Link Direto
+            </button>
+          )}
+        </motion.div>
+      )
+    },
+    {
+      id: 'ai_photos',
+      visible: showAiPhotos,
+      render: () => (
+        <motion.div 
+          key="ai_photos"
+          variants={itemVariants}
+          onClick={onNavigateToAiPhotos}
+          className="group bg-white rounded-[2.5rem] p-10 shadow-[0_4px_25px_rgba(0,0,0,0.02)] border border-black/[0.02] hover:shadow-[0_15px_45px_rgba(0,0,0,0.05)] hover:border-brand-dark/10 transition-all duration-500 cursor-pointer flex flex-col relative h-full"
+        >
+          <div className="flex justify-between items-start mb-8">
+            <div className="w-16 h-16 bg-fuchsia-50/50 rounded-[20px] flex items-center justify-center text-fuchsia-600 group-hover:bg-fuchsia-600 group-hover:text-white transition-all duration-500 shadow-sm">
+              <Camera size={32} />
+            </div>
+            <ArrowRight size={22} className="text-gray-200 group-hover:text-brand-dark transform group-hover:-rotate-45 transition-all duration-500" />
+          </div>
+          <h3 className="text-2xl font-bold text-brand-dark mb-3 tracking-tight">Fotos com IA</h3>
+          <p className="text-gray-500 text-sm leading-relaxed font-medium">
+            Aprove e comente os ensaios fotográficos gerados por Inteligência Artificial.
+          </p>
+        </motion.div>
+      )
+    },
+    {
+      id: 'website',
+      visible: showWebsite,
+      render: () => (
+        <motion.div 
+          key="website"
+          variants={itemVariants}
+          onClick={onNavigateToWebsite}
+          className="group bg-white rounded-[2.5rem] p-10 shadow-[0_4px_25px_rgba(0,0,0,0.02)] border border-black/[0.02] hover:shadow-[0_15px_45px_rgba(0,0,0,0.05)] hover:border-brand-dark/10 transition-all duration-500 cursor-pointer flex flex-col h-full"
+        >
+          <div className="flex justify-between items-start mb-8">
+            <div className="w-16 h-16 bg-indigo-50/50 rounded-[20px] flex items-center justify-center text-indigo-600 group-hover:bg-indigo-600 group-hover:text-white transition-all duration-500 shadow-sm">
+              <Globe size={32} />
+            </div>
+            <ArrowRight size={22} className="text-gray-200 group-hover:text-brand-dark transform group-hover:-rotate-45 transition-all duration-500" />
+          </div>
+          <h3 className="text-2xl font-bold text-brand-dark mb-3 tracking-tight">Website</h3>
+          <p className="text-gray-500 text-sm leading-relaxed font-medium">
+            Prévia e acompanhamento do desenvolvimento do seu site.
+          </p>
+        </motion.div>
+      )
+    },
+    {
+      id: 'lockbox',
+      visible: true,
+      render: () => (
+        <motion.div 
+          key="lockbox"
+          variants={itemVariants}
+          onClick={onNavigateToPasswordVault}
+          className="group bg-white rounded-[2.5rem] p-10 shadow-[0_4px_25px_rgba(0,0,0,0.02)] border border-black/[0.02] hover:shadow-[0_15px_45px_rgba(0,0,0,0.05)] hover:border-brand-dark/10 transition-all duration-500 cursor-pointer flex flex-col h-full"
+        >
+          <div className="flex justify-between items-start mb-8">
+            <div className="w-16 h-16 bg-slate-50/50 rounded-[20px] flex items-center justify-center text-slate-600 group-hover:bg-slate-600 group-hover:text-white transition-all duration-500 shadow-sm">
+              <ShieldCheck size={32} />
+            </div>
+            <ArrowRight size={22} className="text-gray-200 group-hover:text-brand-dark transform group-hover:-rotate-45 transition-all duration-500" />
+          </div>
+          <h3 className="text-2xl font-bold text-brand-dark mb-3 tracking-tight">Cofre de Senhas</h3>
+          <p className="text-gray-500 text-sm leading-relaxed font-medium">
+            Acesso seguro às credenciais e senhas da sua marca.
+          </p>
+        </motion.div>
+      )
+    },
+    {
+      id: 'arquivos',
+      visible: showDocuments,
+      render: () => (
+        activeClient?.drive_link ? (
+          <motion.a 
+            key="arquivos"
+            href={(activeClient as any).drive_link}
+            target="_blank"
+            rel="noopener noreferrer"
+            variants={itemVariants}
+            className="group bg-white rounded-[2.5rem] p-10 shadow-[0_4px_25px_rgba(0,0,0,0.02)] border border-black/[0.02] hover:shadow-[0_15px_45px_rgba(0,0,0,0.05)] hover:border-brand-dark/10 transition-all duration-500 cursor-pointer flex flex-col relative h-full"
+          >
+            {isAdmin && (
+              <button 
+                onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleSetUrl('drive'); }}
+                className="absolute top-10 right-20 p-2 bg-gray-50 rounded-full opacity-0 group-hover:opacity-100 transition-opacity hover:bg-gray-100"
+              >
+                <Globe size={18} className="text-gray-400" />
+              </button>
+            )}
+            <div className="flex justify-between items-start mb-8">
+              <div className="w-16 h-16 bg-teal-50/50 rounded-[20px] flex items-center justify-center text-teal-600 group-hover:bg-teal-600 group-hover:text-white transition-all duration-500 shadow-sm">
+                <FolderOpen size={32} />
+              </div>
+              <ArrowRight size={22} className="text-gray-200 group-hover:text-brand-dark transform group-hover:-rotate-45 transition-all duration-500" />
+            </div>
+            <h3 className="text-2xl font-bold text-brand-dark mb-3 tracking-tight">Documentos</h3>
+            <p className="text-gray-500 text-sm leading-relaxed font-medium">
+              Repositório de arquivos, contratos e relatórios mensais.
+            </p>
+          </motion.a>
+        ) : (
+          <motion.div 
+            key="arquivos"
+            variants={itemVariants}
+            onClick={() => isAdmin && handleSetUrl('drive')}
+            className={`group bg-white rounded-[2.5rem] p-10 shadow-[0_4px_25px_rgba(0,0,0,0.02)] border border-black/[0.02] ${isAdmin ? 'cursor-pointer hover:border-brand-dark/10' : 'opacity-60 cursor-default'} transition-all duration-500 flex flex-col relative h-full`}
+          >
+            <div className="flex justify-between items-start mb-8">
+              <div className="w-16 h-16 bg-teal-50/50 rounded-[20px] flex items-center justify-center text-teal-600 shadow-sm">
+                <FolderOpen size={32} />
+              </div>
+              <div className="flex flex-col items-end gap-1">
+                <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-gray-400">Em breve</span>
+                {isAdmin && <span className="text-[8px] text-brand-dark font-bold uppercase tracking-widest opacity-40 group-hover:opacity-100 transition-opacity">Configurar Link</span>}
+              </div>
+            </div>
+            <h3 className="text-2xl font-bold text-brand-dark mb-3 tracking-tight">Documentos</h3>
+            <p className="text-gray-500 text-sm leading-relaxed font-medium">
+              Repositório de arquivos, contratos e relatórios mensais.
+            </p>
+          </motion.div>
+        )
+      )
+    },
+    {
+      id: 'tutoriais',
+      visible: showTutorials,
+      render: () => (
+        <motion.div 
+          key="tutoriais"
+          variants={itemVariants}
+          onClick={onNavigateToTutorials}
+          className="group bg-white rounded-[2.5rem] p-10 shadow-[0_4px_25px_rgba(0,0,0,0.02)] border border-black/[0.02] hover:shadow-[0_15px_45px_rgba(0,0,0,0.05)] hover:border-brand-dark/10 transition-all duration-500 cursor-pointer flex flex-col h-full"
+        >
+          <div className="flex justify-between items-start mb-8">
+            <div className="w-16 h-16 bg-blue-50/50 rounded-[20px] flex items-center justify-center text-blue-600 group-hover:bg-blue-600 group-hover:text-white transition-all duration-500 shadow-sm">
+              <BookOpen size={32} />
+            </div>
+            <ArrowRight size={22} className="text-gray-200 group-hover:text-brand-dark transform group-hover:-rotate-45 transition-all duration-500" />
+          </div>
+          <h3 className="text-2xl font-bold text-brand-dark mb-3 tracking-tight">Tutoriais</h3>
+          <p className="text-gray-500 text-sm leading-relaxed font-medium">
+            Aprenda a gerenciar suas plataformas e aprovar conteúdos.
+          </p>
+        </motion.div>
+      )
+    },
+    {
+      id: 'strategic-briefings',
+      visible: showBriefings,
+      render: () => (
+        <motion.div 
+          key="strategic-briefings"
+          variants={itemVariants}
+          onClick={onNavigateToStrategicBriefings}
+          className="group bg-white rounded-[2.5rem] p-10 shadow-[0_4px_25px_rgba(0,0,0,0.02)] border border-black/[0.02] hover:shadow-[0_15px_45px_rgba(0,0,0,0.05)] hover:border-brand-dark/10 transition-all duration-500 cursor-pointer flex flex-col h-full"
+        >
+          <div className="flex justify-between items-start mb-8">
+            <div className="w-16 h-16 bg-rose-50/50 rounded-[20px] flex items-center justify-center text-rose-600 group-hover:bg-rose-600 group-hover:text-white transition-all duration-500 shadow-sm">
+              <Target size={32} />
+            </div>
+            <ArrowRight size={22} className="text-gray-200 group-hover:text-brand-dark transform group-hover:-rotate-45 transition-all duration-500" />
+          </div>
+          <h3 className="text-2xl font-bold text-brand-dark mb-3 tracking-tight">Briefings</h3>
+          <p className="text-gray-500 text-sm leading-relaxed font-medium">
+            Formulários estratégicos e alinhamento de marca.
+          </p>
+        </motion.div>
+      )
+    }
+  ];
+
+  const menuOrder = activeClient?.features_settings?.menu_order;
+  const sortedCards = allCards
+    .filter(c => c.visible)
+    .sort((a, b) => {
+      if (!menuOrder) return 0;
+      let idxA = menuOrder.indexOf(a.id);
+      let idxB = menuOrder.indexOf(b.id);
+      if (idxA === -1) idxA = 999;
+      if (idxB === -1) idxB = 999;
+      return idxA - idxB;
+    });
+
+  if (activeView === 'leads' && activeClient) {
+    if (!leadConfig && !isAdmin) {
+      return (
+        <div className="min-h-screen bg-[#FDFDFD] flex flex-col items-center justify-center p-8 text-center">
+          <Target size={48} className="text-gray-300 mb-4" />
+          <h2 className="text-2xl font-bold text-brand-dark mb-2">CRM Indisponível</h2>
+          <p className="text-gray-500 mb-6">Este módulo ainda não foi configurado para sua conta.</p>
+          <button onClick={() => setActiveView('dashboard')} className="px-8 py-3 bg-brand-dark text-white rounded-2xl font-bold text-sm uppercase tracking-widest">
+            Voltar ao Dashboard
+          </button>
+        </div>
+      );
+    }
+
     return (
       <div className="min-h-screen bg-[#FDFDFD]">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -226,7 +630,7 @@ export const ClientHome: React.FC<ClientHomeProps> = ({
           </button>
           <LeadTrackerView 
             clientId={activeClient.id} 
-            config={leadConfig} 
+            config={leadConfig || { is_enabled: true, client_id: activeClient.id }} 
             onBack={() => {
               setActiveView('dashboard');
               checkStatus();
@@ -266,393 +670,51 @@ export const ClientHome: React.FC<ClientHomeProps> = ({
         </div>
         
         <p className="text-[15px] md:text-lg text-gray-500 max-w-xl mx-auto leading-relaxed font-medium mt-4">
-          "Cada cliente bem cuidado é mais um passo no que estamos construindo."
+          Acompanhe sua linha editorial, monitore métricas e visualize o crescimento da sua marca em tempo real.
         </p>
       </motion.div>
 
-      {/* Dashboard de Acompanhamento Section */}
-      {(showPaidTraffic || showOrganicTraffic) && (
-        <motion.div 
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8, delay: 0.2, ease: [0.16, 1, 0.3, 1] }}
-          className="max-w-6xl w-full mb-12"
-        >
-          <h2 className="text-xl font-bold text-brand-dark mb-6 tracking-tight">Acompanhamento de Resultados</h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {showPaidTraffic && (
-              activeClient?.paid_reportei_url ? (
-                <a 
-                  href={activeClient.paid_reportei_url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="group bg-white rounded-2xl p-6 shadow-sm border border-black/[0.02] hover:shadow-md hover:border-brand-dark/10 transition-all duration-300 flex items-center justify-between relative"
-                >
-                  {isAdmin && (
-                    <button 
-                      onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleSetUrl('paid'); }}
-                      className="absolute top-1/2 -translate-y-1/2 right-16 p-2 bg-gray-50 rounded-full opacity-0 group-hover:opacity-100 transition-opacity hover:bg-gray-100"
-                    >
-                      <Globe size={14} className="text-gray-400" />
-                    </button>
-                  )}
-                  <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 bg-blue-50/50 rounded-xl flex items-center justify-center text-blue-600 group-hover:bg-blue-600 group-hover:text-white transition-all duration-300">
-                      <Zap size={24} />
-                    </div>
-                    <div>
-                      <h4 className="font-bold text-brand-dark">Dashboard Pago</h4>
-                      <p className="text-xs text-gray-500 font-medium">Acessar Reportei</p>
-                    </div>
-                  </div>
-                  <ArrowRight size={18} className="text-gray-300 group-hover:text-brand-dark transform group-hover:-rotate-45 transition-all duration-300" />
-                </a>
-              ) : (
-                <div 
-                  onClick={() => isAdmin && handleSetUrl('paid')}
-                  className={`group bg-white rounded-2xl p-6 shadow-sm border border-black/[0.02] ${isAdmin ? 'cursor-pointer hover:border-brand-dark/10 hover:shadow-md' : 'opacity-60 cursor-default'} transition-all duration-300 flex items-center justify-between`}
-                >
-                  <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 bg-blue-50/50 rounded-xl flex items-center justify-center text-blue-600">
-                      <Zap size={24} />
-                    </div>
-                    <div>
-                      <h4 className="font-bold text-brand-dark">Dashboard Pago</h4>
-                      <p className="text-xs text-gray-500 font-medium">Acessar Reportei</p>
-                    </div>
-                  </div>
-                  <div className="flex flex-col items-end gap-1">
-                    <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-gray-400">Em breve</span>
-                    {isAdmin && <span className="text-[8px] text-brand-dark font-bold uppercase tracking-widest opacity-40 group-hover:opacity-100 transition-opacity">Configurar Link</span>}
-                  </div>
-                </div>
-              )
-            )}
-
-            {showOrganicTraffic && (
-              activeClient?.organic_reportei_url ? (
-                <a 
-                  href={activeClient.organic_reportei_url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="group bg-white rounded-2xl p-6 shadow-sm border border-black/[0.02] hover:shadow-md hover:border-brand-dark/10 transition-all duration-300 flex items-center justify-between relative"
-                >
-                  {isAdmin && (
-                    <button 
-                      onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleSetUrl('organic'); }}
-                      className="absolute top-1/2 -translate-y-1/2 right-16 p-2 bg-gray-50 rounded-full opacity-0 group-hover:opacity-100 transition-opacity hover:bg-gray-100"
-                    >
-                      <Globe size={14} className="text-gray-400" />
-                    </button>
-                  )}
-                  <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 bg-purple-50/50 rounded-xl flex items-center justify-center text-purple-600 group-hover:bg-purple-600 group-hover:text-white transition-all duration-300">
-                      <TrendingUp size={24} />
-                    </div>
-                    <div>
-                      <h4 className="font-bold text-brand-dark">Dashboard Orgânico</h4>
-                      <p className="text-xs text-gray-500 font-medium">Acessar Reportei</p>
-                    </div>
-                  </div>
-                  <ArrowRight size={18} className="text-gray-300 group-hover:text-brand-dark transform group-hover:-rotate-45 transition-all duration-300" />
-                </a>
-              ) : (
-                <div 
-                  onClick={() => isAdmin && handleSetUrl('organic')}
-                  className={`group bg-white rounded-2xl p-6 shadow-sm border border-black/[0.02] ${isAdmin ? 'cursor-pointer hover:border-brand-dark/10 hover:shadow-md' : 'opacity-60 cursor-default'} transition-all duration-300 flex items-center justify-between`}
-                >
-                  <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 bg-purple-50/50 rounded-xl flex items-center justify-center text-purple-600">
-                      <TrendingUp size={24} />
-                    </div>
-                    <div>
-                      <h4 className="font-bold text-brand-dark">Dashboard Orgânico</h4>
-                      <p className="text-xs text-gray-500 font-medium">Acessar Reportei</p>
-                    </div>
-                  </div>
-                  <div className="flex flex-col items-end gap-1">
-                    <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-gray-400">Em breve</span>
-                    {isAdmin && <span className="text-[8px] text-brand-dark font-bold uppercase tracking-widest opacity-40 group-hover:opacity-100 transition-opacity">Configurar Link</span>}
-                  </div>
-                </div>
-              )
-            )}
-            {leadConfig?.is_enabled && showLeadConfig && (
-              <motion.div
-                whileHover={{ y: -4, shadow: '0 20px 40px rgba(0,0,0,0.08)' }}
-                onClick={() => setActiveView('leads')}
-                className="bg-white p-6 rounded-[2rem] border border-black/[0.03] shadow-[0_10px_30px_rgba(0,0,0,0.02)] cursor-pointer group transition-all"
-              >
-                <div className="flex items-center justify-between mb-4">
-                  <div className="w-12 h-12 rounded-2xl bg-orange-50 flex items-center justify-center text-orange-600 group-hover:scale-110 transition-transform">
-                    <Target size={24} />
-                  </div>
-                  <div className="text-right">
-                    <div className="text-2xl font-bold tracking-tighter text-brand-dark">{monthLeadsCount}</div>
-                    <div className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Leads no Mês</div>
-                  </div>
-                </div>
-                <div>
-                  <h4 className="font-bold text-brand-dark">Acompanhamento de Leads</h4>
-                  <p className="text-xs text-gray-400 mt-1">Gestão e conversão de leads</p>
-                </div>
-                {isAdmin && (
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      const chave = window.prompt('Para gerar o link direto do CRM, preciso da senha (chave) deste cliente:');
-                      if (chave) {
-                        const baseUrl = `${window.location.protocol}//${window.location.host}`;
-                        const directLink = `${baseUrl}/?chave=${chave}&destino=crm`;
-                        navigator.clipboard.writeText(directLink);
-                        alert('Link direto do CRM copiado!');
-                      }
-                    }}
-                    className="mt-4 w-full py-2 bg-gray-50 text-gray-500 hover:text-brand-dark hover:bg-gray-100 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2"
-                  >
-                    <Link size={14} />
-                    Copiar Link Direto
-                  </button>
-                )}
-              </motion.div>
-            )}
-          </div>
-        </motion.div>
-      )}
-
-      {/* Seção Admin / Checklist de Onboarding */}
-      {isAdmin && !isOnboardingCompleted && (
-        <motion.div 
-          initial={{ opacity: 0, scale: 0.98 }}
-          animate={{ opacity: 1, scale: 1 }}
-          className="max-w-6xl w-full mb-8 px-4"
-        >
+      {/* Dashboard Grid */}
+      <div className="max-w-6xl w-full">
+        {/* Onboarding section (separate, always top) */}
+        {isAdmin && !isActuallyOnboardingCompleted && !loadingOnboarding && (
           <motion.div 
-            whileHover={{ y: -4, shadow: '0 20px 40px rgba(0,0,0,0.04)' }}
-            onClick={onNavigateToOnboarding} 
-            className="flex items-center gap-5 p-6 bg-white border border-brand-dark/10 rounded-[32px] cursor-pointer transition-all shadow-sm group"
+            initial={{ opacity: 0, scale: 0.98 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="mb-8 px-4 sm:px-0"
           >
-            <div className="w-12 h-12 bg-brand-dark/5 rounded-2xl flex items-center justify-center text-brand-dark group-hover:bg-brand-dark group-hover:text-white transition-all">
-              <ClipboardList size={24} />
-            </div>
-            <div className="flex-1 text-left">
-              <p className="text-[10px] font-bold text-brand-dark uppercase tracking-widest mb-1">
-                {isAdmin ? 'Área Interna da Agência' : 'Seja bem-vindo(a)'}
-              </p>
-              <h3 className="text-lg font-bold text-gray-900 leading-tight">
-                {isAdmin ? 'Checklist de Onboarding do Cliente' : 'Finalize o seu Onboarding'}
-              </h3>
-              {!isAdmin && <p className="text-xs text-gray-500 mt-1">Conclua as etapas iniciais para liberar todo o potencial da sua estratégia.</p>}
-            </div>
-            <div className="flex items-center gap-3">
-              {isAdmin && isOnboardingCompleted && (
-                <span className="px-3 py-1 bg-green-100 text-green-700 text-[10px] font-bold uppercase tracking-widest rounded-full">Concluído</span>
-              )}
-              <ArrowRight size={20} className="text-brand-dark/40" />
-            </div>
-          </motion.div>
-        </motion.div>
-      )}
-
-      {/* Cards Grid - Bento Style */}
-      <motion.div 
-        variants={containerVariants}
-        initial="hidden"
-        animate="visible"
-        className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8 max-w-6xl w-full"
-      >
-        
-        {/* Card 1: Linha Editorial */}
-        {showMapa && (
-          <motion.div 
-            variants={itemVariants}
-            onClick={onNavigateToMapa}
-            className="group bg-white rounded-[2.5rem] p-10 shadow-[0_4px_25px_rgba(0,0,0,0.02)] border border-black/[0.02] hover:shadow-[0_15px_45px_rgba(0,0,0,0.05)] hover:border-brand-dark/10 transition-all duration-500 cursor-pointer flex flex-col relative"
-          >
-            <div className="flex justify-between items-start mb-8">
-              <div className="w-16 h-16 bg-gray-50 rounded-[20px] flex items-center justify-center text-brand-dark group-hover:bg-brand-dark group-hover:text-white transition-all duration-500 shadow-sm">
-                <Calendar size={32} />
-              </div>
-              <ArrowRight size={22} className="text-gray-200 group-hover:text-brand-dark transform group-hover:-rotate-45 transition-all duration-500" />
-            </div>
-            <h3 className="text-2xl font-bold text-brand-dark mb-3 tracking-tight">Mapa Editorial</h3>
-            <p className="text-gray-500 text-sm leading-relaxed font-medium">
-              Acesse o calendário completo de publicações. Visualize, aprove e acompanhe o status de cada conteúdo planejado.
-            </p>
-          </motion.div>
-        )}
-
-        {/* Tráfego Pago */}
-        {showPaidTrafficCard && (
-          <motion.div 
-            variants={itemVariants}
-            onClick={onNavigateToPaidTraffic}
-            className="group bg-white rounded-[2.5rem] p-10 shadow-[0_4px_25px_rgba(0,0,0,0.02)] border border-black/[0.02] hover:shadow-[0_15px_45px_rgba(0,0,0,0.05)] hover:border-brand-dark/10 transition-all duration-500 cursor-pointer flex flex-col relative"
-          >
-            <div className="flex justify-between items-start mb-8">
-              <div className="w-16 h-16 bg-blue-50/50 rounded-[20px] flex items-center justify-center text-blue-600 group-hover:bg-blue-600 group-hover:text-white transition-all duration-500 shadow-sm">
-                <Zap size={32} />
-              </div>
-              <ArrowRight size={22} className="text-gray-200 group-hover:text-brand-dark transform group-hover:-rotate-45 transition-all duration-500" />
-            </div>
-            <h3 className="text-2xl font-bold text-brand-dark mb-3 tracking-tight">Tráfego Pago</h3>
-            <p className="text-gray-500 text-sm leading-relaxed font-medium">
-              Estratégias, performance de anúncios e campanhas ativas.
-            </p>
-          </motion.div>
-        )}
-
-        {/* Fotos com IA */}
-        {showAiPhotos && (
-          <motion.div 
-            variants={itemVariants}
-            onClick={onNavigateToAiPhotos}
-            className="group bg-white rounded-[2.5rem] p-10 shadow-[0_4px_25px_rgba(0,0,0,0.02)] border border-black/[0.02] hover:shadow-[0_15px_45px_rgba(0,0,0,0.05)] hover:border-brand-dark/10 transition-all duration-500 cursor-pointer flex flex-col relative"
-          >
-            <div className="flex justify-between items-start mb-8">
-              <div className="w-16 h-16 bg-fuchsia-50/50 rounded-[20px] flex items-center justify-center text-fuchsia-600 group-hover:bg-fuchsia-600 group-hover:text-white transition-all duration-500 shadow-sm">
-                <Camera size={32} />
-              </div>
-              <ArrowRight size={22} className="text-gray-200 group-hover:text-brand-dark transform group-hover:-rotate-45 transition-all duration-500" />
-            </div>
-            <h3 className="text-2xl font-bold text-brand-dark mb-3 tracking-tight">Fotos com IA</h3>
-            <p className="text-gray-500 text-sm leading-relaxed font-medium">
-              Aprove e comente os ensaios fotográficos gerados por Inteligência Artificial.
-            </p>
-          </motion.div>
-        )}
-
-        {/* Website */}
-        {showWebsite && (
-          <motion.div 
-            variants={itemVariants}
-            onClick={onNavigateToWebsite}
-            className="group bg-white rounded-[2.5rem] p-10 shadow-[0_4px_25px_rgba(0,0,0,0.02)] border border-black/[0.02] hover:shadow-[0_15px_45px_rgba(0,0,0,0.05)] hover:border-brand-dark/10 transition-all duration-500 cursor-pointer flex flex-col"
-          >
-            <div className="flex justify-between items-start mb-8">
-              <div className="w-16 h-16 bg-indigo-50/50 rounded-[20px] flex items-center justify-center text-indigo-600 group-hover:bg-indigo-600 group-hover:text-white transition-all duration-500 shadow-sm">
-                <Globe size={32} />
-              </div>
-              <ArrowRight size={22} className="text-gray-200 group-hover:text-brand-dark transform group-hover:-rotate-45 transition-all duration-500" />
-            </div>
-            <h3 className="text-2xl font-bold text-brand-dark mb-3 tracking-tight">Website</h3>
-            <p className="text-gray-500 text-sm leading-relaxed font-medium">
-              Prévia e acompanhamento do desenvolvimento do seu site.
-            </p>
-          </motion.div>
-        )}
-
-        {/* Cofre de Senhas */}
-        <motion.div 
-          variants={itemVariants}
-          onClick={onNavigateToPasswordVault}
-          className="group bg-white rounded-[2.5rem] p-10 shadow-[0_4px_25px_rgba(0,0,0,0.02)] border border-black/[0.02] hover:shadow-[0_15px_45px_rgba(0,0,0,0.05)] hover:border-brand-dark/10 transition-all duration-500 cursor-pointer flex flex-col"
-        >
-          <div className="flex justify-between items-start mb-8">
-            <div className="w-16 h-16 bg-slate-50/50 rounded-[20px] flex items-center justify-center text-slate-600 group-hover:bg-slate-600 group-hover:text-white transition-all duration-500 shadow-sm">
-              <ShieldCheck size={32} />
-            </div>
-            <ArrowRight size={22} className="text-gray-200 group-hover:text-brand-dark transform group-hover:-rotate-45 transition-all duration-500" />
-          </div>
-          <h3 className="text-2xl font-bold text-brand-dark mb-3 tracking-tight">Cofre de Senhas</h3>
-          <p className="text-gray-500 text-sm leading-relaxed font-medium">
-            Acesso seguro às credenciais e senhas da sua marca.
-          </p>
-        </motion.div>
-
-        {/* Documentos */}
-        {showDocuments && (
-          (activeClient as any)?.drive_link ? (
-            <motion.a 
-              href={(activeClient as any).drive_link}
-              target="_blank"
-              rel="noopener noreferrer"
-              variants={itemVariants}
-              className="group bg-white rounded-[2.5rem] p-10 shadow-[0_4px_25px_rgba(0,0,0,0.02)] border border-black/[0.02] hover:shadow-[0_15px_45px_rgba(0,0,0,0.05)] hover:border-brand-dark/10 transition-all duration-500 cursor-pointer flex flex-col relative"
-            >
-              {isAdmin && (
-                <button 
-                  onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleSetUrl('drive'); }}
-                  className="absolute top-8 right-16 p-2 bg-gray-50 rounded-full opacity-0 group-hover:opacity-100 transition-opacity hover:bg-gray-100"
-                >
-                  <Globe size={14} className="text-gray-400" />
-                </button>
-              )}
-              <div className="flex justify-between items-start mb-8">
-                <div className="w-16 h-16 bg-teal-50/50 rounded-[20px] flex items-center justify-center text-teal-600 group-hover:bg-teal-600 group-hover:text-white transition-all duration-500 shadow-sm">
-                  <FolderOpen size={32} />
-                </div>
-                <ArrowRight size={22} className="text-gray-200 group-hover:text-brand-dark transform group-hover:-rotate-45 transition-all duration-500" />
-              </div>
-              <h3 className="text-2xl font-bold text-brand-dark mb-3 tracking-tight">Documentos</h3>
-              <p className="text-gray-500 text-sm leading-relaxed font-medium">
-                Repositório de arquivos, contratos e relatórios mensais.
-              </p>
-            </motion.a>
-          ) : (
             <motion.div 
-              variants={itemVariants}
-              onClick={() => isAdmin && handleSetUrl('drive')}
-              className={`group bg-white rounded-[2.5rem] p-10 shadow-[0_4px_25px_rgba(0,0,0,0.02)] border border-black/[0.02] ${isAdmin ? 'cursor-pointer hover:border-brand-dark/10' : 'opacity-60 cursor-default'} transition-all duration-500 flex flex-col relative`}
+              whileHover={{ y: -4, shadow: '0 20px 40px rgba(0,0,0,0.04)' }}
+              onClick={onNavigateToOnboarding} 
+              className="flex items-center gap-5 p-6 bg-white border border-brand-dark/10 rounded-[32px] cursor-pointer transition-all shadow-sm group"
             >
-              <div className="flex justify-between items-start mb-8">
-                <div className="w-16 h-16 bg-teal-50/50 rounded-[20px] flex items-center justify-center text-teal-600 shadow-sm">
-                  <FolderOpen size={32} />
-                </div>
-                <div className="flex flex-col items-end gap-1">
-                  <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-gray-400">Em breve</span>
-                  {isAdmin && <span className="text-[8px] text-brand-dark font-bold uppercase tracking-widest opacity-40 group-hover:opacity-100 transition-opacity">Configurar Link</span>}
-                </div>
+              <div className="w-12 h-12 bg-brand-dark/5 rounded-2xl flex items-center justify-center text-brand-dark group-hover:bg-brand-dark group-hover:text-white transition-all">
+                <ClipboardList size={24} />
               </div>
-              <h3 className="text-2xl font-bold text-brand-dark mb-3 tracking-tight">Documentos</h3>
-              <p className="text-gray-500 text-sm leading-relaxed font-medium">
-                Repositório de arquivos, contratos e relatórios mensais.
-              </p>
+              <div className="flex-1 text-left">
+                <p className="text-[10px] font-bold text-brand-dark uppercase tracking-widest mb-1">
+                  Área Interna da Agência
+                </p>
+                <h3 className="text-lg font-bold text-gray-900 leading-tight">
+                  Checklist de Onboarding do Cliente
+                </h3>
+              </div>
+              <div className="flex items-center gap-3">
+                <ArrowRight size={20} className="text-brand-dark/40" />
+              </div>
             </motion.div>
-          )
-        )}
-
-        {/* Central de Tutoriais */}
-        {showTutorials && (
-          <motion.div 
-            variants={itemVariants}
-            onClick={onNavigateToTutorials}
-            className="group bg-white rounded-[2.5rem] p-10 shadow-[0_4px_25px_rgba(0,0,0,0.02)] border border-black/[0.02] hover:shadow-[0_15px_45px_rgba(0,0,0,0.05)] hover:border-brand-dark/10 transition-all duration-500 cursor-pointer flex flex-col"
-          >
-            <div className="flex justify-between items-start mb-8">
-              <div className="w-16 h-16 bg-blue-50/50 rounded-[20px] flex items-center justify-center text-blue-600 group-hover:bg-blue-600 group-hover:text-white transition-all duration-500 shadow-sm">
-                <BookOpen size={32} />
-              </div>
-              <ArrowRight size={22} className="text-gray-200 group-hover:text-brand-dark transform group-hover:-rotate-45 transition-all duration-500" />
-            </div>
-            <h3 className="text-2xl font-bold text-brand-dark mb-3 tracking-tight">Tutoriais</h3>
-            <p className="text-gray-500 text-sm leading-relaxed font-medium">
-              Aprenda a gerenciar suas plataformas e aprovar conteúdos.
-            </p>
           </motion.div>
         )}
 
-        {/* Briefings Estratégicos */}
-        {showBriefings && (
-          <motion.div 
-            variants={itemVariants}
-            onClick={onNavigateToStrategicBriefings}
-            className="group bg-white rounded-[2.5rem] p-10 shadow-[0_4px_25px_rgba(0,0,0,0.02)] border border-black/[0.02] hover:shadow-[0_15px_45px_rgba(0,0,0,0.05)] hover:border-brand-dark/10 transition-all duration-500 cursor-pointer flex flex-col"
-          >
-            <div className="flex justify-between items-start mb-8">
-              <div className="w-16 h-16 bg-rose-50/50 rounded-[20px] flex items-center justify-center text-rose-600 group-hover:bg-rose-600 group-hover:text-white transition-all duration-500 shadow-sm">
-                <Target size={32} />
-              </div>
-              <ArrowRight size={22} className="text-gray-200 group-hover:text-brand-dark transform group-hover:-rotate-45 transition-all duration-500" />
-            </div>
-            <h3 className="text-2xl font-bold text-brand-dark mb-3 tracking-tight">Briefings Estratégicos</h3>
-            <p className="text-gray-500 text-sm leading-relaxed font-medium">
-              Respostas dos formulários de onboarding e alinhamento da marca.
-            </p>
-          </motion.div>
-        )}
-
-      </motion.div>
+        <motion.div 
+          variants={containerVariants}
+          initial="hidden"
+          animate="visible"
+          className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8 px-4 sm:px-0"
+        >
+          {sortedCards.map(card => card.render())}
+        </motion.div>
+      </div>
 
       {/* Premium Watermark & Support */}
       <motion.div 

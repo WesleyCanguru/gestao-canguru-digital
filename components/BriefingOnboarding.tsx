@@ -104,7 +104,7 @@ const SERVICE_TO_BRIEFINGS: Record<string, string[]> = {
 };
 
 export const BriefingOnboarding: React.FC<{ isDashboardView?: boolean }> = ({ isDashboardView }) => {
-  const { activeClient, refreshActiveClient, logout } = useAuth();
+  const { activeClient, refreshActiveClient, logout, userRole } = useAuth();
   const [briefings, setBriefings] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedBriefingType, setSelectedBriefingType] = useState<string | null>(null);
@@ -134,6 +134,7 @@ export const BriefingOnboarding: React.FC<{ isDashboardView?: boolean }> = ({ is
     setLoading(true);
     try {
       const services = activeClient?.services || [];
+      const customTypes = activeClient?.features_settings?.active_briefing_types || [];
       
       const { data: existingBriefings } = await supabase
         .from('client_briefings')
@@ -142,11 +143,14 @@ export const BriefingOnboarding: React.FC<{ isDashboardView?: boolean }> = ({ is
       
       let currentBriefings = existingBriefings || [];
       
-      // Determine required briefing types based on services
-      const requiredTypes = new Set<string>();
-      for (const service of services) {
-        const types = SERVICE_TO_BRIEFINGS[service] || [];
-        types.forEach(t => requiredTypes.add(t));
+      // Determine required briefing types based on services + custom types
+      const requiredTypes = new Set<string>(customTypes);
+      if (customTypes.length === 0) {
+        // Only use automatic detection if no custom list is defined
+        for (const service of services) {
+          const types = SERVICE_TO_BRIEFINGS[service] || [];
+          types.forEach(t => requiredTypes.add(t));
+        }
       }
 
       let neededToCreate = [];
@@ -235,6 +239,38 @@ export const BriefingOnboarding: React.FC<{ isDashboardView?: boolean }> = ({ is
       setSaving(false);
     }
   };
+
+  const handleToggleType = async (type: string) => {
+    if (!activeClient || userRole !== 'admin') return;
+    
+    const currentTypes = activeClient.features_settings?.active_briefing_types || [];
+    let newTypes;
+    
+    if (currentTypes.includes(type)) {
+      newTypes = currentTypes.filter((t: string) => t !== type);
+    } else {
+      newTypes = [...currentTypes, type];
+    }
+    
+    try {
+      const { error } = await supabase
+        .from('clients')
+        .update({
+          features_settings: {
+            ...(activeClient.features_settings || {}),
+            active_briefing_types: newTypes
+          }
+        })
+        .eq('id', activeClient.id);
+      
+      if (error) throw error;
+      await refreshActiveClient();
+    } catch (err) {
+      console.error('Error toggling briefing type:', err);
+    }
+  };
+
+  const isAdmin = userRole === 'admin';
 
   if (loading) {
     return (
@@ -374,14 +410,14 @@ export const BriefingOnboarding: React.FC<{ isDashboardView?: boolean }> = ({ is
           <div className="w-20 h-20 bg-brand-dark/5 rounded-[1.5rem] flex items-center justify-center mx-auto mb-6 shrink-0 text-brand-dark">
             <Target size={32} />
           </div>
-          <h1 className="text-3xl sm:text-4xl font-black text-brand-dark mb-4 tracking-tight">Bem-vindo!</h1>
+          <h1 className="text-3xl sm:text-4xl font-black text-brand-dark mb-4 tracking-tight">Briefings Estratégicos</h1>
           <p className="text-gray-500 font-medium max-w-lg mx-auto text-sm sm:text-base mb-8">
-            Antes de começar, precisamos de algumas informações estratégicas. Preencha os formulários dos serviços contratados abaixo.
+            {isAdmin ? 'Gerenciamento de formulários estratégicos do cliente.' : 'Antes de começar, precisamos de algumas informações estratégicas. Preencha os formulários abaixo.'}
           </p>
           
           <div className="max-w-lg mx-auto">
             <div className="mb-3 flex items-center justify-between text-[10px] font-bold uppercase tracking-widest text-gray-400">
-              <span>Progresso Geral</span>
+              <span>{isAdmin ? 'Status do Cliente' : 'Progresso Geral'}</span>
               <span>{completedCount} de {briefings.length} concluídos</span>
             </div>
             <div className="h-2 w-full bg-gray-100 rounded-full overflow-hidden">
@@ -389,6 +425,31 @@ export const BriefingOnboarding: React.FC<{ isDashboardView?: boolean }> = ({ is
             </div>
           </div>
         </div>
+
+        {isAdmin && (
+          <div className="mb-10 bg-gray-50 p-6 rounded-3xl border border-gray-100">
+            <h3 className="text-sm font-bold text-brand-dark uppercase tracking-widest mb-4">Gerenciar Formulários Ativos</h3>
+            <div className="flex flex-wrap gap-2">
+              {Object.entries(BRIEFING_QUESTIONS).map(([type, spec]) => {
+                const isActive = briefings.some(b => b.briefing_type === type);
+                return (
+                  <button
+                    key={type}
+                    onClick={() => handleToggleType(type)}
+                    className={`px-4 py-2 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all ${
+                      isActive 
+                        ? 'bg-brand-dark text-white shadow-md' 
+                        : 'bg-white text-gray-400 border border-gray-100 hover:border-brand-dark/20'
+                    }`}
+                  >
+                    {spec.title}
+                  </button>
+                );
+              })}
+            </div>
+            <p className="text-[10px] text-gray-400 mt-4 italic">* Clique para ativar ou desativar os formulários para este cliente.</p>
+          </div>
+        )}
 
         <div className="grid gap-4 sm:grid-cols-2 mb-10 max-w-2xl mx-auto">
           {briefings.map(b => {

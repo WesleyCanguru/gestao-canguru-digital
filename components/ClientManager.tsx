@@ -34,7 +34,8 @@ import {
   FolderOpen,
   Trash2,
   LayoutDashboard,
-  Copy
+  Copy,
+  Target
 } from 'lucide-react';
 import { ConfirmModal } from './ConfirmModal';
 import { 
@@ -101,6 +102,22 @@ const AVAILABLE_SERVICES = ["Social Media", "Tráfego Pago", "Website", "Identid
 const AVAILABLE_SOCIAL_NETWORKS = ["Instagram", "Facebook", "LinkedIn", "TikTok", "YouTube", "Pinterest", "Twitter/X"];
 const AVAILABLE_TRAFFIC_PLATFORMS = ["Google Ads", "Meta Ads (Facebook/Instagram)", "LinkedIn Ads", "TikTok Ads", "YouTube Ads", "Pinterest Ads"];
 
+const REORDERABLE_MODULES = [
+  { id: 'dashboard', label: 'Início/Dashboard' },
+  { id: 'crm', label: 'CRM / Leads' },
+  { id: 'month-detail', label: 'Mapa Editorial' },
+  { id: 'briefings', label: 'Briefing de Conteúdo' },
+  { id: 'strategic-briefings', label: 'Briefing Estratégico' },
+  { id: 'paid-traffic', label: 'Tráfego Pago' },
+  { id: 'reportei_paid', label: 'Dashboard Pago (Reportei)' },
+  { id: 'reportei_organic', label: 'Dashboard Orgânico (Reportei)' },
+  { id: 'website', label: 'Website' },
+  { id: 'ai-photos', label: 'Fotos IA' },
+  { id: 'password-vault', label: 'Senhas' },
+  { id: 'drive', label: 'Documentos / Drive' },
+  { id: 'tutorials', label: 'Tutoriais' }
+];
+
 export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
   const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
@@ -142,6 +159,22 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
       }));
     }
   };
+  const handleDragEndMenu = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (active.id !== over?.id) {
+      const order = form.features_settings?.menu_order || REORDERABLE_MODULES.map(m => m.id);
+      const oldIndex = order.indexOf(active.id);
+      const newIndex = order.indexOf(over?.id);
+      setForm(f => ({
+        ...f,
+        features_settings: {
+          ...(f.features_settings || {}),
+          menu_order: arrayMove(order, oldIndex, newIndex)
+        }
+      }));
+    }
+  };
+
   const [successMsg, setSuccessMsg] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
   const [form, setForm] = useState({
@@ -1169,6 +1202,92 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
                           />
                           <span className={`text-sm font-bold ${isChecked ? 'text-brand-dark' : 'text-gray-500'}`}>{feature.label}</span>
                         </label>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Ordem do Menu */}
+              {editingClientId && (
+                <div className="sm:col-span-2 mt-4 pt-6 border-t border-gray-100">
+                  <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-2 flex items-center gap-2">
+                    <GripVertical size={16} className="text-brand-dark" /> Ordem do Menu Personalizada
+                  </h3>
+                  <p className="text-xs text-gray-500 mb-6">Arraste os módulos para definir a ordem de exibição no menu do cliente. Novos módulos aparecerão ao final.</p>
+                  
+                  <DndContext 
+                    sensors={sensors}
+                    collisionDetection={closestCenter}
+                    onDragEnd={handleDragEndMenu}
+                  >
+                    <SortableContext 
+                      items={form.features_settings?.menu_order || REORDERABLE_MODULES.map(m => m.id)}
+                      strategy={horizontalListSortingStrategy}
+                    >
+                      <div className="flex flex-wrap gap-2 p-4 bg-gray-50 rounded-2xl border border-black/[0.02]">
+                        {(form.features_settings?.menu_order || REORDERABLE_MODULES.map(m => m.id)).map((id: string) => {
+                          const module = REORDERABLE_MODULES.find(m => m.id === id);
+                          if (!module) return null;
+                          return (
+                            <SortableItem 
+                              key={id} 
+                              id={id} 
+                              onRemove={() => {}} // Won't show remove for mandatory modules, or we can just hide it
+                            />
+                          );
+                        })}
+                      </div>
+                    </SortableContext>
+                  </DndContext>
+                  <p className="text-[10px] text-gray-400 mt-2">* Módulos desativados na seção acima continuarão ocultos para o cliente.</p>
+                </div>
+              )}
+
+              {/* Seleção de Briefings */}
+              {editingClientId && (
+                <div className="sm:col-span-2 mt-4 pt-6 border-t border-gray-100">
+                  <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-2 flex items-center gap-2">
+                    <Target size={16} className="text-brand-dark" /> Formulários de Briefing Ativos
+                  </h3>
+                  <p className="text-xs text-gray-500 mb-6">Selecione quais formulários estratégicos este cliente deve preencher. Se nenhum for selecionado, o sistema usará a detecção automática por serviços.</p>
+                  <div className="flex flex-wrap gap-2">
+                    {[
+                      { id: 'persona', label: 'Persona' },
+                      { id: 'posicionamento', label: 'Posicionamento' },
+                      { id: 'publico_alvo', label: 'Público-Alvo' },
+                      { id: 'tom_voz', label: 'Tom de Voz' },
+                      { id: 'site', label: 'Website' },
+                      { id: 'trafego_pago', label: 'Tráfego Pago' },
+                    ].map(type => {
+                      const activeBriefings = form.features_settings?.active_briefing_types || [];
+                      const isActive = activeBriefings.includes(type.id);
+                      
+                      return (
+                        <button
+                          key={type.id}
+                          type="button"
+                          onClick={() => {
+                            const newBriefings = isActive 
+                              ? activeBriefings.filter((t: string) => t !== type.id)
+                              : [...activeBriefings, type.id];
+                            
+                            setForm(f => ({
+                              ...f,
+                              features_settings: {
+                                ...f.features_settings,
+                                active_briefing_types: newBriefings
+                              }
+                            }));
+                          }}
+                          className={`px-4 py-2 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all ${
+                            isActive 
+                              ? 'bg-brand-dark text-white shadow-md' 
+                              : 'bg-white text-gray-400 border border-gray-100 hover:border-brand-dark/20'
+                          }`}
+                        >
+                          {type.label}
+                        </button>
                       );
                     })}
                   </div>

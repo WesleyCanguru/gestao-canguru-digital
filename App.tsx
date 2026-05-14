@@ -32,7 +32,7 @@ dayjs.locale('pt-br');
 
 import { Navigation } from './components/Navigation';
 
-type ViewState = 'home' | 'month-detail' | 'onboarding' | 'dashboard' | 'briefings' | 'strategic-briefings' | 'paid-traffic' | 'website' | 'password-vault' | 'tutorials' | 'ai-photos' | 'agencyDashboard';
+type ViewState = 'home' | 'month-detail' | 'onboarding' | 'dashboard' | 'briefings' | 'strategic-briefings' | 'paid-traffic' | 'website' | 'password-vault' | 'tutorials' | 'ai-photos' | 'agencyDashboard' | 'crm';
 
 interface MainAppProps {
   initialView?: ViewState;
@@ -352,6 +352,26 @@ const MainApp: React.FC<MainAppProps> = ({ initialView, onExitAgencyDashboard, o
                   <WebsiteView onBack={() => setView('dashboard')} />
                 ) : view === 'paid-traffic' ? (
                   <PaidTrafficView onBack={() => setView('dashboard')} />
+                ) : view === 'crm' ? (
+                  <ClientHome
+                    initialActiveView="leads"
+                    onNavigateToOnboarding={() => setView('onboarding')}
+                    onNavigateToMapa={() => {
+                      const currentMonthName = MONTH_NAMES[dayjs().month()];
+                      setSelectedMonth(currentMonthName);
+                      setView('month-detail');
+                      window.scrollTo({ top: 0, behavior: 'smooth' });
+                    }}
+                    onNavigateToBriefings={() => setView('briefings')}
+                    onNavigateToStrategicBriefings={() => setView('strategic-briefings')}
+                    onNavigateToDocuments={() => {}} // Redirection handled in ClientHome
+                    onNavigateToPaidTraffic={() => setView('paid-traffic')}
+                    onNavigateToWebsite={() => setView('website')}
+                    onNavigateToPasswordVault={() => setView('password-vault')}
+                    onNavigateToTutorials={() => setView('tutorials')}
+                    onNavigateToAiPhotos={() => setView('ai-photos')}
+                    onRefreshClient={refreshActiveClient}
+                  />
                 ) : view === 'briefings' ? (
                   <BriefingsView onBack={() => setView('dashboard')} />
                 ) : view === 'tutorials' ? (
