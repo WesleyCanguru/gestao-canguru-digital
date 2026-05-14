@@ -163,6 +163,7 @@ export function OnboardingTemplatesModal({ onClose }: Props) {
             
             {!loading && PHASES.map(phase => {
               const phaseItems = templates.filter(t => t.phase === phase.id).sort((a,b) => a.position - b.position);
+              const phaseTopLevel = phaseItems.filter(t => !t.parent_id);
               
               return (
                 <div key={phase.id}>
@@ -178,7 +179,7 @@ export function OnboardingTemplatesModal({ onClose }: Props) {
                     </button>
                   </div>
 
-                  {phaseItems.length === 0 ? (
+                  {phaseTopLevel.length === 0 ? (
                     <p className="text-sm text-gray-400 italic bg-white p-4 rounded-2xl border border-gray-100">Nenhum template nesta fase.</p>
                   ) : (
                     <DndContext 
@@ -186,16 +187,40 @@ export function OnboardingTemplatesModal({ onClose }: Props) {
                       collisionDetection={closestCenter}
                       onDragEnd={(e) => handleDragEnd(e, phase.id)}
                     >
-                      <SortableContext items={phaseItems} strategy={verticalListSortingStrategy}>
-                        <div className="space-y-3">
-                          {phaseItems.map(item => (
-                            <SortableTemplateItem 
-                              key={item.id} 
-                              item={item} 
-                              onEdit={() => setEditingTemplate(item)}
-                              onDelete={() => deleteTemplate(item.id)}
-                            />
-                          ))}
+                      <SortableContext items={phaseTopLevel} strategy={verticalListSortingStrategy}>
+                        <div className="space-y-4">
+                          {phaseTopLevel.map(item => {
+                            const children = templates.filter(t => t.parent_id === item.id).sort((a,b) => a.position - b.position);
+                            return (
+                              <div key={item.id} className="space-y-2">
+                                <SortableTemplateItem 
+                                  item={item} 
+                                  onAddChild={() => setEditingTemplate({ phase: phase.id, phase_name: phase.name, is_active: true, required_services: [], parent_id: item.id })}
+                                  onEdit={() => setEditingTemplate(item)}
+                                  onDelete={() => deleteTemplate(item.id)}
+                                />
+                                {children.length > 0 && (
+                                  <div className="pl-10 space-y-2">
+                                    {children.map(child => (
+                                      <div key={child.id} className="flex justify-between items-center p-3 bg-gray-50 border border-gray-100 rounded-xl group hover:border-gray-200 transition-all">
+                                        <div className="flex-1 min-w-0">
+                                          <p className="text-sm font-semibold text-gray-800">{child.title}</p>
+                                        </div>
+                                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                          <button onClick={() => setEditingTemplate(child)} className="p-1.5 text-gray-400 hover:text-blue-600 rounded flex-shrink-0">
+                                            <Settings2 size={16} />
+                                          </button>
+                                          <button onClick={() => deleteTemplate(child.id)} className="p-1.5 text-gray-400 hover:text-red-600 rounded flex-shrink-0">
+                                            <Trash2 size={16} />
+                                          </button>
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
                         </div>
                       </SortableContext>
                     </DndContext>
@@ -311,7 +336,7 @@ export function OnboardingTemplatesModal({ onClose }: Props) {
   );
 }
 
-const SortableTemplateItem: React.FC<{ item: OnboardingTemplate, onEdit: () => void, onDelete: () => void }> = ({ item, onEdit, onDelete }) => {
+const SortableTemplateItem: React.FC<{ item: OnboardingTemplate, onAddChild: () => void, onEdit: () => void, onDelete: () => void }> = ({ item, onAddChild, onEdit, onDelete }) => {
   const {
     attributes,
     listeners,
@@ -350,6 +375,9 @@ const SortableTemplateItem: React.FC<{ item: OnboardingTemplate, onEdit: () => v
       </div>
 
       <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+        <button onClick={onAddChild} title="Adicionar Sub-item" className="p-2 text-gray-400 hover:text-green-600 rounded-lg hover:bg-green-50 transition-colors">
+          <Plus size={18} />
+        </button>
         <button onClick={onEdit} className="p-2 text-gray-400 hover:text-blue-600 rounded-lg hover:bg-blue-50 transition-colors">
           <Settings2 size={18} />
         </button>

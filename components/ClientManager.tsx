@@ -284,16 +284,6 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
           p_client_id: clientData.id
         });
 
-        // 3. Inicializar Checklist de Onboarding Interno
-        const { generateOnboardingSteps } = await import('../hooks/useClientOnboarding');
-        const steps = generateOnboardingSteps(form.services);
-        await supabase.from('client_onboarding').insert([{
-          client_id: clientData.id,
-          steps,
-          is_completed: false,
-          completed_at: null
-        }]);
-
         // 4. Inicializar Planejamento Anual
         const template = getAnnualOverviewTemplate(form.segment.trim());
         await supabase.from('client_annual_overview').upsert([{

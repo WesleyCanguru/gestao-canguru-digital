@@ -1,14 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { Client, ContractForm, ClientBriefing, OnboardingChecklist } from '../../types';
-import { CheckCircle, Clock, FileText, Target, ChevronRight, Check, Link as LinkIcon, Copy, Settings } from 'lucide-react';
+import { CheckCircle, Clock, FileText, Target, ChevronRight, Check, Link as LinkIcon, Copy, Settings, ChevronLeft } from 'lucide-react';
 import { motion } from 'motion/react';
 import dayjs from 'dayjs';
 
-import { ClientOnboarding } from '../ClientOnboarding';
 import { BriefingOnboarding, BRIEFING_QUESTIONS } from '../BriefingOnboarding';
 import { X } from 'lucide-react';
-import { OnboardingChecklistModal } from './OnboardingChecklistModal';
+import { ClientChecklistView } from './ClientChecklistView';
 import { OnboardingTemplatesModal } from './OnboardingTemplatesModal';
 
 const SERVICE_TO_BRIEFINGS: Record<string, string[]> = {
@@ -95,21 +94,22 @@ export const OnboardingTab: React.FC<{ onNavigateToClients: (client: Client) => 
     );
   }
 
-  if (selectedClientId) {
+  if (viewingChecklistClient) {
     return (
-      <div className="p-4 sm:p-8 max-w-7xl mx-auto flex flex-col gap-8 pb-32">
+      <div className="p-4 sm:p-8 max-w-7xl mx-auto flex flex-col gap-6 pb-32">
         <button 
           onClick={() => {
-            setSelectedClientId(null);
+            setViewingChecklistClient(null);
             fetchOnboardingData();
           }}
           className="flex items-center gap-2 text-sm font-bold uppercase tracking-widest text-gray-500 hover:text-brand-dark transition-colors w-fit"
         >
-          <ChevronRight className="rotate-180" size={16} /> Voltar
+          <ChevronLeft size={16} /> Voltar para lista
         </button>
-        <div className="bg-white rounded-[2.5rem] p-6 shadow-sm border border-gray-100">
-           <ClientOnboarding clientId={selectedClientId} />
-        </div>
+        <ClientChecklistView 
+          client={viewingChecklistClient} 
+          onClose={() => setViewingChecklistClient(null)} 
+        />
       </div>
     );
   }
@@ -576,17 +576,6 @@ export const OnboardingTab: React.FC<{ onNavigateToClients: (client: Client) => 
             </div>
           </motion.div>
         </div>
-      )}
-
-      {/* Onboarding Checklist Modal */}
-      {viewingChecklistClient && (
-        <OnboardingChecklistModal
-          client={viewingChecklistClient}
-          onClose={() => {
-            setViewingChecklistClient(null);
-            fetchOnboardingData();
-          }}
-        />
       )}
 
       {/* Onboarding Templates Modal */}

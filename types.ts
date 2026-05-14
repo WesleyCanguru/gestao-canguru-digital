@@ -414,6 +414,7 @@ export interface OnboardingTemplate {
   required_services: string[];
   position: number;
   is_active: boolean;
+  parent_id?: string | null;
   created_at: string;
 }
 
@@ -428,6 +429,7 @@ export interface OnboardingChecklist {
   is_completed: boolean;
   completed_at: string | null;
   position: number;
+  parent_id?: string | null;
   created_at: string;
 }
 

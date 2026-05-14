@@ -9,7 +9,7 @@ import { PublicApprovalScreen } from './components/PublicApprovalScreen';
 import { ThemeApprovalPublic } from './components/ThemeApprovalPublic';
 import { ClientSelectorScreen } from './components/ClientSelectorScreen';
 import { ClientManager } from './components/ClientManager';
-import { ClientOnboarding } from './components/ClientOnboarding';
+import { ClientChecklistView } from './components/agency/ClientChecklistView';
 import { BriefingOnboarding } from './components/BriefingOnboarding';
 import { ClientHome } from './components/ClientHome';
 import { BriefingsView } from './components/BriefingsView';
@@ -457,7 +457,20 @@ const MainApp: React.FC<MainAppProps> = ({ initialView, onExitAgencyDashboard, o
                     onRefreshClient={refreshActiveClient}
                   />
                 ) : view === 'onboarding' ? (
-                  <ClientOnboarding />
+                  <div className="bg-white rounded-[2.5rem] border border-black/[0.03] shadow-sm min-h-[80vh] p-6 sm:p-10">
+                    {!showNav && (
+                      <div className="mb-8 border-b border-gray-100 pb-6 flex items-center gap-4">
+                        <button 
+                          onClick={() => setView('dashboard')}
+                          className="p-2 hover:bg-gray-50 rounded-xl transition-colors text-gray-400 hover:text-brand-dark"
+                        >
+                          <ChevronRight className="w-5 h-5 rotate-180" />
+                        </button>
+                        <h2 className="text-xl font-bold text-brand-dark">Voltar ao Dashboard</h2>
+                      </div>
+                    )}
+                    {activeClient && <ClientChecklistView client={activeClient} onClose={() => setView('dashboard')} />}
+                  </div>
                 ) : view === 'home' ? (
                   <AnnualOverview onSelectMonth={handleSelectMonth} />
                 ) : (
