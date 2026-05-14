@@ -85,52 +85,98 @@ export const ActiveClientsSummary: React.FC<ActiveClientsSummaryProps> = ({ onSe
     setQuickLinks(linksMap);
 
     const stats: Record<string, ClientStats> = {};
-      const today = dayjs().format('DD-MM-YYYY');
-      const currentMonth = dayjs().format('MM-YYYY');
+    const today = dayjs().format('DD-MM-YYYY');
+    const currentMonth = dayjs().format('MM-YYYY');
 
-      clientsData.forEach(client => {
-        const clientPosts = (postsData || []).filter(p => p.client_id === client.id);
-        
-        // Filter out deleted posts logic (date_key test_rls is just noise)
-        const validPosts = clientPosts.filter(p => p.date_key !== 'test_rls');
+    const getUniquePosts = (posts: typeof postsData) => {
+      if (!posts) return [];
+      const unique = new Map();
+      posts.forEach(p => {
+        const parts = p.date_key.split('-');
+        const datePrefix = parts.length >= 3 ? parts.slice(0, 3).join('-') : p.date_key;
+        const themeStr = p.theme ? p.theme.trim() : '';
+        const key = themeStr ? `${datePrefix}_${themeStr}` : p.date_key; // Se n\u00e3o tiver tema, mant\u00e9m isolado
 
-        // Statistics
-        const todayPosts = validPosts.filter(p => p.date_key.startsWith(today) && (p.status === 'published' || p.status === 'scheduled' || p.status === 'approved'));
-        const monthPosts = validPosts.filter(p => p.date_key.endsWith(currentMonth));
-        const inRevision = validPosts.filter(p => p.status === 'changes_requested');
-        const inApproval = validPosts.filter(p => p.status === 'pending_approval');
-        const drafts = validPosts.filter(p => p.status === 'draft');
-
-        // Next scheduled
-        const futurePosts = validPosts
-          .filter(p => {
-             const postDateStr = p.date_key.split('-').slice(0, 3).reverse().join('-'); // YYYY-MM-DD
-             return dayjs(postDateStr).isAfter(dayjs().subtract(1, 'day')) && (p.status === 'scheduled' || p.status === 'approved');
-          })
-          .sort((a, b) => {
-             const dateA = a.date_key.split('-').slice(0, 3).reverse().join('-');
-             const dateB = b.date_key.split('-').slice(0, 3).reverse().join('-');
-             return dayjs(dateA).unix() - dayjs(dateB).unix();
-          });
-
-        let nextDate = null;
-        if (futurePosts.length > 0) {
-          const firstFuture = futurePosts[0];
-          nextDate = firstFuture.date_key.split('-').slice(0, 2).join('/') + '/' + firstFuture.date_key.split('-')[2];
+        if (!unique.has(key)) {
+          unique.set(key, p);
+        } else {
+          const existing = unique.get(key);
+          const priority: Record<string, number> = {
+            'changes_requested': 5,
+            'pending_approval': 4,
+            'draft': 3,
+            'scheduled': 2,
+            'approved': 1,
+            'published': 0,
+            'deleted': -1,
+          };
+          if ((priority[p.status] || 0) > (priority[existing.status] || 0)) {
+            unique.set(key, p);
+          }
         }
+      });
+      return Array.from(unique.values());
+    };
 
-        stats[client.id] = {
-          today: todayPosts.length,
-          monthTotal: monthPosts.length,
-          inRevision: inRevision.length,
-          inApproval: inApproval.length,
-          drafts: drafts.length,
-          nextDate
-        };
+    clientsData.forEach(client => {
+      const clientPosts = (postsData || []).filter(p => p.client_id === client.id);
+      const uniqueClientPosts = getUniquePosts(clientPosts);
+      
+      // Basic filter: exclude deleted, test entries or old posts if not in current month
+      const monthPosts = uniqueClientPosts.filter(p => {
+        if (p.status === 'deleted' || p.date_key === 'test_rls') return false;
+        const parts = p.date_key.split('-');
+        if (parts.length < 3) return false;
+        const postMonthYear = `${parts[1]}-${parts[2]}`;
+        return postMonthYear === currentMonth;
       });
 
-      setClientStats(stats);
-      setLoading(false);
+      // Statistics strictly scoped to current month
+      const todayPosts = monthPosts.filter(p => p.date_key.startsWith(today) && (p.status === 'published' || p.status === 'scheduled' || p.status === 'approved'));
+      const inRevision = monthPosts.filter(p => p.status === 'changes_requested');
+      const inApproval = monthPosts.filter(p => p.status === 'pending_approval');
+      const drafts = monthPosts.filter(p => p.status === 'draft');
+      
+      // monthTotal is every post planned for the month
+      const monthTotal = monthPosts.length;
+
+      // Next scheduled (can look beyond current month if needed, but for dashboard context, current month is usually enough)
+      // Actually, let's keep it looking at ALL future valid posts for accuracy on "what's next"
+      const futurePosts = uniqueClientPosts
+        .filter(p => {
+           if (p.status === 'deleted' || p.date_key === 'test_rls') return false;
+           const parts = p.date_key.split('-');
+           if (parts.length < 3) return false;
+           const postDateStr = `${parts[2]}-${parts[1]}-${parts[0]}`; // YYYY-MM-DD
+           return dayjs(postDateStr).isAfter(dayjs().subtract(1, 'day')) && (p.status === 'scheduled' || p.status === 'approved');
+        })
+        .sort((a, b) => {
+           const partsA = a.date_key.split('-');
+           const partsB = b.date_key.split('-');
+           const dateA = `${partsA[2]}-${partsA[1]}-${partsA[0]}`;
+           const dateB = `${partsB[2]}-${partsB[1]}-${partsB[0]}`;
+           return dayjs(dateA).unix() - dayjs(dateB).unix();
+        });
+
+      let nextDate = null;
+      if (futurePosts.length > 0) {
+        const firstFuture = futurePosts[0];
+        const parts = firstFuture.date_key.split('-');
+        nextDate = `${parts[0]}/${parts[1]}`;
+      }
+
+      stats[client.id] = {
+        today: todayPosts.length,
+        monthTotal,
+        inRevision: inRevision.length,
+        inApproval: inApproval.length,
+        drafts: drafts.length,
+        nextDate
+      };
+    });
+
+    setClientStats(stats);
+    setLoading(false);
   };
 
   if (loading) {
@@ -227,13 +273,13 @@ export const ActiveClientsSummary: React.FC<ActiveClientsSummaryProps> = ({ onSe
                     <p className="text-[9px] text-gray-400 font-bold uppercase tracking-widest">Total no Mês</p>
                     <span className="text-xl font-black text-brand-dark">{stats.monthTotal}</span>
                   </div>
-                  <div className="space-y-1">
-                    <p className="text-[9px] text-red-500/80 font-bold uppercase tracking-widest">Em Alteração</p>
-                    <span className="text-xl font-black text-red-500">{stats.inRevision}</span>
+                  <div className={`space-y-1 p-2 rounded-xl transition-colors ${stats.inRevision > 0 ? 'bg-red-50 border border-red-100' : ''}`}>
+                    <p className={`text-[9px] font-bold uppercase tracking-widest ${stats.inRevision > 0 ? 'text-red-600' : 'text-red-500/80'}`}>Em Alteração</p>
+                    <span className={`text-xl font-black ${stats.inRevision > 0 ? 'text-red-700' : 'text-red-500'}`}>{stats.inRevision}</span>
                   </div>
-                  <div className="space-y-1">
-                    <p className="text-[9px] text-orange-500/80 font-bold uppercase tracking-widest">Em Aprovação</p>
-                    <span className="text-xl font-black text-orange-500">{stats.inApproval}</span>
+                  <div className={`space-y-1 p-2 rounded-xl transition-colors ${stats.inApproval > 0 ? 'bg-orange-50 border border-orange-100' : ''}`}>
+                    <p className={`text-[9px] font-bold uppercase tracking-widest ${stats.inApproval > 0 ? 'text-orange-600' : 'text-orange-500/80'}`}>Em Aprovação</p>
+                    <span className={`text-xl font-black ${stats.inApproval > 0 ? 'text-orange-700' : 'text-orange-500'}`}>{stats.inApproval}</span>
                   </div>
                 </div>
 

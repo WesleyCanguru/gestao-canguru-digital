@@ -404,6 +404,33 @@ export interface AgencyLead {
 }
 
 // --- NOVOS TIPOS PARA ONBOARDING DA AGÊNCIA ---
+export interface OnboardingTemplate {
+  id: string;
+  agency_id: number;
+  phase: number;
+  phase_name: string;
+  title: string;
+  description: string | null;
+  required_services: string[];
+  position: number;
+  is_active: boolean;
+  created_at: string;
+}
+
+export interface OnboardingChecklist {
+  id: string;
+  client_id: string;
+  agency_id: number;
+  phase: number;
+  phase_name: string;
+  title: string;
+  description: string | null;
+  is_completed: boolean;
+  completed_at: string | null;
+  position: number;
+  created_at: string;
+}
+
 export interface ClientBriefing {
   id: string;
   client_id: string;

@@ -1,13 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
-import { Client, ContractForm, ClientBriefing } from '../../types';
-import { CheckCircle, Clock, FileText, Target, ChevronRight, Check, Link as LinkIcon, Copy } from 'lucide-react';
+import { Client, ContractForm, ClientBriefing, OnboardingChecklist } from '../../types';
+import { CheckCircle, Clock, FileText, Target, ChevronRight, Check, Link as LinkIcon, Copy, Settings } from 'lucide-react';
 import { motion } from 'motion/react';
 import dayjs from 'dayjs';
 
 import { ClientOnboarding } from '../ClientOnboarding';
-import { BRIEFING_QUESTIONS } from '../BriefingOnboarding';
+import { BriefingOnboarding, BRIEFING_QUESTIONS } from '../BriefingOnboarding';
 import { X } from 'lucide-react';
+import { OnboardingChecklistModal } from './OnboardingChecklistModal';
+import { OnboardingTemplatesModal } from './OnboardingTemplatesModal';
 
 const SERVICE_TO_BRIEFINGS: Record<string, string[]> = {
   'Social Media': ['persona', 'publico_alvo', 'tom_voz', 'posicionamento'],
@@ -21,15 +23,7 @@ const SERVICE_TO_BRIEFINGS: Record<string, string[]> = {
 interface OnboardingData extends Client {
   contract?: ContractForm;
   briefings?: ClientBriefing[];
-  onboarding?: {
-    id: string;
-    is_completed: boolean;
-    steps: {
-      id: string;
-      title: string;
-      completed: boolean;
-    }[];
-  };
+  onboarding_checklist?: OnboardingChecklist[];
 }
 
 export const OnboardingTab: React.FC<{ onNavigateToClients: (client: Client) => void }> = ({ onNavigateToClients }) => {
@@ -37,6 +31,8 @@ export const OnboardingTab: React.FC<{ onNavigateToClients: (client: Client) => 
   const [loading, setLoading] = useState(true);
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
   const [viewingBriefingsClient, setViewingBriefingsClient] = useState<OnboardingData | null>(null);
+  const [viewingChecklistClient, setViewingChecklistClient] = useState<OnboardingData | null>(null);
+  const [showTemplatesModal, setShowTemplatesModal] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [expandedBriefingId, setExpandedBriefingId] = useState<string | null>(null);
 
@@ -62,7 +58,7 @@ export const OnboardingTab: React.FC<{ onNavigateToClients: (client: Client) => 
           *,
           contract:contract_forms(*),
           briefings:client_briefings(*),
-          onboarding:client_onboarding(*)
+          onboarding_checklist(*)
         `)
         .eq('is_active', true)
         .order('name');
@@ -75,15 +71,11 @@ export const OnboardingTab: React.FC<{ onNavigateToClients: (client: Client) => 
             ? (client.contract.length > 0 ? client.contract[0] : null)
             : client.contract;
           
-          let onboarding = Array.isArray(client.onboarding)
-            ? (client.onboarding.length > 0 ? client.onboarding[0] : null)
-            : client.onboarding;
-
           return {
             ...client,
             contract,
             briefings: client.briefings || [],
-            onboarding,
+            onboarding_checklist: client.onboarding_checklist || [],
           };
         });
         setClients(mappedClients);
@@ -153,7 +145,9 @@ export const OnboardingTab: React.FC<{ onNavigateToClients: (client: Client) => 
     const hasAllBriefings = requiredTypes.size > 0 ? (completedBriefings === requiredTypes.size) : true;
     
     // Check internal onboarding as well
-    const internalOnboardingCompleted = c.onboarding?.is_completed || false;
+    const internalOnboardingCompleted = c.onboarding_checklist && c.onboarding_checklist.length > 0
+      ? c.onboarding_checklist.every(item => item.is_completed)
+      : false;
     
     return hasSignedContract && hasAllBriefings && internalOnboardingCompleted;
   }).length;
@@ -165,6 +159,12 @@ export const OnboardingTab: React.FC<{ onNavigateToClients: (client: Client) => 
           <h2 className="text-2xl font-bold text-brand-dark">Onboarding de Clientes</h2>
           <p className="text-sm text-gray-500 mt-1">Acompanhe a entrada de clientes e envio de formulários.</p>
         </div>
+        <button
+          onClick={() => setShowTemplatesModal(true)}
+          className="flex items-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl font-bold uppercase tracking-widest text-[10px] transition-colors"
+        >
+          <Settings size={14} /> Configurar Templates
+        </button>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
@@ -214,32 +214,15 @@ export const OnboardingTab: React.FC<{ onNavigateToClients: (client: Client) => 
             const expectedBriefings = requiredTypes.size;
             const completedBriefings = client.briefings?.filter(b => requiredTypes.has(b.briefing_type) && b.is_completed).length || 0;
             
-            let totalChecklist = 0;
-            let completedChecklist = 0;
-
-            if (client.onboarding && client.onboarding.steps) {
-              totalChecklist = client.onboarding.steps.length;
-              completedChecklist = client.onboarding.steps.filter((s: any) => s.completed).length;
-            } else {
-              const serviceExtraSteps = (client.services || []).reduce((acc: number, s: string) => {
-                if (s === 'Social Media') return acc + 4;
-                if (s === 'Tráfego Pago') return acc + 6;
-                if (s.includes('Site')) return acc + 4;
-                if (s === 'Identidade Visual') return acc + 3;
-                if (s === 'Papelaria') return acc + 3;
-                if (s === 'Email Marketing') return acc + 3;
-                return acc;
-              }, 0);
-              totalChecklist = 7 + serviceExtraSteps;
-              completedChecklist = 0;
-            }
+            let totalChecklist = client.onboarding_checklist?.length || 0;
+            let completedChecklist = client.onboarding_checklist?.filter(s => s.is_completed).length || 0;
 
             const checklistPercentage = totalChecklist > 0 ? (completedChecklist / totalChecklist) * 100 : 0;
 
             return (
               <div key={client.id} className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm flex flex-col gap-4 relative">
                 <button 
-                  onClick={() => setSelectedClientId(client.id)}
+                  onClick={() => setViewingChecklistClient(client)}
                   className="absolute right-4 top-4 p-2 text-gray-400 hover:text-brand-dark bg-gray-50 hover:bg-gray-100 rounded-xl transition-all"
                 >
                   <ChevronRight size={18} />
@@ -354,28 +337,8 @@ export const OnboardingTab: React.FC<{ onNavigateToClients: (client: Client) => 
                 const completedBriefings = client.briefings?.filter(b => requiredTypes.has(b.briefing_type) && b.is_completed).length || 0;
                 
                 // Checklist Logic (Internal Onboarding)
-                let totalChecklist = 0;
-                let completedChecklist = 0;
-
-                if (client.onboarding && client.onboarding.steps) {
-                  totalChecklist = client.onboarding.steps.length;
-                  completedChecklist = client.onboarding.steps.filter((s: any) => s.completed).length;
-                } else {
-                  // Fallback: If no onboarding record exists, calculate potential steps
-                  // We import this dynamically if possible, or just mock the length for UI
-                  // Based on hooks/useClientOnboarding.ts, universal(5) + final(2) = 7 steps base
-                  const serviceExtraSteps = (client.services || []).reduce((acc: number, s: string) => {
-                    if (s === 'Social Media') return acc + 4;
-                    if (s === 'Tráfego Pago') return acc + 6;
-                    if (s.includes('Site')) return acc + 4;
-                    if (s === 'Identidade Visual') return acc + 3;
-                    if (s === 'Papelaria') return acc + 3;
-                    if (s === 'Email Marketing') return acc + 3;
-                    return acc;
-                  }, 0);
-                  totalChecklist = 7 + serviceExtraSteps;
-                  completedChecklist = 0;
-                }
+                let totalChecklist = client.onboarding_checklist?.length || 0;
+                let completedChecklist = client.onboarding_checklist?.filter(s => s.is_completed).length || 0;
 
                 const checklistPercentage = totalChecklist > 0 ? (completedChecklist / totalChecklist) * 100 : 0;
 
@@ -459,7 +422,7 @@ export const OnboardingTab: React.FC<{ onNavigateToClients: (client: Client) => 
 
                     <td className="p-6">
                       <button 
-                        onClick={() => setSelectedClientId(client.id)}
+                        onClick={() => setViewingChecklistClient(client)}
                         className="p-2 hover:bg-gray-100 rounded-xl transition-colors text-gray-400 hover:text-brand-dark"
                         title="Ver Checklist"
                       >
@@ -613,6 +576,24 @@ export const OnboardingTab: React.FC<{ onNavigateToClients: (client: Client) => 
             </div>
           </motion.div>
         </div>
+      )}
+
+      {/* Onboarding Checklist Modal */}
+      {viewingChecklistClient && (
+        <OnboardingChecklistModal
+          client={viewingChecklistClient}
+          onClose={() => {
+            setViewingChecklistClient(null);
+            fetchOnboardingData();
+          }}
+        />
+      )}
+
+      {/* Onboarding Templates Modal */}
+      {showTemplatesModal && (
+        <OnboardingTemplatesModal
+          onClose={() => setShowTemplatesModal(false)}
+        />
       )}
     </div>
   );
