@@ -83,6 +83,7 @@ export const Navigation: React.FC<SidebarProps> = ({
     { id: 'financeiro', label: 'Financeiro', icon: DollarSign },
     { id: 'onboarding', label: 'Onboarding', icon: Target },
     { id: 'contratos', label: 'Contratos', icon: FileText },
+    { id: 'clientes', label: 'Clientes', icon: Users },
   ];
 
   const getClientItems = () => {
