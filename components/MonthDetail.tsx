@@ -5,6 +5,7 @@ import { Instagram, Linkedin, CalendarDays, Target, BarChart3, Repeat, FileCheck
 import { PostModal } from './PostModal';
 import { PostIdeasModal } from './PostIdeasModal';
 import { ImportPdfModal } from './ImportPdfModal';
+import { ThemeBankAdmin } from './agency/ThemeBankAdmin';
 import { useAuth, supabase } from '../lib/supabase';
 import { StatusLegend } from './StatusLegend';
 import { ConfirmModal } from './ConfirmModal';
@@ -16,7 +17,7 @@ interface MonthDetailProps {
   onBack: () => void;
 }
 
-type ViewMode = 'list' | 'calendar';
+type ViewMode = 'list' | 'calendar' | 'themes';
 
 // Interface auxiliar para agrupar posts visuais
 interface GroupedPost {
@@ -72,6 +73,8 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack }) =
   const [selectedPosts, setSelectedPosts] = useState<Set<string>>(new Set());
   const [isDeleting, setIsDeleting] = useState(false);
   const [isBulkUpdating, setIsBulkUpdating] = useState(false);
+  const [transferringTheme, setTransferringTheme] = useState<any>(null);
+  const [themeBankKey, setThemeBankKey] = useState(0);
 
   const currentPlan = monthlyPlans.find(p => MONTH_NAMES[p.month - 1].toLowerCase() === monthName.toLowerCase());
   const monthIndex = MONTH_NAMES.findIndex(m => m.toLowerCase() === monthName.toLowerCase());
@@ -844,8 +847,18 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack }) =
           <PostModal 
             dayContent={selectedPost.content} 
             dateKey={selectedPost.key} 
-            onClose={handleCloseModal}
-            onUpdate={fetchMonthPosts}
+            onClose={() => {
+                handleCloseModal();
+                setTransferringTheme(null);
+            }}
+            onUpdate={async () => {
+                fetchMonthPosts();
+                if (transferringTheme) {
+                   await supabase.from('theme_items').update({ approval_status: 'transferred' }).eq('id', transferringTheme.id);
+                   setTransferringTheme(null);
+                   setThemeBankKey(k => k + 1); // trigger refetch in ThemeBank
+                }
+            }}
             isNew={isCreatingNew} 
             defaultDate={newPostDefaultDate}
           />
@@ -942,7 +955,7 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack }) =
             )}
 
             <div className="hidden md:flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-4">
-                <span className="text-[9px] uppercase tracking-widest text-gray-400 font-bold ml-1 sm:ml-0">Modo de Visualização:</span>
+                <span className="text-[9px] uppercase tracking-widest text-gray-400 font-bold ml-1 sm:ml-0">Visualização:</span>
                 <div className="flex bg-white rounded-xl sm:rounded-2xl p-1 sm:p-1.5 border border-black/[0.03] shadow-[0_4px_15px_rgba(0,0,0,0.03)]">
                     <button onClick={() => setViewMode('list')} className={`flex items-center gap-1.5 sm:gap-2 px-3 sm:px-6 py-2 sm:py-2.5 rounded-lg sm:rounded-xl text-[9px] sm:text-[10px] font-bold uppercase tracking-widest transition-all duration-300 ${viewMode === 'list' ? 'bg-brand-dark text-white shadow-lg' : 'text-gray-400 hover:bg-gray-50'}`}>
                         <List size={14} /> <span>Lista</span>
@@ -950,6 +963,11 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack }) =
                     <button onClick={() => setViewMode('calendar')} className={`flex items-center gap-1.5 sm:gap-2 px-3 sm:px-6 py-2 sm:py-2.5 rounded-lg sm:rounded-xl text-[9px] sm:text-[10px] font-bold uppercase tracking-widest transition-all duration-300 ${viewMode === 'calendar' ? 'bg-brand-dark text-white shadow-lg' : 'text-gray-400 hover:bg-gray-50'}`}>
                         <CalendarIcon size={14} /> <span>Calendário</span>
                     </button>
+                    {userRole === 'admin' && (
+                        <button onClick={() => setViewMode('themes')} className={`flex items-center gap-1.5 sm:gap-2 px-3 sm:px-6 py-2 sm:py-2.5 rounded-lg sm:rounded-xl text-[9px] sm:text-[10px] font-bold uppercase tracking-widest transition-all duration-300 ${viewMode === 'themes' ? 'bg-brand-dark text-white shadow-lg' : 'text-gray-400 hover:bg-gray-50'}`}>
+                            <Sparkles size={14} /> <span>Banco de Temas</span>
+                        </button>
+                    )}
                 </div>
             </div>
         </div>
@@ -1041,8 +1059,29 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack }) =
 
         {/* Content */}
         <div className="p-6 md:p-10 bg-gray-50/50">
-           <StatusLegend />
-           <div className={viewMode === 'list' ? 'block' : 'block md:hidden'}>
+           {viewMode === 'themes' ? (
+              <ThemeBankAdmin 
+                 key={themeBankKey}
+                 onTransferTheme={(theme) => {
+                    const emptyContent: DailyContent = {
+                       day: 'Nova Data',
+                       platform: 'meta',
+                       type: theme.format,
+                       theme: theme.title,
+                       bullets: theme.reference_links?.length > 0 
+                                ? [theme.description, `Referências: ${theme.reference_links.join(', ')}`] 
+                                : [theme.description]
+                    };
+                    setSelectedPost({ content: emptyContent, key: 'new' });
+                    setIsCreatingNew(true);
+                    setTransferringTheme(theme);
+                    setModalOpen(true);
+                 }}
+              />
+           ) : (
+             <>
+               <StatusLegend />
+               <div className={viewMode === 'list' ? 'block' : 'block md:hidden'}>
              <div className="flex flex-col gap-4">
                 {groupedPosts.map((group, idx) => {
                    const statusColor = getStatusColorClass(group.status);
@@ -1105,6 +1144,8 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack }) =
              <div className="hidden md:block">
                {renderCalendar()}
              </div>
+           )}
+           </>
            )}
         </div>
       </div>

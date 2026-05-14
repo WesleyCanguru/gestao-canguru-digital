@@ -1,0 +1,390 @@
+import React, { useState, useEffect } from 'react';
+import { supabase, useAuth } from '../../lib/supabase';
+import { motion, AnimatePresence } from 'motion/react';
+import { Plus, Trash, Link2, Copy, Save, AlertCircle, Sparkles, X, ChevronDown, ChevronRight, MessageSquare, Target, CheckCircle2, XCircle, LayoutList, GripVertical } from 'lucide-react';
+
+interface ThemeBankProps {
+  onTransferTheme: (theme: any) => void;
+}
+
+export const ThemeBankAdmin: React.FC<ThemeBankProps> = ({ onTransferTheme }) => {
+  const { activeClient } = useAuth();
+  const [sessions, setSessions] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [expandedSession, setExpandedSession] = useState<string | null>(null);
+  const [creatingSession, setCreatingSession] = useState(false);
+  const [newSessionTitle, setNewSessionTitle] = useState('');
+  
+  // Theme creation inside a session
+  const [newItemModel, setNewItemModel] = useState<{session_id: string, title: string, description: string, format: string, reference_links: string}>({ session_id: '', title: '', description: '', format: 'Post Estático', reference_links: '' });
+  const [loadingItemSession, setLoadingItemSession] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (activeClient) fetchSessions();
+  }, [activeClient]);
+
+  const fetchSessions = async () => {
+    setLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('theme_sessions')
+        .select(`
+          *,
+          theme_items (*)
+        `)
+        .eq('client_id', activeClient?.id)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+
+      // Sort items by position
+      const structuredData = (data || []).map((session: any) => ({
+         ...session,
+         theme_items: (session.theme_items || []).sort((a: any, b: any) => a.position - b.position)
+      }));
+
+      setSessions(structuredData);
+    } catch (err) {
+      console.error(err);
+      alert('Erro ao carregar banco de temas');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCreateSession = async () => {
+    if (!newSessionTitle.trim() || !activeClient) return;
+    
+    setCreatingSession(true);
+    try {
+      const session_token = Math.random().toString(36).substring(2, 10) + Math.random().toString(36).substring(2, 10);
+      
+      const { error } = await supabase
+        .from('theme_sessions')
+        .insert({
+           client_id: activeClient.id,
+           title: newSessionTitle,
+           session_token,
+           status: 'draft'
+        });
+        
+      if (error) throw error;
+      setNewSessionTitle('');
+      fetchSessions();
+    } catch (err) {
+       console.error(err);
+       alert('Erro ao criar sessão de temas.');
+    } finally {
+       setCreatingSession(false);
+    }
+  };
+
+  const copyApprovalLink = (token: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const url = `${window.location.origin}/temas/${token}`;
+    navigator.clipboard.writeText(url);
+    alert('Link copiado!');
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'draft': return 'bg-gray-100 text-gray-500';
+      case 'sent': return 'bg-blue-100 text-blue-600';
+      case 'reviewed': return 'bg-green-100 text-green-600';
+      default: return 'bg-gray-100 text-gray-500';
+    }
+  };
+
+  const getStatusLabel = (status: string) => {
+    switch (status) {
+      case 'draft': return 'Rascunho';
+      case 'sent': return 'Enviado';
+      case 'reviewed': return 'Revisado';
+      default: return 'Rascunho';
+    }
+  };
+
+  const getApprovalColor = (status: string) => {
+    switch(status) {
+      case 'approved': return 'bg-green-50 text-green-600 border-green-200';
+      case 'rejected': return 'bg-red-50 text-red-600 border-red-200';
+      case 'revision': return 'bg-amber-50 text-amber-600 border-amber-200';
+      case 'transferred': return 'bg-brand-dark/5 text-brand-dark border-brand-dark/20';
+      default: return 'bg-gray-50 text-gray-500 border-gray-200';
+    }
+  };
+
+  const parseLinks = (rawStr: string): string[] => {
+     if (!rawStr.trim()) return [];
+     return rawStr.split(',').map(s => s.trim()).filter(s => s.length > 0);
+  };
+
+  const handleAddItem = async (sessionId: string) => {
+      if (!newItemModel.title.trim()) return;
+      setLoadingItemSession(sessionId);
+
+      const sessionObj = sessions.find(s => s.id === sessionId);
+      const position = sessionObj?.theme_items?.length || 0;
+
+      try {
+          const { error } = await supabase
+            .from('theme_items')
+            .insert({
+                session_id: sessionId,
+                title: newItemModel.title,
+                description: newItemModel.description,
+                format: newItemModel.format,
+                reference_links: parseLinks(newItemModel.reference_links),
+                position,
+                approval_status: 'pending'
+            });
+
+          if (error) throw error;
+          setNewItemModel({ session_id: '', title: '', description: '', format: 'Post Estático', reference_links: '' });
+          fetchSessions();
+      } catch (err) {
+          console.error(err);
+          alert("Erro ao adicionar tema.");
+      } finally {
+          setLoadingItemSession(null);
+      }
+  };
+
+  const handleDeleteSession = async (id: string, e: React.MouseEvent) => {
+      e.stopPropagation();
+      if (!confirm("Tem certeza que deseja excluir esta sessão completa?")) return;
+      
+      try {
+          const { error } = await supabase.from('theme_sessions').delete().eq('id', id);
+          if (error) throw error;
+          fetchSessions();
+      } catch (err) {
+          console.error(err);
+          alert("Erro ao excluir.");
+      }
+  };
+
+  const handleDeleteItem = async (itemId: string) => {
+      if (!confirm("Excluir tema?")) return;
+      try {
+         await supabase.from('theme_items').delete().eq('id', itemId);
+         fetchSessions();
+      } catch (err) {
+          console.error(err);
+      }
+  };
+
+  // Drag and Drop
+  const moveItem = async (sessionId: string, items: any[], dragIndex: number, hoverIndex: number) => {
+      const draftItems = [...items];
+      const draggedItem = draftItems[dragIndex];
+      draftItems.splice(dragIndex, 1);
+      draftItems.splice(hoverIndex, 0, draggedItem);
+      
+      // update local
+      setSessions(prev => prev.map(s => s.id === sessionId ? { ...s, theme_items: draftItems } : s));
+
+      // update DB
+      try {
+          for (let i = 0; i < draftItems.length; i++) {
+              if (draftItems[i].position !== i) {
+                 await supabase.from('theme_items').update({ position: i }).eq('id', draftItems[i].id);
+              }
+          }
+          fetchSessions();
+      } catch (err) {
+          console.error(err);
+      }
+  };
+
+  if (loading) {
+     return <div className="p-10 flex justify-center"><AlertCircle size={24} className="text-gray-300 animate-pulse" /></div>;
+  }
+
+  return (
+    <div className="space-y-6">
+       <div className="flex justify-between items-center bg-white p-6 rounded-2xl border border-black/[0.05] shadow-sm">
+          <div>
+            <h3 className="text-lg font-bold text-gray-900 mb-1 flex items-center gap-2"><Sparkles size={18} className="text-brand-dark" /> Banco de Temas</h3>
+            <p className="text-sm font-medium text-gray-500">Crie sessões de temas e envie para aprovação do cliente.</p>
+          </div>
+          <div className="flex gap-2">
+             <input 
+               type="text" 
+               placeholder="Nome da nova sessão (ex: Temas Agosto)"
+               value={newSessionTitle}
+               onChange={e => setNewSessionTitle(e.target.value)}
+               className="h-10 border border-gray-200 rounded-xl px-4 text-sm focus:border-brand-dark outline-none font-medium text-gray-900"
+             />
+             <button
+               onClick={handleCreateSession}
+               disabled={creatingSession || !newSessionTitle.trim()}
+               className="h-10 px-5 bg-brand-dark text-white rounded-xl text-[10px] font-bold uppercase tracking-widest disabled:opacity-50 hover:bg-black transition-all flex items-center justify-center whitespace-nowrap"
+             >
+                {creatingSession ? 'Criando...' : 'Criar Sessão'}
+             </button>
+          </div>
+       </div>
+
+       {sessions.map(session => (
+           <div key={session.id} className="bg-white rounded-3xl border border-black/[0.05] overflow-hidden shadow-sm">
+               <div 
+                 onClick={() => setExpandedSession(expandedSession === session.id ? null : session.id)}
+                 className="p-5 flex items-center justify-between cursor-pointer hover:bg-gray-50 transition-colors"
+               >
+                   <div className="flex items-center gap-4">
+                      <div className={`w-8 h-8 rounded-full flex items-center justify-center transition-transform ${expandedSession === session.id ? 'rotate-90 bg-brand-dark text-white' : 'bg-gray-100 text-gray-400'}`}>
+                         <ChevronRight size={16} />
+                      </div>
+                      <div>
+                         <h4 className="text-base font-bold text-gray-900 leading-tight">{session.title}</h4>
+                         <p className="text-xs text-gray-400 font-medium">{session.theme_items?.length || 0} temas cadastrados</p>
+                      </div>
+                   </div>
+                   <div className="flex items-center gap-3">
+                      <span className={`px-2 py-1 rounded-md text-[9px] font-bold uppercase tracking-widest ${getStatusColor(session.status)}`}>
+                         {getStatusLabel(session.status)}
+                      </span>
+                      <button
+                        onClick={(e) => copyApprovalLink(session.session_token, e)}
+                        className="p-2 text-gray-400 hover:text-brand-dark hover:bg-brand-dark/5 rounded-lg transition-all"
+                        title="Copiar Link de Aprovação"
+                      >
+                         <Link2 size={16} />
+                      </button>
+                      <button
+                        onClick={(e) => handleDeleteSession(session.id, e)}
+                        className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
+                        title="Excluir Sessão"
+                      >
+                         <Trash size={16} />
+                      </button>
+                   </div>
+               </div>
+
+               <AnimatePresence>
+                  {expandedSession === session.id && (
+                      <motion.div
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: 'auto', opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        className="border-t border-gray-100 bg-gray-50/50 p-6 flex flex-col gap-4"
+                      >
+                         {/* Lista de temas */}
+                         {session.theme_items?.map((item: any, idx: number) => (
+                             <div 
+                                key={item.id} 
+                                draggable 
+                                onDragStart={(e) => {
+                                    e.dataTransfer.setData('text/plain', idx.toString());
+                                }}
+                                onDragOver={(e) => {
+                                    e.preventDefault(); // allow drop
+                                }}
+                                onDrop={(e) => {
+                                    e.preventDefault();
+                                    const sourceIdx = parseInt(e.dataTransfer.getData('text/plain'));
+                                    if (!isNaN(sourceIdx) && sourceIdx !== idx) {
+                                       moveItem(session.id, session.theme_items, sourceIdx, idx);
+                                    }
+                                }}
+                                className={`p-5 bg-white border rounded-2xl shadow-sm transition-all hover:shadow-md ${getApprovalColor(item.approval_status)}`}
+                             >
+                                 <div className="flex justify-between items-start mb-3">
+                                     <div className="flex items-center gap-2">
+                                         <span className="cursor-move p-1 text-gray-300 hover:text-gray-500"><GripVertical size={14} /></span>
+                                         <h5 className="font-bold text-gray-900 text-sm">{item.title}</h5>
+                                         <span className="px-2 py-0.5 bg-gray-100 text-gray-500 text-[9px] font-bold uppercase tracking-widest rounded">{item.format}</span>
+                                     </div>
+                                     <div className="flex items-center gap-2">
+                                         {item.approval_status === 'approved' && (
+                                             <button 
+                                                onClick={() => onTransferTheme(item)}
+                                                className="px-3 py-1.5 bg-brand-dark text-white text-[9px] font-bold uppercase tracking-widest rounded-lg hover:bg-black transition-all"
+                                             >
+                                                Transferir para Mapa
+                                             </button>
+                                         )}
+                                         <button onClick={() => handleDeleteItem(item.id)} className="text-gray-300 hover:text-red-500"><Trash size={14} /></button>
+                                     </div>
+                                 </div>
+                                 <p className="text-sm text-gray-600 mb-3 ml-7">{item.description}</p>
+                                 
+                                 {item.client_comment && (
+                                     <div className="ml-7 mt-3 p-3 bg-gray-50 rounded-xl border border-black/[0.05]">
+                                         <p className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-1 flex items-center gap-1"><MessageSquare size={10}/> Feedback do Cliente</p>
+                                         <p className="text-sm font-medium text-gray-700">{item.client_comment}</p>
+                                     </div>
+                                 )}
+                             </div>
+                         ))}
+
+                         {/* Form Adicionar */}
+                         <div className="mt-4 p-5 border border-dashed border-gray-300 rounded-2xl bg-white shadow-sm flex flex-col gap-3 relative">
+                             {loadingItemSession === session.id && (
+                                 <div className="absolute inset-0 bg-white/70 z-10 flex items-center justify-center rounded-2xl">
+                                     <AlertCircle size={24} className="text-brand-dark animate-pulse" />
+                                 </div>
+                             )}
+                             <h5 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest flex items-center gap-2">
+                                <Plus size={12} /> Novo Tema
+                             </h5>
+                             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                 <input 
+                                    className="border border-gray-200 rounded-xl px-3 py-2 text-sm focus:border-brand-dark outline-none font-medium" 
+                                    placeholder="Título do Tema" 
+                                    value={newItemModel.session_id === session.id ? newItemModel.title : ''}
+                                    onChange={e => setNewItemModel({...newItemModel, session_id: session.id, title: e.target.value})}
+                                 />
+                                 <select 
+                                    className="border border-gray-200 rounded-xl px-3 py-2 text-sm focus:border-brand-dark outline-none font-medium bg-white"
+                                    value={newItemModel.session_id === session.id ? newItemModel.format : 'Post Estático'}
+                                    onChange={e => setNewItemModel({...newItemModel, session_id: session.id, format: e.target.value})}
+                                 >
+                                     <option>Post Estático</option>
+                                     <option>Reels</option>
+                                     <option>Carrossel</option>
+                                     <option>Stories</option>
+                                 </select>
+                             </div>
+                             <textarea 
+                                className="border border-gray-200 rounded-xl px-3 py-2 text-sm focus:border-brand-dark outline-none font-medium resize-none" 
+                                placeholder="Descrição detalhada..." 
+                                rows={2}
+                                value={newItemModel.session_id === session.id ? newItemModel.description : ''}
+                                onChange={e => setNewItemModel({...newItemModel, session_id: session.id, description: e.target.value})}
+                             />
+                             <input 
+                                className="border border-gray-200 rounded-xl px-3 py-2 text-sm focus:border-brand-dark outline-none font-medium" 
+                                placeholder="Links de Referência (separados por vírgula)" 
+                                value={newItemModel.session_id === session.id ? newItemModel.reference_links : ''}
+                                onChange={e => setNewItemModel({...newItemModel, session_id: session.id, reference_links: e.target.value})}
+                             />
+                             <div className="flex justify-end mt-1">
+                                 <button 
+                                    onClick={() => handleAddItem(session.id)}
+                                    disabled={newItemModel.session_id !== session.id || !newItemModel.title.trim()}
+                                    className="px-5 py-2 bg-brand-dark text-white rounded-xl text-[10px] font-bold uppercase tracking-widest disabled:opacity-50 hover:bg-black transition-all"
+                                 >
+                                     Salvar Tema
+                                 </button>
+                             </div>
+                         </div>
+                      </motion.div>
+                  )}
+               </AnimatePresence>
+           </div>
+       ))}
+       
+       {sessions.length === 0 && !loading && (
+           <div className="py-20 text-center">
+               <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-4 border border-black/[0.05]">
+                   <Target size={24} className="text-gray-300" />
+               </div>
+               <h3 className="text-lg font-bold text-gray-900 mb-2">Nenhuma sessão criada</h3>
+               <p className="text-gray-500 font-medium">Use o campo acima para criar a primeira sessão de temas deste cliente.</p>
+           </div>
+       )}
+    </div>
+  );
+};

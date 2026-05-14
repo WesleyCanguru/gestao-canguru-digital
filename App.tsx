@@ -6,6 +6,7 @@ import { AnnualOverview } from './components/AnnualOverview';
 import { MonthDetail } from './components/MonthDetail';
 import { LoginScreen } from './components/LoginScreen';
 import { PublicApprovalScreen } from './components/PublicApprovalScreen';
+import { ThemeApprovalPublic } from './components/ThemeApprovalPublic';
 import { ClientSelectorScreen } from './components/ClientSelectorScreen';
 import { ClientManager } from './components/ClientManager';
 import { ClientOnboarding } from './components/ClientOnboarding';
@@ -557,6 +558,7 @@ const AppContent: React.FC = () => {
 const App: React.FC = () => {
   const [isPublicMode, setIsPublicMode] = useState(false);
   const [contractToken, setContractToken] = useState<string | null>(null);
+  const [themeToken, setThemeToken] = useState<string | null>(null);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -568,10 +570,18 @@ const App: React.FC = () => {
     if (contractMatch) {
       setContractToken(contractMatch[1]);
     }
+  const themeMatch = pathname.match(/^\/temas\/([^/]+)\/?$/);
+    if (themeMatch) {
+      setThemeToken(themeMatch[1]);
+    }
   }, []);
 
   if (contractToken) {
     return <ContractFormScreen formToken={contractToken} />;
+  }
+
+  if (themeToken) {
+    return <ThemeApprovalPublic sessionToken={themeToken} />;
   }
 
   if (isPublicMode) {
