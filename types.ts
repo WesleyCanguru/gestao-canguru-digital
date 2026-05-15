@@ -460,7 +460,7 @@ export interface AgencyTask {
   due_date?: string | null;
   is_daily: boolean;
   recurrence_type: AgencyTaskRecurrenceType;
-  recurrence_days?: number[] | null;
+  recurrence_days?: string[] | null;
   created_at: string;
   completed_at?: string | null;
   client?: { id: string; name: string; color: string; initials: string };

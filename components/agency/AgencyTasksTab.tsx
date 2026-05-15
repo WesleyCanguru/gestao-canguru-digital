@@ -20,7 +20,8 @@ import {
   Megaphone,
   BarChart3,
   Clock,
-  Briefcase
+  Briefcase,
+  Repeat
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { AgencyTask, AgencyTaskPriority, AgencyTaskRecurrenceType, ProcessInstance, ProcessChecklist } from '../../types';
@@ -162,13 +163,34 @@ const HojeTasks: React.FC<{ clients: any[], onEditTask: (t: AgencyTask) => void,
     const { data } = await supabase
       .from('agency_tasks')
       .select('*, client:clients(id, name, color, initials)')
-      .eq('status', 'pending')
-      .or('due_date.lte.' + dayjs().format('YYYY-MM-DD') + ',priority.eq.urgente');
+      .or('status.eq.pending,recurrence_type.neq.none');
 
     if (data) {
-      // Sort in JS instead of the complex SQL order since its easier
+      const todayString = dayjs().format('YYYY-MM-DD');
+      const todayDayOfWeek = dayjs().format('dddd').toLowerCase();
+
+      const hojeTasks = data.filter(task => {
+        const isCompletedToday = task.completed_at && dayjs(task.completed_at).format('YYYY-MM-DD') === todayString;
+        
+        if (task.recurrence_type === 'none') {
+          return task.status === 'pending' && (task.priority === 'urgente' || (task.due_date && task.due_date <= todayString));
+        }
+
+        if (task.recurrence_type === 'daily') {
+          return task.status === 'pending' || isCompletedToday || (task.completed_at && dayjs(task.completed_at).format('YYYY-MM-DD') < todayString);
+        }
+
+        if (task.recurrence_type === 'weekly') {
+          const isDueToday = task.recurrence_days?.includes(todayDayOfWeek);
+          if (!isDueToday) return false;
+          return task.status === 'pending' || isCompletedToday || (task.completed_at && dayjs(task.completed_at).format('YYYY-MM-DD') < todayString);
+        }
+
+        return false;
+      });
+
       const priorityOrder = { urgente: 1, alta: 2, normal: 3, baixa: 4 };
-      const sorted = data.sort((a, b) => {
+      const sorted = hojeTasks.sort((a, b) => {
         const p1 = priorityOrder[a.priority as keyof typeof priorityOrder] || 3;
         const p2 = priorityOrder[b.priority as keyof typeof priorityOrder] || 3;
         if (p1 !== p2) return p1 - p2;
@@ -183,8 +205,10 @@ const HojeTasks: React.FC<{ clients: any[], onEditTask: (t: AgencyTask) => void,
   };
 
   const toggleStatus = async (task: AgencyTask) => {
-    const newStatus = task.status === 'completed' ? 'pending' : 'completed';
-    await supabase.from('agency_tasks').update({ status: newStatus, completed_at: newStatus === 'completed' ? new Date().toISOString() : null }).eq('id', task.id);
+    const isCompletedToday = task.completed_at && dayjs(task.completed_at).format('YYYY-MM-DD') === dayjs().format('YYYY-MM-DD');
+    const newStatus = isCompletedToday ? 'pending' : 'completed';
+    const completedAt = isCompletedToday ? null : new Date().toISOString();
+    await supabase.from('agency_tasks').update({ status: newStatus, completed_at: completedAt }).eq('id', task.id);
     onRefresh();
   };
 
@@ -204,11 +228,28 @@ const HojeTasks: React.FC<{ clients: any[], onEditTask: (t: AgencyTask) => void,
     );
   }
 
+  const renderPriorityGroup = (priorityLabel: string, priorityKey: string, icon: string, taskList: AgencyTask[]) => {
+    const groupTasks = taskList.filter(t => t.priority === priorityKey);
+    if (groupTasks.length === 0) return null;
+    return (
+      <div key={priorityKey} className="space-y-2 mb-6">
+        <div className="flex items-center gap-2 mb-3">
+          <span className="text-gray-400 text-xs">{icon}</span>
+          <span className="text-xs font-bold text-gray-500 uppercase tracking-widest">{priorityLabel}</span>
+        </div>
+        {groupTasks.map(task => (
+          <TaskListItem key={task.id} task={task} onToggle={() => toggleStatus(task)} onEdit={() => onEditTask(task)} isTodayView />
+        ))}
+      </div>
+    );
+  };
+
   return (
-    <div className="space-y-2">
-      {tasks.map(task => (
-        <TaskListItem key={task.id} task={task} onToggle={() => toggleStatus(task)} onEdit={() => onEditTask(task)} />
-      ))}
+    <div className="space-y-4">
+      {renderPriorityGroup('URGENTE', 'urgente', '⚡', tasks)}
+      {renderPriorityGroup('ALTA', 'alta', '▲', tasks)}
+      {renderPriorityGroup('NORMAL', 'normal', '●', tasks)}
+      {renderPriorityGroup('BAIXA', 'baixa', '▽', tasks)}
     </div>
   );
 };
@@ -220,6 +261,7 @@ const ProcessosView: React.FC<{ clients: any[] }> = ({ clients }) => {
   const [instances, setInstances] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedProcess, setSelectedProcess] = useState<any | null>(null);
+  const [showCompleted, setShowCompleted] = useState(false);
 
   useEffect(() => {
     if (!selectedProcess) fetchInstances();
@@ -230,7 +272,7 @@ const ProcessosView: React.FC<{ clients: any[] }> = ({ clients }) => {
     const { data } = await supabase
       .from('process_instances')
       .select('*, client:clients(id, name, color, initials), process_checklist(*)')
-      .eq('status', 'active')
+      .in('status', ['active', 'completed'])
       .order('created_at', { ascending: false });
 
     if (data) {
@@ -249,60 +291,144 @@ const ProcessosView: React.FC<{ clients: any[] }> = ({ clients }) => {
     setLoading(false);
   };
 
+  const handleRenameClick = async (e: React.MouseEvent, process: any) => {
+    e.stopPropagation();
+    const novoNome = window.prompt("Novo nome do processo:", process.process_name);
+    if (novoNome && novoNome.trim() && novoNome !== process.process_name) {
+      await supabase.from('process_instances').update({ process_name: novoNome.trim() }).eq('id', process.id);
+      fetchInstances();
+    }
+  };
+
+  const handleDeleteClick = async (e: React.MouseEvent, process: any) => {
+    e.stopPropagation();
+    if (window.confirm("Tem certeza? Esta ação não pode ser desfeita.")) {
+      await supabase.from('process_instances').delete().eq('id', process.id);
+      fetchInstances();
+    }
+  };
+
   if (selectedProcess) {
     return (
       <ProcessChecklistView 
         process={selectedProcess} 
-        onBack={() => { setSelectedProcess(null); }} 
+        onBack={() => { setSelectedProcess(null); fetchInstances(); }} 
       />
     );
   }
 
   if (loading) return <div className="text-gray-400 text-sm">Carregando processos...</div>;
 
-  return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-      {instances.map(process => {
-        const typeInfo = PROCESS_TYPES.find(t => t.id === process.process_type) || PROCESS_TYPES[0];
-        const Icon = typeInfo.icon;
-        const progress = process.total_etapas > 0 ? (process.etapas_concluidas / process.total_etapas) * 100 : 0;
-        
-        return (
-          <div 
-            key={process.id} 
-            onClick={() => setSelectedProcess(process)}
-            className="bg-white border border-gray-100 rounded-3xl p-6 cursor-pointer hover:shadow-lg hover:border-brand-dark/20 transition-all group"
-          >
-           <div className="flex items-start justify-between mb-4">
-             <div className={`w-12 h-12 rounded-2xl flex items-center justify-center ${typeInfo.color}`}>
-               <Icon size={24} />
-             </div>
-             {process.client && (
-               <div className="px-2 py-1 rounded-full text-[10px] font-black uppercase tracking-wider text-white" style={{ backgroundColor: process.client.color }}>
-                 {process.client.name}
-               </div>
-             )}
-           </div>
-           
-           <h3 className="text-lg font-bold text-gray-900 group-hover:text-brand-dark transition-colors">{process.process_name}</h3>
-           <p className="text-xs text-gray-400 font-medium mt-1">Iniciado em {dayjs(process.created_at).format('DD/MM/YY')}</p>
-           
-           <div className="mt-6">
-             <div className="flex justify-between items-center mb-2">
-               <span className="text-xs font-bold text-gray-500 uppercase tracking-widest">Progresso</span>
-               <span className="text-xs font-bold text-brand-dark">{process.etapas_concluidas} / {process.total_etapas}</span>
-             </div>
-             <div className="h-2 w-full bg-gray-100 rounded-full overflow-hidden">
-               <div className="h-full bg-brand-dark transition-all duration-500 rounded-full" style={{ width: `${progress}%` }} />
-             </div>
-           </div>
-          </div>
-        );
-      })}
+  const activeInstances = instances.filter(p => p.status === 'active');
+  const completedInstances = instances.filter(p => p.status === 'completed');
 
-      {instances.length === 0 && (
-        <div className="col-span-full py-12 text-center border border-dashed border-gray-200 rounded-3xl">
-          <p className="text-gray-400 font-medium">Nenhum processo em andamento.</p>
+  return (
+    <div>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+        {activeInstances.map(process => {
+          const typeInfo = PROCESS_TYPES.find(t => t.id === process.process_type) || PROCESS_TYPES[0];
+          const Icon = typeInfo.icon;
+          const progress = process.total_etapas > 0 ? (process.etapas_concluidas / process.total_etapas) * 100 : 0;
+          
+          return (
+            <div 
+              key={process.id} 
+              onClick={() => setSelectedProcess(process)}
+              className="bg-white border border-gray-100 rounded-3xl p-6 cursor-pointer hover:shadow-lg hover:border-brand-dark/20 transition-all group relative overflow-hidden"
+            >
+             <div className="absolute top-4 right-4 flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity z-10">
+               <button onClick={(e) => handleRenameClick(e, process)} className="p-2 bg-white rounded-lg border border-gray-100 hover:border-brand-dark/20 text-gray-500 hover:text-brand-dark shadow-sm">
+                 <Edit2 size={14} />
+               </button>
+               <button onClick={(e) => handleDeleteClick(e, process)} className="p-2 bg-white rounded-lg border border-gray-100 hover:border-red-200 text-gray-500 hover:text-red-500 shadow-sm">
+                 <Trash2 size={14} />
+               </button>
+             </div>
+             
+             <div className="flex items-start justify-between mb-4 mt-2">
+               <div className={`w-12 h-12 rounded-2xl flex items-center justify-center ${typeInfo.color}`}>
+                 <Icon size={24} />
+               </div>
+               {process.client && (
+                 <div className="px-2 py-1 rounded-full text-[10px] font-black uppercase tracking-wider text-white" style={{ backgroundColor: process.client.color }}>
+                   {process.client.name}
+                 </div>
+               )}
+             </div>
+             
+             <h3 className="text-lg font-bold text-gray-900 group-hover:text-brand-dark transition-colors pr-16">{process.process_name}</h3>
+             <p className="text-xs text-gray-400 font-medium mt-1">Iniciado em {dayjs(process.created_at).format('DD/MM/YY')}</p>
+             
+             <div className="mt-6">
+               <div className="flex justify-between items-center mb-2">
+                 <span className="text-xs font-bold text-gray-500 uppercase tracking-widest">Progresso</span>
+                 <span className="text-xs font-bold text-brand-dark">{process.etapas_concluidas} / {process.total_etapas}</span>
+               </div>
+               <div className="h-2 w-full bg-gray-100 rounded-full overflow-hidden">
+                 <div className="h-full bg-brand-dark transition-all duration-500 rounded-full" style={{ width: `${progress}%` }} />
+               </div>
+             </div>
+            </div>
+          );
+        })}
+        {activeInstances.length === 0 && (
+          <div className="col-span-full py-12 text-center text-gray-400 border border-dashed border-gray-200 rounded-3xl">Nenhum processo em andamento.</div>
+        )}
+      </div>
+
+      {completedInstances.length > 0 && (
+        <div className="mt-12 border-t border-gray-100 pt-8">
+          <button 
+            onClick={() => setShowCompleted(!showCompleted)}
+            className="flex items-center gap-2 text-gray-500 font-bold hover:text-brand-dark transition-colors mb-6"
+          >
+            <ChevronDown size={20} className={`transition-transform ${showCompleted ? 'rotate-180' : ''}`} />
+            Ver concluídos ({completedInstances.length})
+          </button>
+          
+          <AnimatePresence>
+            {showCompleted && (
+              <motion.div 
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: 'auto', opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                className="overflow-hidden"
+              >
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {completedInstances.map(process => {
+                    const typeInfo = PROCESS_TYPES.find(t => t.id === process.process_type) || PROCESS_TYPES[0];
+                    const Icon = typeInfo.icon;
+                    return (
+                      <div 
+                        key={process.id} 
+                        className="bg-gray-50 border border-gray-100 rounded-3xl p-6 relative group overflow-hidden opacity-70 hover:opacity-100 transition-opacity"
+                      >
+                       <div className="absolute top-4 right-4 flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity z-10">
+                         <button onClick={(e) => handleDeleteClick(e, process)} className="p-2 bg-white rounded-lg border border-gray-100 hover:border-red-200 text-gray-500 hover:text-red-500 shadow-sm">
+                           <Trash2 size={14} />
+                         </button>
+                       </div>
+                       
+                       <div className="flex items-start justify-between mb-4 mt-2">
+                         <div className={`w-12 h-12 rounded-2xl flex items-center justify-center bg-gray-200 text-gray-500`}>
+                           <Icon size={24} />
+                         </div>
+                         {process.client && (
+                           <div className="px-2 py-1 rounded-full text-[10px] font-black uppercase tracking-wider text-white bg-gray-400">
+                             {process.client.name}
+                           </div>
+                         )}
+                       </div>
+                       
+                       <h3 className="text-lg font-bold text-gray-600 line-through pr-10">{process.process_name}</h3>
+                       <p className="text-xs text-gray-400 font-medium mt-1">Concluído em {dayjs(process.completed_at).format('DD/MM/YY')}</p>
+                      </div>
+                    );
+                  })}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
       )}
     </div>
@@ -463,13 +589,21 @@ const ProcessChecklistView: React.FC<{ process: any, onBack: () => void }> = ({ 
       </div>
 
       <div className="flex justify-end pt-6 border-t border-gray-100">
-        <button 
-          onClick={handleFinishProcess}
-          disabled={concluidas < total}
-          className={`px-8 py-3 rounded-xl font-bold uppercase tracking-widest text-xs transition-all ${concluidas === total ? 'bg-green-500 text-white hover:shadow-lg' : 'bg-gray-100 text-gray-400 cursor-not-allowed'}`}
-        >
-          {concluidas === total ? 'Concluir Processo' : 'Aguardando Etapas'}
-        </button>
+        {concluidas > 0 && concluidas === total ? (
+           <button 
+             onClick={handleFinishProcess}
+             className="px-8 py-3 rounded-xl font-bold uppercase tracking-widest text-xs transition-all bg-green-500 text-white hover:shadow-lg flex items-center justify-center gap-2"
+           >
+             <Check size={16} /> Marcar Processo como Concluído
+           </button>
+        ) : (
+           <button 
+             disabled
+             className="px-8 py-3 rounded-xl font-bold uppercase tracking-widest text-xs transition-all bg-gray-100 text-gray-400 cursor-not-allowed"
+           >
+             Aguardando {total - concluidas} Etapa{total - concluidas > 1 ? 's' : ''}
+           </button>
+        )}
       </div>
     </div>
   );
@@ -574,8 +708,10 @@ const TodasTasks: React.FC<{ clients: any[], onEditTask: (t: AgencyTask) => void
 // ==========================================
 // SHARED UI: TASK ITEM
 // ==========================================
-const TaskListItem: React.FC<{ task: AgencyTask, onToggle: () => void, onEdit: () => void }> = ({ task, onToggle, onEdit }) => {
-  const isDone = task.status === 'completed';
+const TaskListItem: React.FC<{ task: AgencyTask, onToggle: () => void, onEdit: () => void, isTodayView?: boolean }> = ({ task, onToggle, onEdit, isTodayView }) => {
+  const isCompletedToday = task.completed_at && dayjs(task.completed_at).format('YYYY-MM-DD') === dayjs().format('YYYY-MM-DD');
+  const isDone = task.status === 'completed' || (task.recurrence_type !== 'none' && isCompletedToday);
+
   const getPriorityColor = (p: string) => {
     switch (p) {
       case 'urgente': return 'text-red-500 bg-red-50 border-red-100';
@@ -616,6 +752,13 @@ const TaskListItem: React.FC<{ task: AgencyTask, onToggle: () => void, onEdit: (
           <span className={`px-2 py-0.5 rounded-md border text-[9px] font-bold uppercase tracking-wider whitespace-nowrap ${getPriorityColor(task.priority)}`}>
             {task.priority || 'Normal'}
           </span>
+
+          {task.recurrence_type && task.recurrence_type !== 'none' && (
+            <span title={`Recorrência: ${task.recurrence_type === 'daily' ? 'Diária' : 'Semanal'}`} className={`flex items-center gap-1 px-2 py-0.5 rounded-md border text-[9px] font-bold uppercase tracking-wider whitespace-nowrap bg-purple-50 text-purple-600 border-purple-100`}>
+              <Repeat size={10} />
+              {task.recurrence_type === 'daily' ? 'Diária' : 'Semanal'}
+            </span>
+          )}
           
           {dateObj && (
             <span className={`flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider whitespace-nowrap ${isOverdue ? 'text-red-500 bg-red-50' : 'text-gray-500 bg-gray-50'}`}>
@@ -638,13 +781,25 @@ const TaskListItem: React.FC<{ task: AgencyTask, onToggle: () => void, onEdit: (
 // ==========================================
 // DRAWER: NOVA TAREFA
 // ==========================================
+const WEEK_DAYS = [
+  { id: 'monday', label: 'Seg' },
+  { id: 'tuesday', label: 'Ter' },
+  { id: 'wednesday', label: 'Qua' },
+  { id: 'thursday', label: 'Qui' },
+  { id: 'friday', label: 'Sex' },
+  { id: 'saturday', label: 'Sáb' },
+  { id: 'sunday', label: 'Dom' },
+];
+
 const TaskFormDrawer: React.FC<{ clients: any[], task?: AgencyTask | null, onClose: () => void, onSuccess: () => void }> = ({ clients, task, onClose, onSuccess }) => {
   const [form, setForm] = useState({
     title: task?.title || '',
     client_id: task?.client_id || '',
     priority: task?.priority || 'normal',
     due_date: task?.due_date || '',
-    description: task?.description || ''
+    description: task?.description || '',
+    recurrence_type: task?.recurrence_type || 'none',
+    recurrence_days: task?.recurrence_days || []
   });
 
   const handleSave = async (e: React.FormEvent) => {
@@ -656,7 +811,10 @@ const TaskFormDrawer: React.FC<{ clients: any[], task?: AgencyTask | null, onClo
       client_id: form.client_id || null,
       priority: form.priority,
       due_date: form.due_date || null,
-      description: form.description
+      description: form.description,
+      recurrence_type: form.recurrence_type,
+      recurrence_days: form.recurrence_type === 'weekly' ? form.recurrence_days : null,
+      agency_id: 1
     };
     
     if (task) {
@@ -672,6 +830,16 @@ const TaskFormDrawer: React.FC<{ clients: any[], task?: AgencyTask | null, onClo
       await supabase.from('agency_tasks').delete().eq('id', task.id);
       onSuccess();
     }
+  };
+
+  const toggleDay = (dayId: string) => {
+    setForm(prev => {
+      const days = [...prev.recurrence_days];
+      const index = days.indexOf(dayId);
+      if (index === -1) days.push(dayId);
+      else days.splice(index, 1);
+      return { ...prev, recurrence_days: days };
+    });
   };
 
   return (
@@ -712,6 +880,38 @@ const TaskFormDrawer: React.FC<{ clients: any[], task?: AgencyTask | null, onClo
                 <label className="text-[10px] font-bold uppercase tracking-widest text-gray-500">Data Limite</label>
                 <input type="date" value={form.due_date} onChange={e => setForm({...form, due_date: e.target.value})} className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-brand-dark/20 outline-none" />
               </div>
+            </div>
+
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <label className="text-[10px] font-bold uppercase tracking-widest text-gray-500">Recorrência</label>
+                <select value={form.recurrence_type} onChange={e => setForm({...form, recurrence_type: e.target.value})} className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-brand-dark/20 outline-none cursor-pointer">
+                  <option value="none">Não recorrente</option>
+                  <option value="daily">Diária</option>
+                  <option value="weekly">Semanal</option>
+                </select>
+              </div>
+
+              {form.recurrence_type === 'weekly' && (
+                <div className="p-4 bg-purple-50/50 border border-purple-100 rounded-xl space-y-3">
+                  <label className="text-[10px] font-bold uppercase tracking-widest text-purple-600/70">Dias da Semana</label>
+                  <div className="flex flex-wrap gap-2">
+                    {WEEK_DAYS.map(day => {
+                      const isSelected = form.recurrence_days.includes(day.id);
+                      return (
+                        <button
+                          key={day.id}
+                          type="button"
+                          onClick={() => toggleDay(day.id)}
+                          className={`w-9 h-9 rounded-full text-xs font-bold transition-colors ${isSelected ? 'bg-purple-600 text-white shadow-md' : 'bg-white border border-gray-200 text-gray-500 hover:bg-gray-50'}`}
+                        >
+                          {day.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             </div>
             
             <div className="space-y-2">
