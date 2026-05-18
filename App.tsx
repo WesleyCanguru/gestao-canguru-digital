@@ -113,8 +113,9 @@ const MainApp: React.FC<MainAppProps> = ({ initialView, onExitAgencyDashboard, o
   
   // Condição para mostrar a navegação persistente:
   // 1. Sempre para admins (seja no painel interno ou explorando cliente)
-  // 2. Para clientes em módulos internos (fora do Dashboard/Onboarding inicial)
-  const showClientNav = userRole === 'approver' && view !== 'dashboard' && view !== 'strategic-briefings';
+  // 2. Para clientes em módulos internos (fora do Dashboard e Onboarding inicial)
+  const clientDoingOnboarding = userRole === 'approver' && activeClient && !activeClient.onboarding_completed && !activeClient.briefings_waived;
+  const showClientNav = userRole === 'approver' && view !== 'dashboard' && !clientDoingOnboarding;
   const showNav = userRole === 'admin' || showClientNav;
 
   return (

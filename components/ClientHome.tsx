@@ -592,9 +592,15 @@ export const ClientHome: React.FC<ClientHomeProps> = ({
     }
   ];
 
+  const quickAccessItems = allCards.filter(c => ['reportei_paid', 'reportei_organic', 'crm'].includes(c.id) && c.visible).sort((a, b) => {
+    // Optional: respect menu_order if desired, or keep fixed order: Paid, Organic, CRM
+    const order = ['reportei_paid', 'reportei_organic', 'crm'];
+    return order.indexOf(a.id) - order.indexOf(b.id);
+  });
+
   const menuOrder = activeClient?.features_settings?.menu_order;
   const sortedCards = allCards
-    .filter(c => c.visible)
+    .filter(c => c.visible && !['reportei_paid', 'reportei_organic', 'crm'].includes(c.id))
     .sort((a, b) => {
       if (!menuOrder) return 0;
       let idxA = menuOrder.indexOf(a.id);
@@ -719,6 +725,85 @@ export const ClientHome: React.FC<ClientHomeProps> = ({
                   />
                 </div>
               </div>
+            </div>
+          </motion.div>
+        )}
+
+        {/* Quick Access Section */}
+        {quickAccessItems.length > 0 && (
+          <motion.div 
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.1 }}
+            className="mb-10 px-4 sm:px-0"
+          >
+            <h2 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-4 ml-1">Acesso Rápido</h2>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {quickAccessItems.map(item => {
+                if (item.id === 'reportei_paid') {
+                  return activeClient?.paid_reportei_url ? (
+                    <a key="quick_reportei_paid" href={activeClient.paid_reportei_url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-4 bg-white p-4 rounded-2xl shadow-sm border border-black/[0.03] hover:shadow-md hover:border-blue-100 transition-all group">
+                      <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center shrink-0 group-hover:bg-blue-600 group-hover:text-white transition-colors">
+                        <BarChart3 size={20} />
+                      </div>
+                      <div className="flex-1 text-left">
+                        <h4 className="font-bold text-brand-dark text-sm">Dashboard Pago</h4>
+                        <p className="text-xs text-gray-500 line-clamp-1">Resultados de tráfego pago</p>
+                      </div>
+                      <ArrowRight size={16} className="text-gray-300 group-hover:text-current transform group-hover:translate-x-1 transition-all" />
+                    </a>
+                  ) : (
+                    <div key="quick_reportei_paid" onClick={() => isAdmin && handleSetUrl('paid')} className={`flex items-center gap-4 bg-white p-4 rounded-2xl shadow-sm border border-black/[0.03] transition-all group ${isAdmin ? 'cursor-pointer hover:shadow-md' : 'opacity-60'}`}>
+                      <div className="w-12 h-12 bg-gray-50 text-gray-400 rounded-xl flex items-center justify-center shrink-0">
+                        <BarChart3 size={20} />
+                      </div>
+                      <div className="flex-1 text-left">
+                        <h4 className="font-bold text-gray-700 text-sm">Dashboard Pago</h4>
+                        <p className="text-xs text-gray-400 line-clamp-1">Em breve</p>
+                      </div>
+                    </div>
+                  );
+                }
+                if (item.id === 'reportei_organic') {
+                  return activeClient?.organic_reportei_url ? (
+                    <a key="quick_reportei_organic" href={activeClient.organic_reportei_url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-4 bg-white p-4 rounded-2xl shadow-sm border border-black/[0.03] hover:shadow-md hover:border-green-100 transition-all group">
+                      <div className="w-12 h-12 bg-green-50 text-green-600 rounded-xl flex items-center justify-center shrink-0 group-hover:bg-green-600 group-hover:text-white transition-colors">
+                        <TrendingUp size={20} />
+                      </div>
+                      <div className="flex-1 text-left">
+                        <h4 className="font-bold text-brand-dark text-sm">Dashboard Orgânico</h4>
+                        <p className="text-xs text-gray-500 line-clamp-1">Crescimento das redes sociais</p>
+                      </div>
+                      <ArrowRight size={16} className="text-gray-300 group-hover:text-current transform group-hover:translate-x-1 transition-all" />
+                    </a>
+                  ) : (
+                    <div key="quick_reportei_organic" onClick={() => isAdmin && handleSetUrl('organic')} className={`flex items-center gap-4 bg-white p-4 rounded-2xl shadow-sm border border-black/[0.03] transition-all group ${isAdmin ? 'cursor-pointer hover:shadow-md' : 'opacity-60'}`}>
+                      <div className="w-12 h-12 bg-gray-50 text-gray-400 rounded-xl flex items-center justify-center shrink-0">
+                        <TrendingUp size={20} />
+                      </div>
+                      <div className="flex-1 text-left">
+                        <h4 className="font-bold text-gray-700 text-sm">Dashboard Orgânico</h4>
+                        <p className="text-xs text-gray-400 line-clamp-1">Em breve</p>
+                      </div>
+                    </div>
+                  );
+                }
+                if (item.id === 'crm') {
+                  return (
+                    <button key="quick_crm" onClick={() => setActiveView('leads')} className="flex items-center gap-4 bg-white p-4 rounded-2xl shadow-sm border border-black/[0.03] hover:shadow-md hover:border-orange-100 transition-all group w-full text-left">
+                      <div className="w-12 h-12 bg-orange-50 text-orange-600 rounded-xl flex items-center justify-center shrink-0 group-hover:bg-orange-600 group-hover:text-white transition-colors">
+                        <Target size={20} />
+                      </div>
+                      <div className="flex-1">
+                        <h4 className="font-bold text-brand-dark text-sm">CRM / Leads</h4>
+                        <p className="text-xs text-orange-600 font-bold bg-orange-50 inline-block px-1.5 py-0.5 rounded mt-0.5">{monthLeadsCount} {monthLeadsCount === 1 ? 'lead' : 'leads'} no mês</p>
+                      </div>
+                      <ArrowRight size={16} className="text-gray-300 group-hover:text-current transform group-hover:translate-x-1 transition-all" />
+                    </button>
+                  );
+                }
+                return null;
+              })}
             </div>
           </motion.div>
         )}
