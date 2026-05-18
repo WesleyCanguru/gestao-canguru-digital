@@ -13,6 +13,14 @@ export const ThemeApprovalPublic: React.FC<{ sessionToken: string }> = ({ sessio
   const [saving, setSaving] = useState(false);
   const [finished, setFinished] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [toast, setToast] = useState<{message: string, type: 'success'|'error'} | null>(null);
+  const [showRevisions, setShowRevisions] = useState(false);
+  const [showRejected, setShowRejected] = useState(false);
+
+  const displayToast = (message: string, type: 'success'|'error' = 'success') => {
+    setToast({message, type});
+    setTimeout(() => setToast(null), 3000);
+  };
 
   useEffect(() => {
     fetchSession();
@@ -59,14 +67,20 @@ export const ThemeApprovalPublic: React.FC<{ sessionToken: string }> = ({ sessio
     }
   };
 
+  const handleUpdateThemeStatus = (id: string, newStatus: string) => {
+    if (newStatus === 'revision') setShowRevisions(true);
+    if (newStatus === 'rejected') setShowRejected(true);
+    handleUpdateTheme(id, { temp_status: newStatus, temp_comment: newStatus === 'approved' ? '' : themes.find(t => t.id === id)?.temp_comment });
+  };
+
   const handleUpdateTheme = (id: string, updates: any) => {
     setThemes(themes.map(t => t.id === id ? { ...t, ...updates } : t));
   };
 
 
-  const saveProgress = async (finish = false) => {
+  const saveProgress = async (finish = false, showNotification = true) => {
     if (!userName.trim()) {
-      alert("Por favor, preencha o seu nome.");
+      displayToast("Por favor, preencha o seu nome.", 'error');
       return;
     }
 
@@ -97,12 +111,12 @@ export const ThemeApprovalPublic: React.FC<{ sessionToken: string }> = ({ sessio
           .eq('id', session.id);
         setFinished(true);
       } else {
-        alert("Progresso salvo com sucesso!");
+        if (showNotification) displayToast("Progresso salvo com sucesso!");
         fetchSession(); // reload data
       }
     } catch (err) {
       console.error(err);
-      alert("Erro ao salvar.");
+      displayToast("Erro ao salvar.", 'error');
     } finally {
       setSaving(false);
     }
@@ -206,6 +220,131 @@ export const ThemeApprovalPublic: React.FC<{ sessionToken: string }> = ({ sessio
     );
   }
 
+  const pendingAndApproved = themes.filter(t => t.temp_status === 'pending' || t.temp_status === 'approved' || !t.temp_status);
+  const revisions = themes.filter(t => t.temp_status === 'revision');
+  const rejected = themes.filter(t => t.temp_status === 'rejected');
+
+  const renderTheme = (theme: any) => {
+      const index = themes.findIndex(t => t.id === theme.id);
+      const isApproved = theme.temp_status === 'approved';
+      const isRevision = theme.temp_status === 'revision';
+      const isRejected = theme.temp_status === 'rejected';
+
+      return (
+          <motion.div 
+            key={theme.id}
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className={`bg-white rounded-3xl border transition-all duration-300 overflow-hidden ${
+                isApproved ? 'border-green-200 shadow-xl shadow-green-100/20' :
+                isRevision ? 'border-amber-200 shadow-xl shadow-amber-100/20' :
+                isRejected ? 'border-red-200 shadow-xl shadow-red-100/20' :
+                'border-black/[0.05] shadow-xl shadow-black/[0.02] hover:border-black/[0.1]'
+            }`}
+          >
+              <div className="p-6 sm:p-8">
+                  <div className="flex flex-wrap items-center gap-3 mb-6">
+                      <div className="px-3 py-1 bg-gray-100 text-gray-500 text-[10px] font-bold uppercase tracking-widest rounded-lg flex items-center gap-1.5">
+                          <Target size={12} /> Tema {index + 1}
+                      </div>
+                      <div className="px-3 py-1 bg-brand-dark/5 text-brand-dark text-[10px] font-bold uppercase tracking-widest rounded-lg flex items-center gap-1.5">
+                          <LayoutList size={12} /> {theme.format || 'Post'}
+                      </div>
+                  </div>
+                  
+                  <h3 className="text-xl sm:text-2xl font-bold text-gray-900 mb-3 tracking-tight leading-tight">{theme.title}</h3>
+                  {theme.description && (
+                      <p className="text-gray-500 font-medium leading-relaxed whitespace-pre-wrap text-sm sm:text-base">{theme.description}</p>
+                  )}
+
+                  {theme.reference_links && theme.reference_links.length > 0 && (
+                      <div className="mt-6 pt-6 border-t border-gray-100">
+                          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-3">Links de Referência</p>
+                          <div className="flex flex-col gap-2">
+                              {theme.reference_links.map((link: string, i: number) => (
+                                  <a key={i} href={link} target="_blank" rel="noreferrer" className="text-sm font-medium text-brand-dark hover:underline truncate">
+                                      {link}
+                                  </a>
+                              ))}
+                          </div>
+                      </div>
+                  )}
+              </div>
+
+              {/* Approval Action Bar */}
+              <div className={`p-4 sm:p-6 border-t ${
+                  isApproved ? 'bg-green-50/50 border-green-100/50' :
+                  isRevision ? 'bg-amber-50/50 border-amber-100/50' :
+                  isRejected ? 'bg-red-50/50 border-red-100/50' :
+                  'bg-gray-50 border-black/[0.02]'
+              }`}>
+                  <div className="flex flex-wrap gap-2">
+                      <button
+                         onClick={() => handleUpdateThemeStatus(theme.id, 'approved')}
+                         className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-5 py-3 rounded-xl sm:rounded-2xl text-[10px] sm:text-[11px] font-bold uppercase tracking-widest transition-all ${
+                             isApproved ? 'bg-green-600 text-white shadow-lg shadow-green-600/30 ring-2 ring-green-600 ring-offset-2' : 'bg-white text-gray-500 hover:text-green-600 hover:bg-green-50 border border-gray-200'
+                         }`}
+                      >
+                          <CheckCircle2 size={16} /> Aprovar
+                      </button>
+                      <button
+                         onClick={() => handleUpdateThemeStatus(theme.id, 'revision')}
+                         className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-5 py-3 rounded-xl sm:rounded-2xl text-[10px] sm:text-[11px] font-bold uppercase tracking-widest transition-all ${
+                             isRevision ? 'bg-amber-500 text-white shadow-lg shadow-amber-500/30 ring-2 ring-amber-500 ring-offset-2' : 'bg-white text-gray-500 hover:text-amber-500 hover:bg-amber-50 border border-gray-200'
+                         }`}
+                      >
+                          <MessageSquare size={16} /> Alteração
+                      </button>
+                      <button
+                         onClick={() => handleUpdateThemeStatus(theme.id, 'rejected')}
+                         className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-5 py-3 rounded-xl sm:rounded-2xl text-[10px] sm:text-[11px] font-bold uppercase tracking-widest transition-all ${
+                             isRejected ? 'bg-red-500 text-white shadow-lg shadow-red-500/30 ring-2 ring-red-500 ring-offset-2' : 'bg-white text-gray-500 hover:text-red-500 hover:bg-red-50 border border-gray-200'
+                         }`}
+                      >
+                          <XCircle size={16} /> Reprovar
+                      </button>
+                  </div>
+
+                  {/* Comment Field (Required for Revision/Rejected) */}
+                  <AnimatePresence>
+                      {(isRevision || isRejected) && (
+                          <motion.div
+                            initial={{ height: 0, opacity: 0, marginTop: 0 }}
+                            animate={{ height: 'auto', opacity: 1, marginTop: 16 }}
+                            exit={{ height: 0, opacity: 0, marginTop: 0 }}
+                            className="overflow-hidden"
+                          >
+                              <div className="relative">
+                                  <textarea
+                                      placeholder={isRevision ? "O que precisamos alterar neste tema?" : "Por que este tema não é adequado?"}
+                                      value={theme.temp_comment || ''}
+                                      onChange={(e) => handleUpdateTheme(theme.id, { temp_comment: e.target.value })}
+                                      className="w-full bg-white border border-gray-200 rounded-xl p-4 text-sm font-medium text-gray-900 placeholder:text-gray-400 focus:border-brand-dark focus:ring-4 focus:ring-brand-dark/10 transition-all resize-none min-h-[100px] mb-2"
+                                  />
+                                  <div className="flex items-center justify-between">
+                                      {!theme.temp_comment?.trim() ? (
+                                          <p className="text-red-500 text-xs font-bold flex items-center gap-1"><AlertCircle size={12}/> Justificativa obrigatória.</p>
+                                      ) : (
+                                          <p className="text-gray-400 text-xs font-bold flex items-center gap-1"></p>
+                                      )}
+                                      <button
+                                          onClick={() => saveProgress(false, true)}
+                                          disabled={!theme.temp_comment?.trim() || saving}
+                                          className="px-4 py-2 bg-brand-dark hover:bg-black text-white text-[10px] font-bold uppercase tracking-widest rounded-lg flex items-center gap-2 transition-all disabled:opacity-50"
+                                      >
+                                          {saving ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />}
+                                          Salvar Comentário
+                                      </button>
+                                  </div>
+                              </div>
+                          </motion.div>
+                      )}
+                  </AnimatePresence>
+              </div>
+          </motion.div>
+      );
+  };
+
   return (
     <div className="min-h-screen bg-[#FDFDFD] bg-texture pb-32">
         {/* Header */}
@@ -244,112 +383,75 @@ export const ThemeApprovalPublic: React.FC<{ sessionToken: string }> = ({ sessio
 
         {/* List of Themes */}
         <main className="max-w-3xl mx-auto px-4 sm:px-6 py-10 space-y-8">
-            {themes.map((theme, index) => {
-                const isApproved = theme.temp_status === 'approved';
-                const isRevision = theme.temp_status === 'revision';
-                const isRejected = theme.temp_status === 'rejected';
+            {pendingAndApproved.map(theme => renderTheme(theme))}
 
-                return (
-                    <motion.div 
-                      key={theme.id}
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: index * 0.05 }}
-                      className={`bg-white rounded-3xl border transition-all duration-300 overflow-hidden ${
-                          isApproved ? 'border-green-200 shadow-xl shadow-green-100/20' :
-                          isRevision ? 'border-amber-200 shadow-xl shadow-amber-100/20' :
-                          isRejected ? 'border-red-200 shadow-xl shadow-red-100/20' :
-                          'border-black/[0.05] shadow-xl shadow-black/[0.02] hover:border-black/[0.1]'
-                      }`}
+            {revisions.length > 0 && (
+                <div className="mt-10 pt-6 border-t border-gray-100">
+                    <button 
+                        onClick={() => setShowRevisions(!showRevisions)}
+                        className="w-full bg-amber-50/50 hover:bg-amber-50 border border-amber-200/60 rounded-2xl p-5 flex items-center justify-between text-amber-800 transition-colors"
                     >
-                        <div className="p-6 sm:p-8">
-                            <div className="flex flex-wrap items-center gap-3 mb-6">
-                                <div className="px-3 py-1 bg-gray-100 text-gray-500 text-[10px] font-bold uppercase tracking-widest rounded-lg flex items-center gap-1.5">
-                                    <Target size={12} /> Tema {index + 1}
-                                </div>
-                                <div className="px-3 py-1 bg-brand-dark/5 text-brand-dark text-[10px] font-bold uppercase tracking-widest rounded-lg flex items-center gap-1.5">
-                                    <LayoutList size={12} /> {theme.format || 'Post'}
-                                </div>
+                        <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 bg-amber-100/50 rounded-xl flex items-center justify-center text-amber-600">
+                                <MessageSquare size={20} />
                             </div>
-                            
-                            <h3 className="text-xl sm:text-2xl font-bold text-gray-900 mb-3 tracking-tight leading-tight">{theme.title}</h3>
-                            {theme.description && (
-                                <p className="text-gray-500 font-medium leading-relaxed whitespace-pre-wrap text-sm sm:text-base">{theme.description}</p>
-                            )}
-
-                            {theme.reference_links && theme.reference_links.length > 0 && (
-                                <div className="mt-6 pt-6 border-t border-gray-100">
-                                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-3">Links de Referência</p>
-                                    <div className="flex flex-col gap-2">
-                                        {theme.reference_links.map((link: string, i: number) => (
-                                            <a key={i} href={link} target="_blank" rel="noreferrer" className="text-sm font-medium text-brand-dark hover:underline truncate">
-                                                {link}
-                                            </a>
-                                        ))}
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-
-                        {/* Approval Action Bar */}
-                        <div className={`p-4 sm:p-6 border-t ${
-                            isApproved ? 'bg-green-50/50 border-green-100/50' :
-                            isRevision ? 'bg-amber-50/50 border-amber-100/50' :
-                            isRejected ? 'bg-red-50/50 border-red-100/50' :
-                            'bg-gray-50 border-black/[0.02]'
-                        }`}>
-                            <div className="flex flex-wrap gap-2">
-                                <button
-                                   onClick={() => handleUpdateTheme(theme.id, { temp_status: 'approved', temp_comment: '' })}
-                                   className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-5 py-3 rounded-xl sm:rounded-2xl text-[10px] sm:text-[11px] font-bold uppercase tracking-widest transition-all ${
-                                       isApproved ? 'bg-green-600 text-white shadow-lg shadow-green-600/30 ring-2 ring-green-600 ring-offset-2' : 'bg-white text-gray-500 hover:text-green-600 hover:bg-green-50 border border-gray-200'
-                                   }`}
-                                >
-                                    <CheckCircle2 size={16} /> Aprovar
-                                </button>
-                                <button
-                                   onClick={() => handleUpdateTheme(theme.id, { temp_status: 'revision' })}
-                                   className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-5 py-3 rounded-xl sm:rounded-2xl text-[10px] sm:text-[11px] font-bold uppercase tracking-widest transition-all ${
-                                       isRevision ? 'bg-amber-500 text-white shadow-lg shadow-amber-500/30 ring-2 ring-amber-500 ring-offset-2' : 'bg-white text-gray-500 hover:text-amber-500 hover:bg-amber-50 border border-gray-200'
-                                   }`}
-                                >
-                                    <MessageSquare size={16} /> Alteração
-                                </button>
-                                <button
-                                   onClick={() => handleUpdateTheme(theme.id, { temp_status: 'rejected' })}
-                                   className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-5 py-3 rounded-xl sm:rounded-2xl text-[10px] sm:text-[11px] font-bold uppercase tracking-widest transition-all ${
-                                       isRejected ? 'bg-red-500 text-white shadow-lg shadow-red-500/30 ring-2 ring-red-500 ring-offset-2' : 'bg-white text-gray-500 hover:text-red-500 hover:bg-red-50 border border-gray-200'
-                                   }`}
-                                >
-                                    <XCircle size={16} /> Reprovar
-                                </button>
+                            <div className="text-left">
+                                <p className="font-bold text-sm">Temas com Alteração</p>
+                                <p className="text-[10px] font-bold uppercase tracking-widest opacity-60">{revisions.length} {revisions.length === 1 ? 'tema' : 'temas'}</p>
                             </div>
-
-                            {/* Comment Field (Required for Revision/Rejected) */}
-                            <AnimatePresence>
-                                {(isRevision || isRejected) && (
-                                    <motion.div
-                                      initial={{ height: 0, opacity: 0, marginTop: 0 }}
-                                      animate={{ height: 'auto', opacity: 1, marginTop: 16 }}
-                                      exit={{ height: 0, opacity: 0, marginTop: 0 }}
-                                      className="overflow-hidden"
-                                    >
-                                        <textarea
-                                            placeholder={isRevision ? "O que precisamos alterar neste tema?" : "Por que este tema não é adequado?"}
-                                            value={theme.temp_comment || ''}
-                                            onChange={(e) => handleUpdateTheme(theme.id, { temp_comment: e.target.value })}
-                                            className="w-full bg-white border border-gray-200 rounded-xl p-4 text-sm font-medium text-gray-900 placeholder:text-gray-400 focus:border-brand-dark focus:ring-4 focus:ring-brand-dark/10 transition-all resize-none min-h-[100px]"
-                                        />
-                                        {!theme.temp_comment?.trim() && (
-                                            <p className="text-red-500 text-xs font-bold mt-2 flex items-center gap-1"><AlertCircle size={12}/> Justificativa obrigatória.</p>
-                                        )}
-                                    </motion.div>
-                                )}
-                            </AnimatePresence>
                         </div>
-                    </motion.div>
-                );
-            })}
+                        <ChevronRight className={`transform transition-transform ${showRevisions ? 'rotate-90' : ''}`} />
+                    </button>
+                    <AnimatePresence>
+                        {showRevisions && (
+                            <motion.div 
+                                initial={{ height: 0, opacity: 0 }}
+                                animate={{ height: 'auto', opacity: 1 }}
+                                exit={{ height: 0, opacity: 0 }}
+                                className="overflow-hidden"
+                            >
+                                <div className="mt-6 space-y-8">
+                                    {revisions.map(theme => renderTheme(theme))}
+                                </div>
+                            </motion.div>
+                        )}
+                    </AnimatePresence>
+                </div>
+            )}
+
+            {rejected.length > 0 && (
+                <div className="mt-10 pt-6 border-t border-gray-100">
+                    <button 
+                        onClick={() => setShowRejected(!showRejected)}
+                        className="w-full bg-red-50/50 hover:bg-red-50 border border-red-200/60 rounded-2xl p-5 flex items-center justify-between text-red-800 transition-colors"
+                    >
+                        <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 bg-red-100/50 rounded-xl flex items-center justify-center text-red-600">
+                                <XCircle size={20} />
+                            </div>
+                            <div className="text-left">
+                                <p className="font-bold text-sm">Temas Reprovados</p>
+                                <p className="text-[10px] font-bold uppercase tracking-widest opacity-60">{rejected.length} {rejected.length === 1 ? 'tema' : 'temas'}</p>
+                            </div>
+                        </div>
+                        <ChevronRight className={`transform transition-transform ${showRejected ? 'rotate-90' : ''}`} />
+                    </button>
+                    <AnimatePresence>
+                        {showRejected && (
+                            <motion.div 
+                                initial={{ height: 0, opacity: 0 }}
+                                animate={{ height: 'auto', opacity: 1 }}
+                                exit={{ height: 0, opacity: 0 }}
+                                className="overflow-hidden"
+                            >
+                                <div className="mt-6 space-y-8">
+                                    {rejected.map(theme => renderTheme(theme))}
+                                </div>
+                            </motion.div>
+                        )}
+                    </AnimatePresence>
+                </div>
+            )}
         </main>
 
         {/* Footer actions */}
@@ -369,6 +471,22 @@ export const ThemeApprovalPublic: React.FC<{ sessionToken: string }> = ({ sessio
                 </button>
             </div>
         </div>
+        {/* Toast */}
+        <AnimatePresence>
+            {toast && (
+                <motion.div
+                    initial={{ opacity: 0, y: 50, scale: 0.9 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: 20, scale: 0.9 }}
+                    className={`fixed bottom-[130px] left-1/2 -translate-x-1/2 z-[100] flex items-center gap-3 px-6 py-4 rounded-2xl shadow-2xl border ${
+                        toast.type === 'success' ? 'bg-green-50 border-green-100 text-green-800' : 'bg-red-50 border-red-100 text-red-800'
+                    }`}
+                >
+                    {toast.type === 'success' ? <CheckCircle2 size={24} className="text-green-600"/> : <AlertCircle size={24} className="text-red-600"/>}
+                    <span className="font-semibold text-sm">{toast.message}</span>
+                </motion.div>
+            )}
+        </AnimatePresence>
     </div>
   );
 };

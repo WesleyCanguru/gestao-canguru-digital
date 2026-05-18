@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { supabase, useAuth } from '../../lib/supabase';
 import { motion, AnimatePresence } from 'motion/react';
 import { Plus, Trash, Link2, Copy, Save, AlertCircle, Sparkles, X, ChevronDown, ChevronRight, MessageSquare, Target, CheckCircle2, XCircle, LayoutList, GripVertical } from 'lucide-react';
+import { ConfirmModal } from '../ConfirmModal';
 
 interface ThemeBankProps {
   onTransferTheme: (theme: any) => void;
@@ -21,6 +22,11 @@ export const ThemeBankAdmin: React.FC<ThemeBankProps> = ({ onTransferTheme }) =>
 
   // Multi-select
   const [selectedItemIds, setSelectedItemIds] = useState<Set<string>>(new Set());
+
+  // Confirm Modals
+  const [confirmSessionId, setConfirmSessionId] = useState<string | null>(null);
+  const [confirmThemeId, setConfirmThemeId] = useState<string | null>(null);
+  const [confirmBulkDelete, setConfirmBulkDelete] = useState(false);
 
   useEffect(() => {
     if (activeClient) fetchSessions();
@@ -153,9 +159,9 @@ export const ThemeBankAdmin: React.FC<ThemeBankProps> = ({ onTransferTheme }) =>
       }
   };
 
-  const handleDeleteSession = async (id: string, e: React.MouseEvent) => {
-      e.stopPropagation();
-      if (!confirm("Tem certeza que deseja excluir esta sessão completa?")) return;
+  const handleDeleteSession = async (id: string, e?: React.MouseEvent) => {
+      e?.stopPropagation();
+      if (!id) return;
       
       try {
           const { error } = await supabase.from('theme_sessions').delete().eq('id', id);
@@ -164,11 +170,13 @@ export const ThemeBankAdmin: React.FC<ThemeBankProps> = ({ onTransferTheme }) =>
       } catch (err) {
           console.error(err);
           alert("Erro ao excluir.");
+      } finally {
+          setConfirmSessionId(null);
       }
   };
 
   const handleDeleteItem = async (itemId: string) => {
-      if (!confirm("Excluir tema?")) return;
+      if (!itemId) return;
       try {
          await supabase.from('theme_items').delete().eq('id', itemId);
          // Clear from selection if it was there
@@ -180,6 +188,8 @@ export const ThemeBankAdmin: React.FC<ThemeBankProps> = ({ onTransferTheme }) =>
          fetchSessions();
       } catch (err) {
           console.error(err);
+      } finally {
+          setConfirmThemeId(null);
       }
   };
 
@@ -208,7 +218,6 @@ export const ThemeBankAdmin: React.FC<ThemeBankProps> = ({ onTransferTheme }) =>
 
   const handleBulkDelete = async () => {
     if (selectedItemIds.size === 0) return;
-    if (!confirm(`Excluir ${selectedItemIds.size} temas selecionados?`)) return;
 
     try {
         const { error } = await supabase
@@ -223,6 +232,8 @@ export const ThemeBankAdmin: React.FC<ThemeBankProps> = ({ onTransferTheme }) =>
     } catch (err) {
         console.error(err);
         alert("Erro ao excluir temas selecionados.");
+    } finally {
+        setConfirmBulkDelete(false);
     }
   };
 
@@ -298,7 +309,7 @@ export const ThemeBankAdmin: React.FC<ThemeBankProps> = ({ onTransferTheme }) =>
                Cancelar
              </button>
              <button 
-               onClick={handleBulkDelete}
+               onClick={() => setConfirmBulkDelete(true)}
                className="px-4 py-2 bg-red-600 text-white rounded-xl text-[10px] font-bold uppercase tracking-widest hover:bg-red-700 transition-all flex items-center gap-2"
              >
                <Trash size={14} /> Excluir Selecionados
@@ -334,7 +345,10 @@ export const ThemeBankAdmin: React.FC<ThemeBankProps> = ({ onTransferTheme }) =>
                          <Link2 size={16} />
                       </button>
                       <button
-                        onClick={(e) => handleDeleteSession(session.id, e)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setConfirmSessionId(session.id);
+                        }}
                         className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
                         title="Excluir Sessão"
                       >
@@ -417,7 +431,7 @@ export const ThemeBankAdmin: React.FC<ThemeBankProps> = ({ onTransferTheme }) =>
                                                 Transferir para Mapa
                                              </button>
                                          )}
-                                         <button onClick={() => handleDeleteItem(item.id)} className="text-gray-300 hover:text-red-500"><Trash size={14} /></button>
+                                         <button onClick={() => setConfirmThemeId(item.id)} className="text-gray-300 hover:text-red-500"><Trash size={14} /></button>
                                      </div>
                                  </div>
                                  <p className="text-sm text-gray-600 mb-3 ml-7">{item.description}</p>
@@ -498,6 +512,33 @@ export const ThemeBankAdmin: React.FC<ThemeBankProps> = ({ onTransferTheme }) =>
                <p className="text-gray-500 font-medium">Use o campo acima para criar a primeira sessão de temas deste cliente.</p>
            </div>
        )}
+
+       <ConfirmModal
+         isOpen={!!confirmSessionId}
+         title="Excluir Sessão"
+         message="Tem certeza que deseja excluir esta sessão completa? Todos os temas associados a ela também serão excluídos."
+         onConfirm={() => confirmSessionId && handleDeleteSession(confirmSessionId)}
+         onCancel={() => setConfirmSessionId(null)}
+         confirmText="Excluir"
+       />
+
+       <ConfirmModal
+         isOpen={!!confirmThemeId}
+         title="Excluir Tema"
+         message="Tem certeza que deseja excluir este tema?"
+         onConfirm={() => confirmThemeId && handleDeleteItem(confirmThemeId)}
+         onCancel={() => setConfirmThemeId(null)}
+         confirmText="Excluir"
+       />
+       
+       <ConfirmModal
+         isOpen={confirmBulkDelete}
+         title="Excluir Selecionados"
+         message={`Tem certeza que deseja excluir os ${selectedItemIds.size} temas selecionados?`}
+         onConfirm={handleBulkDelete}
+         onCancel={() => setConfirmBulkDelete(false)}
+         confirmText="Excluir Selecionados"
+       />
     </div>
   );
 };
