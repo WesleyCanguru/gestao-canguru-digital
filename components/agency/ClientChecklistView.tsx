@@ -25,7 +25,7 @@ const PHASES = [
 ];
 
 export function ClientChecklistView({ client, onClose }: OnboardingChecklistModalProps) {
-  const { userRole } = useAuth();
+  const { userRole, agencyId } = useAuth();
   const [items, setItems] = useState<OnboardingChecklist[]>(client.onboarding_checklist || []);
   const [loading, setLoading] = useState(false);
   const [addingPhase, setAddingPhase] = useState<number | null>(null);
@@ -42,9 +42,11 @@ export function ClientChecklistView({ client, onClose }: OnboardingChecklistModa
   }, []);
 
   const fetchChecklist = async () => {
+    if (!agencyId) return;
     const { data } = await supabase
       .from('onboarding_checklist')
       .select('*')
+      .eq('agency_id', agencyId)
       .eq('client_id', client.id)
       .order('phase')
       .order('position');
@@ -52,11 +54,13 @@ export function ClientChecklistView({ client, onClose }: OnboardingChecklistModa
   };
 
   const generateChecklist = async () => {
+    if (!agencyId) return;
     setLoading(true);
     try {
       const { data: templates } = await supabase
         .from('onboarding_templates')
         .select('*')
+        .eq('agency_id', agencyId)
         .eq('is_active', true)
         .order('phase')
         .order('position');
@@ -79,7 +83,7 @@ export function ClientChecklistView({ client, onClose }: OnboardingChecklistModa
       // Insert parents first
       const itemsToInsert = parentTemplates.map((tpl: OnboardingTemplate) => ({
         client_id: client.id,
-        agency_id: tpl.agency_id,
+        agency_id: agencyId,
         phase: tpl.phase,
         phase_name: tpl.phase_name,
         title: tpl.title,
@@ -109,7 +113,7 @@ export function ClientChecklistView({ client, onClose }: OnboardingChecklistModa
 
         return {
           client_id: client.id,
-          agency_id: tpl.agency_id,
+          agency_id: agencyId,
           phase: tpl.phase,
           phase_name: tpl.phase_name,
           title: tpl.title,
@@ -152,7 +156,10 @@ export function ClientChecklistView({ client, onClose }: OnboardingChecklistModa
     let updatedItems = items.map(i => i.id === item.id ? { ...i, is_completed: newIsCompleted, completed_at: now } : i);
     
     const dbUpdates = [
-      supabase.from('onboarding_checklist').update({ is_completed: newIsCompleted, completed_at: now }).eq('id', item.id)
+      supabase.from('onboarding_checklist')
+        .update({ is_completed: newIsCompleted, completed_at: now })
+        .eq('agency_id', agencyId)
+        .eq('id', item.id)
     ];
 
     // If it's a child, evaluate parent
@@ -166,7 +173,10 @@ export function ClientChecklistView({ client, onClose }: OnboardingChecklistModa
         const parentNow = allCompleted ? new Date().toISOString() : null;
         updatedItems = updatedItems.map(i => i.id === parentId ? { ...i, is_completed: allCompleted, completed_at: parentNow } : i);
         dbUpdates.push(
-          supabase.from('onboarding_checklist').update({ is_completed: allCompleted, completed_at: parentNow }).eq('id', parentId)
+          supabase.from('onboarding_checklist')
+            .update({ is_completed: allCompleted, completed_at: parentNow })
+            .eq('agency_id', agencyId)
+            .eq('id', parentId)
         );
       }
     }
@@ -180,18 +190,21 @@ export function ClientChecklistView({ client, onClose }: OnboardingChecklistModa
     if (!window.confirm('Tem certeza que deseja remover este item?')) return;
     
     setItems(items.filter(i => i.id !== id));
-    await supabase.from('onboarding_checklist').delete().eq('id', id);
+    await supabase.from('onboarding_checklist')
+      .delete()
+      .eq('agency_id', agencyId)
+      .eq('id', id);
   };
 
   const handleAddItem = async (phase: number, phaseName: string) => {
-    if (!newItemTitle.trim()) {
+    if (!newItemTitle.trim() || !agencyId) {
       setAddingPhase(null);
       return;
     }
 
     const newItem = {
       client_id: client.id,
-      agency_id: 1,
+      agency_id: agencyId,
       phase,
       phase_name: phaseName,
       title: newItemTitle,

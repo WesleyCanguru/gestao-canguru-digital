@@ -137,6 +137,7 @@ export interface PostData {
   id?: string;
   client_id: string;
   date_key: string; // ID único baseado na data + plataforma (ex: "02-02-2026-linkedin")
+  agency_id?: number;
   image_url: string | string[] | null;
   caption: string | null;
   status: PostStatus;
@@ -227,6 +228,7 @@ export interface Client {
   organic_reportei_url?: string | null;
   paid_reportei_url?: string | null;
   drive_link?: string | null;
+  agency_id?: number;
   onboarding_completed?: boolean;
   briefings_waived?: boolean;
   base_value?: number;
@@ -251,6 +253,7 @@ export interface PostIdea {
 export interface AgencyBilling {
   id: string;
   client_id?: string | null;
+  agency_id: number;
   month_year: string; // YYYY-MM
   base_value: number;
   extra_value: number;
@@ -270,6 +273,7 @@ export interface AgencyExpense {
   description: string;
   category: 'fixed' | 'variable';
   expense_type?: 'tools' | 'freelancers' | 'extras';
+  agency_id: number;
   amount: number;
   month_year: string; // YYYY-MM
   due_date?: string | null; // DATE
@@ -352,6 +356,7 @@ export interface ContractForm {
 export interface ClientQuickLink {
   id: string;
   client_id: string;
+  agency_id: number;
   type: QuickLinkType;
   label: string;
   url: string;
@@ -384,12 +389,14 @@ export interface AgencyCRM {
   form_fields: FormField[];
   auto_advance_time: string;
   position: number;
+  agency_id: number;
   created_at: string;
 }
 
 export interface AgencyLead {
   id: string;
   crm_id: string;
+  agency_id: number;
   name: string;
   stage: string;
   stage_entered_at: string;
@@ -461,6 +468,7 @@ export interface AgencyTask {
   is_daily: boolean;
   recurrence_type: AgencyTaskRecurrenceType;
   recurrence_days?: string[] | null;
+  agency_id: number;
   created_at: string;
   completed_at?: string | null;
   client?: { id: string; name: string; color: string; initials: string };

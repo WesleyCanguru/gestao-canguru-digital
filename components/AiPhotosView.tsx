@@ -15,7 +15,7 @@ interface AiPhoto {
 }
 
 export const AiPhotosView: React.FC = () => {
-  const { activeClient, userRole } = useAuth();
+  const { activeClient, userRole, agencyId } = useAuth();
   const [photos, setPhotos] = useState<AiPhoto[]>([]);
   const [loading, setLoading] = useState(true);
   const [quota, setQuota] = useState<number>(0);
@@ -53,6 +53,7 @@ export const AiPhotosView: React.FC = () => {
       const { data: clientData } = await supabase
         .from('clients')
         .select('ai_photos_quota')
+        .eq('agency_id', agencyId)
         .eq('id', activeClient!.id)
         .single();
 
@@ -65,6 +66,7 @@ export const AiPhotosView: React.FC = () => {
       const { data: photosData } = await supabase
         .from('ai_photos')
         .select('*')
+        .eq('agency_id', agencyId)
         .eq('client_id', activeClient!.id)
         .order('updated_at', { ascending: false });
 
@@ -84,6 +86,7 @@ export const AiPhotosView: React.FC = () => {
       await supabase
         .from('clients')
         .update({ ai_photos_quota: parseInt(newQuota, 10) || 0 })
+        .eq('agency_id', agencyId)
         .eq('id', activeClient.id);
 
       setQuota(parseInt(newQuota, 10) || 0);
@@ -117,6 +120,7 @@ export const AiPhotosView: React.FC = () => {
 
         return {
           client_id: activeClient.id,
+          agency_id: agencyId,
           image_url: data.publicUrl,
           status: 'pending_approval'
         };
@@ -143,7 +147,7 @@ export const AiPhotosView: React.FC = () => {
 
   const handleDeletePhoto = async (id: string) => {
     try {
-      await supabase.from('ai_photos').delete().eq('id', id);
+      await supabase.from('ai_photos').delete().eq('agency_id', agencyId).eq('id', id);
       fetchData();
     } catch (error) {
       console.error('Error deleting photo:', error);
@@ -154,7 +158,7 @@ export const AiPhotosView: React.FC = () => {
 
   const handleDeleteFeedback = async (id: string) => {
     try {
-      await supabase.from('ai_photos').update({ feedback: null }).eq('id', id);
+      await supabase.from('ai_photos').update({ feedback: null }).eq('agency_id', agencyId).eq('id', id);
       fetchData();
     } catch (error) {
       console.error('Error deleting feedback:', error);
@@ -169,7 +173,7 @@ export const AiPhotosView: React.FC = () => {
       if (feedback !== undefined) {
         updateData.feedback = feedback;
       }
-      await supabase.from('ai_photos').update(updateData).eq('id', id);
+      await supabase.from('ai_photos').update(updateData).eq('agency_id', agencyId).eq('id', id);
       fetchData();
       setActivePhotoId(null);
       setFeedbackText('');
@@ -206,7 +210,7 @@ export const AiPhotosView: React.FC = () => {
         feedback: newFeedback,
         status: 'pending_approval',
         updated_at: new Date().toISOString()
-      }).eq('id', id);
+      }).eq('agency_id', agencyId).eq('id', id);
 
       fetchData();
       setReplacingPhotoId(null);

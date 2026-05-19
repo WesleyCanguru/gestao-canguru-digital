@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { supabase } from '../../lib/supabase';
+import { supabase, useAuth } from '../../lib/supabase';
 import { Client, ContractForm, ClientBriefing, OnboardingChecklist } from '../../types';
 import { CheckCircle, Clock, FileText, Target, ChevronRight, Check, Link as LinkIcon, Copy, Settings, ChevronLeft } from 'lucide-react';
 import { motion } from 'motion/react';
@@ -26,6 +26,7 @@ interface OnboardingData extends Client {
 }
 
 export const OnboardingTab: React.FC<{ onNavigateToClients: (client: Client) => void }> = ({ onNavigateToClients }) => {
+  const { agencyId } = useAuth();
   const [clients, setClients] = useState<OnboardingData[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
@@ -45,9 +46,10 @@ export const OnboardingTab: React.FC<{ onNavigateToClients: (client: Client) => 
 
   useEffect(() => {
     fetchOnboardingData();
-  }, []);
+  }, [agencyId]);
 
   const fetchOnboardingData = async () => {
+    if (!agencyId) return;
     setLoading(true);
     try {
       // Fetch clients, contracts, briefings, and onboarding checklist
@@ -59,6 +61,7 @@ export const OnboardingTab: React.FC<{ onNavigateToClients: (client: Client) => 
           briefings:client_briefings(*),
           onboarding_checklist(*)
         `)
+        .eq('agency_id', agencyId)
         .eq('is_active', true)
         .order('name');
 

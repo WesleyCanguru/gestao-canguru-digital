@@ -11,7 +11,7 @@ interface PublicationIdeasModalProps {
 }
 
 export const PublicationIdeasModal: React.FC<PublicationIdeasModalProps> = ({ onClose }) => {
-  const { userRole, activeClient } = useAuth();
+  const { userRole, activeClient, agencyId } = useAuth();
   const [ideas, setIdeas] = useState<PostIdea[]>([]);
   const [loading, setLoading] = useState(true);
   const [isAdding, setIsAdding] = useState(false);
@@ -34,6 +34,7 @@ export const PublicationIdeasModal: React.FC<PublicationIdeasModalProps> = ({ on
     const { data, error } = await supabase
       .from('post_ideas')
       .select('*')
+      .eq('agency_id', agencyId)
       .eq('client_id', activeClient.id)
       .order('created_at', { ascending: false });
 
@@ -49,6 +50,7 @@ export const PublicationIdeasModal: React.FC<PublicationIdeasModalProps> = ({ on
 
     const payload: any = {
       client_id: activeClient.id,
+      agency_id: agencyId,
       theme,
       date: date || null,
       format: format || null,
@@ -59,6 +61,7 @@ export const PublicationIdeasModal: React.FC<PublicationIdeasModalProps> = ({ on
       const { error } = await supabase
         .from('post_ideas')
         .update(payload)
+        .eq('agency_id', agencyId)
         .eq('id', editingId);
       if (!error) {
         setEditingId(null);
@@ -83,7 +86,7 @@ export const PublicationIdeasModal: React.FC<PublicationIdeasModalProps> = ({ on
 
   const handleDelete = async (id: string) => {
     try {
-      const { error } = await supabase.from('post_ideas').delete().eq('id', id);
+      const { error } = await supabase.from('post_ideas').delete().eq('agency_id', agencyId).eq('id', id);
       if (!error) fetchIdeas();
     } finally {
       setConfirmDeleteId(null);

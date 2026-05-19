@@ -1,22 +1,25 @@
 
 import { useState, useEffect } from 'react';
-import { supabase } from '../lib/supabase';
+import { supabase, useAuth } from '../lib/supabase';
 import { AgencyBilling, AgencyExpense, Client } from '../types';
 
 import dayjs from 'dayjs';
 
 export function useAgencyFinanceiro(monthYear: string) {
+  const { agencyId } = useAuth();
   const [billings, setBillings] = useState<AgencyBilling[]>([]);
   const [expenses, setExpenses] = useState<AgencyExpense[]>([]);
   const [loading, setLoading] = useState(true);
 
   const fetchData = async () => {
+    if (!agencyId) return;
     setLoading(true);
     try {
       // Fetch Clients to ensure we have all clients even if no billing record exists yet
       const { data: clientsData } = await supabase
         .from('clients')
         .select('*, contract:contract_forms(contract_start_date)')
+        .eq('agency_id', agencyId)
         .eq('is_active', true)
         .order('name');
 
@@ -26,6 +29,7 @@ export function useAgencyFinanceiro(monthYear: string) {
       const { data: billingsData } = await supabase
         .from('agency_billing')
         .select('*, client:clients(*)')
+        .eq('agency_id', agencyId)
         .eq('month_year', monthYear);
 
       let currentBillings = (billingsData || []) as AgencyBilling[];
@@ -63,7 +67,8 @@ export function useAgencyFinanceiro(monthYear: string) {
         paid_at: null,
         created_at: new Date().toISOString(),
         client: c,
-        is_sporadic: false
+        is_sporadic: false,
+        agency_id: agencyId!
       }));
 
       setBillings([...currentBillings, ...placeholderBillings]);
@@ -72,6 +77,7 @@ export function useAgencyFinanceiro(monthYear: string) {
       const { data: expensesData } = await supabase
         .from('agency_expenses')
         .select('*')
+        .eq('agency_id', agencyId)
         .eq('month_year', monthYear)
         .order('created_at', { ascending: false });
 
@@ -84,6 +90,7 @@ export function useAgencyFinanceiro(monthYear: string) {
         const { data: prevExpenses } = await supabase
           .from('agency_expenses')
           .select('*')
+          .eq('agency_id', agencyId)
           .eq('month_year', prevMonth)
           .eq('category', 'fixed');
 
@@ -97,7 +104,8 @@ export function useAgencyFinanceiro(monthYear: string) {
             due_date: e.due_date ? dayjs(monthYear + '-01').date(dayjs(e.due_date).date()).format('YYYY-MM-DD') : null,
             paid: false,
             paid_at: null,
-            notes: e.notes
+            notes: e.notes,
+            agency_id: agencyId
           }));
 
           const { data: insertedExpenses } = await supabase
@@ -121,7 +129,7 @@ export function useAgencyFinanceiro(monthYear: string) {
 
   useEffect(() => {
     fetchData();
-  }, [monthYear]);
+  }, [monthYear, agencyId]);
 
   const updateBilling = async (billing: Partial<AgencyBilling> & { update_global_contract?: boolean }) => {
     try {
@@ -148,6 +156,7 @@ export function useAgencyFinanceiro(monthYear: string) {
         paid_at: billing.paid_at !== undefined ? billing.paid_at : (existing?.paid_at || null),
         is_sporadic: billing.is_sporadic !== undefined ? billing.is_sporadic : (existing?.is_sporadic || false),
         sporadic_name: billing.sporadic_name !== undefined ? billing.sporadic_name : (existing?.sporadic_name || null),
+        agency_id: agencyId
       };
 
       if (billing.id?.startsWith('temp-') || !billing.id) {
@@ -169,6 +178,7 @@ export function useAgencyFinanceiro(monthYear: string) {
         const { data, error } = await supabase
           .from('agency_billing')
           .update(dbData)
+          .eq('agency_id', agencyId)
           .eq('id', billing.id)
           .select('*, client:clients(*)');
 
@@ -187,6 +197,7 @@ export function useAgencyFinanceiro(monthYear: string) {
             base_value: dbData.base_value,
             due_day: dbData.due_day
           })
+          .eq('agency_id', agencyId)
           .eq('id', dbData.client_id);
       }
     } catch (error) {
@@ -199,7 +210,7 @@ export function useAgencyFinanceiro(monthYear: string) {
     try {
       const { data, error } = await supabase
         .from('agency_expenses')
-        .insert([expense])
+        .insert([{ ...expense, agency_id: agencyId }])
         .select()
         .single();
 
@@ -216,6 +227,7 @@ export function useAgencyFinanceiro(monthYear: string) {
       const { data, error } = await supabase
         .from('agency_expenses')
         .update(updates)
+        .eq('agency_id', agencyId)
         .eq('id', id)
         .select()
         .single();
@@ -233,6 +245,7 @@ export function useAgencyFinanceiro(monthYear: string) {
       const { error } = await supabase
         .from('agency_expenses')
         .delete()
+        .eq('agency_id', agencyId)
         .eq('id', id);
 
       if (error) throw error;
@@ -248,6 +261,7 @@ export function useAgencyFinanceiro(monthYear: string) {
       const { error } = await supabase
         .from('agency_billing')
         .delete()
+        .eq('agency_id', agencyId)
         .eq('id', id);
 
       if (error) throw error;

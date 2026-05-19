@@ -1,10 +1,11 @@
 
 import { useState, useEffect } from 'react';
-import { supabase } from '../lib/supabase';
+import { supabase, useAuth } from '../lib/supabase';
 import { Client, ClientQuickLink, PostData } from '../types';
 import dayjs from 'dayjs';
 
 export function useClientesOverview() {
+  const { agencyId } = useAuth();
   const [clients, setClients] = useState<Client[]>([]);
   const [quickLinks, setQuickLinks] = useState<ClientQuickLink[]>([]);
   const [stats, setStats] = useState<Record<string, { publishedToday: number, nextPublication: string | null, totalPublishedMonth: number, changesRequested: number, pendingApproval: number, drafts: number }>>({});
@@ -17,6 +18,7 @@ export function useClientesOverview() {
       const { data: clientsData } = await supabase
         .from('clients')
         .select('*')
+        .eq('agency_id', agencyId)
         .eq('is_active', true)
         .order('name');
 
@@ -27,6 +29,7 @@ export function useClientesOverview() {
       const { data: linksData } = await supabase
         .from('client_quick_links')
         .select('*')
+        .eq('agency_id', agencyId)
         .order('sort_order', { ascending: true })
         .order('created_at', { ascending: true });
 
@@ -38,7 +41,8 @@ export function useClientesOverview() {
 
       const { data: postsData } = await supabase
         .from('posts')
-        .select('*');
+        .select('*')
+        .eq('agency_id', agencyId);
 
       const posts = (postsData || []) as PostData[];
 
@@ -124,13 +128,13 @@ export function useClientesOverview() {
 
   useEffect(() => {
     fetchData();
-  }, []);
+  }, [agencyId]);
 
   const addQuickLink = async (link: Omit<ClientQuickLink, 'id' | 'created_at'>) => {
     try {
       const { data, error } = await supabase
         .from('client_quick_links')
-        .insert([link])
+        .insert([{ ...link, agency_id: agencyId }])
         .select()
         .single();
 
@@ -149,6 +153,7 @@ export function useClientesOverview() {
       const { error } = await supabase
         .from('client_quick_links')
         .delete()
+        .eq('agency_id', agencyId)
         .eq('id', id);
 
       if (error) throw error;
@@ -164,6 +169,7 @@ export function useClientesOverview() {
       const { data, error } = await supabase
         .from('client_quick_links')
         .update(updates)
+        .eq('agency_id', agencyId)
         .eq('id', id)
         .select()
         .single();
@@ -193,7 +199,7 @@ export function useClientesOverview() {
       });
 
       const promises = orderedIds.map((id, index) => 
-        supabase.from('client_quick_links').update({ sort_order: index }).eq('id', id)
+        supabase.from('client_quick_links').update({ sort_order: index }).eq('agency_id', agencyId).eq('id', id)
       );
 
       await Promise.all(promises);

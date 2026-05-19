@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { supabase } from '../../lib/supabase';
+import { supabase, useAuth } from '../../lib/supabase';
 import { OnboardingTemplate } from '../../types';
 import { X, Plus, GripVertical, Settings2, Trash2 } from 'lucide-react';
 import {
@@ -40,6 +40,7 @@ const AVAILABLE_SERVICES = [
 ];
 
 export function OnboardingTemplatesModal({ onClose }: Props) {
+  const { agencyId } = useAuth();
   const [templates, setTemplates] = useState<OnboardingTemplate[]>([]);
   const [loading, setLoading] = useState(true);
   const [editingTemplate, setEditingTemplate] = useState<Partial<OnboardingTemplate> | null>(null);
@@ -53,20 +54,19 @@ export function OnboardingTemplatesModal({ onClose }: Props) {
 
   useEffect(() => {
     fetchTemplates();
-  }, []);
+  }, [agencyId]);
 
   const fetchTemplates = async () => {
+    if (!agencyId) return;
     const { data } = await supabase
       .from('onboarding_templates')
       .select('*')
+      .eq('agency_id', agencyId)
       .order('phase')
       .order('position');
-    
     if (data) setTemplates(data as OnboardingTemplate[]);
     setLoading(false);
   };
-
-  const currentAgencyId = templates.length > 0 ? templates[0].agency_id : 1; 
 
   const handleDragEnd = async (event: DragEndEvent, phaseId: number) => {
     const { active, over } = event;
@@ -89,7 +89,7 @@ export function OnboardingTemplatesModal({ onClose }: Props) {
 
         // Save to DB (Fire and forget for now, to keep UI snappy)
         const updates = reordered.map((r, idx) => ({ id: r.id, position: idx }));
-        updates.forEach(u => supabase.from('onboarding_templates').update({ position: u.position }).eq('id', u.id));
+        updates.forEach(u => supabase.from('onboarding_templates').update({ position: u.position }).eq('agency_id', agencyId).eq('id', u.id));
 
         // Note: For a true robust update, we should do it in bulk, but this is simple enough.
         return updated.sort((a, b) => {
@@ -108,6 +108,7 @@ export function OnboardingTemplatesModal({ onClose }: Props) {
       const { data, error } = await supabase
         .from('onboarding_templates')
         .update(editingTemplate)
+        .eq('agency_id', agencyId)
         .eq('id', editingTemplate.id)
         .select('*')
         .single();
@@ -122,7 +123,7 @@ export function OnboardingTemplatesModal({ onClose }: Props) {
         .from('onboarding_templates')
         .insert([{ 
           ...editingTemplate, 
-          agency_id: currentAgencyId,
+          agency_id: agencyId,
           position: templates.filter(t => t.phase === editingTemplate.phase).length 
         }])
         .select('*')
@@ -141,7 +142,7 @@ export function OnboardingTemplatesModal({ onClose }: Props) {
   const deleteTemplate = async (id: string) => {
     if (!window.confirm('Excluir este template? Isso não afetará checklists de clientes existentes.')) return;
     setTemplates(templates.filter(t => t.id !== id));
-    await supabase.from('onboarding_templates').delete().eq('id', id);
+    await supabase.from('onboarding_templates').delete().eq('agency_id', agencyId).eq('id', id);
   };
 
   return (

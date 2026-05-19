@@ -95,7 +95,7 @@ export const LoginScreen: React.FC = () => {
                 <span>Acesso Exclusivo</span>
               </div>
               
-              <p className="text-[15px] text-gray-600 leading-relaxed font-medium max-w-md mx-auto">
+              <div className="text-[15px] text-gray-600 leading-relaxed font-medium max-w-md mx-auto">
                 "O canguru carrega seu filhote em uma bolsa,<br />
                 sempre perto, sempre protegido.<br />
                 <div className="h-3"></div>
@@ -103,7 +103,7 @@ export const LoginScreen: React.FC = () => {
                 <div className="h-3"></div>
                 Estratégia, conteúdo, relatórios e acessos em um só lugar,<br />
                 para você sempre ter o que precisa, quando precisar."
-              </p>
+              </div>
             </div>
 
             <form onSubmit={handleLogin} className="space-y-5">

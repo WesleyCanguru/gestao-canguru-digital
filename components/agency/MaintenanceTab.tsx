@@ -1,13 +1,15 @@
 
 import React, { useState } from 'react';
-import { supabase } from '../../lib/supabase';
+import { supabase, useAuth } from '../../lib/supabase';
 import { RefreshCw, Check, AlertCircle } from 'lucide-react';
 
 export const MaintenanceTab: React.FC = () => {
+  const { agencyId } = useAuth();
   const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
   const [message, setMessage] = useState('');
 
   const syncThemes = async () => {
+    if (!agencyId) return;
     setStatus('loading');
     setMessage('Buscando cliente Next Safety...');
     
@@ -16,6 +18,7 @@ export const MaintenanceTab: React.FC = () => {
       const { data: nextSafety, error: clientError } = await supabase
         .from('clients')
         .select('id, name')
+        .eq('agency_id', agencyId)
         .ilike('name', '%Next Safety%')
         .single();
 
@@ -43,6 +46,7 @@ export const MaintenanceTab: React.FC = () => {
       const { data: otherClients, error: othersError } = await supabase
         .from('clients')
         .select('id, name')
+        .eq('agency_id', agencyId)
         .neq('id', nextSafety.id)
         .eq('is_active', true);
 
@@ -60,6 +64,7 @@ export const MaintenanceTab: React.FC = () => {
             .from('client_monthly_plans')
             .upsert([{ 
               client_id: client.id,
+              agency_id: agencyId,
               month: plan.month,
               year: plan.year,
               theme: plan.theme,
@@ -136,10 +141,11 @@ export const MaintenanceTab: React.FC = () => {
 
           <button
             onClick={async () => {
+              if (!agencyId) return;
               setStatus('loading');
               setMessage('Limpando Visão Geral Anual de todos os clientes...');
               try {
-                const { data: clients } = await supabase.from('clients').select('id');
+                const { data: clients } = await supabase.from('clients').select('id').eq('agency_id', agencyId);
                 if (!clients) throw new Error('Nenhum cliente encontrado.');
                 
                 for (const client of clients) {

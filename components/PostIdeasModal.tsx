@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { supabase } from '../lib/supabase';
+import { supabase, useAuth } from '../lib/supabase';
 import { PostIdea } from '../types';
 import { X, Plus, Trash2, Edit2, Loader2, Calendar, LayoutTemplate, Lightbulb } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
@@ -12,6 +12,7 @@ interface PostIdeasModalProps {
 }
 
 export const PostIdeasModal: React.FC<PostIdeasModalProps> = ({ clientId, monthName, onClose }) => {
+  const { agencyId } = useAuth();
   const [ideas, setIdeas] = useState<PostIdea[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -35,6 +36,7 @@ export const PostIdeasModal: React.FC<PostIdeasModalProps> = ({ clientId, monthN
       const { data, error } = await supabase
         .from('post_ideas')
         .select('*')
+        .eq('agency_id', agencyId)
         .eq('client_id', clientId)
         .eq('month', monthName)
         .order('created_at', { ascending: false });
@@ -79,6 +81,7 @@ export const PostIdeasModal: React.FC<PostIdeasModalProps> = ({ clientId, monthN
     try {
       const ideaData = {
         client_id: clientId,
+        agency_id: agencyId,
         month: monthName,
         theme: theme.trim(),
         date: date || null,
@@ -89,6 +92,7 @@ export const PostIdeasModal: React.FC<PostIdeasModalProps> = ({ clientId, monthN
         const { error } = await supabase
           .from('post_ideas')
           .update(ideaData)
+          .eq('agency_id', agencyId)
           .eq('id', editingId);
         if (error) throw error;
       } else {
@@ -113,6 +117,7 @@ export const PostIdeasModal: React.FC<PostIdeasModalProps> = ({ clientId, monthN
       const { error } = await supabase
         .from('post_ideas')
         .delete()
+        .eq('agency_id', agencyId)
         .eq('id', id);
       if (error) throw error;
       

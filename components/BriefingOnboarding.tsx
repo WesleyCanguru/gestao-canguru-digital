@@ -104,7 +104,7 @@ const SERVICE_TO_BRIEFINGS: Record<string, string[]> = {
 };
 
 export const BriefingOnboarding: React.FC<{ isDashboardView?: boolean }> = ({ isDashboardView }) => {
-  const { activeClient, refreshActiveClient, logout, userRole } = useAuth();
+  const { activeClient, refreshActiveClient, logout, userRole, agencyId } = useAuth();
   const [briefings, setBriefings] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedBriefingType, setSelectedBriefingType] = useState<string | null>(null);
@@ -139,6 +139,7 @@ export const BriefingOnboarding: React.FC<{ isDashboardView?: boolean }> = ({ is
       const { data: existingBriefings } = await supabase
         .from('client_briefings')
         .select('*')
+        .eq('agency_id', agencyId)
         .eq('client_id', activeClient!.id);
       
       let currentBriefings = existingBriefings || [];
@@ -159,7 +160,7 @@ export const BriefingOnboarding: React.FC<{ isDashboardView?: boolean }> = ({ is
         if (!exists) {
           neededToCreate.push({
             client_id: activeClient!.id,
-            agency_id: 1,
+            agency_id: agencyId,
             briefing_type: bType,
             responses: {},
             is_completed: false
@@ -182,14 +183,14 @@ export const BriefingOnboarding: React.FC<{ isDashboardView?: boolean }> = ({ is
       setBriefings(relevantBriefings);
       
       // Check overall completion
-      if (requiredTypes.size > 0) {
+      if (requiredTypes.size > 0 && agencyId) {
           const completedCount = relevantBriefings.filter((b: any) => b.is_completed).length;
           if (completedCount === requiredTypes.size && !activeClient?.onboarding_completed) {
-            await supabase.from('clients').update({ onboarding_completed: true }).eq('id', activeClient!.id);
+            await supabase.from('clients').update({ onboarding_completed: true }).eq('id', activeClient!.id).eq('agency_id', agencyId);
             await refreshActiveClient();
           }
-      } else if (!activeClient?.onboarding_completed) {
-         await supabase.from('clients').update({ onboarding_completed: true }).eq('id', activeClient!.id);
+      } else if (!activeClient?.onboarding_completed && agencyId) {
+         await supabase.from('clients').update({ onboarding_completed: true }).eq('id', activeClient!.id).eq('agency_id', agencyId);
          await refreshActiveClient();
       }
 
@@ -228,6 +229,7 @@ export const BriefingOnboarding: React.FC<{ isDashboardView?: boolean }> = ({ is
           is_completed: complete,
           completed_at: complete ? new Date().toISOString() : null
         })
+        .eq('agency_id', agencyId)
         .eq('client_id', activeClient.id)
         .eq('briefing_type', selectedBriefingType);
       
@@ -261,6 +263,7 @@ export const BriefingOnboarding: React.FC<{ isDashboardView?: boolean }> = ({ is
             active_briefing_types: newTypes
           }
         })
+        .eq('agency_id', agencyId)
         .eq('id', activeClient.id);
       
       if (error) throw error;

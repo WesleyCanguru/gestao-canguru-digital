@@ -314,28 +314,51 @@ export const ThemeApprovalPublic: React.FC<{ sessionToken: string }> = ({ sessio
                             exit={{ height: 0, opacity: 0, marginTop: 0 }}
                             className="overflow-hidden"
                           >
-                              <div className="relative">
-                                  <textarea
-                                      placeholder={isRevision ? "O que precisamos alterar neste tema?" : "Por que este tema não é adequado?"}
-                                      value={theme.temp_comment || ''}
-                                      onChange={(e) => handleUpdateTheme(theme.id, { temp_comment: e.target.value })}
-                                      className="w-full bg-white border border-gray-200 rounded-xl p-4 text-sm font-medium text-gray-900 placeholder:text-gray-400 focus:border-brand-dark focus:ring-4 focus:ring-brand-dark/10 transition-all resize-none min-h-[100px] mb-2"
-                                  />
-                                  <div className="flex items-center justify-between">
-                                      {!theme.temp_comment?.trim() ? (
-                                          <p className="text-red-500 text-xs font-bold flex items-center gap-1"><AlertCircle size={12}/> Justificativa obrigatória.</p>
-                                      ) : (
-                                          <p className="text-gray-400 text-xs font-bold flex items-center gap-1"></p>
-                                      )}
-                                      <button
-                                          onClick={() => saveProgress(false, true)}
-                                          disabled={!theme.temp_comment?.trim() || saving}
-                                          className="px-4 py-2 bg-brand-dark hover:bg-black text-white text-[10px] font-bold uppercase tracking-widest rounded-lg flex items-center gap-2 transition-all disabled:opacity-50"
-                                      >
-                                          {saving ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />}
-                                          Salvar Comentário
-                                      </button>
-                                  </div>
+                               <div className="relative">
+                                  {!theme.temp_comment_saved ? (
+                                    <>
+                                      <textarea
+                                          placeholder={isRevision ? "O que precisamos alterar neste tema?" : "Por que este tema não é adequado?"}
+                                          value={theme.temp_comment || ''}
+                                          onChange={(e) => handleUpdateTheme(theme.id, { temp_comment: e.target.value, temp_comment_saved: false })}
+                                          className="w-full bg-white border border-gray-200 rounded-xl p-4 text-sm font-medium text-gray-900 placeholder:text-gray-400 focus:border-brand-dark focus:ring-4 focus:ring-brand-dark/10 transition-all resize-none min-h-[100px] mb-2"
+                                      />
+                                      <div className="flex items-center justify-between">
+                                          {!theme.temp_comment?.trim() ? (
+                                              <p className="text-red-500 text-xs font-bold flex items-center gap-1"><AlertCircle size={12}/> Justificativa obrigatória.</p>
+                                          ) : (
+                                              <p className="text-gray-400 text-xs font-bold flex items-center gap-1"></p>
+                                          )}
+                                          <button
+                                              onClick={() => {
+                                                  handleUpdateTheme(theme.id, { temp_comment_saved: true });
+                                                  saveProgress(false, true);
+                                              }}
+                                              disabled={!theme.temp_comment?.trim() || saving}
+                                              className="px-4 py-2 bg-brand-dark hover:bg-black text-white text-[10px] font-bold uppercase tracking-widest rounded-lg flex items-center gap-2 transition-all disabled:opacity-50"
+                                          >
+                                              {saving ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />}
+                                              Enviar Comentário
+                                          </button>
+                                      </div>
+                                    </>
+                                  ) : (
+                                      <div className="bg-gray-50 border border-gray-100 rounded-xl p-4 relative">
+                                          <div className="flex justify-between items-start mb-2">
+                                              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest flex items-center gap-1">
+                                                <CheckCircle2 size={12} className="text-green-500" />
+                                                Comentário enviado
+                                              </p>
+                                              <button 
+                                                onClick={() => handleUpdateTheme(theme.id, { temp_comment_saved: false })}
+                                                className="text-gray-400 hover:text-brand-dark font-medium text-xs underline"
+                                              >
+                                                Editar
+                                              </button>
+                                          </div>
+                                          <p className="text-sm text-gray-700 font-medium whitespace-pre-wrap">{theme.temp_comment}</p>
+                                      </div>
+                                  )}
                               </div>
                           </motion.div>
                       )}

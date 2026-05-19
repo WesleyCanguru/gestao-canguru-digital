@@ -23,7 +23,7 @@ import {
   Briefcase,
   Repeat
 } from 'lucide-react';
-import { supabase } from '../../lib/supabase';
+import { supabase, useAuth } from '../../lib/supabase';
 import { AgencyTask, AgencyTaskPriority, AgencyTaskRecurrenceType, ProcessInstance, ProcessChecklist } from '../../types';
 import dayjs from 'dayjs';
 import 'dayjs/locale/pt-br';
@@ -45,6 +45,7 @@ const PROCESS_TYPES = [
 ];
 
 export const AgencyTasksTab: React.FC = () => {
+  const { agencyId } = useAuth();
   const [activeTab, setActiveTab] = useState<'hoje' | 'processos' | 'todas'>('hoje');
   const [isAddingTask, setIsAddingTask] = useState(false);
   const [isAddingProcess, setIsAddingProcess] = useState(false);
@@ -54,10 +55,15 @@ export const AgencyTasksTab: React.FC = () => {
 
   useEffect(() => {
     fetchClients();
-  }, []);
+  }, [agencyId]);
 
   const fetchClients = async () => {
-    const { data } = await supabase.from('clients').select('id, name, color, initials').order('name');
+    if (!agencyId) return;
+    const { data } = await supabase
+      .from('clients')
+      .select('id, name, color, initials')
+      .eq('agency_id', agencyId)
+      .order('name');
     if (data) setClients(data);
   };
 
@@ -151,6 +157,7 @@ export const AgencyTasksTab: React.FC = () => {
 // ABA 1: HOJE
 // ==========================================
 const HojeTasks: React.FC<{ clients: any[], onEditTask: (t: AgencyTask) => void, onRefresh: () => void }> = ({ clients, onEditTask, onRefresh }) => {
+  const { agencyId } = useAuth();
   const [tasks, setTasks] = useState<AgencyTask[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -159,56 +166,66 @@ const HojeTasks: React.FC<{ clients: any[], onEditTask: (t: AgencyTask) => void,
   }, []);
 
   const fetchTasks = async () => {
-    setLoading(true);
-    const { data } = await supabase
-      .from('agency_tasks')
-      .select('*, client:clients(id, name, color, initials)')
-      .or('status.eq.pending,recurrence_type.neq.none');
+    if (!agencyId) return;
+    try {
+      setLoading(true);
+      const { data } = await supabase
+        .from('agency_tasks')
+        .select('*, client:clients(id, name, color, initials)')
+        .eq('agency_id', agencyId)
+        .or('status.eq.pending,recurrence_type.neq.none');
 
-    if (data) {
-      const todayString = dayjs().format('YYYY-MM-DD');
-      const todayDayOfWeek = dayjs().format('dddd').toLowerCase();
+      if (data) {
+        const todayString = dayjs().format('YYYY-MM-DD');
+        const todayDayOfWeek = dayjs().format('dddd').toLowerCase();
 
-      const hojeTasks = data.filter(task => {
-        const isCompletedToday = task.completed_at && dayjs(task.completed_at).format('YYYY-MM-DD') === todayString;
-        
-        if (task.recurrence_type === 'none') {
-          return task.status === 'pending' && (task.priority === 'urgente' || (task.due_date && task.due_date <= todayString));
-        }
+        const hojeTasks = data.filter(task => {
+          const isCompletedToday = task.completed_at && dayjs(task.completed_at).format('YYYY-MM-DD') === todayString;
+          
+          if (task.recurrence_type === 'none') {
+            return task.status === 'pending' && (task.priority === 'urgente' || (task.due_date && task.due_date <= todayString));
+          }
 
-        if (task.recurrence_type === 'daily') {
-          return task.status === 'pending' || isCompletedToday || (task.completed_at && dayjs(task.completed_at).format('YYYY-MM-DD') < todayString);
-        }
+          if (task.recurrence_type === 'daily') {
+            return task.status === 'pending' || isCompletedToday || (task.completed_at && dayjs(task.completed_at).format('YYYY-MM-DD') < todayString);
+          }
 
-        if (task.recurrence_type === 'weekly') {
-          const isDueToday = task.recurrence_days?.includes(todayDayOfWeek);
-          if (!isDueToday) return false;
-          return task.status === 'pending' || isCompletedToday || (task.completed_at && dayjs(task.completed_at).format('YYYY-MM-DD') < todayString);
-        }
+          if (task.recurrence_type === 'weekly') {
+            const isDueToday = task.recurrence_days?.includes(todayDayOfWeek);
+            if (!isDueToday) return false;
+            return task.status === 'pending' || isCompletedToday || (task.completed_at && dayjs(task.completed_at).format('YYYY-MM-DD') < todayString);
+          }
 
-        return false;
-      });
+          return false;
+        });
 
-      const priorityOrder = { urgente: 1, alta: 2, normal: 3, baixa: 4 };
-      const sorted = hojeTasks.sort((a, b) => {
-        const p1 = priorityOrder[a.priority as keyof typeof priorityOrder] || 3;
-        const p2 = priorityOrder[b.priority as keyof typeof priorityOrder] || 3;
-        if (p1 !== p2) return p1 - p2;
-        if (a.due_date === b.due_date) return 0;
-        if (!a.due_date) return 1;
-        if (!b.due_date) return -1;
-        return a.due_date.localeCompare(b.due_date);
-      });
-      setTasks(sorted);
+        const priorityOrder = { urgente: 1, alta: 2, normal: 3, baixa: 4 };
+        const sorted = hojeTasks.sort((a, b) => {
+          const p1 = priorityOrder[a.priority as keyof typeof priorityOrder] || 3;
+          const p2 = priorityOrder[b.priority as keyof typeof priorityOrder] || 3;
+          if (p1 !== p2) return p1 - p2;
+          if (a.due_date === b.due_date) return 0;
+          if (!a.due_date) return 1;
+          if (!b.due_date) return -1;
+          return a.due_date.localeCompare(b.due_date);
+        });
+        setTasks(sorted);
+      }
+    } catch (err) {
+      console.error('Error fetching tasks:', err);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   const toggleStatus = async (task: AgencyTask) => {
     const isCompletedToday = task.completed_at && dayjs(task.completed_at).format('YYYY-MM-DD') === dayjs().format('YYYY-MM-DD');
     const newStatus = isCompletedToday ? 'pending' : 'completed';
     const completedAt = isCompletedToday ? null : new Date().toISOString();
-    await supabase.from('agency_tasks').update({ status: newStatus, completed_at: completedAt }).eq('id', task.id);
+    await supabase.from('agency_tasks')
+      .update({ status: newStatus, completed_at: completedAt })
+      .eq('agency_id', agencyId)
+      .eq('id', task.id);
     onRefresh();
   };
 
@@ -258,6 +275,7 @@ const HojeTasks: React.FC<{ clients: any[], onEditTask: (t: AgencyTask) => void,
 // ABA 2: PROCESSOS
 // ==========================================
 const ProcessosView: React.FC<{ clients: any[] }> = ({ clients }) => {
+  const { agencyId } = useAuth();
   const [instances, setInstances] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedProcess, setSelectedProcess] = useState<any | null>(null);
@@ -268,34 +286,44 @@ const ProcessosView: React.FC<{ clients: any[] }> = ({ clients }) => {
   }, [selectedProcess]);
 
   const fetchInstances = async () => {
-    setLoading(true);
-    const { data } = await supabase
-      .from('process_instances')
-      .select('*, client:clients(id, name, color, initials), process_checklist(*)')
-      .in('status', ['active', 'completed'])
-      .order('created_at', { ascending: false });
+    if (!agencyId) return;
+    try {
+      setLoading(true);
+      const { data } = await supabase
+        .from('process_instances')
+        .select('*, client:clients(id, name, color, initials), process_checklist(*)')
+        .eq('agency_id', agencyId)
+        .in('status', ['active', 'completed'])
+        .order('created_at', { ascending: false });
 
-    if (data) {
-      const formatted = data.map(pi => {
-        const itensPrincipais = pi.process_checklist?.filter((c: any) => !c.parent_id) || [];
-        const concluidas = itensPrincipais.filter((c: any) => c.is_completed).length;
-        return {
-          ...pi,
-          total_etapas: itensPrincipais.length,
-          etapas_concluidas: concluidas,
-          itens_principais: itensPrincipais
-        };
-      });
-      setInstances(formatted);
+      if (data) {
+        const formatted = data.map(pi => {
+          const itensPrincipais = pi.process_checklist?.filter((c: any) => !c.parent_id) || [];
+          const concluidas = itensPrincipais.filter((c: any) => c.is_completed).length;
+          return {
+            ...pi,
+            total_etapas: itensPrincipais.length,
+            etapas_concluidas: concluidas,
+            itens_principais: itensPrincipais
+          };
+        });
+        setInstances(formatted);
+      }
+    } catch (err) {
+      console.error('Error fetching process instances:', err);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   const handleRenameClick = async (e: React.MouseEvent, process: any) => {
     e.stopPropagation();
     const novoNome = window.prompt("Novo nome do processo:", process.process_name);
     if (novoNome && novoNome.trim() && novoNome !== process.process_name) {
-      await supabase.from('process_instances').update({ process_name: novoNome.trim() }).eq('id', process.id);
+      await supabase.from('process_instances')
+        .update({ process_name: novoNome.trim() })
+        .eq('agency_id', agencyId)
+        .eq('id', process.id);
       fetchInstances();
     }
   };
@@ -303,7 +331,10 @@ const ProcessosView: React.FC<{ clients: any[] }> = ({ clients }) => {
   const handleDeleteClick = async (e: React.MouseEvent, process: any) => {
     e.stopPropagation();
     if (window.confirm("Tem certeza? Esta ação não pode ser desfeita.")) {
-      await supabase.from('process_instances').delete().eq('id', process.id);
+      await supabase.from('process_instances')
+        .delete()
+        .eq('agency_id', agencyId)
+        .eq('id', process.id);
       fetchInstances();
     }
   };
@@ -312,6 +343,7 @@ const ProcessosView: React.FC<{ clients: any[] }> = ({ clients }) => {
     return (
       <ProcessChecklistView 
         process={selectedProcess} 
+        agencyId={agencyId!}
         onBack={() => { setSelectedProcess(null); fetchInstances(); }} 
       />
     );
@@ -435,7 +467,7 @@ const ProcessosView: React.FC<{ clients: any[] }> = ({ clients }) => {
   );
 };
 
-const ProcessChecklistView: React.FC<{ process: any, onBack: () => void }> = ({ process: initialProcess, onBack }) => {
+const ProcessChecklistView: React.FC<{ process: any, agencyId: number, onBack: () => void }> = ({ process: initialProcess, agencyId, onBack }) => {
   const [items, setItems] = useState<any[]>([]);
   const [process, setProcess] = useState(initialProcess);
   
@@ -447,6 +479,7 @@ const ProcessChecklistView: React.FC<{ process: any, onBack: () => void }> = ({ 
     const { data } = await supabase
       .from('process_checklist')
       .select('*')
+      .eq('agency_id', agencyId)
       .eq('instance_id', process.id)
       .order('position');
       
@@ -491,13 +524,19 @@ const ProcessChecklistView: React.FC<{ process: any, onBack: () => void }> = ({ 
     setItems(updatedItems);
     
     // Atualiza BD
-    await supabase.from('process_checklist').update({ is_completed: newStatus, completed_at: completedAt }).eq('id', item.id);
+    await supabase.from('process_checklist')
+      .update({ is_completed: newStatus, completed_at: completedAt })
+      .eq('agency_id', agencyId)
+      .eq('id', item.id);
     
     // Se marcamos um filho, e ele fez o pai ser marcado/desmarcado, atualiza o pai no bd
     if (item.parent_id) {
        const parentNow = updatedItems.find(p => p.id === item.parent_id);
        if (parentNow) {
-         await supabase.from('process_checklist').update({ is_completed: parentNow.is_completed, completed_at: parentNow.completed_at }).eq('id', parentNow.id);
+         await supabase.from('process_checklist')
+             .update({ is_completed: parentNow.is_completed, completed_at: parentNow.completed_at })
+             .eq('agency_id', agencyId)
+             .eq('id', parentNow.id);
        }
     }
   };
@@ -507,7 +546,10 @@ const ProcessChecklistView: React.FC<{ process: any, onBack: () => void }> = ({ 
   const progress = total > 0 ? (concluidas / total) * 100 : 0;
 
   const handleFinishProcess = async () => {
-    await supabase.from('process_instances').update({ status: 'completed', completed_at: new Date().toISOString() }).eq('id', process.id);
+    await supabase.from('process_instances')
+      .update({ status: 'completed', completed_at: new Date().toISOString() })
+      .eq('agency_id', agencyId)
+      .eq('id', process.id);
     onBack();
   };
 
@@ -613,6 +655,7 @@ const ProcessChecklistView: React.FC<{ process: any, onBack: () => void }> = ({ 
 // ABA 3: TODAS AS TAREFAS
 // ==========================================
 const TodasTasks: React.FC<{ clients: any[], onEditTask: (t: AgencyTask) => void, onRefresh: () => void }> = ({ clients, onEditTask, onRefresh }) => {
+  const { agencyId } = useAuth();
   const [tasks, setTasks] = useState<AgencyTask[]>([]);
   const [loading, setLoading] = useState(true);
   const [filterClient, setFilterClient] = useState('all');
@@ -623,20 +666,30 @@ const TodasTasks: React.FC<{ clients: any[], onEditTask: (t: AgencyTask) => void
   }, []);
 
   const fetchTasks = async () => {
-    setLoading(true);
-    const { data } = await supabase
-      .from('agency_tasks')
-      .select('*, client:clients(id, name, color, initials)')
-      .order('status', { ascending: true }) // pending first
-      .order('due_date', { ascending: true, nullsFirst: false });
+    if (!agencyId) return;
+    try {
+      setLoading(true);
+      const { data } = await supabase
+        .from('agency_tasks')
+        .select('*, client:clients(id, name, color, initials)')
+        .eq('agency_id', agencyId)
+        .order('status', { ascending: true }) // pending first
+        .order('due_date', { ascending: true, nullsFirst: false });
 
-    if (data) setTasks(data);
-    setLoading(false);
+      if (data) setTasks(data);
+    } catch (err) {
+      console.error('Error fetching todas tasks:', err);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const toggleStatus = async (task: AgencyTask) => {
     const newStatus = task.status === 'completed' ? 'pending' : 'completed';
-    await supabase.from('agency_tasks').update({ status: newStatus, completed_at: newStatus === 'completed' ? new Date().toISOString() : null }).eq('id', task.id);
+    await supabase.from('agency_tasks')
+      .update({ status: newStatus, completed_at: newStatus === 'completed' ? new Date().toISOString() : null })
+      .eq('agency_id', agencyId)
+      .eq('id', task.id);
     await fetchTasks();
     onRefresh();
   };
@@ -792,6 +845,7 @@ const WEEK_DAYS = [
 ];
 
 const TaskFormDrawer: React.FC<{ clients: any[], task?: AgencyTask | null, onClose: () => void, onSuccess: () => void }> = ({ clients, task, onClose, onSuccess }) => {
+  const { agencyId } = useAuth();
   const [form, setForm] = useState({
     title: task?.title || '',
     client_id: task?.client_id || '',
@@ -814,11 +868,14 @@ const TaskFormDrawer: React.FC<{ clients: any[], task?: AgencyTask | null, onClo
       description: form.description,
       recurrence_type: form.recurrence_type,
       recurrence_days: form.recurrence_type === 'weekly' ? form.recurrence_days : null,
-      agency_id: 1
+      agency_id: agencyId
     };
     
     if (task) {
-      await supabase.from('agency_tasks').update(payload).eq('id', task.id);
+      await supabase.from('agency_tasks')
+        .update(payload)
+        .eq('agency_id', agencyId)
+        .eq('id', task.id);
     } else {
       await supabase.from('agency_tasks').insert([payload]);
     }
@@ -827,7 +884,10 @@ const TaskFormDrawer: React.FC<{ clients: any[], task?: AgencyTask | null, onClo
 
   const handleDelete = async () => {
     if (task && window.confirm('Deseja excluir esta tarefa?')) {
-      await supabase.from('agency_tasks').delete().eq('id', task.id);
+      await supabase.from('agency_tasks')
+        .delete()
+        .eq('agency_id', agencyId)
+        .eq('id', task.id);
       onSuccess();
     }
   };
@@ -940,6 +1000,7 @@ const TaskFormDrawer: React.FC<{ clients: any[], task?: AgencyTask | null, onClo
 // MODAL: NOVO PROCESSO
 // ==========================================
 const ProcessFormModal: React.FC<{ clients: any[], onClose: () => void, onSuccess: () => void }> = ({ clients, onClose, onSuccess }) => {
+  const { agencyId } = useAuth();
   const [form, setForm] = useState({ client_id: '', process_type: PROCESS_TYPES[0].id, process_name: '' });
   const [loading, setLoading] = useState(false);
 
@@ -952,7 +1013,7 @@ const ProcessFormModal: React.FC<{ clients: any[], onClose: () => void, onSucces
       // 1. Criar a instância
       const { data: instance, error: errInstance } = await supabase
         .from('process_instances')
-        .insert({ client_id: form.client_id, process_type: form.process_type, process_name: form.process_name, agency_id: 1 })
+        .insert({ client_id: form.client_id, process_type: form.process_type, process_name: form.process_name, agency_id: agencyId })
         .select().single();
         
       if (errInstance || !instance) throw errInstance;
@@ -961,6 +1022,7 @@ const ProcessFormModal: React.FC<{ clients: any[], onClose: () => void, onSucces
       const { data: pais } = await supabase
         .from('process_templates')
         .select('*')
+        .eq('agency_id', agencyId)
         .eq('process_type', form.process_type)
         .is('parent_id', null)
         .order('position');
@@ -975,7 +1037,7 @@ const ProcessFormModal: React.FC<{ clients: any[], onClose: () => void, onSucces
             .insert({
               instance_id: instance.id,
               client_id: form.client_id,
-              agency_id: 1,
+              agency_id: agencyId,
               title: pai.title,
               description: pai.description,
               responsible: pai.responsible,
@@ -988,6 +1050,7 @@ const ProcessFormModal: React.FC<{ clients: any[], onClose: () => void, onSucces
         const { data: filhos } = await supabase
           .from('process_templates')
           .select('*')
+          .eq('agency_id', agencyId)
           .eq('process_type', form.process_type)
           .not('parent_id', 'is', null)
           .order('position');
@@ -996,14 +1059,17 @@ const ProcessFormModal: React.FC<{ clients: any[], onClose: () => void, onSucces
           const payloadFilhos = filhos.filter(f => mapaIds[f.parent_id!]).map(filho => ({
             instance_id: instance.id,
             client_id: form.client_id,
-            agency_id: 1,
+            agency_id: agencyId,
             title: filho.title,
             description: filho.description,
             responsible: filho.responsible,
             position: filho.position,
             parent_id: mapaIds[filho.parent_id!]
           }));
-          if (payloadFilhos.length > 0) await supabase.from('process_checklist').insert(payloadFilhos);
+          if (payloadFilhos.length > 0) {
+              await supabase.from('process_checklist')
+                  .insert(payloadFilhos.map(p => ({ ...p, agency_id: agencyId })));
+          }
         }
       }
       onSuccess();

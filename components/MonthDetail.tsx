@@ -33,7 +33,7 @@ interface GroupedPost {
 }
 
 export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack }) => {
-  const { userRole, activeClient } = useAuth();
+  const { userRole, activeClient, agencyId } = useAuth();
   const { monthlyPlans, weeklySchedule, updateMonthlyPlan, loading: loadingEditorial } = useEditorialData();
   
   // Modal State
@@ -97,6 +97,7 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack }) =
     const { data } = await supabase
       .from('posts')
       .select('*')
+      .eq('agency_id', agencyId)
       .eq('client_id', activeClient?.id);
 
     const postsMap: Record<string, PostData> = {};
@@ -338,6 +339,7 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack }) =
                   const payload = {
                       date_key: newKey,
                       client_id: activeClient?.id,
+                      agency_id: agencyId,
                       status: dbPost?.status || 'draft',
                       theme: dbPost?.theme || postGroup.theme,
                       type: dbPost?.type || postGroup.type,
@@ -358,6 +360,7 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack }) =
                   const deletePayload = {
                       date_key: oldKey,
                       client_id: activeClient?.id,
+                      agency_id: agencyId,
                       status: 'deleted',
                       last_updated: new Date().toISOString(),
                       // Include other fields just in case they are required
@@ -373,7 +376,10 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack }) =
                   if (deleteError) throw deleteError;
                   
                   // 3. Move Comments
-                  await supabase.from('comments').update({ post_id: newKey }).eq('post_id', oldKey);
+                  await supabase.from('comments')
+                      .update({ post_id: newKey })
+                      .eq('agency_id', agencyId)
+                      .eq('post_id', oldKey);
               }
               
               await fetchMonthPosts();
@@ -439,18 +445,16 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack }) =
                  const payload: any = {
                     date_key: key,
                     client_id: activeClient?.id,
+                    agency_id: agencyId,
                     status: 'published',
                     scheduled_time: dbPost?.scheduled_time || group.scheduled_time || null,
                     last_updated: new Date().toISOString(),
-                 };
-
-                 if (!dbPost) {
                     // Se era estático puro, copia dados para persistir
-                    payload.theme = group.theme;
-                    payload.type = group.type;
-                    payload.bullets = group.bullets;
-                    payload.image_url = group.content.initialImageUrl || null;
-                 }
+                    theme: group.theme,
+                    type: group.type,
+                    bullets: group.bullets,
+                    image_url: group.content.initialImageUrl || null,
+                 };
                  
                  await supabase.from('posts').upsert(payload, { onConflict: 'date_key' });
             }
@@ -502,6 +506,7 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack }) =
               const payload: any = {
                 date_key: key,
                 client_id: activeClient?.id,
+                agency_id: agencyId,
                 status: 'deleted',
                 last_updated: new Date().toISOString()
               };
@@ -558,6 +563,7 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack }) =
                 const payload: any = {
                   date_key: key,
                   client_id: activeClient?.id,
+                  agency_id: agencyId,
                   status: newStatus,
                   last_updated: new Date().toISOString()
                 };
@@ -854,7 +860,10 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack }) =
             onUpdate={async () => {
                 fetchMonthPosts();
                 if (transferringTheme) {
-                   await supabase.from('theme_items').update({ approval_status: 'transferred' }).eq('id', transferringTheme.id);
+                   await supabase.from('theme_items')
+                       .update({ approval_status: 'transferred' })
+                       .eq('agency_id', agencyId)
+                       .eq('id', transferringTheme.id);
                    setTransferringTheme(null);
                    setThemeBankKey(k => k + 1); // trigger refetch in ThemeBank
                 }

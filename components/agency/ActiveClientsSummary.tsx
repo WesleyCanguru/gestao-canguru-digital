@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { supabase } from '../../lib/supabase';
+import { supabase, useAuth } from '../../lib/supabase';
 import { Client, PostData } from '../../types';
 import { 
   Building2, 
@@ -35,6 +35,7 @@ interface ClientStats {
 }
 
 export const ActiveClientsSummary: React.FC<ActiveClientsSummaryProps> = ({ onSelectClient }) => {
+  const { agencyId, agencyName } = useAuth();
   const [clients, setClients] = useState<Client[]>([]);
   const [clientStats, setClientStats] = useState<Record<string, ClientStats>>({});
   const [quickLinks, setQuickLinks] = useState<Record<string, ClientQuickLink[]>>({});
@@ -43,140 +44,150 @@ export const ActiveClientsSummary: React.FC<ActiveClientsSummaryProps> = ({ onSe
 
   useEffect(() => {
     fetchAllData();
-  }, []);
+  }, [agencyId]);
 
   const fetchAllData = async () => {
     setLoading(true);
-    
-    // 1. Fetch Active Clients
-    const { data: clientsData } = await supabase
-      .from('clients')
-      .select('*')
-      .eq('is_active', true)
-      .order('name');
-    
-    if (!clientsData) {
-      setLoading(false);
-      return;
-    }
-
-    setClients(clientsData as Client[]);
-
-    // 2. Fetch Posts for all active clients to calculate stats
-    const { data: postsData } = await supabase
-      .from('posts')
-      .select('*')
-      .in('client_id', clientsData.map(c => c.id));
-
-    // 3. Fetch Quick Links
-    const { data: linksData } = await supabase
-      .from('client_quick_links')
-      .select('*')
-      .in('client_id', clientsData.map(c => c.id))
-      .order('sort_order');
-
-    const linksMap: Record<string, ClientQuickLink[]> = {};
-    if (linksData) {
-      linksData.forEach(link => {
-        if (!linksMap[link.client_id]) linksMap[link.client_id] = [];
-        linksMap[link.client_id].push(link as ClientQuickLink);
-      });
-    }
-    setQuickLinks(linksMap);
-
-    const stats: Record<string, ClientStats> = {};
-    const today = dayjs().format('DD-MM-YYYY');
-    const currentMonth = dayjs().format('MM-YYYY');
-
-    const getUniquePosts = (posts: typeof postsData) => {
-      if (!posts) return [];
-      const unique = new Map();
-      posts.forEach(p => {
-        const parts = p.date_key.split('-');
-        const datePrefix = parts.length >= 3 ? parts.slice(0, 3).join('-') : p.date_key;
-        const themeStr = p.theme ? p.theme.trim() : '';
-        const key = themeStr ? `${datePrefix}_${themeStr}` : p.date_key; // Se n\u00e3o tiver tema, mant\u00e9m isolado
-
-        if (!unique.has(key)) {
-          unique.set(key, p);
-        } else {
-          const existing = unique.get(key);
-          const priority: Record<string, number> = {
-            'changes_requested': 5,
-            'pending_approval': 4,
-            'draft': 3,
-            'scheduled': 2,
-            'approved': 1,
-            'published': 0,
-            'deleted': -1,
-          };
-          if ((priority[p.status] || 0) > (priority[existing.status] || 0)) {
-            unique.set(key, p);
-          }
-        }
-      });
-      return Array.from(unique.values());
-    };
-
-    clientsData.forEach(client => {
-      const clientPosts = (postsData || []).filter(p => p.client_id === client.id);
-      const uniqueClientPosts = getUniquePosts(clientPosts);
+    try {
+      // 1. Fetch Active Clients
+      let query = supabase
+        .from('clients')
+        .select('*')
+        .eq('is_active', true)
+        .order('name');
       
-      // Basic filter: exclude deleted, test entries or old posts if not in current month
-      const monthPosts = uniqueClientPosts.filter(p => {
-        if (p.status === 'deleted' || p.date_key === 'test_rls') return false;
-        const parts = p.date_key.split('-');
-        if (parts.length < 3) return false;
-        const postMonthYear = `${parts[1]}-${parts[2]}`;
-        return postMonthYear === currentMonth;
-      });
-
-      // Statistics strictly scoped to current month
-      const todayPosts = monthPosts.filter(p => p.date_key.startsWith(today) && (p.status === 'published' || p.status === 'scheduled' || p.status === 'approved'));
-      const inRevision = monthPosts.filter(p => p.status === 'changes_requested');
-      const inApproval = monthPosts.filter(p => p.status === 'pending_approval');
-      const drafts = monthPosts.filter(p => p.status === 'draft');
+      if (agencyId) {
+        query = query.eq('agency_id', agencyId);
+      }
       
-      // monthTotal is every post planned for the month
-      const monthTotal = monthPosts.length;
-
-      // Next scheduled (can look beyond current month if needed, but for dashboard context, current month is usually enough)
-      // Actually, let's keep it looking at ALL future valid posts for accuracy on "what's next"
-      const futurePosts = uniqueClientPosts
-        .filter(p => {
-           if (p.status === 'deleted' || p.date_key === 'test_rls') return false;
-           const parts = p.date_key.split('-');
-           if (parts.length < 3) return false;
-           const postDateStr = `${parts[2]}-${parts[1]}-${parts[0]}`; // YYYY-MM-DD
-           return dayjs(postDateStr).isAfter(dayjs().subtract(1, 'day')) && (p.status === 'scheduled' || p.status === 'approved');
-        })
-        .sort((a, b) => {
-           const partsA = a.date_key.split('-');
-           const partsB = b.date_key.split('-');
-           const dateA = `${partsA[2]}-${partsA[1]}-${partsA[0]}`;
-           const dateB = `${partsB[2]}-${partsB[1]}-${partsB[0]}`;
-           return dayjs(dateA).unix() - dayjs(dateB).unix();
-        });
-
-      let nextDate = null;
-      if (futurePosts.length > 0) {
-        const firstFuture = futurePosts[0];
-        const parts = firstFuture.date_key.split('-');
-        nextDate = `${parts[0]}/${parts[1]}`;
+      const { data: clientsData } = await query;
+      
+      if (!clientsData || clientsData.length === 0) {
+        setClients([]);
+        return;
       }
 
-      stats[client.id] = {
-        today: todayPosts.length,
-        monthTotal,
-        inRevision: inRevision.length,
-        inApproval: inApproval.length,
-        drafts: drafts.length,
-        nextDate
-      };
-    });
+      setClients(clientsData as Client[]);
 
-    setClientStats(stats);
-    setLoading(false);
+      // 2. Fetch Posts for all active clients to calculate stats
+      const { data: postsData } = await supabase
+        .from('posts')
+        .select('*')
+        .in('client_id', clientsData.map(c => c.id));
+
+      // 3. Fetch Quick Links
+      const { data: linksData } = await supabase
+        .from('client_quick_links')
+        .select('*')
+        .in('client_id', clientsData.map(c => c.id))
+        .order('sort_order');
+
+      const linksMap: Record<string, ClientQuickLink[]> = {};
+      if (linksData) {
+        linksData.forEach(link => {
+          if (!linksMap[link.client_id]) linksMap[link.client_id] = [];
+          linksMap[link.client_id].push(link as ClientQuickLink);
+        });
+      }
+      setQuickLinks(linksMap);
+
+      const stats: Record<string, ClientStats> = {};
+      const today = dayjs().format('DD-MM-YYYY');
+      const currentMonth = dayjs().format('MM-YYYY');
+
+      const getUniquePosts = (posts: typeof postsData) => {
+        if (!posts) return [];
+        const unique = new Map();
+        posts.forEach(p => {
+          const parts = p.date_key.split('-');
+          const datePrefix = parts.length >= 3 ? parts.slice(0, 3).join('-') : p.date_key;
+          const themeStr = p.theme ? p.theme.trim() : '';
+          const key = themeStr ? `${datePrefix}_${themeStr}` : p.date_key; // Se não tiver tema, mantém isolado
+
+          if (!unique.has(key)) {
+            unique.set(key, p);
+          } else {
+            const existing = unique.get(key);
+            const priority: Record<string, number> = {
+              'changes_requested': 5,
+              'pending_approval': 4,
+              'draft': 3,
+              'scheduled': 2,
+              'approved': 1,
+              'published': 0,
+              'deleted': -1,
+            };
+            if ((priority[p.status] || 0) > (priority[existing.status] || 0)) {
+              unique.set(key, p);
+            }
+          }
+        });
+        return Array.from(unique.values());
+      };
+
+      clientsData.forEach(client => {
+        const clientPosts = (postsData || []).filter(p => p.client_id === client.id);
+        const uniqueClientPosts = getUniquePosts(clientPosts);
+        
+        // Basic filter: exclude deleted, test entries or old posts if not in current month
+        const monthPosts = uniqueClientPosts.filter(p => {
+          if (p.status === 'deleted' || p.date_key === 'test_rls') return false;
+          const parts = p.date_key.split('-');
+          if (parts.length < 3) return false;
+          const postMonthYear = `${parts[1]}-${parts[2]}`;
+          return postMonthYear === currentMonth;
+        });
+
+        // Statistics strictly scoped to current month
+        const todayPosts = monthPosts.filter(p => p.date_key.startsWith(today) && (p.status === 'published' || p.status === 'scheduled' || p.status === 'approved'));
+        const inRevision = monthPosts.filter(p => p.status === 'changes_requested');
+        const inApproval = monthPosts.filter(p => p.status === 'pending_approval');
+        const drafts = monthPosts.filter(p => p.status === 'draft');
+        
+        // monthTotal is every post planned for the month
+        const monthTotal = monthPosts.length;
+
+        // Next scheduled (can look beyond current month if needed, but for dashboard context, current month is usually enough)
+        // Actually, let's keep it looking at ALL future valid posts for accuracy on "what's next"
+        const futurePosts = uniqueClientPosts
+          .filter(p => {
+             if (p.status === 'deleted' || p.date_key === 'test_rls') return false;
+             const parts = p.date_key.split('-');
+             if (parts.length < 3) return false;
+             const postDateStr = `${parts[2]}-${parts[1]}-${parts[0]}`; // YYYY-MM-DD
+             return dayjs(postDateStr).isAfter(dayjs().subtract(1, 'day')) && (p.status === 'scheduled' || p.status === 'approved');
+          })
+          .sort((a, b) => {
+             const partsA = a.date_key.split('-');
+             const partsB = b.date_key.split('-');
+             const dateA = `${partsA[2]}-${partsA[1]}-${partsA[0]}`;
+             const dateB = `${partsB[2]}-${partsB[1]}-${partsB[0]}`;
+             return dayjs(dateA).unix() - dayjs(dateB).unix();
+          });
+
+        let nextDate = null;
+        if (futurePosts.length > 0) {
+          const firstFuture = futurePosts[0];
+          const parts = firstFuture.date_key.split('-');
+          nextDate = `${parts[0]}/${parts[1]}`;
+        }
+
+        stats[client.id] = {
+          today: todayPosts.length,
+          monthTotal,
+          inRevision: inRevision.length,
+          inApproval: inApproval.length,
+          drafts: drafts.length,
+          nextDate
+        };
+      });
+
+      setClientStats(stats);
+    } catch (err) {
+      console.error('Error fetching operation data:', err);
+    } finally {
+      setLoading(false);
+    }
   };
 
   if (loading) {
@@ -194,7 +205,7 @@ export const ActiveClientsSummary: React.FC<ActiveClientsSummaryProps> = ({ onSe
       <div className="flex items-center justify-between px-2">
         <div>
           <h3 className="text-2xl font-bold flex items-center gap-3 text-brand-dark">
-            Operação Canguru
+            Operação {agencyName || 'Canguru'}
             <span className="px-3 py-1 bg-brand-dark/5 text-brand-dark rounded-full text-xs font-bold">
               {clients.length} Clientes Ativos
             </span>

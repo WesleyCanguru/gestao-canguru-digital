@@ -42,7 +42,7 @@ const STATUS_OPTIONS: { value: PostStatus; label: string }[] = Object.keys(STATU
 }));
 
 export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, groupKeys, onClose, onUpdate, isNew = false, defaultDate = '' }) => {
-  const { userRole, activeClient } = useAuth();
+  const { userRole, activeClient, agencyId } = useAuth();
   const canComment = !!userRole;
   const commentsEndRef = useRef<HTMLDivElement>(null);
   
@@ -145,6 +145,7 @@ export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, group
          const { data: mainPostData } = await supabase
             .from('posts')
             .select('*')
+            .eq('agency_id', agencyId)
             .eq('date_key', dateKey)
             .eq('client_id', activeClient?.id)
             .maybeSingle();
@@ -161,6 +162,7 @@ export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, group
                  .from('posts')
                  .select('*')
                  .in('date_key', groupKeys)
+                 .eq('agency_id', agencyId)
                  .eq('client_id', activeClient?.id)
                  .neq('status', 'deleted');
                  
@@ -192,6 +194,7 @@ export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, group
                 .from('posts')
                 .select('*')
                 .eq('date_key', otherKey)
+                .eq('agency_id', agencyId)
                 .eq('client_id', activeClient?.id)
                 .maybeSingle();
                 
@@ -251,6 +254,7 @@ export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, group
             .from('comments')
             .select('*')
             .in('post_id', keysToFetch)
+            .eq('agency_id', agencyId)
             .order('created_at', { ascending: true });
          if (commentsData) setComments(commentsData as PostComment[]);
       }
@@ -399,6 +403,7 @@ export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, group
                   const { error: delErr } = await supabase.from('posts').upsert({
                       date_key: oldKey,
                       client_id: activeClient?.id,
+                      agency_id: agencyId,
                       status: 'deleted',
                       last_updated: new Date().toISOString()
                   }, { onConflict: 'date_key' });
@@ -412,6 +417,7 @@ export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, group
                       const { error: delErr } = await supabase.from('posts').upsert({
                           date_key: oldKey,
                           client_id: activeClient?.id,
+                          agency_id: agencyId,
                           status: 'deleted',
                           last_updated: new Date().toISOString()
                       }, { onConflict: 'date_key' });
@@ -462,6 +468,7 @@ export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, group
           const payload = {
             date_key: targetKey,
             client_id: activeClient?.id,
+            agency_id: agencyId,
             image_url: stringifyImageUrl(imageUrl),
             video_thumbnail_url: videoThumbnailUrl,
             caption: finalCaption,
@@ -484,12 +491,14 @@ export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, group
                   // Mover comentários
                   await supabase.from('comments')
                       .update({ post_id: targetKey })
+                      .eq('agency_id', agencyId)
                       .eq('post_id', oldKeyForPlat);
                       
                   // Excluir post antigo da visualização
                   await supabase.from('posts').upsert({
                       date_key: oldKeyForPlat,
                       client_id: activeClient?.id,
+                      agency_id: agencyId,
                       status: 'deleted',
                       theme: editedTheme || dayContent.theme,
                       type: editedType || dayContent.type,
@@ -530,6 +539,7 @@ export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, group
              const { error } = await supabase.from('posts').upsert({
                 date_key: k,
                 client_id: activeClient?.id,
+                agency_id: agencyId,
                 status: 'deleted',
                 last_updated: new Date().toISOString()
              }, { onConflict: 'date_key' });
@@ -549,7 +559,7 @@ export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, group
 
   // --- COMMENT LOGIC ---
   const handleDeleteComment = async (commentId: string) => {
-      const { error } = await supabase.from('comments').delete().eq('id', commentId);
+      const { error } = await supabase.from('comments').delete().eq('agency_id', agencyId).eq('id', commentId);
       if (!error) setComments(prev => prev.filter(c => c.id !== commentId));
       setConfirmDeleteCommentId(null);
   };
@@ -566,6 +576,7 @@ export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, group
           await supabase.from('posts').upsert({
               date_key: k,
               client_id: activeClient?.id,
+              agency_id: agencyId,
               image_url: stringifyImageUrl(imageUrl) || dayContent.initialImageUrl,
               video_thumbnail_url: videoThumbnailUrl,
               caption: finalCaption,
@@ -591,6 +602,7 @@ export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, group
 
     const newCommentObj = { 
         post_id: currentPostKey, 
+        agency_id: agencyId,
         author_role: userRole, 
         author_name: userRole === 'admin' ? 'Canguru' : userRole === 'approver' ? (activeClient?.responsible || 'Wesley') : 'Equipe', 
         content: newComment, 
@@ -642,6 +654,7 @@ export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, group
       
       const newCommentObj = { 
           post_id: post?.date_key === 'temp' ? dateKey : post?.date_key || dateKey, 
+          agency_id: agencyId,
           author_role: userRole, 
           author_name: userRole === 'admin' ? 'Canguru' : userRole === 'approver' ? (activeClient?.responsible || 'Wesley') : 'Equipe', 
           content: `❌ REPROVOU a publicação. Justificativa: ${justification}`, 

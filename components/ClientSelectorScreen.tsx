@@ -19,16 +19,21 @@ export const ClientSelectorScreen: React.FC<ClientSelectorScreenProps> = ({
   const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
   const [debugError, setDebugError] = useState<string>('');
-  const { setActiveClient } = useAuth();
+  const { setActiveClient, agencyId } = useAuth();
 
   useEffect(() => {
     const fetchClients = async () => {
+      if (!agencyId) return;
+      
+      setLoading(true);
       try {
         const { data, error } = await supabase
           .from('clients')
           .select('*')
+          .eq('agency_id', agencyId)
           .eq('is_active', true)
           .order('name');
+          
         if (error) {
           console.error("Error fetching clients:", error);
           setDebugError(JSON.stringify(error));
@@ -42,7 +47,7 @@ export const ClientSelectorScreen: React.FC<ClientSelectorScreenProps> = ({
       }
     };
     fetchClients();
-  }, []);
+  }, [agencyId]);
 
   return (
     <div className="min-h-screen bg-[#FDFDFD] flex flex-col items-center justify-center p-6 relative overflow-hidden">

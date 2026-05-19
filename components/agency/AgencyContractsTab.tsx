@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { supabase } from '../../lib/supabase';
+import { supabase, useAuth } from '../../lib/supabase';
 import { ContractForm, Client } from '../../types';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
@@ -158,6 +158,7 @@ interface ClientWithContract extends Client {
 }
 
 export const AgencyContractsTab: React.FC = () => {
+  const { agencyId } = useAuth();
   const [clients, setClients] = useState<ClientWithContract[]>([]);
   const [loading, setLoading] = useState(true);
   const [uploadModalOpen, setUploadModalOpen] = useState(false);
@@ -172,12 +173,16 @@ export const AgencyContractsTab: React.FC = () => {
 
   useEffect(() => {
     fetchData();
-  }, []);
+  }, [agencyId]);
 
   const fetchData = async () => {
+    if (!agencyId) return;
     setLoading(true);
-    const { data: clientsData } = await supabase.from('clients').select('*').order('name');
-    const { data: contractsData } = await supabase.from('contract_forms').select('*');
+    let clientsQuery = supabase.from('clients').select('*').eq('agency_id', agencyId).order('name');
+    let contractsQuery = supabase.from('contract_forms').select('*').eq('agency_id', agencyId);
+    
+    const { data: clientsData } = await clientsQuery;
+    const { data: contractsData } = await contractsQuery;
 
     if (clientsData) {
       const merged = clientsData.map(c => {
@@ -204,7 +209,7 @@ export const AgencyContractsTab: React.FC = () => {
       const token = Array.from(crypto.getRandomValues(new Uint8Array(20))).map(b => b.toString(16).padStart(2, '0')).join('');
       const { data, error } = await supabase.from('contract_forms').insert({
         client_id: clientId,
-        agency_id: 1, // Default tracking or dynamic
+        agency_id: agencyId, // Default tracking or dynamic
         form_token: token,
         status: 'pending'
       }).select().single();
@@ -278,7 +283,7 @@ export const AgencyContractsTab: React.FC = () => {
 
       const payload = {
         client_id: selectedClient.id,
-        agency_id: 1,
+        agency_id: agencyId,
         status: 'signed',
         signed_at: new Date().toISOString(),
         contract_value: parseFloat(contractValue),
@@ -296,6 +301,7 @@ export const AgencyContractsTab: React.FC = () => {
         const { error: updateError, data: updateData } = await supabase
           .from('contract_forms')
           .update(updatePayload)
+          .eq('agency_id', agencyId)
           .eq('id', selectedClient.contract.id)
           .select();
         

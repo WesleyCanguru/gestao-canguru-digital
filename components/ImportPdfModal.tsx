@@ -16,7 +16,7 @@ interface ImportPdfModalProps {
 }
 
 export const ImportPdfModal: React.FC<ImportPdfModalProps> = ({ monthIndex, year, isOpen, onClose, onSuccess }) => {
-  const { activeClient } = useAuth();
+  const { activeClient, agencyId } = useAuth();
   const [file, setFile] = useState<File | null>(null);
   const [defaultTime, setDefaultTime] = useState('09:00');
   const [loading, setLoading] = useState(false);
@@ -145,6 +145,7 @@ Retorne APENAS um array JSON válido, sem texto adicional, sem markdown, sem exp
               const payload = {
                 date_key: targetKey,
                 client_id: activeClient?.id,
+                agency_id: agencyId,
                 theme: pub.theme || 'Sem tema',
                 type: pub.type || 'Estático',
                 bullets: pub.bullets || [],

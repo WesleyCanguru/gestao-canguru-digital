@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { supabase, hashPassword } from '../lib/supabase';
+import { supabase, hashPassword, useAuth } from '../lib/supabase';
 import { Client, ClientLeadConfig } from '../types';
 import { getAnnualOverviewTemplate } from '../constants';
 import { 
@@ -119,6 +119,7 @@ const REORDERABLE_MODULES = [
 ];
 
 export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
+  const { agencyId } = useAuth();
   const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -206,15 +207,25 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
   const [formTab, setFormTab] = useState<'dados_basicos' | 'servicos' | 'acesso'>('dados_basicos');
 
   const fetchClients = async () => {
-    setLoading(true);
-    const { data } = await supabase.from('clients').select('*').order('name');
-    if (data) setClients(data as Client[]);
-    setLoading(false);
+    if (!agencyId) return;
+    try {
+      setLoading(true);
+      const { data } = await supabase
+        .from('clients')
+        .select('*')
+        .eq('agency_id', agencyId)
+        .order('name');
+      if (data) setClients(data as Client[]);
+    } catch (err) {
+      console.error('Error fetching clients:', err);
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
     fetchClients();
-  }, []);
+  }, [agencyId]);
 
   const handleSave = async () => {
     if (!form.name.trim() || !form.initials.trim()) return;
@@ -244,6 +255,7 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
         due_day: form.due_day,
         briefings_waived: form.briefings_waived,
         features_settings: form.features_settings,
+        agency_id: agencyId, // <-- Insert with correct agencyId
       };
 
       let clientData;
@@ -263,6 +275,7 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
         // Save lead tracking config
         await supabase.from('client_lead_configs').upsert({
           client_id: editingClientId,
+          agency_id: agencyId,
           is_enabled: form.is_lead_tracking_enabled,
           kanban_stages: (form as any).kanban_stages || ['Novo Lead', 'Em Contato', 'Reunião Agendada', 'Proposta Enviada', 'Fechado'],
           specialty_options: (form as any).specialty_options || [],
@@ -288,6 +301,7 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
         const template = getAnnualOverviewTemplate(form.segment.trim());
         await supabase.from('client_annual_overview').upsert([{
           client_id: clientData.id,
+          agency_id: agencyId,
           year: 2026,
           ...template
         }], { onConflict: 'client_id,year' });
@@ -295,6 +309,7 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
         // Save lead tracking config for new client
         await supabase.from('client_lead_configs').insert([{
           client_id: clientData.id,
+          agency_id: agencyId,
           is_enabled: form.is_lead_tracking_enabled,
           kanban_stages: (form as any).kanban_stages || ['Novo Lead', 'Em Contato', 'Reunião Agendada', 'Proposta Enviada', 'Fechado'],
           specialty_options: (form as any).specialty_options || []
@@ -304,7 +319,7 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
         const token = Array.from(crypto.getRandomValues(new Uint8Array(20))).map(b => b.toString(16).padStart(2, '0')).join('');
         const { data: contractData, error: contractError } = await supabase.from('contract_forms').insert({
           client_id: clientData.id,
-          agency_id: 1, // Default tracking or dynamic
+          agency_id: agencyId, // Default tracking or dynamic
           form_token: token,
           status: 'pending'
         }).select().single();
@@ -341,7 +356,8 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
                 username: placeholderUsername,
                 password_hash: hashedPassword,
                 role: 'approver',
-                is_active: true
+                is_active: true,
+                agency_id: agencyId
               }]);
           }
           userCreated = true;
@@ -354,7 +370,8 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
               username: placeholderUsername,
               password_hash: hashedPassword,
               role: 'approver',
-              is_active: true
+              is_active: true,
+              agency_id: agencyId
             }]);
           
           if (!userError) userCreated = true;
@@ -1061,7 +1078,7 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
                           const currentClient = clients.find(c => c.id === editingClientId);
                           const { data, error } = await supabase.from('contract_forms').insert({
                             client_id: editingClientId,
-                            agency_id: 1, // Default tracking or dynamic
+                            agency_id: agencyId, // Default tracking or dynamic
                             form_token: token,
                             status: 'pending'
                           }).select().single();

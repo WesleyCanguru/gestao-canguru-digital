@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { supabase } from '../../lib/supabase';
+import { supabase, useAuth } from '../../lib/supabase';
 import { Client, QuickLinkType } from '../../types';
 import { X, Plus, GripVertical, Trash2, Globe, Instagram, BarChart2, TrendingUp, Monitor } from 'lucide-react';
 import { motion } from 'motion/react';
@@ -90,6 +90,7 @@ function SortableItem({ link, onEdit, onDelete, key }: { link: ClientQuickLink, 
 }
 
 export const QuickLinksEditorModal: React.FC<QuickLinksEditorModalProps> = ({ client, onClose, onUpdate }) => {
+  const { agencyId } = useAuth();
   const [links, setLinks] = useState<ClientQuickLink[]>([]);
   const [loading, setLoading] = useState(true);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -112,10 +113,12 @@ export const QuickLinksEditorModal: React.FC<QuickLinksEditorModalProps> = ({ cl
   }, [client.id]);
 
   const fetchLinks = async () => {
+    if (!agencyId) return;
     setLoading(true);
     const { data, error } = await supabase
       .from('client_quick_links')
       .select('*')
+      .eq('agency_id', agencyId)
       .eq('client_id', client.id)
       .order('sort_order');
       
@@ -158,6 +161,7 @@ export const QuickLinksEditorModal: React.FC<QuickLinksEditorModalProps> = ({ cl
   const saveOrder = async (orderedLinks: ClientQuickLink[]) => {
     const updates = orderedLinks.map((link, index) => ({
       id: link.id,
+      agency_id: agencyId,
       sort_order: index
     }));
     await supabase.from('client_quick_links').upsert(updates);
@@ -165,6 +169,7 @@ export const QuickLinksEditorModal: React.FC<QuickLinksEditorModalProps> = ({ cl
   };
 
   const handleSave = async (e: React.FormEvent) => {
+    if (!agencyId) return;
     e.preventDefault();
     try {
       if (editingId) {
@@ -175,12 +180,14 @@ export const QuickLinksEditorModal: React.FC<QuickLinksEditorModalProps> = ({ cl
             label: formLabel,
             url: formUrl
           })
+          .eq('agency_id', agencyId)
           .eq('id', editingId);
       } else {
         await supabase
           .from('client_quick_links')
           .insert([{
             client_id: client.id,
+            agency_id: agencyId,
             type: formType,
             label: formLabel,
             url: formUrl,
@@ -197,7 +204,11 @@ export const QuickLinksEditorModal: React.FC<QuickLinksEditorModalProps> = ({ cl
 
   const handleDelete = async (id: string) => {
     if (!confirm('Excluir este link?')) return;
-    await supabase.from('client_quick_links').delete().eq('id', id);
+    await supabase
+      .from('client_quick_links')
+      .delete()
+      .eq('agency_id', agencyId)
+      .eq('id', id);
     fetchLinks();
     onUpdate();
   };

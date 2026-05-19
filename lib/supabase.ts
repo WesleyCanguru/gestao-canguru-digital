@@ -6,69 +6,27 @@ import { UserRole, Client } from '../types';
 const SUPABASE_URL = 'https://wtzphiyybitcucwkfpgv.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_uLQGmz7lWazPN1Uqb4_4vQ_HggVpMz9';
 
-const customFetch = async (input: RequestInfo | URL, init?: RequestInit) => {
-  let url = input as string;
-  let options = init || {};
-
-  if (typeof input === 'object' && 'url' in input) {
-    url = input.url;
-    options = {
-      method: input.method,
-      headers: input.headers,
-      body: input.body,
-      signal: input.signal,
-      ...options
-    };
-  } else if (input instanceof URL) {
-    url = input.toString();
-  }
-
-  // Flatten headers to a simple object to avoid iframe interceptor crashes
-  const plainHeaders: Record<string, string> = {};
-  if (options.headers) {
-    if (options.headers instanceof Headers) {
-       options.headers.forEach((value, key) => { plainHeaders[key] = value; });
-    } else if (Array.isArray(options.headers)) {
-       options.headers.forEach(([key, value]) => { plainHeaders[key] = value; });
-    } else {
-       Object.assign(plainHeaders, options.headers);
-    }
-  }
-
-  // Remove complex objects like signal which might break _aistudio-iframe.js
-  const safeInit: RequestInit = {
-    method: options.method || 'GET',
-    headers: plainHeaders,
-  };
-  
-  if (options.body) safeInit.body = options.body;
-
-  // Bypass whatever window.fetch override is applied by getting the original iframe fetch if possible, 
-  // or just using the reconstructed one.
-  return window.fetch(url, safeInit);
-};
-
 export const supabase = createClient(SUPABASE_URL, SUPABASE_KEY, {
   auth: {
     persistSession: false,
     autoRefreshToken: false,
     detectSessionInUrl: false
-  },
-  global: {
-    fetch: customFetch
   }
 });
 
+import SHA256 from 'crypto-js/sha256';
+
 export const hashPassword = async (password: string): Promise<string> => {
-  const msgBuffer = new TextEncoder().encode(password);
-  const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
-  const hashArray = Array.from(new Uint8Array(hashBuffer));
-  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+  return SHA256(password).toString();
 };
 
 interface AuthContextType {
   userRole: UserRole | null;
   activeClient: Client | null;
+  userType: 'agency' | 'client' | null;
+  agencyId: number | null;
+  agencyName: string | null;
+  logoUrl: string | null;
   login: (role: UserRole) => void;
   loginByPassword: (password: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => void;
@@ -80,6 +38,10 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType>({
   userRole: null,
   activeClient: null,
+  userType: null,
+  agencyId: null,
+  agencyName: null,
+  logoUrl: null,
   login: () => {},
   loginByPassword: async () => ({ success: false }),
   logout: () => {},
@@ -92,91 +54,162 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [userRole, setUserRole] = useState<UserRole | null>(() =>
     localStorage.getItem('next_app_role') as UserRole | null
   );
+  const [userType, setUserType] = useState<'agency' | 'client' | null>(() => 
+    localStorage.getItem('next_app_user_type') as 'agency' | 'client' | null
+  );
+  const [agencyId, setAgencyId] = useState<number | null>(() => {
+    const aid = localStorage.getItem('next_app_agency_id');
+    return aid ? parseInt(aid, 10) : null;
+  });
+  const [agencyName, setAgencyName] = useState<string | null>(() =>
+    localStorage.getItem('next_app_agency_name')
+  );
+  const [logoUrl, setLogoUrl] = useState<string | null>(() =>
+    localStorage.getItem('next_app_logo_url')
+  );
+
   const [activeClient, setActiveClientState] = useState<Client | null>(() => {
-    const stored = localStorage.getItem('next_app_client');
-    return stored ? JSON.parse(stored) : null;
+    try {
+      const stored = localStorage.getItem('next_app_client');
+      return (stored && stored !== 'undefined' && stored !== 'null') ? JSON.parse(stored) : null;
+    } catch (e) {
+      console.warn('Failed to parse activeClient from localStorage', e);
+      localStorage.removeItem('next_app_client');
+      return null;
+    }
   });
 
   const login = (role: UserRole) => {
+    // Fallback/Legacy direct login mechanism (usually won't be used now without agency context)
     setUserRole(role);
     localStorage.setItem('next_app_role', role);
-    if (role !== 'admin') {
-      const nextSafety: Client = {
-        id: '75b00b27-61ee-4b23-8721-70748ccb0789',
-        name: 'NEXT Safety',
-        segment: 'EPI / Segurança do Trabalho',
-        responsible: 'Wesley',
-        email: null,
-        instagram: null,
-        linkedin: null,
-        color: '#1e40af',
-        initials: 'NS',
-        logo_url: null,
-        is_active: true,
-        services: ['Social Media', 'Tráfego Pago'],
-        social_networks: [] as string[],
-        traffic_platforms: [] as string[],
-        reportei_url: null,
-      };
-      setActiveClientState(nextSafety);
-      localStorage.setItem('next_app_client', JSON.stringify(nextSafety));
-    }
   };
 
   const loginByPassword = async (password: string): Promise<{ success: boolean; error?: string }> => {
-    const cleanPass = password.trim();
+    try {
+      const cleanPass = password.trim();
+      const hashedPassword = await hashPassword(cleanPass);
+      
+      console.log('Tentando login com senha hash:', hashedPassword);
 
-    // 1. Verificar senhas da agência (Hardcoded)
-    if (cleanPass === 'Amor1106*') {
-      login('admin');
+      // 1. Tentar encontrar na tabela agency_users
+      const { data: agencyUser, error: agencyError } = await supabase
+        .from('agency_users')
+        .select('id, agency_id, role, agency_name, logo_url')
+        .eq('password_hash', hashedPassword)
+        .eq('is_active', true)
+        .limit(1)
+        .maybeSingle();
+
+      if (agencyError) {
+        console.error('Erro ao buscar agency_user:', agencyError);
+      }
+
+      if (agencyUser) {
+          console.log('Login admin bem sucedido:', agencyUser.agency_name);
+          setUserType('agency');
+          setAgencyId(agencyUser.agency_id);
+          setAgencyName(agencyUser.agency_name);
+          setLogoUrl(agencyUser.logo_url);
+          
+          setUserRole(agencyUser.role as UserRole);
+          
+          localStorage.setItem('next_app_user_type', 'agency');
+          localStorage.setItem('next_app_agency_id', String(agencyUser.agency_id));
+          localStorage.setItem('next_app_agency_name', agencyUser.agency_name || '');
+          if (agencyUser.logo_url) {
+              localStorage.setItem('next_app_logo_url', agencyUser.logo_url);
+          } else {
+              localStorage.removeItem('next_app_logo_url');
+          }
+          localStorage.setItem('next_app_role', agencyUser.role);
+          
+          return { success: true };
+      }
+
+      // 2. Verificar senhas de clientes no banco de dados
+      const { data, error } = await supabase
+        .from('client_users')
+        .select('id, client_id, role, password_hash, agency_id')
+        .eq('password_hash', hashedPassword)
+        .eq('is_active', true)
+        .limit(1)
+        .maybeSingle();
+
+      if (error) {
+        console.error('Erro ao buscar client_user:', error);
+        return { success: false, error: 'Erro ao validar acesso. Tente novamente.' };
+      }
+
+      if (!data) {
+        console.log('Nenhum usuário encontrado com este hash.');
+        return { success: false, error: 'Chave de acesso inválida.' };
+      }
+
+      console.log('Usuário cliente encontrado, buscando dados do cliente...');
+
+      const { data: clientResult, error: clientError } = await supabase
+        .from('clients')
+        .select('*')
+        .eq('id', data.client_id)
+        .single();
+
+      if (clientError || !clientResult) {
+        console.error('Erro ao buscar cliente:', clientError);
+        return { success: false, error: 'Cliente não encontrado.' };
+      }
+
+      const { data: clientAgency, error: clientAgencyError } = await supabase
+        .from('agency_users')
+        .select('agency_name, logo_url')
+        .eq('agency_id', data.agency_id)
+        .limit(1)
+        .maybeSingle();
+
+      if (clientAgencyError) {
+        console.warn('Aviso: Erro ao buscar dados da agência do cliente:', clientAgencyError);
+      }
+
+      setUserType('client');
+      setAgencyId(data.agency_id);
+      setAgencyName(clientAgency?.agency_name || null);
+      setLogoUrl(clientAgency?.logo_url || null);
+      
+      const role = data.role as UserRole;
+      setUserRole(role);
+      setActiveClientState(clientResult as Client);
+      
+      localStorage.setItem('next_app_user_type', 'client');
+      localStorage.setItem('next_app_agency_id', String(data.agency_id));
+      if (clientAgency?.agency_name) localStorage.setItem('next_app_agency_name', clientAgency.agency_name);
+      if (clientAgency?.logo_url) localStorage.setItem('next_app_logo_url', clientAgency.logo_url);
+      
+      localStorage.setItem('next_app_role', role);
+      localStorage.setItem('next_app_client', JSON.stringify(clientResult));
+
+      console.log('Login cliente bem sucedido:', clientResult.name);
       return { success: true };
-    } else if (cleanPass === 'Vivi2026') {
-      login('approver');
-      return { success: true };
-    } else if (cleanPass === 'Next2026') {
-      login('approver');
-      return { success: true };
+    } catch (fatalErr: any) {
+      console.error('Erro fatal no loginByPassword:', fatalErr);
+      return { success: false, error: 'Houve um erro técnico. Verifique sua conexão.' };
     }
-
-    // 2. Verificar senhas de clientes no banco de dados
-    const hashedPassword = await hashPassword(cleanPass);
-    
-    const { data, error } = await supabase
-      .from('client_users')
-      .select('id, client_id, role, password_hash')
-      .eq('password_hash', hashedPassword)
-      .eq('is_active', true)
-      .limit(1)
-      .maybeSingle();
-
-    if (error || !data) {
-      return { success: false, error: 'Chave de acesso inválida.' };
-    }
-
-    const { data: clientResult, error: clientError } = await supabase
-      .from('clients')
-      .select('*')
-      .eq('id', data.client_id)
-      .single();
-
-    if (clientError || !clientResult) {
-      return { success: false, error: 'Cliente não encontrado.' };
-    }
-
-    const role = data.role as UserRole;
-    setUserRole(role);
-    setActiveClientState(clientResult as Client);
-    localStorage.setItem('next_app_role', role);
-    localStorage.setItem('next_app_client', JSON.stringify(clientResult));
-
-    return { success: true };
   };
 
   const logout = () => {
     setUserRole(null);
+    setUserType(null);
+    setAgencyId(null);
+    setAgencyName(null);
+    setLogoUrl(null);
     setActiveClientState(null);
+    
     localStorage.removeItem('next_app_role');
     localStorage.removeItem('next_app_client');
+    localStorage.removeItem('next_app_user_type');
+    localStorage.removeItem('next_app_agency_id');
+    localStorage.removeItem('next_app_agency_name');
+    localStorage.removeItem('next_app_logo_url');
+    
     window.location.href = '/';
   };
 
@@ -206,17 +239,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const chave = params.get('chave');
-    const destinoRaw = params.get('destino') || params.get('active_view');
     
     if (chave) {
       const performAutoLogin = async () => {
         const result = await loginByPassword(chave);
         if (result.success) {
-          // Remover os parâmetros da URL sem recarregar a página radicalmente
-          // mas permitindo que o App.tsx detecte o destino
           const newUrl = new URL(window.location.href);
           newUrl.searchParams.delete('chave');
-          // Manter o destino para o App.tsx processar
           window.history.replaceState({}, '', newUrl.toString());
         }
       };
@@ -226,7 +255,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   return React.createElement(
     AuthContext.Provider,
-    { value: { userRole, activeClient, login, loginByPassword, logout, setActiveClient, refreshActiveClient, isAuthenticated: !!userRole } },
+    { value: { userRole, activeClient, userType, agencyId, agencyName, logoUrl, login, loginByPassword, logout, setActiveClient, refreshActiveClient, isAuthenticated: !!userRole } },
     children
   );
 };

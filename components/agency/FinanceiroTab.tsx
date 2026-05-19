@@ -94,7 +94,8 @@ export const FinanceiroTab: React.FC = () => {
       due_date,
       paid: false,
       paid_at: null,
-      notes: newExpense.notes
+      notes: newExpense.notes,
+      agency_id: 0 // Will be handled by hook
     });
     
     setShowExpenseModal(false);

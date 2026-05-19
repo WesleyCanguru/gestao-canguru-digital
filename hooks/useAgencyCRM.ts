@@ -1,19 +1,22 @@
 import { useState, useCallback } from 'react';
-import { supabase } from '../lib/supabase';
+import { supabase, useAuth } from '../lib/supabase';
 import { AgencyCRM, AgencyLead, KanbanStage } from '../types';
 
 export function useAgencyCRM() {
+  const { agencyId } = useAuth();
   const [crms, setCRMs] = useState<AgencyCRM[]>([]);
   const [leads, setLeads] = useState<AgencyLead[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const fetchCRMs = useCallback(async () => {
+    if (!agencyId) return;
     setLoading(true);
     try {
       const { data, error } = await supabase
         .from('agency_crms')
         .select('*')
+        .eq('agency_id', agencyId)
         .order('position', { ascending: true })
         .order('created_at', { ascending: true });
 
@@ -30,11 +33,13 @@ export function useAgencyCRM() {
   }, []);
 
   const fetchLeads = useCallback(async (crmId: string) => {
+    if (!agencyId) return;
     setLoading(true);
     try {
       const { data, error } = await supabase
         .from('agency_leads')
         .select('*')
+        .eq('agency_id', agencyId)
         .eq('crm_id', crmId)
         .order('kanban_position', { ascending: true })
         .order('created_at', { ascending: false });
@@ -52,6 +57,7 @@ export function useAgencyCRM() {
   }, []);
 
   const createCRM = async (data: Partial<AgencyCRM>) => {
+    if (!agencyId) throw new Error('Agency ID not found');
     try {
       const { data: newCRM, error } = await supabase
         .from('agency_crms')
@@ -61,7 +67,8 @@ export function useAgencyCRM() {
           kanban_stages: data.kanban_stages || [],
           form_fields: data.form_fields || [],
           auto_advance_time: data.auto_advance_time || '09:00',
-          position: data.position || 0
+          position: data.position || 0,
+          agency_id: agencyId
         })
         .select()
         .single();
@@ -115,11 +122,13 @@ export function useAgencyCRM() {
   };
 
   const addLead = async (crmId: string, name: string, formData: Record<string, any>) => {
+    if (!agencyId) throw new Error('Agency ID not found');
     try {
       const { data: newLead, error } = await supabase
         .from('agency_leads')
         .insert({
           crm_id: crmId,
+          agency_id: agencyId,
           name,
           stage: 'Novos Leads', // Default stage, might need to be dynamic based on CRM stages
           stage_entered_at: new Date().toISOString(),

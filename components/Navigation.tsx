@@ -16,6 +16,7 @@ import {
   LayoutDashboard,
   Calendar,
   Globe,
+  Kanban,
   Zap,
   TrendingUp,
   FolderOpen,
@@ -59,18 +60,20 @@ export const Navigation: React.FC<SidebarProps> = ({
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const [isClientDropdownOpen, setIsClientDropdownOpen] = useState(false);
   const [availableClients, setAvailableClients] = useState<Client[]>([]);
-  const { userRole, logout } = useAuth();
+  const { userRole, logout, agencyId } = useAuth();
 
   useEffect(() => {
-    if (userRole === 'admin') {
+    if (userRole === 'admin' && agencyId) {
       fetchClients();
     }
-  }, [userRole]);
+  }, [userRole, agencyId]);
 
   const fetchClients = async () => {
+    if (!agencyId) return;
     const { data } = await supabase
       .from('clients')
       .select('*')
+      .eq('agency_id', agencyId)
       .eq('is_active', true)
       .order('name');
     if (data) setAvailableClients(data);
@@ -79,7 +82,7 @@ export const Navigation: React.FC<SidebarProps> = ({
   const agencyItems = [
     { id: 'home', label: 'Início', icon: Home },
     { id: 'tasks', label: 'Processos & Tarefas', icon: ClipboardList },
-    { id: 'prospeccao', label: 'CRM', icon: Search },
+    { id: 'prospeccao', label: 'CRM / Prospecção', icon: Kanban },
     { id: 'financeiro', label: 'Financeiro', icon: DollarSign },
     { id: 'onboarding', label: 'Onboarding', icon: Target },
     { id: 'contratos', label: 'Contratos', icon: FileText },

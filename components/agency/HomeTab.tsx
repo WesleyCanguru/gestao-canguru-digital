@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { supabase } from '../../lib/supabase';
+import { supabase, useAuth } from '../../lib/supabase';
 import { 
   DollarSign, 
   TrendingUp, 
@@ -38,6 +38,7 @@ interface CRMOverview {
 }
 
 export const HomeTab: React.FC<{ onNavigateToClients: (client: Client) => void }> = ({ onNavigateToClients }) => {
+  const { agencyId, agencyName } = useAuth();
   const [loading, setLoading] = useState(true);
   const [financial, setFinancial] = useState<FinancialData>({ receitas: 0, despesas: 0, saldo: 0 });
   const [urgentTasks, setUrgentTasks] = useState<AgencyTask[]>([]);
@@ -62,6 +63,7 @@ export const HomeTab: React.FC<{ onNavigateToClients: (client: Client) => void }
   };
 
   const fetchData = async () => {
+    if (!agencyId) return;
     try {
       setLoading(true);
       const currentMonthYear = dayjs().format('YYYY-MM');
@@ -76,23 +78,29 @@ export const HomeTab: React.FC<{ onNavigateToClients: (client: Client) => void }
       ] = await Promise.all([
         supabase.from('agency_billing')
           .select('total_value')
+          .eq('agency_id', agencyId)
           .eq('status', 'paid')
           .eq('month_year', currentMonthYear),
         supabase.from('agency_expenses')
           .select('amount')
+          .eq('agency_id', agencyId)
           .eq('month_year', currentMonthYear),
         supabase.from('agency_tasks')
           .select('*, client:clients(id, name, color, initials)')
+          .eq('agency_id', agencyId)
           .neq('status', 'done')
           .order('due_date', { ascending: false }),
         supabase.from('agency_crms')
           .select('*')
+          .eq('agency_id', agencyId)
           .order('position', { ascending: true }),
         supabase.from('agency_leads')
           .select('*')
+          .eq('agency_id', agencyId)
           .neq('stage', 'Perdido'),
         supabase.from('agency_settings')
           .select('*')
+          .eq('agency_id', agencyId)
           .in('key', ['home_reportei_dashboards', 'home_reportei_enabled'])
       ]);
 
@@ -113,10 +121,10 @@ export const HomeTab: React.FC<{ onNavigateToClients: (client: Client) => void }
         saldo: totalReceitas - totalDespesas
       });
 
-      // Urgent Tasks (Due <= 3 days OR priority IN ['high', 'urgent'])
+      // Urgent Tasks (Due <= 3 days OR priority IN ['alta', 'urgente'])
       const pTasks = (tempTasks || []) as any[]; // casting since we have relational client
       const filteredTasks = pTasks.filter(t => {
-        if (t.priority === 'high' || t.priority === 'urgent') return true;
+        if (t.priority === 'alta' || t.priority === 'urgente') return true;
         if (!t.due_date) return false;
         return dayjs(t.due_date).isBefore(dayjs().add(3, 'day'), 'day') || dayjs(t.due_date).isSame(dayjs().add(3, 'day'), 'day');
       });
@@ -190,19 +198,19 @@ export const HomeTab: React.FC<{ onNavigateToClients: (client: Client) => void }
     fetchData();
 
     const channel = supabase.channel('home_tab_changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'agency_tasks' }, () => {
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'agency_tasks', filter: `agency_id=eq.${agencyId}` }, () => {
         fetchData();
       })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'agency_crms' }, () => {
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'agency_crms', filter: `agency_id=eq.${agencyId}` }, () => {
         fetchData();
       })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'agency_leads' }, () => {
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'agency_leads', filter: `agency_id=eq.${agencyId}` }, () => {
         fetchData();
       })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'agency_billing' }, () => {
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'agency_billing', filter: `agency_id=eq.${agencyId}` }, () => {
         fetchData();
       })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'agency_expenses' }, () => {
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'agency_expenses', filter: `agency_id=eq.${agencyId}` }, () => {
         fetchData();
       })
       .subscribe();
@@ -210,7 +218,7 @@ export const HomeTab: React.FC<{ onNavigateToClients: (client: Client) => void }
     return () => {
       supabase.removeChannel(channel);
     };
-  }, []);
+  }, [agencyId, agencyName]);
 
   const handleAddDashboard = () => {
     setTempDashboards(prev => [...prev, { id: Date.now().toString() + Math.random().toString(36).slice(2), name: '', url: '' }]);
@@ -235,8 +243,9 @@ export const HomeTab: React.FC<{ onNavigateToClients: (client: Client) => void }
       for (const update of updates) {
         const { error } = await supabase.from('agency_settings').upsert({
           key: update.key,
-          value: update.value
-        }, { onConflict: 'key' });
+          value: update.value,
+          agency_id: agencyId
+        }, { onConflict: 'key,agency_id' });
         
         if (error) {
           console.error('Supabase Upsert Error:', error);
@@ -289,7 +298,7 @@ export const HomeTab: React.FC<{ onNavigateToClients: (client: Client) => void }
               </h1>
               <div className="h-0.5 bg-brand-dark w-10 opacity-20 md:mr-auto mx-auto translate-y-1"></div>
               <p className="text-gray-400 text-[9px] uppercase tracking-[0.35em] font-bold !mt-4">
-                Canguru Digital • Gestão & Estratégia
+                {agencyName || 'Canguru Digital'} • Gestão & Estratégia
               </p>
             </div>
           </div>

@@ -18,6 +18,7 @@ export const PublicApprovalScreen: React.FC = () => {
   // Comments State
   const [comments, setComments] = useState<PostComment[]>([]);
   const [client, setClient] = useState<Client | null>(null);
+  const [agencyId, setAgencyId] = useState<number | null>(null);
 
   // View State
   const [activeTab, setActiveTab] = useState<'meta' | 'linkedin'>('meta'); // Default, atualizado no load
@@ -57,6 +58,8 @@ export const PublicApprovalScreen: React.FC = () => {
 
       // 2. Monta Objeto Final
       if (dbData) {
+          if (dbData.agency_id) setAgencyId(dbData.agency_id);
+
           // Fetch client data
           const { data: clientData } = await supabase
              .from('clients')
@@ -121,6 +124,7 @@ export const PublicApprovalScreen: React.FC = () => {
             .from('comments')
             .select('*')
             .in('post_id', keysToFetch)
+            .eq('agency_id', primary.post.agency_id)
             .eq('visible_to_admin', true) // Only show comments intended for public/admin/approver flow
             .order('created_at', { ascending: true });
 
@@ -173,6 +177,7 @@ export const PublicApprovalScreen: React.FC = () => {
            .upsert({
               date_key: pData.date_key,
               client_id: pData.client_id,
+              agency_id: pData.agency_id || agencyId,
               status: status,
               image_url: stringifyImageUrl(pData.image_url) || stringifyImageUrl(cData.initialImageUrl),
               video_thumbnail_url: pData.video_thumbnail_url,
@@ -200,6 +205,7 @@ export const PublicApprovalScreen: React.FC = () => {
         // 3. Comentário no Principal (para registro)
         const newCommentObj = {
            post_id: primaryPost.date_key,
+           agency_id: primaryPost.agency_id || agencyId,
            author_role: 'approver',
            author_name: name,
            content: isThemeMode ? `✅ APROVOU o tema${counterpartPost ? ' (e a versão vinculada)' : ''}.` : `✅ APROVOU a publicação${counterpartPost ? ' (e a versão vinculada)' : ''}.`,
@@ -260,6 +266,7 @@ export const PublicApprovalScreen: React.FC = () => {
         // 3. Comentário
         const newCommentObj = {
            post_id: primaryPost.date_key,
+           agency_id: primaryPost.agency_id || agencyId,
            author_role: 'approver',
            author_name: userName,
            content: isThemeMode ? `❌ REPROVOU o tema. Justificativa: ${comment}` : `❌ REPROVOU a publicação. Justificativa: ${comment}`,
@@ -323,6 +330,7 @@ export const PublicApprovalScreen: React.FC = () => {
         // 3. Comentário
         const newCommentObj = {
            post_id: primaryPost.date_key,
+           agency_id: primaryPost.agency_id || agencyId,
            author_role: 'approver',
            author_name: userName,
            content: isThemeMode ? `⚠️ APROVOU O TEMA com observação: ${comment}` : comment,
@@ -450,18 +458,23 @@ export const PublicApprovalScreen: React.FC = () => {
           )}
 
           {successMessage ? (
-             <div className="w-full max-w-lg bg-green-50 border border-green-200 rounded-xl p-8 text-center animate-in zoom-in-95">
-                <div className="w-16 h-16 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto mb-4">
-                   <CheckCircle2 size={32} />
-                </div>
-                <h2 className="text-xl font-bold text-gray-900 mb-2">Sucesso!</h2>
-                <p className="text-gray-600">{successMessage}</p>
-                <button 
-                  onClick={() => setSuccessMessage('')}
-                  className="mt-6 text-sm text-green-700 font-bold underline"
-                >
-                   Voltar para visualização
-                </button>
+             <div className="fixed inset-0 bg-[#FDFDFD] z-50 flex items-center justify-center p-6 text-center">
+                 <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-green-500/5 rounded-full blur-[100px] pointer-events-none"></div>
+                 <div className="relative z-10 max-w-xl mx-auto flex flex-col items-center">
+                     <div className="w-24 h-24 bg-green-100 rounded-full flex items-center justify-center mb-8 shadow-2xl shadow-green-200/50">
+                         <CheckCircle2 size={48} className="text-green-600" />
+                     </div>
+                     <h2 className="text-4xl font-bold text-gray-900 tracking-tighter mb-4">Concluído!</h2>
+                     <p className="text-lg text-gray-500 font-medium mb-12 px-8 leading-relaxed">
+                        {successMessage}
+                     </p>
+                     <button 
+                       onClick={() => setSuccessMessage('')}
+                       className="px-8 py-4 bg-brand-dark hover:bg-black text-white rounded-2xl font-bold uppercase tracking-[0.2em] text-[11px] transition-all shadow-xl shadow-brand-dark/20 flex items-center gap-3"
+                     >
+                        Voltar para Publicação
+                     </button>
+                 </div>
              </div>
           ) : (
              <div className="w-full max-w-4xl flex flex-col md:flex-row gap-8 items-start">

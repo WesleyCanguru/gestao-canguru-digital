@@ -9,7 +9,7 @@ interface ThemeBankProps {
 }
 
 export const ThemeBankAdmin: React.FC<ThemeBankProps> = ({ onTransferTheme }) => {
-  const { activeClient } = useAuth();
+  const { activeClient, agencyId } = useAuth();
   const [sessions, setSessions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [expandedSession, setExpandedSession] = useState<string | null>(null);
@@ -31,6 +31,12 @@ export const ThemeBankAdmin: React.FC<ThemeBankProps> = ({ onTransferTheme }) =>
   const [confirmSessionId, setConfirmSessionId] = useState<string | null>(null);
   const [confirmThemeId, setConfirmThemeId] = useState<string | null>(null);
   const [confirmBulkDelete, setConfirmBulkDelete] = useState(false);
+  const [toastMsg, setToastMsg] = useState<string | null>(null);
+
+  const showToast = (msg: string) => {
+    setToastMsg(msg);
+    setTimeout(() => setToastMsg(null), 3000);
+  };
 
   useEffect(() => {
     if (activeClient) fetchSessions();
@@ -45,6 +51,7 @@ export const ThemeBankAdmin: React.FC<ThemeBankProps> = ({ onTransferTheme }) =>
           *,
           theme_items (*)
         `)
+        .eq('agency_id', agencyId)
         .eq('client_id', activeClient?.id)
         .order('created_at', { ascending: false });
 
@@ -76,6 +83,7 @@ export const ThemeBankAdmin: React.FC<ThemeBankProps> = ({ onTransferTheme }) =>
         .from('theme_sessions')
         .insert({
            client_id: activeClient.id,
+           agency_id: agencyId,
            title: newSessionTitle,
            session_token,
            status: 'draft'
@@ -144,6 +152,7 @@ export const ThemeBankAdmin: React.FC<ThemeBankProps> = ({ onTransferTheme }) =>
             .from('theme_items')
             .insert({
                 session_id: sessionId,
+                agency_id: agencyId,
                 title: newItemModel.title,
                 description: newItemModel.description,
                 format: newItemModel.format,
@@ -186,6 +195,7 @@ export const ThemeBankAdmin: React.FC<ThemeBankProps> = ({ onTransferTheme }) =>
                 format: editItemModel.format,
                 reference_links: parseLinks(editItemModel.reference_links),
             })
+            .eq('agency_id', agencyId)
             .eq('id', itemId);
 
           if (error) throw error;
@@ -204,9 +214,10 @@ export const ThemeBankAdmin: React.FC<ThemeBankProps> = ({ onTransferTheme }) =>
       if (!id) return;
       
       try {
-          const { error } = await supabase.from('theme_sessions').delete().eq('id', id);
+          const { error } = await supabase.from('theme_sessions').delete().eq('agency_id', agencyId).eq('id', id);
           if (error) throw error;
           fetchSessions();
+          showToast('Sessão excluída com sucesso!');
       } catch (err) {
           console.error(err);
           alert("Erro ao excluir.");
@@ -218,7 +229,7 @@ export const ThemeBankAdmin: React.FC<ThemeBankProps> = ({ onTransferTheme }) =>
   const handleDeleteItem = async (itemId: string) => {
       if (!itemId) return;
       try {
-         await supabase.from('theme_items').delete().eq('id', itemId);
+         await supabase.from('theme_items').delete().eq('agency_id', agencyId).eq('id', itemId);
          // Clear from selection if it was there
          const newSet = new Set(selectedItemIds);
          if (newSet.has(itemId)) {
@@ -226,6 +237,7 @@ export const ThemeBankAdmin: React.FC<ThemeBankProps> = ({ onTransferTheme }) =>
             setSelectedItemIds(newSet);
          }
          fetchSessions();
+         showToast('Tema excluído com sucesso!');
       } catch (err) {
           console.error(err);
       } finally {
@@ -263,12 +275,14 @@ export const ThemeBankAdmin: React.FC<ThemeBankProps> = ({ onTransferTheme }) =>
         const { error } = await supabase
             .from('theme_items')
             .delete()
+            .eq('agency_id', agencyId)
             .in('id', Array.from(selectedItemIds));
         
         if (error) throw error;
         
         setSelectedItemIds(new Set());
         fetchSessions();
+        showToast(`${selectedItemIds.size} temas excluídos com sucesso!`);
     } catch (err) {
         console.error(err);
         alert("Erro ao excluir temas selecionados.");
@@ -291,7 +305,7 @@ export const ThemeBankAdmin: React.FC<ThemeBankProps> = ({ onTransferTheme }) =>
       try {
           for (let i = 0; i < draftItems.length; i++) {
               if (draftItems[i].position !== i) {
-                 await supabase.from('theme_items').update({ position: i }).eq('id', draftItems[i].id);
+                 await supabase.from('theme_items').update({ position: i }).eq('agency_id', agencyId).eq('id', draftItems[i].id);
               }
           }
           fetchSessions();
@@ -633,6 +647,21 @@ export const ThemeBankAdmin: React.FC<ThemeBankProps> = ({ onTransferTheme }) =>
          onCancel={() => setConfirmBulkDelete(false)}
          confirmText="Excluir Selecionados"
        />
+
+       {/* Toast */}
+       <AnimatePresence>
+           {toastMsg && (
+               <motion.div
+                   initial={{ opacity: 0, y: 50, scale: 0.9 }}
+                   animate={{ opacity: 1, y: 0, scale: 1 }}
+                   exit={{ opacity: 0, y: 20, scale: 0.9 }}
+                   className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-gray-900 text-white px-6 py-3 rounded-2xl shadow-2xl flex items-center gap-3 z-[9999]"
+               >
+                   <CheckCircle2 size={18} className="text-green-400" />
+                   <span className="text-sm font-medium">{toastMsg}</span>
+               </motion.div>
+           )}
+       </AnimatePresence>
     </div>
   );
 };
