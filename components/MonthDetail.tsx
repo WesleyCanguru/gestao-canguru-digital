@@ -97,7 +97,7 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack }) =
     const { data } = await supabase
       .from('posts')
       .select('*')
-      .eq('agency_id', agencyId)
+      
       .eq('client_id', activeClient?.id);
 
     const postsMap: Record<string, PostData> = {};
@@ -378,7 +378,7 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack }) =
                   // 3. Move Comments
                   await supabase.from('comments')
                       .update({ post_id: newKey })
-                      .eq('agency_id', agencyId)
+                      
                       .eq('post_id', oldKey);
               }
               
@@ -862,7 +862,7 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack }) =
                 if (transferringTheme) {
                    await supabase.from('theme_items')
                        .update({ approval_status: 'transferred' })
-                       .eq('agency_id', agencyId)
+                       
                        .eq('id', transferringTheme.id);
                    setTransferringTheme(null);
                    setThemeBankKey(k => k + 1); // trigger refetch in ThemeBank

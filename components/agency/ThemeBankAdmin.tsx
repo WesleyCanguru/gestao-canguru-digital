@@ -152,7 +152,6 @@ export const ThemeBankAdmin: React.FC<ThemeBankProps> = ({ onTransferTheme }) =>
             .from('theme_items')
             .insert({
                 session_id: sessionId,
-                agency_id: agencyId,
                 title: newItemModel.title,
                 description: newItemModel.description,
                 format: newItemModel.format,
@@ -195,7 +194,6 @@ export const ThemeBankAdmin: React.FC<ThemeBankProps> = ({ onTransferTheme }) =>
                 format: editItemModel.format,
                 reference_links: parseLinks(editItemModel.reference_links),
             })
-            .eq('agency_id', agencyId)
             .eq('id', itemId);
 
           if (error) throw error;
@@ -229,7 +227,7 @@ export const ThemeBankAdmin: React.FC<ThemeBankProps> = ({ onTransferTheme }) =>
   const handleDeleteItem = async (itemId: string) => {
       if (!itemId) return;
       try {
-         await supabase.from('theme_items').delete().eq('agency_id', agencyId).eq('id', itemId);
+         await supabase.from('theme_items').delete().eq('id', itemId);
          // Clear from selection if it was there
          const newSet = new Set(selectedItemIds);
          if (newSet.has(itemId)) {
@@ -275,7 +273,6 @@ export const ThemeBankAdmin: React.FC<ThemeBankProps> = ({ onTransferTheme }) =>
         const { error } = await supabase
             .from('theme_items')
             .delete()
-            .eq('agency_id', agencyId)
             .in('id', Array.from(selectedItemIds));
         
         if (error) throw error;
@@ -305,7 +302,7 @@ export const ThemeBankAdmin: React.FC<ThemeBankProps> = ({ onTransferTheme }) =>
       try {
           for (let i = 0; i < draftItems.length; i++) {
               if (draftItems[i].position !== i) {
-                 await supabase.from('theme_items').update({ position: i }).eq('agency_id', agencyId).eq('id', draftItems[i].id);
+                 await supabase.from('theme_items').update({ position: i }).eq('id', draftItems[i].id);
               }
           }
           fetchSessions();
