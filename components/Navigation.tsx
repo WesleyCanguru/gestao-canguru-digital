@@ -60,7 +60,7 @@ export const Navigation: React.FC<SidebarProps> = ({
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const [isClientDropdownOpen, setIsClientDropdownOpen] = useState(false);
   const [availableClients, setAvailableClients] = useState<Client[]>([]);
-  const { userRole, logout, agencyId } = useAuth();
+  const { userRole, logout, agencyId, agencyName } = useAuth();
 
   useEffect(() => {
     if (userRole === 'admin' && agencyId) {
@@ -177,7 +177,7 @@ export const Navigation: React.FC<SidebarProps> = ({
               {view === 'agency' ? 'Painel Interno' : userRole === 'admin' ? 'Explorando Cliente' : 'Painel do Cliente'}
             </span>
             <span className="text-sm font-bold text-brand-dark uppercase tracking-widest whitespace-nowrap">
-              Canguru Digital
+              {agencyName || 'Canguru Digital'}
             </span>
           </div>
         )}
@@ -299,10 +299,10 @@ export const Navigation: React.FC<SidebarProps> = ({
                 : 'text-gray-400 hover:bg-gray-100 hover:text-brand-dark'}
               ${isCollapsed ? 'justify-center' : ''}
             `}
-            title="Painel Canguru"
+            title={agencyName ? `Painel ${agencyName.split(' ')[0]}` : "Painel Agência"}
           >
             <Shield size={18} />
-            {!isCollapsed && <span className="text-[10px] font-bold uppercase tracking-widest">Painel Canguru</span>}
+            {!isCollapsed && <span className="text-[10px] font-bold uppercase tracking-widest">{agencyName ? `Painel ${agencyName.split(' ')[0]}` : "Painel Agência"}</span>}
           </button>
         ) : (
           <button
