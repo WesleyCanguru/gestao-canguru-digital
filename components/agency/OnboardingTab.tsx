@@ -500,103 +500,125 @@ export const OnboardingTab: React.FC<{ onNavigateToClients: (client: Client) => 
             </div>
 
             <div className="flex-1 overflow-y-auto p-8 space-y-4 hide-scrollbar">
-              {viewingBriefingsClient.briefings && viewingBriefingsClient.briefings.length > 0 ? (
-                viewingBriefingsClient.briefings.map(b => {
-                  const spec = BRIEFING_QUESTIONS[b.briefing_type] || customTemplates[b.briefing_type];
-                  if (!spec) return null;
-                  const isExpanded = expandedBriefingId === b.id;
-                  
-                  return (
-                    <div 
-                      key={b.id} 
-                      className={`rounded-[2rem] border transition-all duration-300 overflow-hidden ${
-                        isExpanded ? 'border-brand-dark ring-4 ring-brand-dark/5 bg-white' : 'border-gray-100 bg-gray-50/30 hover:bg-white hover:border-gray-200'
-                      }`}
-                    >
-                      <div className="flex items-center justify-between p-6">
-                        <button 
-                          onClick={() => setExpandedBriefingId(isExpanded ? null : b.id)}
-                          className="flex items-center gap-4 flex-1 text-left group"
-                        >
-                          <div className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-colors ${
-                            isExpanded ? 'bg-brand-dark text-white shadow-lg shadow-brand-dark/20' : 'bg-white text-gray-400 group-hover:text-brand-dark'
-                          }`}>
-                            <FileText size={22} />
-                          </div>
-                          <div>
-                            <h4 className={`text-lg font-bold transition-colors ${isExpanded ? 'text-brand-dark' : 'text-gray-900'}`}>
-                              {spec.title}
-                            </h4>
-                            <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest flex items-center gap-2">
-                              {b.is_completed ? (
-                                <span className="text-green-600 flex items-center gap-1"><CheckCircle size={10} /> Concluído</span>
-                              ) : (
-                                <span className="text-yellow-600 flex items-center gap-1"><Clock size={10} /> Em rascunho</span>
-                              )}
-                              • {dayjs(b.completed_at || b.created_at).format('DD/MM/YYYY')}
-                            </p>
-                          </div>
-                          <ChevronRight 
-                            size={20} 
-                            className={`ml-auto text-gray-300 transition-transform duration-300 ${isExpanded ? 'rotate-90 text-brand-dark' : ''}`} 
-                          />
-                        </button>
+              {(() => {
+                const customTypesModal = viewingBriefingsClient.features_settings?.active_briefing_types || [];
+                const requiredTypesModal = new Set<string>(customTypesModal);
+                if (customTypesModal.length === 0) {
+                  (viewingBriefingsClient.services || []).forEach(service => {
+                    const types = SERVICE_TO_BRIEFINGS[service] || [];
+                    types.forEach(t => requiredTypesModal.add(t));
+                  });
+                }
+                const displayBriefings = Array.from(requiredTypesModal).map(type => {
+                  const existing = viewingBriefingsClient.briefings?.find(b => b.briefing_type === type);
+                  if (existing) return existing;
+                  return {
+                    id: `missing-${type}`,
+                    briefing_type: type,
+                    responses: {},
+                    is_completed: false,
+                    created_at: new Date().toISOString()
+                  };
+                });
 
-                        <div className="flex items-center gap-2 ml-4 pl-4 border-l border-gray-100">
+                return displayBriefings.length > 0 ? (
+                  displayBriefings.map(b => {
+                    const spec = BRIEFING_QUESTIONS[b.briefing_type] || customTemplates[b.briefing_type];
+                    if (!spec) return null;
+                    const isExpanded = expandedBriefingId === b.id;
+                    
+                    return (
+                      <div 
+                        key={b.id} 
+                        className={`rounded-[2rem] border transition-all duration-300 overflow-hidden ${
+                          isExpanded ? 'border-brand-dark ring-4 ring-brand-dark/5 bg-white' : 'border-gray-100 bg-gray-50/30 hover:bg-white hover:border-gray-200'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between p-6">
                           <button 
-                            onClick={() => copyBriefingLink(b.briefing_type)}
-                            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-[9px] font-bold uppercase tracking-widest transition-all ${
-                              copiedId === b.briefing_type 
-                                ? 'bg-green-50 text-green-600' 
-                                : 'bg-white text-gray-500 hover:bg-brand-dark hover:text-white border border-gray-100 shadow-sm'
-                            }`}
+                            onClick={() => setExpandedBriefingId(isExpanded ? null : b.id)}
+                            className="flex items-center gap-4 flex-1 text-left group"
                           >
-                            {copiedId === b.briefing_type ? (
-                              <><Check size={14} /> Link Copiado</>
-                            ) : (
-                              <><LinkIcon size={14} /> Link Direto</>
-                            )}
+                            <div className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-colors ${
+                              isExpanded ? 'bg-brand-dark text-white shadow-lg shadow-brand-dark/20' : 'bg-white text-gray-400 group-hover:text-brand-dark'
+                            }`}>
+                              <FileText size={22} />
+                            </div>
+                            <div>
+                              <h4 className={`text-lg font-bold transition-colors ${isExpanded ? 'text-brand-dark' : 'text-gray-900'}`}>
+                                {spec.title}
+                              </h4>
+                              <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest flex items-center gap-2">
+                                {b.is_completed ? (
+                                  <span className="text-green-600 flex items-center gap-1"><CheckCircle size={10} /> Concluído</span>
+                                ) : (
+                                  <span className="text-yellow-600 flex items-center gap-1"><Clock size={10} /> Em rascunho</span>
+                                )}
+                                {b.created_at || b.completed_at ? ` • ${dayjs(b.completed_at || b.created_at).format('DD/MM/YYYY')}` : ''}
+                              </p>
+                            </div>
+                            <ChevronRight 
+                              size={20} 
+                              className={`ml-auto text-gray-300 transition-transform duration-300 ${isExpanded ? 'rotate-90 text-brand-dark' : ''}`} 
+                            />
                           </button>
-                        </div>
-                      </div>
 
-                      {isExpanded && (
-                        <motion.div 
-                          initial={{ height: 0, opacity: 0 }}
-                          animate={{ height: 'auto', opacity: 1 }}
-                          className="px-6 pb-8 space-y-6 pt-2 border-t border-gray-50"
-                        >
-                          <div className="grid gap-4">
-                            {spec.questions.map(q => (
-                              <div key={q.key} className="bg-gray-50/50 rounded-2xl p-5 border border-black/[0.02]">
-                                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5">{q.label}</p>
-                                <p className="text-gray-700 leading-relaxed whitespace-pre-wrap text-sm">
-                                  {!b.responses[q.key] ? (
-                                    <span className="text-gray-300 italic">Não respondido</span>
-                                  ) : typeof b.responses[q.key] === 'object' ? (
-                                    Array.isArray(b.responses[q.key]) 
-                                      ? (b.responses[q.key] as string[]).join(', ') 
-                                      : Object.entries(b.responses[q.key] as Record<string, any>)
-                                          .map(([k, v]) => `${k}: ${v}`)
-                                          .join(' | ')
-                                  ) : (
-                                    String(b.responses[q.key])
-                                  )}
-                                </p>
-                              </div>
-                            ))}
+                          <div className="flex items-center gap-2 ml-4 pl-4 border-l border-gray-100">
+                            <button 
+                              onClick={() => copyBriefingLink(b.briefing_type)}
+                              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-[9px] font-bold uppercase tracking-widest transition-all ${
+                                copiedId === b.briefing_type 
+                                  ? 'bg-green-50 text-green-600' 
+                                  : 'bg-white text-gray-500 hover:bg-brand-dark hover:text-white border border-gray-100 shadow-sm'
+                              }`}
+                            >
+                              {copiedId === b.briefing_type ? (
+                                <><Check size={14} /> Link Copiado</>
+                              ) : (
+                                <><LinkIcon size={14} /> Link Direto</>
+                              )}
+                            </button>
                           </div>
-                        </motion.div>
-                      )}
-                    </div>
-                  );
-                })
-              ) : (
-                <div className="text-center py-20">
-                  <FileText size={48} className="text-gray-200 mx-auto mb-4" />
-                  <p className="text-gray-500 font-medium">Nenhum briefing preenchido por este cliente ainda.</p>
-                </div>
-              )}
+                        </div>
+
+                        {isExpanded && (
+                          <motion.div 
+                            initial={{ height: 0, opacity: 0 }}
+                            animate={{ height: 'auto', opacity: 1 }}
+                            className="px-6 pb-8 space-y-6 pt-2 border-t border-gray-50"
+                          >
+                            <div className="grid gap-4">
+                              {spec.questions.map((q: any) => (
+                                <div key={q.key} className="bg-gray-50/50 rounded-2xl p-5 border border-black/[0.02]">
+                                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5">{q.label}</p>
+                                  <p className="text-gray-700 leading-relaxed whitespace-pre-wrap text-sm">
+                                    {!b.responses || !b.responses[q.key] ? (
+                                      <span className="text-gray-300 italic">Não respondido</span>
+                                    ) : typeof b.responses[q.key] === 'object' ? (
+                                      Array.isArray(b.responses[q.key]) 
+                                        ? (b.responses[q.key] as string[]).join(', ') 
+                                        : Object.entries(b.responses[q.key] as Record<string, any>)
+                                            .map(([k, v]) => `${k}: ${v}`)
+                                            .join(' | ')
+                                    ) : (
+                                      String(b.responses[q.key])
+                                    )}
+                                  </p>
+                                </div>
+                              ))}
+                            </div>
+                          </motion.div>
+                        )}
+                      </div>
+                    );
+                  })
+                ) : (
+                  <div className="text-center py-20">
+                    <FileText size={48} className="text-gray-200 mx-auto mb-4" />
+                    <p className="text-gray-500 font-medium">Nenhum briefing requerido ou configurado para este cliente.</p>
+                  </div>
+                );
+              })()}
             </div>
 
             <div className="p-8 bg-gray-50/50 border-t border-gray-100 flex justify-end">
