@@ -48,11 +48,32 @@ export const ThemeApprovalPublic: React.FC<{ sessionToken: string }> = ({ sessio
       if (itemsError) throw itemsError;
 
       // Initialize local state for edits
-      setThemes(itemsData.map(item => ({
-        ...item,
-        temp_status: item.approval_status,
-        temp_comment: item.client_comment || ''
-      })));
+      setThemes(itemsData.map(item => {
+         let parsedComment = { author: '', content: '', date: '' };
+         let rawComment = item.client_comment;
+         if (rawComment) {
+            try {
+               const j = JSON.parse(rawComment);
+               if (j.content) parsedComment = j;
+            } catch {
+               const match = rawComment.match(/^\[(.*?)\] (.*)$/s);
+               if (match) {
+                   parsedComment = { author: match[1], content: match[2], date: item.reviewed_at || new Date().toISOString() };
+               } else {
+                   parsedComment = { author: 'Cliente', content: rawComment, date: item.reviewed_at || new Date().toISOString() };
+               }
+            }
+         }
+
+         return {
+            ...item,
+            temp_status: item.approval_status,
+            temp_comment: parsedComment.content,
+            temp_comment_author: parsedComment.author,
+            temp_comment_date: parsedComment.date,
+            temp_comment_saved: !!parsedComment.content
+         };
+      }));
 
       if (sessionData.status === 'reviewed') {
           // If already reviewed, just show finished state or read-only
@@ -78,7 +99,7 @@ export const ThemeApprovalPublic: React.FC<{ sessionToken: string }> = ({ sessio
   };
 
 
-  const saveProgress = async (finish = false, showNotification = true) => {
+  const saveProgress = async (finish = false, showNotification = true, currentThemes = themes) => {
     if (!userName.trim()) {
       displayToast("Por favor, preencha o seu nome.", 'error');
       return;
@@ -87,18 +108,21 @@ export const ThemeApprovalPublic: React.FC<{ sessionToken: string }> = ({ sessio
     setSaving(true);
     try {
       // For each theme, save status and comment to database
-      for (const theme of themes) {
-        // Only append name if there's a comment and it doesn't already have the name
-        let finalComment = theme.temp_comment?.trim();
-        if (finalComment && !finalComment.startsWith(`[${userName}]`)) {
-           finalComment = `[${userName}] ${finalComment}`;
+      for (const theme of currentThemes) {
+        let finalCommentStr = null;
+        if (theme.temp_comment?.trim()) {
+            finalCommentStr = JSON.stringify({
+                author: theme.temp_comment_author || userName,
+                content: theme.temp_comment.trim(),
+                date: theme.temp_comment_date || new Date().toISOString()
+            });
         }
         
         await supabase
           .from('theme_items')
           .update({
             approval_status: theme.temp_status,
-            client_comment: finalComment || null,
+            client_comment: finalCommentStr,
             reviewed_at: finish ? new Date().toISOString() : theme.reviewed_at
           })
           .eq('id', theme.id);
@@ -331,8 +355,14 @@ export const ThemeApprovalPublic: React.FC<{ sessionToken: string }> = ({ sessio
                                           )}
                                           <button
                                               onClick={() => {
-                                                  handleUpdateTheme(theme.id, { temp_comment_saved: true });
-                                                  saveProgress(false, true);
+                                                  const updatedTheme = { 
+                                                      temp_comment_saved: true,
+                                                      temp_comment_author: userName,
+                                                      temp_comment_date: new Date().toISOString()
+                                                  };
+                                                  handleUpdateTheme(theme.id, updatedTheme);
+                                                  const newThemes = themes.map(t => t.id === theme.id ? { ...t, ...updatedTheme } : t);
+                                                  saveProgress(false, true, newThemes);
                                               }}
                                               disabled={!theme.temp_comment?.trim() || saving}
                                               className="px-4 py-2 bg-brand-dark hover:bg-black text-white text-[10px] font-bold uppercase tracking-widest rounded-lg flex items-center gap-2 transition-all disabled:opacity-50"
@@ -347,7 +377,7 @@ export const ThemeApprovalPublic: React.FC<{ sessionToken: string }> = ({ sessio
                                           <div className="flex justify-between items-start mb-2">
                                               <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest flex items-center gap-1">
                                                 <CheckCircle2 size={12} className="text-green-500" />
-                                                Comentário enviado
+                                                Feedback de {theme.temp_comment_author || 'Você'} em {new Date(theme.temp_comment_date || new Date()).toLocaleDateString('pt-BR')}
                                               </p>
                                               <button 
                                                 onClick={() => handleUpdateTheme(theme.id, { temp_comment_saved: false })}

@@ -15,6 +15,9 @@ export const ThemeBankAdmin: React.FC<ThemeBankProps> = ({ onTransferTheme }) =>
   const [expandedSession, setExpandedSession] = useState<string | null>(null);
   const [creatingSession, setCreatingSession] = useState(false);
   const [newSessionTitle, setNewSessionTitle] = useState('');
+  const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
+  const [editSessionTitle, setEditSessionTitle] = useState('');
+
   
   // Theme creation inside a session
   const [newItemModel, setNewItemModel] = useState<{session_id: string, title: string, description: string, format: string, reference_links: string}>({ session_id: '', title: '', description: '', format: 'Post Estático', reference_links: '' });
@@ -97,6 +100,24 @@ export const ThemeBankAdmin: React.FC<ThemeBankProps> = ({ onTransferTheme }) =>
        alert('Erro ao criar sessão de temas.');
     } finally {
        setCreatingSession(false);
+    }
+  };
+
+  const handleUpdateSessionTitle = async (sessionId: string) => {
+    if (!editSessionTitle.trim()) return;
+    try {
+      const { error } = await supabase
+        .from('theme_sessions')
+        .update({ title: editSessionTitle })
+        .eq('id', sessionId);
+        
+      if (error) throw error;
+      setEditingSessionId(null);
+      fetchSessions();
+      showToast('Nome da sessão atualizado!');
+    } catch (err) {
+      console.error(err);
+      alert('Erro ao atualizar nome da sessão.');
     }
   };
 
@@ -372,15 +393,47 @@ export const ThemeBankAdmin: React.FC<ThemeBankProps> = ({ onTransferTheme }) =>
        {sessions.map(session => (
            <div key={session.id} className="bg-white rounded-3xl border border-black/[0.05] overflow-hidden shadow-sm">
                <div 
-                 onClick={() => setExpandedSession(expandedSession === session.id ? null : session.id)}
-                 className="p-5 flex items-center justify-between cursor-pointer hover:bg-gray-50 transition-colors"
+                 onClick={(e) => {
+                   if (editingSessionId === session.id) return;
+                   setExpandedSession(expandedSession === session.id ? null : session.id);
+                 }}
+                 className="group p-5 flex items-center justify-between cursor-pointer hover:bg-gray-50 transition-colors"
                >
                    <div className="flex items-center gap-4">
                       <div className={`w-8 h-8 rounded-full flex items-center justify-center transition-transform ${expandedSession === session.id ? 'rotate-90 bg-brand-dark text-white' : 'bg-gray-100 text-gray-400'}`}>
                          <ChevronRight size={16} />
                       </div>
                       <div>
-                         <h4 className="text-base font-bold text-gray-900 leading-tight">{session.title}</h4>
+                         {editingSessionId === session.id ? (
+                           <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
+                             <input 
+                               autoFocus
+                               value={editSessionTitle}
+                               onChange={(e) => setEditSessionTitle(e.target.value)}
+                               className="border border-gray-200 rounded-lg px-2 py-1 text-sm font-bold text-gray-900 focus:border-brand-dark outline-none bg-white"
+                               onKeyDown={(e) => {
+                                 if (e.key === 'Enter') handleUpdateSessionTitle(session.id);
+                                 if (e.key === 'Escape') setEditingSessionId(null);
+                               }}
+                             />
+                             <button onClick={() => handleUpdateSessionTitle(session.id)} className="p-1.5 bg-brand-dark text-white rounded-lg hover:bg-black"><Save size={14}/></button>
+                             <button onClick={() => setEditingSessionId(null)} className="p-1.5 bg-gray-100 text-gray-500 rounded-lg hover:bg-gray-200"><X size={14}/></button>
+                           </div>
+                         ) : (
+                           <div className="flex items-center gap-2">
+                             <h4 className="text-base font-bold text-gray-900 leading-tight">{session.title}</h4>
+                             <button 
+                               onClick={(e) => {
+                                  e.stopPropagation();
+                                  setEditSessionTitle(session.title);
+                                  setEditingSessionId(session.id);
+                               }}
+                               className="text-gray-300 hover:text-brand-dark opacity-0 group-hover:opacity-100 transition-opacity"
+                             >
+                               <Edit2 size={12} />
+                             </button>
+                           </div>
+                         )}
                          <p className="text-xs text-gray-400 font-medium">{session.theme_items?.length || 0} temas cadastrados</p>
                       </div>
                    </div>
@@ -539,12 +592,31 @@ export const ThemeBankAdmin: React.FC<ThemeBankProps> = ({ onTransferTheme }) =>
                                          </div>
                                          <p className="text-sm text-gray-600 mb-3 ml-7">{item.description}</p>
                                          
-                                         {item.client_comment && (
-                                             <div className="ml-7 mt-3 p-3 bg-gray-50 rounded-xl border border-black/[0.05]">
-                                                 <p className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-1 flex items-center gap-1"><MessageSquare size={10}/> Feedback do Cliente</p>
-                                                 <p className="text-sm font-medium text-gray-700">{item.client_comment}</p>
-                                             </div>
-                                         )}
+                                         {item.client_comment && (() => {
+                                             let parsed = { author: 'Cliente', content: item.client_comment, date: '' };
+                                             try {
+                                                const j = JSON.parse(item.client_comment);
+                                                if (j.content) parsed = j;
+                                             } catch {
+                                                const match = item.client_comment.match(/^\[(.*?)\] (.*)$/s);
+                                                if (match) {
+                                                   parsed = { author: match[1], content: match[2], date: '' };
+                                                }
+                                             }
+                                             return (
+                                               <div className="ml-7 mt-3 p-3 bg-gray-50 rounded-xl border border-black/[0.05]">
+                                                   <div className="flex justify-between items-center mb-1">
+                                                     <p className="text-xs font-bold text-gray-500 uppercase tracking-widest flex items-center gap-1"><MessageSquare size={10}/> Feedback de {parsed.author}</p>
+                                                     {parsed.date && (
+                                                       <p className="text-[10px] text-gray-400 font-medium">
+                                                         {new Date(parsed.date).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                                                       </p>
+                                                     )}
+                                                   </div>
+                                                   <p className="text-sm font-medium text-gray-700 whitespace-pre-wrap">{parsed.content}</p>
+                                               </div>
+                                             );
+                                         })()}
                                      </>
                                  )}
                                  </div>

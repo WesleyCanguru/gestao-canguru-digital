@@ -174,7 +174,15 @@ export const BriefingOnboarding: React.FC<{ isDashboardView?: boolean }> = ({ is
         .eq('id', activeClient!.id)
         .single();
         
-      const services = freshClientData?.services || activeClient?.services || [];
+      let services = freshClientData?.services || activeClient?.services || [];
+      if (!Array.isArray(services) || services.length === 0) {
+        // Fallback for legacy clients that only have service_type
+        const legacyType = freshClientData?.service_type || activeClient?.service_type;
+        if (legacyType === 'social_media') services = ['Social Media'];
+        else if (legacyType === 'design') services = ['Identidade Visual'];
+        else services = ['Social Media']; // Default
+      }
+      
       const customTypes = freshClientData?.features_settings?.active_briefing_types || activeClient?.features_settings?.active_briefing_types || [];
 
       
@@ -382,10 +390,10 @@ export const BriefingOnboarding: React.FC<{ isDashboardView?: boolean }> = ({ is
       <div>
         <button 
           onClick={() => logout()}
-          className="flex items-center gap-2 px-4 py-2 bg-white hover:bg-gray-50 text-gray-500 hover:text-gray-900 border border-gray-200 hover:border-gray-300 rounded-full transition-all font-medium text-xs sm:text-sm shadow-sm"
+          className="flex items-center gap-2 px-4 py-2 text-gray-400 hover:text-brand-dark transition-colors font-bold text-[10px] uppercase tracking-widest"
         >
-          <LogOut size={14} className="opacity-70" />
           <span>Sair</span>
+          <LogOut size={14} />
         </button>
       </div>
     </header>
@@ -544,7 +552,7 @@ export const BriefingOnboarding: React.FC<{ isDashboardView?: boolean }> = ({ is
             </div>
           )}
 
-          <div className="grid gap-4 sm:grid-cols-2 mb-10 max-w-2xl mx-auto w-full">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 mb-10 mx-auto w-full max-w-6xl">
             {briefings.map(b => {
                const spec = customTemplates[b.briefing_type] || BRIEFING_QUESTIONS[b.briefing_type];
                const title = spec ? spec.title : b.briefing_type;
