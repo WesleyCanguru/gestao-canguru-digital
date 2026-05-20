@@ -37,6 +37,7 @@ export const OnboardingTab: React.FC<{ onNavigateToClients: (client: Client) => 
   const [showBriefingsModal, setShowBriefingsModal] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [expandedBriefingId, setExpandedBriefingId] = useState<string | null>(null);
+  const [customTemplates, setCustomTemplates] = useState<Record<string, any>>({});
 
   const copyBriefingLink = (type: string) => {
     const baseUrl = window.location.origin;
@@ -54,6 +55,19 @@ export const OnboardingTab: React.FC<{ onNavigateToClients: (client: Client) => 
     if (!agencyId) return;
     setLoading(true);
     try {
+      const { data: templatesData } = await supabase
+        .from('agency_briefing_templates')
+        .select('*')
+        .eq('agency_id', agencyId);
+      
+      const templatesMap: Record<string, any> = {};
+      if (templatesData) {
+        templatesData.forEach((t: any) => {
+          templatesMap[t.briefing_type] = t;
+        });
+      }
+      setCustomTemplates(templatesMap);
+
       // Fetch clients, contracts, briefings, and onboarding checklist
       const { data: clientsData } = await supabase
         .from('clients')
@@ -218,11 +232,14 @@ export const OnboardingTab: React.FC<{ onNavigateToClients: (client: Client) => 
           {clients.map((client) => {
             const contractStatus = client.contract?.status || 'none';
             
-            const requiredTypes = new Set<string>();
-            (client.services || []).forEach(service => {
-              const types = SERVICE_TO_BRIEFINGS[service] || [];
-              types.forEach(t => requiredTypes.add(t));
-            });
+            const customTypes = client.features_settings?.active_briefing_types || [];
+            const requiredTypes = new Set<string>(customTypes);
+            if (customTypes.length === 0) {
+              (client.services || []).forEach(service => {
+                const types = SERVICE_TO_BRIEFINGS[service] || [];
+                types.forEach(t => requiredTypes.add(t));
+              });
+            }
             
             const expectedBriefings = requiredTypes.size;
             const completedBriefings = client.briefings?.filter(b => requiredTypes.has(b.briefing_type) && b.is_completed).length || 0;
@@ -340,11 +357,14 @@ export const OnboardingTab: React.FC<{ onNavigateToClients: (client: Client) => 
               {clients.map((client) => {
                 const contractStatus = client.contract?.status || 'none';
                 
-                const requiredTypes = new Set<string>();
-                (client.services || []).forEach(service => {
-                  const types = SERVICE_TO_BRIEFINGS[service] || [];
-                  types.forEach(t => requiredTypes.add(t));
-                });
+                const customTypes = client.features_settings?.active_briefing_types || [];
+                const requiredTypes = new Set<string>(customTypes);
+                if (customTypes.length === 0) {
+                  (client.services || []).forEach(service => {
+                    const types = SERVICE_TO_BRIEFINGS[service] || [];
+                    types.forEach(t => requiredTypes.add(t));
+                  });
+                }
                 
                 const expectedBriefings = requiredTypes.size;
                 const completedBriefings = client.briefings?.filter(b => requiredTypes.has(b.briefing_type) && b.is_completed).length || 0;
@@ -482,7 +502,7 @@ export const OnboardingTab: React.FC<{ onNavigateToClients: (client: Client) => 
             <div className="flex-1 overflow-y-auto p-8 space-y-4 hide-scrollbar">
               {viewingBriefingsClient.briefings && viewingBriefingsClient.briefings.length > 0 ? (
                 viewingBriefingsClient.briefings.map(b => {
-                  const spec = BRIEFING_QUESTIONS[b.briefing_type];
+                  const spec = BRIEFING_QUESTIONS[b.briefing_type] || customTemplates[b.briefing_type];
                   if (!spec) return null;
                   const isExpanded = expandedBriefingId === b.id;
                   

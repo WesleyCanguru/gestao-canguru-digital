@@ -38,6 +38,7 @@ import {
   Target
 } from 'lucide-react';
 import { ConfirmModal } from './ConfirmModal';
+import { BRIEFING_QUESTIONS } from './BriefingOnboarding';
 import { 
   DndContext, 
   closestCenter, 
@@ -205,11 +206,25 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
   const [uploading, setUploading] = useState(false);
   const [newContractLinkInfo, setNewContractLinkInfo] = useState<{ clientId: string, token: string } | null>(null);
   const [formTab, setFormTab] = useState<'dados_basicos' | 'servicos' | 'acesso'>('dados_basicos');
+  const [customTemplates, setCustomTemplates] = useState<Record<string, any>>({});
 
   const fetchClients = async () => {
     if (!agencyId) return;
     try {
       setLoading(true);
+      const { data: templatesData } = await supabase
+        .from('agency_briefing_templates')
+        .select('*')
+        .eq('agency_id', agencyId);
+      
+      const templatesMap: Record<string, any> = {};
+      if (templatesData) {
+        templatesData.forEach((t: any) => {
+          templatesMap[t.briefing_type] = t;
+        });
+      }
+      setCustomTemplates(templatesMap);
+
       const { data } = await supabase
         .from('clients')
         .select('*')
@@ -326,6 +341,97 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
         
         if (!contractError && contractData) {
           setNewContractLinkInfo({ clientId: clientData.id, token: contractData.form_token });
+        }
+
+        // Generate onboarding checklist automatically based on templates
+        try {
+          let { data: templates } = await supabase
+            .from('onboarding_templates')
+            .select('*')
+            .eq('agency_id', agencyId)
+            .eq('is_active', true)
+            .order('phase')
+            .order('position');
+
+          if (!templates || templates.length === 0) {
+            if (agencyId !== 1) {
+              const { data: defaultTemplates } = await supabase
+                .from('onboarding_templates')
+                .select('*')
+                .eq('agency_id', 1)
+                .eq('is_active', true)
+                .order('phase')
+                .order('position');
+                
+              if (defaultTemplates && defaultTemplates.length > 0) {
+                templates = defaultTemplates;
+              }
+            }
+          }
+
+          if (templates && templates.length > 0) {
+            const SERVICE_MAP: Record<string, string> = {
+              'Social Media': 'social_media',
+              'Tráfego Pago': 'trafego_pago',
+              'E-mail Marketing': 'email_marketing',
+              'Website': 'website'
+            };
+
+            const clientServicesSlugs = (clientPayload.services || []).map(s => SERVICE_MAP[s] || s).filter(Boolean);
+
+            const validTemplates = templates.filter((tpl: any) => {
+              if (!tpl.required_services || tpl.required_services.length === 0) return true;
+              return tpl.required_services.some((slug: string) => clientServicesSlugs.includes(slug));
+            });
+
+            const parentTemplates = validTemplates.filter((t: any) => !t.parent_id);
+            const childTemplates = validTemplates.filter((t: any) => t.parent_id);
+
+            const itemsToInsert = parentTemplates.map((tpl: any) => ({
+              client_id: clientData.id,
+              agency_id: agencyId,
+              phase: tpl.phase,
+              phase_name: tpl.phase_name,
+              title: tpl.title,
+              description: tpl.description,
+              is_completed: false,
+              position: tpl.position,
+              parent_id: null
+            }));
+
+            let insertedParents: any[] = [];
+            if (itemsToInsert.length > 0) {
+              const { data: pData } = await supabase
+                .from('onboarding_checklist')
+                .insert(itemsToInsert)
+                .select('*');
+              
+              if (pData) insertedParents = pData;
+            }
+
+            const childItemsToInsert = childTemplates.map((tpl: any) => {
+              const parentTpl = parentTemplates.find((p: any) => p.id === tpl.parent_id);
+              const insertedParent = insertedParents.find(p => p.title === parentTpl?.title && p.phase === parentTpl?.phase);
+
+              return {
+                client_id: clientData.id,
+                agency_id: agencyId,
+                phase: tpl.phase,
+                phase_name: tpl.phase_name,
+                title: tpl.title,
+                description: tpl.description,
+                is_completed: false,
+                position: tpl.position,
+                parent_id: insertedParent ? insertedParent.id : null
+              };
+            });
+
+            if (childItemsToInsert.length > 0) {
+              await supabase.from('onboarding_checklist').insert(childItemsToInsert);
+            }
+          }
+        } catch (e) {
+          console.error("Error generating onboarding checklist: ", e);
         }
       }
 
@@ -1261,15 +1367,9 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
                   </h3>
                   <p className="text-xs text-gray-500 mb-6">Selecione quais formulários estratégicos este cliente deve preencher. Se nenhum for selecionado, o sistema usará a detecção automática por serviços.</p>
                   <div className="flex flex-wrap gap-2">
-                    {[
-                      { id: 'persona', label: 'Persona' },
-                      { id: 'posicionamento', label: 'Posicionamento' },
-                      { id: 'publico_alvo', label: 'Público-Alvo' },
-                      { id: 'tom_voz', label: 'Tom de Voz' },
-                      { id: 'site', label: 'Website' },
-                      { id: 'trafego_pago', label: 'Tráfego Pago' },
-                      { id: 'conteudo_bastidores', label: 'Conteúdo, Bastidores e Autoridade' },
-                    ].map(type => {
+                    {Array.from(new Set([...Object.keys(BRIEFING_QUESTIONS), ...Object.keys(customTemplates)])).map(typeKey => {
+                      const label = BRIEFING_QUESTIONS[typeKey]?.title || customTemplates[typeKey]?.title || typeKey;
+                      const type = { id: typeKey, label };
                       let activeBriefings = form.features_settings?.active_briefing_types;
                       
                       if (!activeBriefings || activeBriefings.length === 0) {
