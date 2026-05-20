@@ -1039,13 +1039,32 @@ const ProcessFormModal: React.FC<{ clients: any[], onClose: () => void, onSucces
       if (errInstance || !instance) throw errInstance;
 
       // 2. Buscar templates pai
-      const { data: pais } = await supabase
+      let { data: pais } = await supabase
         .from('process_templates')
         .select('*')
         .eq('agency_id', agencyId)
         .eq('process_type', form.process_type)
         .is('parent_id', null)
         .order('position');
+        
+      let usedAgencyIdForTemplates = agencyId;
+
+      if (!pais || pais.length === 0) {
+        if (agencyId !== 1) {
+          const { data: defaultPais } = await supabase
+            .from('process_templates')
+            .select('*')
+            .eq('agency_id', 1)
+            .eq('process_type', form.process_type)
+            .is('parent_id', null)
+            .order('position');
+            
+          if (defaultPais && defaultPais.length > 0) {
+            pais = defaultPais;
+            usedAgencyIdForTemplates = 1;
+          }
+        }
+      }
 
       const mapaIds: Record<string, string> = {};
       
@@ -1070,7 +1089,7 @@ const ProcessFormModal: React.FC<{ clients: any[], onClose: () => void, onSucces
         const { data: filhos } = await supabase
           .from('process_templates')
           .select('*')
-          .eq('agency_id', agencyId)
+          .eq('agency_id', usedAgencyIdForTemplates)
           .eq('process_type', form.process_type)
           .not('parent_id', 'is', null)
           .order('position');
