@@ -228,11 +228,11 @@ export function BriefingTemplatesModal({ onClose }: Props) {
                  </div>
 
                  {/* Save bar */}
-                 <div className="p-6 bg-white border-t border-gray-100 shadow-[0_-10px_30px_rgba(0,0,0,0.05)] shrink-0">
+                 <div className="p-6 bg-white border-t border-gray-100 shrink-0 sticky bottom-0 z-10 shadow-[0_-10px_30px_rgba(0,0,0,0.03)]">
                    <button
                      onClick={handleSave}
                      disabled={saving}
-                     className="w-full flex items-center justify-center gap-2 py-4 bg-brand-dark text-white rounded-xl font-bold uppercase tracking-widest text-sm hover:opacity-90 disabled:opacity-50 transition-opacity shadow-lg"
+                     className="w-full flex items-center justify-center gap-2 py-4 bg-brand-dark text-white rounded-xl font-bold uppercase tracking-widest text-sm hover:opacity-90 disabled:opacity-50 transition-all shadow-md"
                    >
                      {saving ? 'Salvando...' : <><Save size={18} /> Salvar Formulário</>}
                    </button>

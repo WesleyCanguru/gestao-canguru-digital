@@ -317,9 +317,20 @@ export const BriefingOnboarding: React.FC<{ isDashboardView?: boolean }> = ({ is
   const handleToggleType = async (type: string) => {
     if (!activeClient || userRole !== 'admin') return;
     
-    const currentTypes = activeClient.features_settings?.active_briefing_types || [];
-    let newTypes;
+    let currentTypes = activeClient.features_settings?.active_briefing_types;
     
+    if (!currentTypes || currentTypes.length === 0) {
+      currentTypes = [];
+      const services = activeClient.services || [];
+      for (const service of services) {
+        const autoTypes = SERVICE_TO_BRIEFINGS[service] || [];
+        autoTypes.forEach(t => {
+          if (!currentTypes.includes(t)) currentTypes.push(t);
+        });
+      }
+    }
+    
+    let newTypes;
     if (currentTypes.includes(type)) {
       newTypes = currentTypes.filter((t: string) => t !== type);
     } else {

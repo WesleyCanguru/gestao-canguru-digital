@@ -1268,8 +1268,29 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
                       { id: 'tom_voz', label: 'Tom de Voz' },
                       { id: 'site', label: 'Website' },
                       { id: 'trafego_pago', label: 'Tráfego Pago' },
+                      { id: 'conteudo_bastidores', label: 'Conteúdo, Bastidores e Autoridade' },
                     ].map(type => {
-                      const activeBriefings = form.features_settings?.active_briefing_types || [];
+                      let activeBriefings = form.features_settings?.active_briefing_types;
+                      
+                      if (!activeBriefings || activeBriefings.length === 0) {
+                        activeBriefings = [];
+                        const formServices = form.services || [];
+                        const SERVICE_TO_BRIEFINGS: Record<string, string[]> = {
+                          'Social Media': ['persona', 'publico_alvo', 'tom_voz', 'posicionamento', 'conteudo_bastidores'],
+                          'Tráfego Pago': ['trafego_pago'],
+                          'Website': ['site'],
+                          'Identidade Visual': ['persona', 'posicionamento'],
+                          'E-mail Marketing': ['publico_alvo', 'tom_voz'],
+                          'Fotos com IA': ['persona', 'publico_alvo']
+                        };
+                        for (const service of formServices) {
+                          const autoTypes = SERVICE_TO_BRIEFINGS[service] || [];
+                          autoTypes.forEach(t => {
+                            if (!activeBriefings.includes(t)) activeBriefings.push(t);
+                          });
+                        }
+                      }
+                      
                       const isActive = activeBriefings.includes(type.id);
                       
                       return (
