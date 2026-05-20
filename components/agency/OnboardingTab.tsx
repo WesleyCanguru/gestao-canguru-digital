@@ -9,6 +9,7 @@ import { BriefingOnboarding, BRIEFING_QUESTIONS } from '../BriefingOnboarding';
 import { X } from 'lucide-react';
 import { ClientChecklistView } from './ClientChecklistView';
 import { OnboardingTemplatesModal } from './OnboardingTemplatesModal';
+import { BriefingTemplatesModal } from './BriefingTemplatesModal';
 
 const SERVICE_TO_BRIEFINGS: Record<string, string[]> = {
   'Social Media': ['persona', 'publico_alvo', 'tom_voz', 'posicionamento'],
@@ -33,6 +34,7 @@ export const OnboardingTab: React.FC<{ onNavigateToClients: (client: Client) => 
   const [viewingBriefingsClient, setViewingBriefingsClient] = useState<OnboardingData | null>(null);
   const [viewingChecklistClient, setViewingChecklistClient] = useState<OnboardingData | null>(null);
   const [showTemplatesModal, setShowTemplatesModal] = useState(false);
+  const [showBriefingsModal, setShowBriefingsModal] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [expandedBriefingId, setExpandedBriefingId] = useState<string | null>(null);
 
@@ -162,12 +164,20 @@ export const OnboardingTab: React.FC<{ onNavigateToClients: (client: Client) => 
           <h2 className="text-2xl font-bold text-brand-dark">Onboarding de Clientes</h2>
           <p className="text-sm text-gray-500 mt-1">Acompanhe a entrada de clientes e envio de formulários.</p>
         </div>
-        <button
-          onClick={() => setShowTemplatesModal(true)}
-          className="flex items-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl font-bold uppercase tracking-widest text-[10px] transition-colors"
-        >
-          <Settings size={14} /> Configurar Templates
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => setShowBriefingsModal(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl font-bold uppercase tracking-widest text-[10px] transition-colors"
+          >
+            <Settings size={14} /> Configurar Briefings
+          </button>
+          <button
+            onClick={() => setShowTemplatesModal(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl font-bold uppercase tracking-widest text-[10px] transition-colors"
+          >
+            <Settings size={14} /> Configurar Templates
+          </button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
@@ -585,6 +595,12 @@ export const OnboardingTab: React.FC<{ onNavigateToClients: (client: Client) => 
       {showTemplatesModal && (
         <OnboardingTemplatesModal
           onClose={() => setShowTemplatesModal(false)}
+        />
+      )}
+
+      {showBriefingsModal && (
+        <BriefingTemplatesModal
+          onClose={() => setShowBriefingsModal(false)}
         />
       )}
     </div>

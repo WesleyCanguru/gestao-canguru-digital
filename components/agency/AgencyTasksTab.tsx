@@ -13,6 +13,7 @@ import {
   Filter,
   MoreVertical,
   X,
+  Settings2,
   Check,
   Edit2,
   Image as ImageIcon,
@@ -36,6 +37,8 @@ dayjs.extend(isToday);
 dayjs.extend(isTomorrow);
 dayjs.locale('pt-br');
 
+import { ProcessTemplatesModal } from './ProcessTemplatesModal';
+
 const PROCESS_TYPES = [
   { id: 'carrossel', name: 'Carrossel', icon: ImageIcon, color: 'text-purple-500 bg-purple-50 border-purple-100' },
   { id: 'reels', name: 'Reels', icon: Video, color: 'text-pink-500 bg-pink-50 border-pink-100' },
@@ -49,6 +52,7 @@ export const AgencyTasksTab: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'hoje' | 'processos' | 'todas'>('hoje');
   const [isAddingTask, setIsAddingTask] = useState(false);
   const [isAddingProcess, setIsAddingProcess] = useState(false);
+  const [isConfiguringProcesses, setIsConfiguringProcesses] = useState(false);
   const [editingTask, setEditingTask] = useState<AgencyTask | null>(null);
   const [clients, setClients] = useState<any[]>([]);
   const [refreshKey, setRefreshKey] = useState(0);
@@ -99,12 +103,20 @@ export const AgencyTasksTab: React.FC = () => {
 
         <div className="flex gap-3 pb-2">
           {activeTab === 'processos' ? (
-            <button
-              onClick={() => setIsAddingProcess(true)}
-              className="flex items-center gap-2 px-6 py-2.5 bg-brand-dark text-white rounded-xl font-bold text-xs uppercase tracking-widest hover:shadow-lg transition-all whitespace-nowrap"
-            >
-              <Plus size={16} /> Iniciar Processo
-            </button>
+            <>
+              <button
+                onClick={() => setIsConfiguringProcesses(true)}
+                className="flex items-center gap-2 px-6 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl font-bold text-xs uppercase tracking-widest transition-colors whitespace-nowrap"
+              >
+                <Settings2 size={16} /> Configurar Templates
+              </button>
+              <button
+                onClick={() => setIsAddingProcess(true)}
+                className="flex items-center gap-2 px-6 py-2.5 bg-brand-dark text-white rounded-xl font-bold text-xs uppercase tracking-widest hover:shadow-lg transition-all whitespace-nowrap"
+              >
+                <Plus size={16} /> Iniciar Processo
+              </button>
+            </>
           ) : (
             <>
               <button
@@ -146,6 +158,14 @@ export const AgencyTasksTab: React.FC = () => {
             clients={clients} 
             onClose={() => setIsAddingProcess(false)}
             onSuccess={() => { setIsAddingProcess(false); triggerRefresh(); }}
+          />
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {isConfiguringProcesses && (
+          <ProcessTemplatesModal
+            onClose={() => setIsConfiguringProcesses(false)}
           />
         )}
       </AnimatePresence>

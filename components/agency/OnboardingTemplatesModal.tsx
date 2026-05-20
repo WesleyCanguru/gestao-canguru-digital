@@ -181,7 +181,34 @@ export function OnboardingTemplatesModal({ onClose }: Props) {
                   </div>
 
                   {phaseTopLevel.length === 0 ? (
-                    <p className="text-sm text-gray-400 italic bg-white p-4 rounded-2xl border border-gray-100">Nenhum template nesta fase.</p>
+                    <div className="bg-white p-4 rounded-2xl border border-gray-100 flex flex-col items-center justify-center gap-2">
+                       <p className="text-sm text-gray-400 italic">Nenhum template nesta fase.</p>
+                       <button 
+                         onClick={async () => {
+                           if (!window.confirm("Deseja copiar os templates padrão do sistema?")) return;
+                           const { data: defaultTpls } = await supabase.from('onboarding_templates').select('*').eq('agency_id', 1).order('phase').order('position');
+                           if (!defaultTpls) return;
+                           const newTemplates = defaultTpls.map(t => ({...t, id: undefined, created_at: undefined, agency_id: agencyId}));
+                           const parents = newTemplates.filter(t => !t.parent_id);
+                           const { data: insertedParents } = await supabase.from('onboarding_templates').insert(parents).select('*');
+                           if (insertedParents && insertedParents.length > 0) {
+                             const children = newTemplates.filter(t => t.parent_id);
+                             const childrenWithNewParents = children.map(c => {
+                               const parentTpl = defaultTpls.find(p => p.id === c.parent_id);
+                               const newParent = insertedParents.find(p => p.title === parentTpl?.title && p.phase === parentTpl?.phase);
+                               return { ...c, parent_id: newParent ? newParent.id : null };
+                             });
+                             if (childrenWithNewParents.length > 0) {
+                               await supabase.from('onboarding_templates').insert(childrenWithNewParents);
+                             }
+                           }
+                           fetchTemplates();
+                         }}
+                         className="px-3 py-1.5 mt-2 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-colors"
+                       >
+                         Carregar Padrões do Sistema
+                       </button>
+                    </div>
                   ) : (
                     <DndContext 
                       sensors={sensors}

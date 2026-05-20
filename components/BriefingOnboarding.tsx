@@ -110,6 +110,7 @@ export const BriefingOnboarding: React.FC<{ isDashboardView?: boolean }> = ({ is
   const [selectedBriefingType, setSelectedBriefingType] = useState<string | null>(null);
   const [formData, setFormData] = useState<Record<string, any>>({});
   const [saving, setSaving] = useState(false);
+  const [customTemplates, setCustomTemplates] = useState<Record<string, any>>({});
 
   useEffect(() => {
     if (activeClient) {
@@ -133,6 +134,22 @@ export const BriefingOnboarding: React.FC<{ isDashboardView?: boolean }> = ({ is
   const loadBriefings = async () => {
     setLoading(true);
     try {
+      // Load custom templates first
+      const { data: templatesData } = await supabase
+        .from('agency_briefing_templates')
+        .select('*')
+        .eq('agency_id', agencyId);
+      
+      const templatesMap: Record<string, any> = {};
+      if (templatesData && templatesData.length > 0) {
+        templatesData.forEach(t => {
+          templatesMap[t.briefing_type] = t;
+        });
+        setCustomTemplates(templatesMap);
+      } else {
+        setCustomTemplates({});
+      }
+
       const services = activeClient?.services || [];
       const customTypes = activeClient?.features_settings?.active_briefing_types || [];
       
@@ -208,14 +225,49 @@ export const BriefingOnboarding: React.FC<{ isDashboardView?: boolean }> = ({ is
 
   const handleSave = async (complete: boolean) => {
     if (!selectedBriefingType || !activeClient) return;
+    
+    if (complete) {
+      const currentSpec = customTemplates[selectedBriefingType] || BRIEFING_QUESTIONS[selectedBriefingType];
+      if (currentSpec && currentSpec.questions) {
+        let hasMissing = false;
+        
+        for (const q of currentSpec.questions) {
+          const val = formData[q.key];
+          
+          if (q.type === 'object' && q.objectKeys) {
+             let missingObj = false;
+             for (const objKey of q.objectKeys) {
+                if (!val || typeof val !== 'object' || !val[objKey] || (typeof val[objKey] === 'string' && val[objKey].trim() === '')) {
+                   missingObj = true;
+                }
+             }
+             if (missingObj) hasMissing = true;
+          } else if (q.type === 'array') {
+             if (!val || (Array.isArray(val) && val.length === 0) || (typeof val === 'string' && val.trim() === '')) {
+                hasMissing = true;
+             }
+          } else {
+             if (val === undefined || val === null || (typeof val === 'string' && val.trim() === '')) {
+                hasMissing = true;
+             }
+          }
+        }
+        
+        if (hasMissing) {
+           alert("Por favor, preencha todas as perguntas antes de concluir o briefing.");
+           return;
+        }
+      }
+    }
+
     setSaving(true);
     
     try {
       // Process array fields
       const processedData = { ...formData };
-      const currentSpec = BRIEFING_QUESTIONS[selectedBriefingType];
+      const currentSpec = customTemplates[selectedBriefingType] || BRIEFING_QUESTIONS[selectedBriefingType];
       if (currentSpec) {
-        currentSpec.questions.forEach(q => {
+        currentSpec.questions.forEach((q: any) => {
           if (q.type === 'array' && typeof processedData[q.key] === 'string') {
             processedData[q.key] = processedData[q.key].split(',').map((s: string) => s.trim()).filter(Boolean);
           }
@@ -287,7 +339,7 @@ export const BriefingOnboarding: React.FC<{ isDashboardView?: boolean }> = ({ is
   const completedCount = briefings.filter(b => b.is_completed).length;
 
   if (selectedBriefingType) {
-    const briefingSpec = BRIEFING_QUESTIONS[selectedBriefingType];
+    const briefingSpec = customTemplates[selectedBriefingType] || BRIEFING_QUESTIONS[selectedBriefingType];
     const questions = briefingSpec ? briefingSpec.questions : [];
     const title = briefingSpec ? briefingSpec.title : selectedBriefingType;
 
@@ -433,7 +485,8 @@ export const BriefingOnboarding: React.FC<{ isDashboardView?: boolean }> = ({ is
           <div className="mb-10 bg-gray-50 p-6 rounded-3xl border border-gray-100">
             <h3 className="text-sm font-bold text-brand-dark uppercase tracking-widest mb-4">Gerenciar Formulários Ativos</h3>
             <div className="flex flex-wrap gap-2">
-              {Object.entries(BRIEFING_QUESTIONS).map(([type, spec]) => {
+              {Array.from(new Set([...Object.keys(BRIEFING_QUESTIONS), ...Object.keys(customTemplates)])).map((type) => {
+                const spec = customTemplates[type] || BRIEFING_QUESTIONS[type];
                 const isActive = briefings.some(b => b.briefing_type === type);
                 return (
                   <button
@@ -456,7 +509,7 @@ export const BriefingOnboarding: React.FC<{ isDashboardView?: boolean }> = ({ is
 
         <div className="grid gap-4 sm:grid-cols-2 mb-10 max-w-2xl mx-auto">
           {briefings.map(b => {
-             const spec = BRIEFING_QUESTIONS[b.briefing_type];
+             const spec = customTemplates[b.briefing_type] || BRIEFING_QUESTIONS[b.briefing_type];
              const title = spec ? spec.title : b.briefing_type;
              return (
               <div 
