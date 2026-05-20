@@ -79,6 +79,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   });
 
+  useEffect(() => {
+    // Refresh client in background on app load if we have one from localStorage
+    if (activeClient?.id) {
+       supabase
+         .from('clients')
+         .select('*')
+         .eq('id', activeClient.id)
+         .single()
+         .then(({ data, error }) => {
+            if (!error && data) {
+               setActiveClientState(data as Client);
+               localStorage.setItem('next_app_client', JSON.stringify(data));
+            }
+         });
+    }
+  }, []);
+
   const login = (role: UserRole) => {
     // Fallback/Legacy direct login mechanism (usually won't be used now without agency context)
     setUserRole(role);

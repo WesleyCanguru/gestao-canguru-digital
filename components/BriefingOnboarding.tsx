@@ -167,8 +167,16 @@ export const BriefingOnboarding: React.FC<{ isDashboardView?: boolean }> = ({ is
         setCustomTemplates({});
       }
 
-      const services = activeClient?.services || [];
-      const customTypes = activeClient?.features_settings?.active_briefing_types || [];
+      // Load fresh client data to ensure features_settings is up-to-date
+      const { data: freshClientData } = await supabase
+        .from('clients')
+        .select('services, features_settings, onboarding_completed')
+        .eq('id', activeClient!.id)
+        .single();
+        
+      const services = freshClientData?.services || activeClient?.services || [];
+      const customTypes = freshClientData?.features_settings?.active_briefing_types || activeClient?.features_settings?.active_briefing_types || [];
+
       
       const { data: existingBriefings } = await supabase
         .from('client_briefings')
