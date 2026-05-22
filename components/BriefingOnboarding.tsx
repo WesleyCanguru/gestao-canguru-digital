@@ -128,6 +128,7 @@ export const BriefingOnboarding: React.FC<{ isDashboardView?: boolean }> = ({ is
   const [formData, setFormData] = useState<Record<string, any>>({});
   const [saving, setSaving] = useState(false);
   const [customTemplates, setCustomTemplates] = useState<Record<string, any>>({});
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (activeClient) {
@@ -143,6 +144,9 @@ export const BriefingOnboarding: React.FC<{ isDashboardView?: boolean }> = ({ is
         const targetBriefing = briefings.find(b => b.briefing_type === typeParam);
         if (targetBriefing && !selectedBriefingType) {
           handleSelectBriefing(targetBriefing);
+          // Remove from URL so it doesn't get re-triggered when returning to the menu
+          const newUrl = window.location.pathname + '?view=strategic-briefings';
+          window.history.replaceState({}, document.title, newUrl);
         }
       }
     }
@@ -283,7 +287,8 @@ export const BriefingOnboarding: React.FC<{ isDashboardView?: boolean }> = ({ is
         }
         
         if (hasMissing) {
-           alert("Por favor, preencha todas as perguntas antes de concluir o briefing.");
+           setError("Por favor, preencha todas as perguntas antes de concluir o briefing.");
+           setTimeout(() => setError(null), 5000);
            return;
         }
       }
@@ -474,7 +479,12 @@ export const BriefingOnboarding: React.FC<{ isDashboardView?: boolean }> = ({ is
               ))}
             </div>
 
-            <div className="mt-12 flex flex-col sm:flex-row gap-4 pt-8 border-t border-gray-100 pb-10">
+            <div className="mt-12 flex flex-col sm:flex-row gap-4 pt-8 border-t border-gray-100 pb-10 relative">
+              {error && (
+                <div className="absolute -top-16 left-0 right-0 p-4 bg-red-50 text-red-600 border border-red-100 rounded-2xl flex items-center justify-center gap-2 font-bold text-sm tracking-wide shadow-sm animate-in fade-in slide-in-from-bottom-2">
+                  <AlertCircle size={18} /> {error}
+                </div>
+              )}
               <button
                 onClick={() => handleSave(false)}
                 disabled={saving}

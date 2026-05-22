@@ -41,7 +41,12 @@ export const OnboardingTab: React.FC<{ onNavigateToClients: (client: Client) => 
 
   const copyBriefingLink = (type: string) => {
     const baseUrl = window.location.origin;
-    const link = `${baseUrl}/?view=briefing&type=${type}`;
+    let link = '';
+    if (type === 'ALL') {
+      link = `${baseUrl}/?view=strategic-briefings`;
+    } else {
+      link = `${baseUrl}/?view=briefing&type=${type}`;
+    }
     navigator.clipboard.writeText(link);
     setCopiedId(type);
     setTimeout(() => setCopiedId(null), 2000);
@@ -498,10 +503,26 @@ export const OnboardingTab: React.FC<{ onNavigateToClients: (client: Client) => 
               <div>
                 <h3 className="text-2xl font-black text-brand-dark tracking-tight">Briefings Estratégicos</h3>
                 <p className="text-sm font-bold text-gray-500 uppercase tracking-widest mt-1">Cliente: {viewingBriefingsClient.name}</p>
+                <div className="mt-4">
+                  <button 
+                    onClick={() => copyBriefingLink('ALL')}
+                    className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all ${
+                      copiedId === 'ALL' 
+                        ? 'bg-brand-dark text-white shadow-sm' 
+                        : 'bg-white text-gray-500 hover:bg-brand-dark hover:text-white border border-gray-100 shadow-sm'
+                    }`}
+                  >
+                    {copiedId === 'ALL' ? (
+                      <><Check size={14} /> Link Copiado</>
+                    ) : (
+                      <><LinkIcon size={14} /> Copiar Link do Painel Geral de Briefings</>
+                    )}
+                  </button>
+                </div>
               </div>
               <button 
                 onClick={() => setViewingBriefingsClient(null)}
-                className="p-3 hover:bg-white rounded-2xl transition-all shadow-sm group"
+                className="p-3 hover:bg-white rounded-2xl transition-all shadow-sm group self-start"
               >
                 <X size={24} className="text-gray-400 group-hover:text-red-500 transition-colors" />
               </button>

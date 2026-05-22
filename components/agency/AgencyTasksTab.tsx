@@ -265,28 +265,99 @@ const HojeTasks: React.FC<{ clients: any[], onEditTask: (t: AgencyTask) => void,
     );
   }
 
-  const renderPriorityGroup = (priorityLabel: string, priorityKey: string, icon: string, taskList: AgencyTask[]) => {
-    const groupTasks = taskList.filter(t => t.priority === priorityKey);
-    if (groupTasks.length === 0) return null;
-    return (
-      <div key={priorityKey} className="space-y-2 mb-6">
-        <div className="flex items-center gap-2 mb-3">
-          <span className="text-gray-400 text-xs">{icon}</span>
-          <span className="text-xs font-bold text-gray-500 uppercase tracking-widest">{priorityLabel}</span>
-        </div>
-        {groupTasks.map(task => (
-          <TaskListItem key={task.id} task={task} onToggle={() => toggleStatus(task)} onEdit={() => onEditTask(task)} isTodayView />
-        ))}
-      </div>
-    );
+  const isCompletedTodayFunc = (t: AgencyTask) => t.status === 'completed' || (t.completed_at && dayjs(t.completed_at).format('YYYY-MM-DD') === dayjs().format('YYYY-MM-DD'));
+
+  const rotinaDia = tasks.filter(t => t.recurrence_type === 'daily');
+  const rotinaConcluida = rotinaDia.length > 0 && rotinaDia.every(isCompletedTodayFunc);
+
+  const altasUrgentes = tasks.filter(t => t.recurrence_type !== 'daily' && ['urgente', 'alta'].includes(t.priority));
+  const normaisBaixas = tasks.filter(t => t.recurrence_type !== 'daily' && ['normal', 'baixa'].includes(t.priority));
+
+  const renderClientGroup = (taskList: AgencyTask[]) => {
+    const groups: Record<string, { label: string, color?: string, tasks: AgencyTask[] }> = {};
+    taskList.forEach(t => {
+      const gId = t.client_id || 'interno';
+      if (!groups[gId]) {
+         groups[gId] = {
+           label: t.client?.name || 'Canguru Digital',
+           color: t.client?.color,
+           tasks: []
+         };
+      }
+      groups[gId].tasks.push(t);
+    });
+
+    const sortedGroups = Object.keys(groups).sort((a,b) => groups[a].label.localeCompare(groups[b].label));
+
+    return sortedGroups.map(key => {
+       const group = groups[key];
+       return (
+         <div key={key} className="mb-6 bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-sm">
+            <div className="bg-gray-50/50 px-4 py-3 border-b border-gray-100 flex items-center gap-2">
+               {group.color ? (
+                  <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: group.color }}></span>
+               ) : (
+                  <Briefcase size={14} className="text-brand-dark" />
+               )}
+               <h4 className="font-bold text-gray-800 text-sm tracking-tight">{group.label}</h4>
+            </div>
+            <div className="divide-y divide-gray-50">
+               {group.tasks.map(task => (
+                 <TaskListItem key={task.id} task={task} onToggle={() => toggleStatus(task)} onEdit={() => onEditTask(task)} isTodayView />
+               ))}
+            </div>
+         </div>
+       );
+    });
   };
 
   return (
-    <div className="space-y-4">
-      {renderPriorityGroup('URGENTE', 'urgente', '⚡', tasks)}
-      {renderPriorityGroup('ALTA', 'alta', '▲', tasks)}
-      {renderPriorityGroup('NORMAL', 'normal', '●', tasks)}
-      {renderPriorityGroup('BAIXA', 'baixa', '▽', tasks)}
+    <div className="space-y-10">
+      {/* Bloco 1: Rotina do Dia */}
+      {rotinaDia.length > 0 && (
+         <div>
+            <h3 className="text-lg font-black text-brand-dark tracking-tight mb-4 flex items-center gap-2">
+               ☀️ Rotina do Dia
+            </h3>
+            <div className="bg-brand-dark/5 border border-brand-dark/10 rounded-3xl p-5 md:p-6 mb-8">
+               {rotinaConcluida ? (
+                  <div className="flex flex-col items-center justify-center py-6 text-center">
+                     <div className="w-14 h-14 bg-green-100 text-green-500 rounded-full flex items-center justify-center mb-3">
+                        <CheckCircle2 size={28} />
+                     </div>
+                     <h4 className="font-bold text-gray-900 text-lg">Rotina do dia concluída ✓</h4>
+                     <p className="text-gray-500 text-sm font-medium">Você finalizou todas as tarefas diárias.</p>
+                  </div>
+               ) : (
+                  <div className="space-y-2">
+                     {rotinaDia.map(task => (
+                        <TaskListItem key={task.id} task={task} onToggle={() => toggleStatus(task)} onEdit={() => onEditTask(task)} isTodayView />
+                     ))}
+                  </div>
+               )}
+            </div>
+         </div>
+      )}
+
+      {/* Bloco 2: Prioridade Alta & Urgente */}
+      {altasUrgentes.length > 0 && (
+         <div>
+            <h3 className="text-base font-bold text-red-600 uppercase tracking-widest mb-4 flex items-center gap-2">
+               ⚡ Prioridade Alta & Urgente
+            </h3>
+            {renderClientGroup(altasUrgentes)}
+         </div>
+      )}
+
+      {/* Bloco 3: Normal & Baixa */}
+      {normaisBaixas.length > 0 && (
+         <div className="opacity-80 hover:opacity-100 transition-opacity">
+            <h3 className="text-base font-bold text-blue-500 uppercase tracking-widest mb-4 flex items-center gap-2">
+               ● Normal & Baixa
+            </h3>
+            {renderClientGroup(normaisBaixas)}
+         </div>
+      )}
     </div>
   );
 };
@@ -679,7 +750,6 @@ const TodasTasks: React.FC<{ clients: any[], onEditTask: (t: AgencyTask) => void
   const [tasks, setTasks] = useState<AgencyTask[]>([]);
   const [loading, setLoading] = useState(true);
   const [filterClient, setFilterClient] = useState('all');
-  const [showCompleted, setShowCompleted] = useState(false);
 
   useEffect(() => {
     fetchTasks();
@@ -692,9 +762,7 @@ const TodasTasks: React.FC<{ clients: any[], onEditTask: (t: AgencyTask) => void
       const { data } = await supabase
         .from('agency_tasks')
         .select('*, client:clients(id, name, color, initials)')
-        .eq('agency_id', agencyId)
-        .order('status', { ascending: true }) // pending first
-        .order('due_date', { ascending: true, nullsFirst: false });
+        .eq('agency_id', agencyId);
 
       if (data) setTasks(data);
     } catch (err) {
@@ -705,9 +773,14 @@ const TodasTasks: React.FC<{ clients: any[], onEditTask: (t: AgencyTask) => void
   };
 
   const toggleStatus = async (task: AgencyTask) => {
-    const newStatus = task.status === 'completed' ? 'pending' : 'completed';
+    const isCompletedToday = task.completed_at && dayjs(task.completed_at).format('YYYY-MM-DD') === dayjs().format('YYYY-MM-DD');
+    const isCurrentlyDone = task.status === 'completed' || (task.recurrence_type !== 'none' && isCompletedToday);
+
+    const newStatus = isCurrentlyDone ? 'pending' : 'completed';
+    const completedAt = isCurrentlyDone ? null : new Date().toISOString();
+
     await supabase.from('agency_tasks')
-      .update({ status: newStatus, completed_at: newStatus === 'completed' ? new Date().toISOString() : null })
+      .update({ status: newStatus, completed_at: completedAt })
       .eq('agency_id', agencyId)
       .eq('id', task.id);
     await fetchTasks();
@@ -720,12 +793,58 @@ const TodasTasks: React.FC<{ clients: any[], onEditTask: (t: AgencyTask) => void
     return true;
   });
 
-  const pending = filtered.filter(t => t.status === 'pending');
-  const completed = filtered.filter(t => t.status === 'completed');
+  const priorityOrder = { urgente: 1, alta: 2, normal: 3, baixa: 4 };
+
+  const groups: Record<string, { label: string, color?: string, internal: boolean, pending: AgencyTask[], completed: AgencyTask[] }> = {};
+
+  filtered.forEach(t => {
+    const gId = t.client_id || 'interno';
+    if (!groups[gId]) {
+       groups[gId] = {
+         label: t.client?.name || 'Canguru Digital',
+         color: t.client?.color,
+         internal: !t.client_id,
+         pending: [],
+         completed: []
+       };
+    }
+    
+    const isCompletedToday = t.completed_at && dayjs(t.completed_at).format('YYYY-MM-DD') === dayjs().format('YYYY-MM-DD');
+    const isDone = t.status === 'completed' || (t.recurrence_type !== 'none' && isCompletedToday);
+
+    if (isDone) {
+       groups[gId].completed.push(t);
+    } else {
+       groups[gId].pending.push(t);
+    }
+  });
+
+  const sortTasks = (taskList: AgencyTask[]) => {
+     return taskList.sort((a,b) => {
+        const p1 = priorityOrder[a.priority as keyof typeof priorityOrder] || 3;
+        const p2 = priorityOrder[b.priority as keyof typeof priorityOrder] || 3;
+        if (p1 !== p2) return p1 - p2;
+        if (a.due_date === b.due_date) return 0;
+        if (!a.due_date) return 1;
+        if (!b.due_date) return -1;
+        return a.due_date.localeCompare(b.due_date);
+     });
+  };
+
+  Object.values(groups).forEach(g => {
+    g.pending = sortTasks(g.pending);
+    g.completed = sortTasks(g.completed); // Optional, order completed as well.
+  });
+
+  const sortedGroupsKeys = Object.keys(groups).sort((a,b) => {
+     if (groups[a].internal && !groups[b].internal) return -1;
+     if (!groups[a].internal && groups[b].internal) return 1;
+     return groups[a].label.localeCompare(groups[b].label);
+  });
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-4 mb-6">
+      <div className="flex flex-col sm:flex-row sm:items-center gap-4 mb-8">
         <div className="flex items-center gap-2 text-gray-400">
           <Filter size={18} />
           <span className="text-xs font-bold uppercase tracking-widest">Filtrar por Cliente:</span>
@@ -733,9 +852,9 @@ const TodasTasks: React.FC<{ clients: any[], onEditTask: (t: AgencyTask) => void
         <select
           value={filterClient}
           onChange={(e) => setFilterClient(e.target.value)}
-          className="px-4 py-2 bg-white border border-gray-100 rounded-xl text-sm font-medium text-brand-dark outline-none cursor-pointer"
+          className="px-4 py-2.5 bg-white border border-gray-100 rounded-xl text-sm font-medium text-brand-dark outline-none cursor-pointer min-w-[250px] shadow-sm appearance-none"
         >
-          <option value="all">Todos</option>
+          <option value="all">Ver Todos</option>
           <option value="internal">Canguru Digital (Interno)</option>
           {clients.map(c => (
             <option key={c.id} value={c.id}>{c.name}</option>
@@ -745,32 +864,67 @@ const TodasTasks: React.FC<{ clients: any[], onEditTask: (t: AgencyTask) => void
 
       {loading ? (
         <div className="text-gray-400 text-sm">Carregando...</div>
+      ) : Object.keys(groups).length === 0 ? (
+        <div className="text-center py-12 bg-white border border-dashed border-gray-200 rounded-3xl text-gray-400 text-sm font-medium shadow-sm">
+           Nenhuma tarefa encontrada neste filtro.
+        </div>
       ) : (
         <div className="space-y-8">
-          <div className="space-y-2">
-            {pending.length === 0 ? (
-               <div className="text-center py-8 text-gray-400 text-sm border border-dashed rounded-2xl">Nenhuma tarefa pendente neste filtro.</div>
-            ) : (
-               pending.map(task => <TaskListItem key={task.id} task={task} onToggle={() => toggleStatus(task)} onEdit={() => onEditTask(task)} />)
-            )}
-          </div>
+           {sortedGroupsKeys.map(key => {
+              const group = groups[key];
+              return (
+                 <div key={key} className="bg-white rounded-[2rem] border border-gray-100 shadow-sm shadow-black/[0.01] overflow-hidden">
+                    <div className="px-6 py-4 bg-gray-50/50 border-b border-gray-100 flex gap-3 items-center">
+                       {group.internal ? (
+                          <div className="w-8 h-8 rounded-lg bg-brand-dark flex flex-col items-center justify-center text-white text-[10px] uppercase font-black leading-tight border border-brand-dark/20">
+                             <div className="leading-[10px]">CG</div>
+                             <div className="leading-[10px]">RU</div>
+                          </div>
+                       ) : group.color ? (
+                          <div className="w-8 h-8 rounded-lg flex items-center justify-center text-white font-black text-sm border border-black/5" style={{ backgroundColor: group.color }}>
+                             {group.label.substring(0, 2).toUpperCase()}
+                          </div>
+                       ) : (
+                          <div className="w-8 h-8 rounded-lg bg-gray-200 flex items-center justify-center text-gray-500 border border-gray-300">
+                             <Briefcase size={14} />
+                          </div>
+                       )}
+                       <div>
+                          <h4 className="font-bold text-gray-900 text-base tracking-tight">{group.label}</h4>
+                          <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{group.internal ? 'Processos Internos' : 'Cliente da Agência'}</span>
+                       </div>
+                    </div>
+                    
+                    <div className="p-4 sm:p-6 space-y-6">
+                       {group.pending.length > 0 && (
+                          <div className="space-y-2">
+                             {group.pending.map(task => (
+                                <TaskListItem key={task.id} task={task} onToggle={() => toggleStatus(task)} onEdit={() => onEditTask(task)} />
+                             ))}
+                          </div>
+                       )}
 
-          <div className="border-t border-gray-100 pt-6">
-            <button 
-              onClick={() => setShowCompleted(!showCompleted)}
-              className="flex items-center gap-2 text-gray-500 hover:text-brand-dark transition-colors font-bold text-sm uppercase tracking-widest mb-4"
-            >
-              <ChevronRight size={18} className={`transition-transform ${showCompleted ? 'rotate-90' : ''}`} />
-              Ver Concluídas ({completed.length})
-            </button>
-            <AnimatePresence>
-              {showCompleted && (
-                <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden space-y-2">
-                  {completed.map(task => <TaskListItem key={task.id} task={task} onToggle={() => toggleStatus(task)} onEdit={() => onEditTask(task)} />)}
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
+                       {/* Completed Tasks - Show at the end, semi-transparent */}
+                       {group.completed.length > 0 && (
+                          <div className="space-y-2 pt-2 border-t border-gray-50">
+                             <h5 className="text-[10px] font-extrabold text-gray-400 uppercase tracking-widest mb-3 flex items-center gap-1.5 ml-2">
+                                <CheckCircle2 size={12} className="text-green-500" /> Tarefas Concluídas ({group.completed.length})
+                             </h5>
+                             <div className="opacity-70 grayscale-[0.2]">
+                                {group.completed.map(task => (
+                                   <TaskListItem key={task.id} task={task} onToggle={() => toggleStatus(task)} onEdit={() => onEditTask(task)} />
+                                ))}
+                             </div>
+                          </div>
+                       )}
+
+                       {group.pending.length === 0 && group.completed.length === 0 && (
+                          <div className="text-gray-400 text-sm text-center py-4">Nenhuma tarefa</div>
+                       )}
+                    </div>
+                 </div>
+              );
+           })}
         </div>
       )}
     </div>
