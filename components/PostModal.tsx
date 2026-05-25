@@ -1363,7 +1363,7 @@ export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, group
                                 <div className={`flex gap-3 ${comment.author_role === 'admin' ? 'flex-row-reverse' : 'flex-row'}`}>
                                     <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-[10px] font-bold text-white shadow-lg flex-shrink-0 border border-white/20 ${comment.author_role === 'admin' ? 'bg-brand-dark' : comment.author_role === 'approver' ? 'bg-green-600' : 'bg-purple-600'}`}>{comment.author_name.charAt(0)}</div>
                                     <div className={`p-4 rounded-2xl text-[13px] shadow-sm relative group leading-relaxed ${comment.author_role === 'admin' ? 'bg-white text-brand-dark rounded-tr-none border border-black/[0.03]' : comment.author_role === 'approver' ? 'bg-green-50 text-green-900 rounded-tl-none border border-green-100' : 'bg-purple-50 text-purple-900 rounded-tl-none border border-purple-100'}`}>
-                                       <p>{comment.content}</p>
+                                       <p className="whitespace-pre-wrap break-words">{comment.content}</p>
                                        {userRole === 'admin' && (
                                          <button onClick={() => setConfirmDeleteCommentId(comment.id)} className="absolute -top-2 -right-2 bg-white text-gray-400 hover:text-red-500 rounded-full p-1.5 shadow-md border border-black/[0.05] opacity-0 group-hover:opacity-100 transition-all" title="Excluir"><Trash2 size={12} /></button>
                                        )}
@@ -1386,7 +1386,7 @@ export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, group
                           value={newComment} 
                           onChange={e => setNewComment(e.target.value)} 
                           placeholder="Adicionar comentário estratégico..." 
-                          className="flex-grow pl-5 pr-14 py-4 bg-black/[0.02] border border-black/[0.05] rounded-2xl outline-none text-sm focus:ring-2 focus:ring-brand-dark/10 focus:border-brand-dark transition-all resize-none overflow-hidden min-h-[56px] my-auto" 
+                          className="flex-grow pl-5 pr-14 py-4 bg-black/[0.02] border border-black/[0.05] rounded-2xl outline-none text-sm focus:ring-2 focus:ring-brand-dark/10 focus:border-brand-dark transition-all resize-none overflow-y-auto min-h-[56px] max-h-[150px] my-auto" 
                           rows={Math.min(5, newComment.split('\n').length || 1)}
                           onKeyDown={e => {
                               if (e.key === 'Enter' && !e.shiftKey) {
