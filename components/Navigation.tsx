@@ -169,7 +169,7 @@ export const Navigation: React.FC<SidebarProps> = ({
   };
 
   const SidebarContent = (
-    <div className="flex flex-col h-full py-6">
+    <div className="flex flex-col h-full flex-1 overflow-hidden py-6">
       {/* Header */}
       <div className={`px-6 mb-8 flex items-center justify-between ${isCollapsed ? 'flex-col gap-4' : ''}`}>
         {!isCollapsed && (
@@ -365,13 +365,15 @@ export const Navigation: React.FC<SidebarProps> = ({
               className="fixed inset-y-0 left-0 w-72 bg-white z-[80] shadow-2xl lg:hidden"
             >
               <div className="flex flex-col h-full">
-                <div className="p-6 border-b border-gray-50 flex items-center justify-between">
+                <div className="p-6 border-b border-gray-50 flex items-center justify-between shrink-0">
                   <Logo size="small" />
                   <button onClick={() => setIsMobileOpen(false)} className="p-2 text-gray-400">
                     <X size={24} />
                   </button>
                 </div>
-                {SidebarContent}
+                <div className="flex-1 overflow-hidden">
+                  {SidebarContent}
+                </div>
               </div>
             </motion.div>
           </>

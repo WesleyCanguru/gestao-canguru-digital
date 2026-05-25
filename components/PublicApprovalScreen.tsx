@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase, parseImageUrl, stringifyImageUrl } from '../lib/supabase';
 import { PostData, PostStatus, DailyContent, PostComment, Client } from '../types';
-import { InstagramView, LinkedInView } from './PlatformViews';
+import { InstagramView, LinkedInView, TikTokView } from './PlatformViews';
 import { Logo } from './Logo';
 import { CheckCircle2, AlertTriangle, Send, User, Loader2, XCircle, Instagram, Linkedin, MessageSquare } from 'lucide-react';
 
@@ -21,7 +21,7 @@ export const PublicApprovalScreen: React.FC = () => {
   const [agencyId, setAgencyId] = useState<number | null>(null);
 
   // View State
-  const [activeTab, setActiveTab] = useState<'meta' | 'linkedin'>('meta'); // Default, atualizado no load
+  const [activeTab, setActiveTab] = useState<'meta' | 'linkedin' | 'tiktok'>('meta'); // Default, atualizado no load
 
   const [error, setError] = useState('');
   
@@ -509,6 +509,12 @@ export const PublicApprovalScreen: React.FC = () => {
                            >
                                <Linkedin size={16} /> LinkedIn
                            </button>
+                           <button 
+                               onClick={() => setActiveTab('tiktok')}
+                               className={`px-4 py-2 rounded-md text-sm font-bold flex items-center gap-2 transition-all ${activeTab === 'tiktok' ? 'bg-black text-white shadow-sm' : 'text-gray-500 hover:bg-gray-50'}`}
+                           >
+                               <span className="font-bold">♪</span> TikTok
+                           </button>
                        </div>
                    )}
 
@@ -531,6 +537,16 @@ export const PublicApprovalScreen: React.FC = () => {
                               </div>
                               {activeTab === 'linkedin' ? (
                                  <LinkedInView 
+                                   dayContent={effectiveContent} 
+                                   caption={displayCaption} 
+                                   imageUrl={displayImage} 
+                                   isVideo={!!isVideo} 
+                                   videoThumbnailUrl={safePost.video_thumbnail_url}
+                                   onImageClick={handleImageClick}
+                                   client={client}
+                                 />
+                              ) : activeTab === 'tiktok' ? (
+                                 <TikTokView
                                    dayContent={effectiveContent} 
                                    caption={displayCaption} 
                                    imageUrl={displayImage} 

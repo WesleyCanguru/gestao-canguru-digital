@@ -78,7 +78,7 @@ export interface WeeklyScheduleRow {
 
 export interface DailyContent {
   day: string;
-  platform: 'meta' | 'linkedin';
+  platform: 'meta' | 'linkedin' | 'tiktok';
   type: string;
   theme: string;
   bullets?: string[];
@@ -217,6 +217,7 @@ export interface Client {
   email: string | null;
   instagram: string | null;
   linkedin?: string | null;
+  tiktok?: string | null;
   color: string;
   initials: string;
   logo_url: string | null;

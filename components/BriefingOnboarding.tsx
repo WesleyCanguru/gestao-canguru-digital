@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase, useAuth } from '../lib/supabase';
-import { CheckCircle, AlertCircle, ChevronRight, FileText, Send, ArrowLeft, Target, LogOut } from 'lucide-react';
+import { CheckCircle, AlertCircle, ChevronRight, FileText, Send, ArrowLeft, Target, LogOut, Download } from 'lucide-react';
 import { Logo } from './Logo';
 
 export const BRIEFING_QUESTIONS: Record<string, { title: string, questions: any[] }> = {
@@ -383,6 +383,64 @@ export const BriefingOnboarding: React.FC<{ isDashboardView?: boolean }> = ({ is
     );
   }
 
+  const handleDownloadPDF = (briefing: any, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const spec = customTemplates[briefing.briefing_type] || BRIEFING_QUESTIONS[briefing.briefing_type];
+    const title = spec ? spec.title : briefing.briefing_type;
+    const questions = spec ? spec.questions : [];
+    
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) return;
+    
+    const dateStr = briefing.updated_at 
+          ? new Date(briefing.updated_at).toLocaleString('pt-BR', { dateStyle: 'long', timeStyle: 'short' })
+          : new Date(briefing.created_at).toLocaleString('pt-BR', { dateStyle: 'long', timeStyle: 'short' });
+
+    const html = `
+      <html>
+        <head>
+          <title>Briefing - ${title} - ${activeClient?.name}</title>
+          <style>
+            body { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; padding: 40px; color: #333; line-height: 1.6; max-width: 800px; margin: 0 auto; }
+            h1 { color: #111; font-size: 28px; margin-bottom: 5px; }
+            .subtitle { color: #666; font-size: 14px; margin-bottom: 40px; border-bottom: 2px solid #eee; padding-bottom: 20px; display: flex; justify-content: space-between; }
+            .question { font-weight: bold; font-size: 16px; color: #111; margin-top: 30px; margin-bottom: 10px; }
+            .answer { font-size: 15px; color: #333; background: #f9f9f9; padding: 15px 20px; border-left: 4px solid #111; border-radius: 4px; white-space: pre-wrap; }
+            .empty { font-style: italic; color: #999; }
+            .footer { margin-top: 50px; font-size: 12px; color: #aaa; text-align: center; border-top: 1px solid #eee; padding-top: 20px; }
+            @media print { body { padding: 0; } }
+          </style>
+        </head>
+        <body>
+          <h1>Briefing: ${title}</h1>
+          <div class="subtitle">
+            <div><strong>Cliente:</strong> ${activeClient?.name || 'Cliente'}</div>
+            <div><strong>Respondido em:</strong> ${dateStr}</div>
+          </div>
+          
+          <div class="content">
+            ${questions.map((q: any) => {
+               const ans = briefing.responses?.[q.key];
+               const hasAnswer = ans && (Array.isArray(ans) ? ans.length > 0 : String(ans).trim() !== '');
+               const displayAns = hasAnswer 
+                   ? (Array.isArray(ans) ? ans.join(', ') : (typeof ans === 'object' ? JSON.stringify(ans, null, 2) : String(ans)))
+                   : '<span class="empty">Não respondido</span>';
+               return '<div class="item"><div class="question">' + q.label + '</div><div class="answer">' + displayAns + '</div></div>';
+            }).join('')}
+          </div>
+          
+          <div class="footer">Gerado por Canguru Digital</div>
+          <script>
+            window.onload = function() { setTimeout(function() { window.print(); }, 500); };
+          </script>
+        </body>
+      </html>
+    `;
+    
+    printWindow.document.write(html);
+    printWindow.document.close();
+  };
+
   const renderHeader = () => (
     <header className="w-full max-w-7xl mx-auto px-4 sm:px-8 py-5 flex items-center justify-between border-b border-gray-100 bg-white/50 backdrop-blur-md">
       <div className="flex items-center gap-3">
@@ -578,6 +636,15 @@ export const BriefingOnboarding: React.FC<{ isDashboardView?: boolean }> = ({ is
                             {b.is_completed ? 'Concluído' : 'Pendente'}
                         </span>
                       </div>
+                      {b.is_completed && (
+                         <button 
+                             onClick={(e) => handleDownloadPDF(b, e)}
+                             title="Baixar respostas como PDF"
+                             className="p-2 hover:bg-gray-100 rounded-lg text-gray-400 hover:text-brand-dark transition-colors shrink-0"
+                         >
+                             <Download size={20} />
+                         </button>
+                      )}
                       <ChevronRight className="w-5 h-5 text-gray-300 shrink-0" />
                   </div>
                 </div>

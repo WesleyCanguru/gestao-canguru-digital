@@ -292,3 +292,63 @@ export const LinkedInView: React.FC<PlatformViewProps> = ({ dayContent, caption,
     </div>
   );
 };
+
+export const TikTokView: React.FC<PlatformViewProps> = ({ dayContent, caption, imageUrl, isVideo, videoThumbnailUrl, isUploading, onImageClick, client }) => {
+  const aspectRatioClass = 'aspect-[9/16]'; // TikTok is vertical
+  const handleRaw = client?.tiktok || client?.instagram || client?.name || 'canguru_digital';
+  const handle = handleRaw.replace('@', '').toLowerCase();
+  const logoUrl = client?.logo_url || 'https://i.postimg.cc/ZRYDpRWD/Rebranding-Canguru-Digital-(5000-x-2500-px).png';
+
+  return (
+    <div className="bg-[#010101] border border-gray-800 rounded-lg shadow-sm max-w-[320px] mx-auto overflow-hidden relative text-white">
+      {/* Media */}
+      <div className="w-full relative">
+        <MediaRenderer 
+          imageUrl={imageUrl} 
+          isVideo={isVideo} 
+          videoThumbnailUrl={videoThumbnailUrl}
+          isUploading={isUploading} 
+          aspectRatioClass={aspectRatioClass} 
+          onImageClick={onImageClick} 
+          helpText="1080x1920 (Vertical)"
+        />
+        
+        {/* Right Sidebar */}
+        <div className="absolute right-2 bottom-20 flex flex-col items-center gap-5 z-10 drop-shadow-lg">
+          <div className="w-10 h-10 rounded-full border-2 border-white overflow-hidden bg-gray-200">
+             <img src={logoUrl} alt="Avatar" className="w-full h-full object-cover" />
+          </div>
+          <div className="flex flex-col items-center gap-1 cursor-pointer">
+            <Heart size={30} className="text-white hover:text-red-500 transition-colors drop-shadow-md" />
+            <span className="text-xs font-semibold">12.4K</span>
+          </div>
+          <div className="flex flex-col items-center gap-1 cursor-pointer">
+            <MessageCircle size={30} className="text-white hover:text-gray-300 transition-colors drop-shadow-md" />
+            <span className="text-xs font-semibold">134</span>
+          </div>
+          <div className="flex flex-col items-center gap-1 cursor-pointer">
+            <Bookmark size={30} className="text-white hover:text-yellow-400 transition-colors drop-shadow-md" />
+            <span className="text-xs font-semibold">89</span>
+          </div>
+          <div className="flex flex-col items-center gap-1 cursor-pointer">
+            <SendIcon size={30} className="text-white hover:text-blue-400 transition-colors drop-shadow-md" />
+            <span className="text-xs font-semibold">12</span>
+          </div>
+        </div>
+
+        {/* Bottom Info */}
+        <div className="absolute bottom-4 left-3 right-16 z-10">
+            <h3 className="font-bold text-sm mb-1 drop-shadow-md">@{handle.toLowerCase().replace(/\s/g, '')}</h3>
+            <p className="text-sm line-clamp-2 leading-snug drop-shadow-md whitespace-pre-line">
+               {caption || <span className="text-white/70 italic">[Sua legenda aparecerá aqui...]</span>}
+            </p>
+            <div className="flex items-center gap-2 mt-3 text-xs drop-shadow-md font-semibold font-mono bg-black/40 px-3 py-1.5 rounded-full w-max max-w-full">
+               <span className="animate-spin-slow">🎵</span>
+               <span className="truncate">Som original - {handle}</span>
+            </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+

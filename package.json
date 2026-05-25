@@ -18,6 +18,8 @@
     "crypto-js": "^4.2.0",
     "dayjs": "^1.11.20",
     "dotenv": "^17.4.2",
+    "html2canvas": "^1.4.1",
+    "jspdf": "^4.2.1",
     "lucide-react": "^0.563.0",
     "motion": "^12.35.2",
     "react": "^19.2.4",

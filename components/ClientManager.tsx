@@ -186,6 +186,7 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
     email: '',
     instagram: '',
     linkedin: '',
+    tiktok: '',
     reportei_url: '',
     organic_reportei_url: '',
     paid_reportei_url: '',
@@ -257,6 +258,8 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
         responsible: form.responsible.trim() || null,
         email: form.email.trim() || null,
         instagram: form.instagram.trim() || null,
+        linkedin: form.linkedin.trim() || null,
+        tiktok: form.tiktok.trim() || null,
         organic_reportei_url: form.organic_reportei_url.trim() || null,
         paid_reportei_url: form.paid_reportei_url.trim() || null,
         drive_link: form.drive_link.trim() || null,
@@ -511,6 +514,7 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
       email: '', 
       instagram: '', 
       linkedin: '',
+      tiktok: '',
       organic_reportei_url: '',
       paid_reportei_url: '',
       drive_link: '',
@@ -534,7 +538,7 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
   };
 
   const handleEdit = async (client: Client) => {
-    const linkedinHandle = client.social_networks?.find(s => s.startsWith('linkedin_handle:'))?.split(':')[1] || '';
+    const linkedinHandle = client.linkedin || client.social_networks?.find(s => s.startsWith('linkedin_handle:'))?.split(':')[1] || '';
     
     setLoadingContract(true);
     let config = null;
@@ -561,6 +565,7 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
       email: client.email || '',
       instagram: client.instagram || '',
       linkedin: linkedinHandle,
+      tiktok: client.tiktok || '',
       organic_reportei_url: client.organic_reportei_url || '',
       paid_reportei_url: client.paid_reportei_url || '',
       drive_link: (client as any).drive_link || '',
@@ -818,6 +823,13 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
                 <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">LinkedIn</label>
                 <input type="text" value={form.linkedin} onChange={e => setForm(f => ({...f, linkedin: e.target.value}))}
                   placeholder="Nome da Empresa"
+                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">TikTok</label>
+                <input type="text" value={form.tiktok} onChange={e => setForm(f => ({...f, tiktok: e.target.value}))}
+                  placeholder="@empresa"
                   className="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
               </div>
 

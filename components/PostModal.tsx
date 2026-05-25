@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { DailyContent, PostData, PostComment, PostStatus } from '../types';
 import { useAuth, supabase, parseImageUrl, stringifyImageUrl } from '../lib/supabase';
 import { X, Send, Image as ImageIcon, CheckCircle2, AlertTriangle, Save, UploadCloud, Trash2, Edit3, RefreshCw, Link, Check, Calendar, Instagram, Linkedin, ChevronDown, Layers, Copy, LayoutTemplate, Eye, FileText, XCircle } from 'lucide-react';
-import { InstagramView, LinkedInView } from './PlatformViews';
+import { InstagramView, LinkedInView, TikTokView } from './PlatformViews';
 import { ConfirmModal } from './ConfirmModal';
 import { CustomDatePicker, CustomTimePicker } from './CustomPickers';
 
@@ -68,8 +68,8 @@ export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, group
   const [mobileTab, setMobileTab] = useState<'preview' | 'edit'>('preview');
   
   // Multi-Platform & Caption Logic
-  const [selectedPlatforms, setSelectedPlatforms] = useState<('meta' | 'linkedin')[]>([]);
-  const [previewPlatform, setPreviewPlatform] = useState<'meta' | 'linkedin'>('meta'); // Qual está sendo visualizada na esquerda
+  const [selectedPlatforms, setSelectedPlatforms] = useState<('meta' | 'linkedin' | 'tiktok')[]>([]);
+  const [previewPlatform, setPreviewPlatform] = useState<'meta' | 'linkedin' | 'tiktok'>('meta'); // Qual está sendo visualizada na esquerda
   
   const [useDifferentCaptions, setUseDifferentCaptions] = useState(false);
   const [captionMeta, setCaptionMeta] = useState('');
@@ -150,10 +150,10 @@ export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, group
             .eq('client_id', activeClient?.id)
             .maybeSingle();
 
-         const currentPlat = dateKey.includes('linkedin') ? 'linkedin' : 'meta';
+         const currentPlat = dateKey.includes('linkedin') ? 'linkedin' : (dateKey.includes('tiktok') ? 'tiktok' : 'meta');
          let otherPostData = null;
          let foundKeys = [dateKey];
-         let platformsFound: ('meta' | 'linkedin')[] = [currentPlat];
+         let platformsFound: ('meta' | 'linkedin' | 'tiktok')[] = [currentPlat as any];
          let metaCap = '';
          let linkedCap = '';
 
@@ -169,9 +169,9 @@ export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, group
              if (groupPosts) {
                  foundKeys = groupPosts.map(p => p.date_key);
                  groupPosts.forEach(p => {
-                     const plat = p.date_key.includes('linkedin') ? 'linkedin' : 'meta';
-                     if (!platformsFound.includes(plat)) platformsFound.push(plat);
-                     if (plat === 'meta') metaCap = p.caption || '';
+                     const plat = p.date_key.includes('linkedin') ? 'linkedin' : (p.date_key.includes('tiktok') ? 'tiktok' : 'meta');
+                     if (!platformsFound.includes(plat as any)) platformsFound.push(plat as any);
+                     if (plat === 'meta' || plat === 'tiktok') metaCap = p.caption || '';
                      else linkedCap = p.caption || '';
                      
                      if (p.date_key !== dateKey) {
@@ -181,24 +181,44 @@ export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, group
              }
          } else {
              // Fallback to old logic if groupKeys not provided
-             const otherPlat = currentPlat === 'linkedin' ? 'meta' : 'linkedin';
+             const otherPlat = currentPlat === 'linkedin' ? 'meta' : (currentPlat === 'tiktok' ? 'meta' : 'linkedin');
              const baseKey = `${currentD}-${currentM}-${currentY}`;
+             const siblingPlatforms: ('meta' | 'linkedin' | 'tiktok')[] = ['meta', 'linkedin', 'tiktok'];
+             const otherPlats = siblingPlatforms.filter(p => p !== currentPlat);
              
              // Extract suffix if present (e.g. timestamp or client_id)
              const parts = dateKey.split('-');
              const suffix = parts.length > 4 ? parts.slice(4).join('-') : '';
              
-             const otherKey = suffix ? `${baseKey}-${otherPlat}-${suffix}` : `${baseKey}-${otherPlat}`;
+             const otherKey = ''; // No longer used directly
 
-             const { data: fetchedOther } = await supabase
-                .from('posts')
-                .select('*')
-                .eq('date_key', otherKey)
-                .eq('agency_id', agencyId)
-                .eq('client_id', activeClient?.id)
-                .maybeSingle();
+             const fetchedOther = null; // Resolved dynamically in next step
                 
-             otherPostData = fetchedOther;
+             for (const otherPlat of otherPlats) {
+                 const otherKey = suffix ? `${baseKey}-${otherPlat}-${suffix}` : `${baseKey}-${otherPlat}`;
+                 const { data: fetchedOther } = await supabase
+                    .from('posts')
+                     .select('*')
+                     .eq('date_key', otherKey)
+                     .eq('agency_id', agencyId)
+                     .eq('client_id', activeClient?.id)
+                     .maybeSingle();
+
+                 if (fetchedOther && fetchedOther.status !== 'deleted') {
+                     if (!platformsFound.includes(otherPlat)) {
+                         platformsFound.push(otherPlat);
+                     }
+                     if (otherPlat === 'meta' || otherPlat === 'tiktok') {
+                         metaCap = fetchedOther.caption || metaCap || '';
+                     } else {
+                         linkedCap = fetchedOther.caption || linkedCap || '';
+                     }
+                     if (!foundKeys.includes(fetchedOther.date_key)) {
+                         foundKeys.push(fetchedOther.date_key);
+                     }
+                 }
+             }
+             otherPostData = null;
              
              if (currentPlat === 'meta') {
                  metaCap = mainPostData?.caption || '';
@@ -272,19 +292,19 @@ export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, group
   // HANDLERS
   // --------------------------------------------------------------------------------
 
-  const togglePlatform = (p: 'meta' | 'linkedin') => {
+  const togglePlatform = (p: 'meta' | 'linkedin' | 'tiktok') => {
       if (selectedPlatforms.includes(p)) {
           // Prevent removing the last one
           if (selectedPlatforms.length > 1) {
-              const newPlats = selectedPlatforms.filter(x => x !== p);
-              setSelectedPlatforms(newPlats);
+              const newPlats = selectedPlatforms.filter((x: any) => x !== p) as ('meta' | 'linkedin' | 'tiktok')[];
+              setSelectedPlatforms(newPlats as any);
               // Switch preview if we removed the active one
               if (previewPlatform === p) {
-                  setPreviewPlatform(newPlats[0]);
+                  setPreviewPlatform(newPlats[0] as any);
               }
           }
       } else {
-          setSelectedPlatforms([...selectedPlatforms, p]);
+          setSelectedPlatforms([...selectedPlatforms, p] as any);
       }
   };
 
@@ -412,7 +432,7 @@ export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, group
           } else {
               // A data NÃO mudou, mas precisamos verificar se alguma plataforma foi desmarcada
               for (const oldKey of originalKeys) {
-                  const plat = oldKey.includes('linkedin') ? 'linkedin' : 'meta';
+                  const plat = oldKey.includes('linkedin') ? 'linkedin' : (oldKey.includes('tiktok') ? 'tiktok' : 'meta');
                   if (!selectedPlatforms.includes(plat as any)) {
                       const { error: delErr } = await supabase.from('posts').upsert({
                           date_key: oldKey,
@@ -462,7 +482,7 @@ export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, group
           // Determine Caption
           let finalCaption = captionMeta;
           if (useDifferentCaptions) {
-              finalCaption = plat === 'meta' ? captionMeta : captionLinkedin;
+              finalCaption = plat === 'linkedin' ? captionLinkedin : captionMeta;
           }
 
           const payload = {
@@ -567,10 +587,10 @@ export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, group
   const changeStatus = async (newStatus: PostStatus, extraFields: Partial<PostData> = {}) => {
       const keysToUpdate = originalKeys.length > 0 ? originalKeys : [dateKey];
       for (const k of keysToUpdate) {
-          const plat = k.includes('linkedin') ? 'linkedin' : 'meta';
+          const plat = k.includes('linkedin') ? 'linkedin' : (k.includes('tiktok') ? 'tiktok' : 'meta');
           let finalCaption = captionMeta;
           if (useDifferentCaptions) {
-              finalCaption = plat === 'meta' ? captionMeta : captionLinkedin;
+              finalCaption = plat === 'linkedin' ? captionLinkedin : captionMeta;
           }
           
           await supabase.from('posts').upsert({
@@ -606,7 +626,7 @@ export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, group
         author_role: userRole, 
         author_name: userRole === 'admin' ? 'Canguru' : userRole === 'approver' ? (activeClient?.responsible || 'Wesley') : 'Equipe', 
         content: newComment, 
-        visible_to_admin: !isPrivate 
+        visible_to_admin: true 
     };
     const { data, error } = await supabase.from('comments').insert(newCommentObj).select().single();
     
@@ -756,7 +776,8 @@ export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, group
   const effectiveDayContent = { ...dayContent, theme: editedTheme, type: editedType, bullets: editedBullets ? editedBullets.split('\n') : [] };
   
   // Determine which caption to show in Preview
-  const previewCaption = (previewPlatform === 'meta' || !useDifferentCaptions) ? captionMeta : captionLinkedin;
+  const activePreviewPlatform = selectedPlatforms.length === 1 ? selectedPlatforms[0] : previewPlatform;
+  const previewCaption = (activePreviewPlatform === 'meta' || activePreviewPlatform === 'tiktok' || !useDifferentCaptions) ? captionMeta : captionLinkedin;
 
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-2 sm:p-4">
@@ -808,18 +829,30 @@ export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, group
                   {/* Preview Toggles (Only if both selected) */}
                   {selectedPlatforms.length > 1 && (
                       <div className="pointer-events-auto bg-white/5 backdrop-blur-md p-1 sm:p-1.5 rounded-xl shadow-2xl border border-white/10 flex gap-1 sm:gap-1.5 mr-10 sm:mr-0">
-                          <button 
-                              onClick={() => setPreviewPlatform('meta')}
-                              className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg text-[9px] sm:text-[10px] font-bold flex items-center gap-1.5 sm:gap-2 transition-all tracking-widest uppercase ${previewPlatform === 'meta' ? 'bg-white text-black shadow-lg' : 'text-white/60 hover:text-white hover:bg-white/5'}`}
-                          >
-                              <Instagram size={14} /> <span className="hidden sm:inline">Instagram</span>
-                          </button>
-                          <button 
-                              onClick={() => setPreviewPlatform('linkedin')}
-                              className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg text-[9px] sm:text-[10px] font-bold flex items-center gap-1.5 sm:gap-2 transition-all tracking-widest uppercase ${previewPlatform === 'linkedin' ? 'bg-white text-black shadow-lg' : 'text-white/60 hover:text-white hover:bg-white/5'}`}
-                          >
-                              <Linkedin size={14} /> <span className="hidden sm:inline">LinkedIn</span>
-                          </button>
+                          {selectedPlatforms.includes('meta') && (
+                              <button 
+                                  onClick={() => setPreviewPlatform('meta')}
+                                  className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg text-[9px] sm:text-[10px] font-bold flex items-center gap-1.5 sm:gap-2 transition-all tracking-widest uppercase ${activePreviewPlatform === 'meta' ? 'bg-white text-black shadow-lg' : 'text-white/60 hover:text-white hover:bg-white/5'}`}
+                              >
+                                  <Instagram size={14} /> <span className="hidden sm:inline">Instagram</span>
+                              </button>
+                          )}
+                          {selectedPlatforms.includes('linkedin') && (
+                              <button 
+                                  onClick={() => setPreviewPlatform('linkedin')}
+                                  className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg text-[9px] sm:text-[10px] font-bold flex items-center gap-1.5 sm:gap-2 transition-all tracking-widest uppercase ${activePreviewPlatform === 'linkedin' ? 'bg-white text-black shadow-lg' : 'text-white/60 hover:text-white hover:bg-white/5'}`}
+                              >
+                                  <Linkedin size={14} /> <span className="hidden sm:inline">LinkedIn</span>
+                              </button>
+                          )}
+                          {selectedPlatforms.includes('tiktok') && (
+                              <button 
+                                  onClick={() => setPreviewPlatform('tiktok')}
+                                  className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg text-[9px] sm:text-[10px] font-bold flex items-center gap-1.5 sm:gap-2 transition-all tracking-widest uppercase ${activePreviewPlatform === 'tiktok' ? 'bg-white text-black shadow-lg' : 'text-white/60 hover:text-white hover:bg-white/5'}`}
+                              >
+                                  <span className="font-bold">♪</span> <span className="hidden sm:inline">TikTok</span>
+                              </button>
+                          )}
                       </div>
                   )}
              </div>
@@ -851,8 +884,10 @@ export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, group
                               </div>
                           )}
                       </div>
-                  ) : previewPlatform === 'linkedin' ? (
+                  ) : activePreviewPlatform === 'linkedin' ? (
                     <LinkedInView dayContent={effectiveDayContent} caption={previewCaption} imageUrl={imageUrl} isVideo={!!isVideo} videoThumbnailUrl={videoThumbnailUrl} isUploading={isUploading} client={activeClient} />
+                  ) : activePreviewPlatform === 'tiktok' ? (
+                    <TikTokView dayContent={effectiveDayContent} caption={previewCaption} imageUrl={imageUrl} isVideo={!!isVideo} videoThumbnailUrl={videoThumbnailUrl} isUploading={isUploading} client={activeClient} />
                   ) : (
                     <InstagramView dayContent={effectiveDayContent} caption={previewCaption} imageUrl={imageUrl} isVideo={!!isVideo} videoThumbnailUrl={videoThumbnailUrl} isUploading={isUploading} client={activeClient} />
                   )}
@@ -878,7 +913,7 @@ export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, group
                       )}
                       <div className="flex items-center gap-2 mt-1">
                         <span className="text-[8px] sm:text-[9px] text-gray-400 uppercase font-bold tracking-[0.2em]">
-                            {selectedPlatforms.length > 1 ? 'Multi-plataforma' : (previewPlatform === 'meta' ? 'Instagram/Face' : 'LinkedIn')}
+                            {selectedPlatforms.length > 1 ? 'Multi-plataforma' : (previewPlatform === 'meta' ? 'Instagram/Face' : previewPlatform === 'tiktok' ? 'TikTok' : 'LinkedIn')}
                         </span>
                         <div className="w-1 h-1 rounded-full bg-gray-300" />
                         <span className="text-[8px] sm:text-[9px] text-gray-400 uppercase font-bold tracking-[0.2em]">
@@ -1025,6 +1060,14 @@ export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, group
                                     >
                                         <Linkedin size={16} /> LinkedIn
                                     </button>
+                                    {activeClient?.social_networks?.includes('TikTok') && (
+                                        <button 
+                                            onClick={() => togglePlatform('tiktok')} 
+                                            className={`flex-1 flex items-center justify-center gap-2 p-3 rounded-xl border transition-all text-[10px] font-bold uppercase tracking-widest ${selectedPlatforms.includes('tiktok') ? 'bg-brand-dark text-white border-brand-dark shadow-lg shadow-brand-dark/20' : 'bg-white text-gray-500 border-black/[0.08] hover:bg-gray-50'}`}
+                                        >
+                                            <span className="font-bold text-base leading-none">♪</span> TikTok
+                                        </button>
+                                    )}
                                 </div>
                             </div>
                         </div>
@@ -1339,13 +1382,18 @@ export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, group
              {(!isNew && canComment) && (
                 <div className="p-6 bg-white border-t border-black/[0.03] shrink-0">
                     <div className="relative flex items-center gap-3">
-                        <input 
-                          type="text" 
+                        <textarea 
                           value={newComment} 
                           onChange={e => setNewComment(e.target.value)} 
                           placeholder="Adicionar comentário estratégico..." 
-                          className="flex-grow pl-5 pr-14 py-4 bg-black/[0.02] border border-black/[0.05] rounded-2xl outline-none text-sm focus:ring-2 focus:ring-brand-dark/10 focus:border-brand-dark transition-all" 
-                          onKeyDown={e => e.key === 'Enter' && handleSendComment()} 
+                          className="flex-grow pl-5 pr-14 py-4 bg-black/[0.02] border border-black/[0.05] rounded-2xl outline-none text-sm focus:ring-2 focus:ring-brand-dark/10 focus:border-brand-dark transition-all resize-none overflow-hidden min-h-[56px] my-auto" 
+                          rows={Math.min(5, newComment.split('\n').length || 1)}
+                          onKeyDown={e => {
+                              if (e.key === 'Enter' && !e.shiftKey) {
+                                  e.preventDefault();
+                                  handleSendComment();
+                              }
+                          }} 
                           autoFocus={showRequestChangesInput} 
                         />
                         <button onClick={handleSendComment} disabled={!newComment.trim()} className="absolute right-2 p-2.5 bg-brand-dark text-white rounded-xl shadow-lg shadow-brand-dark/20 hover:bg-black transition-all active:scale-90 disabled:opacity-30"><Send size={18} /></button>

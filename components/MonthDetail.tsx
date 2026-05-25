@@ -24,7 +24,7 @@ type ViewMode = 'list' | 'calendar' | 'themes';
 interface GroupedPost {
     primaryKey: string; // Chave principal para abrir o modal
     keys: string[]; // Todas as chaves associadas (ex: meta e linkedin)
-    platforms: ('meta' | 'linkedin')[];
+    platforms: ('meta' | 'linkedin' | 'tiktok')[];
     content: DailyContent;
     status: PostStatus; // Status unificado (se um estiver pendente, mostra pendente)
     theme: string;
@@ -171,7 +171,7 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack, ini
       const d = parts[0];
       const m = parts[1];
       const y = parts[2];
-      const platform = parts[3] as 'meta' | 'linkedin';
+      const platform = parts[3] as 'meta' | 'linkedin' | 'tiktok';
       
       if (parseInt(m) !== currentPlan.month || parseInt(y) !== currentPlan.year) return;
 
@@ -753,6 +753,7 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack, ini
                const statusColor = getStatusColorClass(group.status);
               const hasMeta = group.platforms.some(p => p.toLowerCase().includes('meta') || p.toLowerCase().includes('instagram') || p.toLowerCase().includes('facebook'));
               const hasLinkedin = group.platforms.some(p => p.toLowerCase().includes('linkedin'));
+              const hasTikTok = group.platforms.some(p => p.toLowerCase().includes('tiktok'));
                const isSelected = selectedPosts.has(group.primaryKey);
 
                return (
@@ -779,6 +780,7 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack, ini
                       <div className="flex -space-x-1">
                         {hasMeta && <div className="w-5 h-5 rounded-full bg-white flex items-center justify-center shadow-sm border border-black/[0.03]"><Instagram size={10} className="text-[#E1306C]" /></div>}
                         {hasLinkedin && <div className="w-5 h-5 rounded-full bg-white flex items-center justify-center shadow-sm border border-black/[0.03]"><Linkedin size={10} className="text-[#0077B5]" /></div>}
+                        {hasTikTok && <div className="w-5 h-5 rounded-full bg-black flex items-center justify-center shadow-sm border border-black/[0.03]"><span className="text-[10px] text-white font-bold leading-none -mt-0.5" style={{ textShadow: '-1px -1px 0 #00f2fe, 1px 1px 0 #fe0979' }}>♪</span></div>}
                       </div>
                       
                       <span className="text-[8px] font-bold uppercase tracking-widest text-gray-400 truncate max-w-[50px]">
@@ -854,6 +856,7 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack, ini
           <PostModal 
             dayContent={selectedPost.content} 
             dateKey={selectedPost.key} 
+            groupKeys={selectedPost.groupKeys}
             onClose={() => {
                 handleCloseModal();
                 setTransferringTheme(null);
@@ -1097,6 +1100,7 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack, ini
                    const statusColor = getStatusColorClass(group.status);
                    const hasMeta = group.platforms.some(p => p.toLowerCase().includes('meta') || p.toLowerCase().includes('instagram') || p.toLowerCase().includes('facebook'));
                    const hasLinkedin = group.platforms.some(p => p.toLowerCase().includes('linkedin'));
+                   const hasTikTok = group.platforms.some(p => p.toLowerCase().includes('tiktok'));
                    const isSelected = selectedPosts.has(group.primaryKey);
 
                    const targetDay = parseInt(group.content.day.split('/')[0]);
@@ -1126,6 +1130,7 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack, ini
                             <div className="flex items-center gap-1.5 text-xs text-gray-600 md:mt-1">
                                {hasMeta && <Instagram size={12} className="text-[#E1306C]" />}
                                {hasLinkedin && <Linkedin size={12} className="text-[#0077B5]" />}
+                               {hasTikTok && <div className="w-3.5 h-3.5 rounded-full bg-black flex items-center justify-center -ml-0.5"><span className="text-[7px] text-white font-bold leading-none -mt-[0.5px]" style={{ textShadow: '-1px -1px 0 #00f2fe, 1px 1px 0 #fe0979' }}>♪</span></div>}
                                <span className="capitalize text-[10px] hidden md:inline">{group.platforms.length > 1 ? 'Multi' : group.platforms[0]}</span>
                             </div>
                             <span className="inline-block md:mt-2 px-2 py-0.5 rounded text-[9px] font-bold border border-black/10 bg-white/50 uppercase text-gray-700">{getStatusLabel(group.status)}</span>
