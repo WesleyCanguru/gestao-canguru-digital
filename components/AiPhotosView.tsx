@@ -66,8 +66,8 @@ export const AiPhotosView: React.FC = () => {
       const { data: photosData } = await supabase
         .from('ai_photos')
         .select('*')
-        .eq('agency_id', agencyId)
         .eq('client_id', activeClient!.id)
+        .or(`agency_id.eq.${agencyId},agency_id.is.null`)
         .order('updated_at', { ascending: false });
 
       if (photosData) {
@@ -147,7 +147,7 @@ export const AiPhotosView: React.FC = () => {
 
   const handleDeletePhoto = async (id: string) => {
     try {
-      await supabase.from('ai_photos').delete().eq('agency_id', agencyId).eq('id', id);
+      await supabase.from('ai_photos').delete().eq('id', id).or(`agency_id.eq.${agencyId},agency_id.is.null`);
       fetchData();
     } catch (error) {
       console.error('Error deleting photo:', error);
@@ -158,7 +158,7 @@ export const AiPhotosView: React.FC = () => {
 
   const handleDeleteFeedback = async (id: string) => {
     try {
-      await supabase.from('ai_photos').update({ feedback: null }).eq('agency_id', agencyId).eq('id', id);
+      await supabase.from('ai_photos').update({ feedback: null }).eq('id', id).or(`agency_id.eq.${agencyId},agency_id.is.null`);
       fetchData();
     } catch (error) {
       console.error('Error deleting feedback:', error);
@@ -173,7 +173,7 @@ export const AiPhotosView: React.FC = () => {
       if (feedback !== undefined) {
         updateData.feedback = feedback;
       }
-      await supabase.from('ai_photos').update(updateData).eq('agency_id', agencyId).eq('id', id);
+      await supabase.from('ai_photos').update(updateData).eq('id', id).or(`agency_id.eq.${agencyId},agency_id.is.null`);
       fetchData();
       setActivePhotoId(null);
       setFeedbackText('');
@@ -210,7 +210,7 @@ export const AiPhotosView: React.FC = () => {
         feedback: newFeedback,
         status: 'pending_approval',
         updated_at: new Date().toISOString()
-      }).eq('agency_id', agencyId).eq('id', id);
+      }).eq('id', id).or(`agency_id.eq.${agencyId},agency_id.is.null`);
 
       fetchData();
       setReplacingPhotoId(null);
