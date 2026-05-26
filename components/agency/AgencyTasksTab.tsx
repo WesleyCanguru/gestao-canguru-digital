@@ -40,11 +40,11 @@ dayjs.locale('pt-br');
 import { ProcessTemplatesModal } from './ProcessTemplatesModal';
 
 const PROCESS_TYPES = [
-  { id: 'carrossel', name: 'Carrossel', icon: ImageIcon, color: 'text-purple-500 bg-purple-50 border-purple-100' },
+  { id: 'carrossel', name: 'Publicação', icon: ImageIcon, color: 'text-purple-500 bg-purple-50 border-purple-100' },
   { id: 'reels', name: 'Reels', icon: Video, color: 'text-pink-500 bg-pink-50 border-pink-100' },
-  { id: 'meta_ads', name: 'Campanha Meta Ads', icon: Megaphone, color: 'text-blue-500 bg-blue-50 border-blue-100' },
-  { id: 'google_ads', name: 'Campanha Google Ads', icon: Search, color: 'text-green-500 bg-green-50 border-green-100' },
-  { id: 'report', name: 'Relatório Mensal', icon: BarChart3, color: 'text-orange-500 bg-orange-50 border-orange-100' },
+  { id: 'campanha_meta', name: 'Campanha Meta Ads', icon: Megaphone, color: 'text-blue-500 bg-blue-50 border-blue-100' },
+  { id: 'campanha_google', name: 'Campanha Google Ads', icon: Search, color: 'text-green-500 bg-green-50 border-green-100' },
+  { id: 'relatorio_mensal', name: 'Relatório Mensal', icon: BarChart3, color: 'text-orange-500 bg-orange-50 border-orange-100' },
 ];
 
 export const AgencyTasksTab: React.FC = () => {
