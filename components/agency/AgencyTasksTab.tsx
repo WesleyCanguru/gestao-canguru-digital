@@ -47,6 +47,101 @@ const PROCESS_TYPES = [
   { id: 'relatorio_mensal', name: 'Relatório Mensal', icon: BarChart3, color: 'text-orange-500 bg-orange-50 border-orange-100' },
 ];
 
+// --- FUNÇÕES DE RECORRÊNCIA DAS TAREFAS ---
+
+// Retorna a data/hora do início do ciclo semanal atual (última ocorrência passada do dia configurado)
+function getLastWeeklyOccurrence(recurrenceDays: number[], from: Date): Date | null {
+  if (!recurrenceDays || recurrenceDays.length === 0) return null;
+  
+  let mostRecent: Date | null = null;
+  for (const dayOfWeek of recurrenceDays) {
+    const d = new Date(from);
+    d.setHours(0, 0, 0, 0);
+    const currentDay = d.getDay(); // 0-6
+    const diff = (currentDay - dayOfWeek + 7) % 7;
+    d.setDate(d.getDate() - diff);
+    
+    if (!mostRecent || d > mostRecent) {
+      mostRecent = d;
+    }
+  }
+  return mostRecent;
+}
+
+// Retorna true se a tarefa precisa ser feita no ciclo atual (está pendente)
+function isTaskPendingInCurrentCycle(task: AgencyTask): boolean {
+  if (task.recurrence_type === 'none' || !task.recurrence_type) {
+    return task.status !== 'completed';
+  }
+
+  if (!task.completed_at) return true;
+
+  const lastDone = new Date(task.completed_at);
+  const now = new Date();
+
+  if (task.recurrence_type === 'daily') {
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    return lastDone < todayStart;
+  }
+
+  if (task.recurrence_type === 'weekly') {
+    const days = (task.recurrence_days || []).map((d: any) => parseInt(d, 10)).filter((d: any) => !isNaN(d));
+    const cycleStart = getLastWeeklyOccurrence(days, now);
+    return cycleStart ? lastDone < cycleStart : true;
+  }
+
+  return task.status !== 'completed';
+}
+
+// Retorna true se tarefa semanal está atrasada (ciclo atual já começou mas não foi feita)
+function isWeeklyTaskOverdue(task: AgencyTask): boolean {
+  if (task.recurrence_type !== 'weekly') return false;
+  const isPending = isTaskPendingInCurrentCycle(task);
+  if (!isPending) return false;
+  
+  const now = new Date();
+  const days = (task.recurrence_days || []).map((d: any) => parseInt(d, 10)).filter((d: any) => !isNaN(d));
+  const cycleStart = getLastWeeklyOccurrence(days, now);
+  if (!cycleStart) return false;
+  
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  return cycleStart < todayStart;
+}
+
+// Retorna o label formatado para exibir os dias da semana de recorrência
+const getWeeklyDaysLabel = (days: any[]) => {
+  if (!days || days.length === 0) return '';
+  const dayLabels: Record<number, string> = {
+    1: 'segunda-feira',
+    2: 'terça-feira',
+    3: 'quarta-feira',
+    4: 'quinta-feira',
+    5: 'sexta-feira',
+    6: 'sábado',
+    0: 'domingo'
+  };
+  const shortLabels: Record<number, string> = {
+    1: 'Seg',
+    2: 'Ter',
+    3: 'Qua',
+    4: 'Qui',
+    5: 'Sex',
+    6: 'Sáb',
+    0: 'Dom'
+  };
+  
+  const numericDays = days.map(d => parseInt(d, 10)).filter(d => !isNaN(d)).sort((a,b) => {
+    const orderA = a === 0 ? 7 : a;
+    const orderB = b === 0 ? 7 : b;
+    return orderA - orderB;
+  });
+
+  if (numericDays.length === 1) {
+    return `Toda ${dayLabels[numericDays[0]]}`;
+  }
+  return numericDays.map(d => shortLabels[d]).join(', ');
+};
+
 export const AgencyTasksTab: React.FC = () => {
   const { agencyId } = useAuth();
   const [activeTab, setActiveTab] = useState<'hoje' | 'processos' | 'todas'>('hoje');
@@ -197,23 +292,26 @@ const HojeTasks: React.FC<{ clients: any[], onEditTask: (t: AgencyTask) => void,
 
       if (data) {
         const todayString = dayjs().format('YYYY-MM-DD');
-        const todayDayOfWeek = dayjs().format('dddd').toLowerCase();
 
         const hojeTasks = data.filter(task => {
-          const isCompletedToday = task.completed_at && dayjs(task.completed_at).format('YYYY-MM-DD') === todayString;
+          const isPending = isTaskPendingInCurrentCycle(task);
           
-          if (task.recurrence_type === 'none') {
+          if (task.recurrence_type === 'none' || !task.recurrence_type) {
             return task.status === 'pending' && (task.priority === 'urgente' || (task.due_date && task.due_date <= todayString));
           }
 
           if (task.recurrence_type === 'daily') {
-            return task.status === 'pending' || isCompletedToday || (task.completed_at && dayjs(task.completed_at).format('YYYY-MM-DD') < todayString);
+            return true;
           }
 
           if (task.recurrence_type === 'weekly') {
-            const isDueToday = task.recurrence_days?.includes(todayDayOfWeek);
-            if (!isDueToday) return false;
-            return task.status === 'pending' || isCompletedToday || (task.completed_at && dayjs(task.completed_at).format('YYYY-MM-DD') < todayString);
+            const now = new Date();
+            const currentDayOfWeek = now.getDay(); // 0-6
+            const days = (task.recurrence_days || []).map((d: any) => parseInt(d, 10)).filter((d: any) => !isNaN(d));
+            const isDueToday = days.includes(currentDayOfWeek);
+            const isOverdue = isWeeklyTaskOverdue(task);
+            
+            return isDueToday || isOverdue;
           }
 
           return false;
@@ -239,13 +337,23 @@ const HojeTasks: React.FC<{ clients: any[], onEditTask: (t: AgencyTask) => void,
   };
 
   const toggleStatus = async (task: AgencyTask) => {
-    const isCompletedToday = task.completed_at && dayjs(task.completed_at).format('YYYY-MM-DD') === dayjs().format('YYYY-MM-DD');
-    const newStatus = isCompletedToday ? 'pending' : 'completed';
-    const completedAt = isCompletedToday ? null : new Date().toISOString();
-    await supabase.from('agency_tasks')
-      .update({ status: newStatus, completed_at: completedAt })
-      .eq('agency_id', agencyId)
-      .eq('id', task.id);
+    const isPending = isTaskPendingInCurrentCycle(task);
+    const isDone = !isPending;
+    
+    if (task.recurrence_type === 'none' || !task.recurrence_type) {
+      const newStatus = isDone ? 'pending' : 'completed';
+      const completedAt = isDone ? null : new Date().toISOString();
+      await supabase.from('agency_tasks')
+        .update({ status: newStatus, completed_at: completedAt })
+        .eq('agency_id', agencyId)
+        .eq('id', task.id);
+    } else {
+      const completedAt = isDone ? null : new Date().toISOString();
+      await supabase.from('agency_tasks')
+        .update({ status: 'pending', completed_at: completedAt })
+        .eq('agency_id', agencyId)
+        .eq('id', task.id);
+    }
     onRefresh();
   };
 
@@ -265,10 +373,8 @@ const HojeTasks: React.FC<{ clients: any[], onEditTask: (t: AgencyTask) => void,
     );
   }
 
-  const isCompletedTodayFunc = (t: AgencyTask) => t.status === 'completed' || (t.completed_at && dayjs(t.completed_at).format('YYYY-MM-DD') === dayjs().format('YYYY-MM-DD'));
-
   const rotinaDia = tasks.filter(t => t.recurrence_type === 'daily');
-  const rotinaConcluida = rotinaDia.length > 0 && rotinaDia.every(isCompletedTodayFunc);
+  const rotinaConcluida = rotinaDia.length > 0 && rotinaDia.every(t => !isTaskPendingInCurrentCycle(t));
 
   const altasUrgentes = tasks.filter(t => t.recurrence_type !== 'daily' && ['urgente', 'alta'].includes(t.priority));
   const normaisBaixas = tasks.filter(t => t.recurrence_type !== 'daily' && ['normal', 'baixa'].includes(t.priority));
@@ -773,16 +879,23 @@ const TodasTasks: React.FC<{ clients: any[], onEditTask: (t: AgencyTask) => void
   };
 
   const toggleStatus = async (task: AgencyTask) => {
-    const isCompletedToday = task.completed_at && dayjs(task.completed_at).format('YYYY-MM-DD') === dayjs().format('YYYY-MM-DD');
-    const isCurrentlyDone = task.status === 'completed' || (task.recurrence_type !== 'none' && isCompletedToday);
+    const isPending = isTaskPendingInCurrentCycle(task);
+    const isDone = !isPending;
 
-    const newStatus = isCurrentlyDone ? 'pending' : 'completed';
-    const completedAt = isCurrentlyDone ? null : new Date().toISOString();
-
-    await supabase.from('agency_tasks')
-      .update({ status: newStatus, completed_at: completedAt })
-      .eq('agency_id', agencyId)
-      .eq('id', task.id);
+    if (task.recurrence_type === 'none' || !task.recurrence_type) {
+      const newStatus = isDone ? 'pending' : 'completed';
+      const completedAt = isDone ? null : new Date().toISOString();
+      await supabase.from('agency_tasks')
+        .update({ status: newStatus, completed_at: completedAt })
+        .eq('agency_id', agencyId)
+        .eq('id', task.id);
+    } else {
+      const completedAt = isDone ? null : new Date().toISOString();
+      await supabase.from('agency_tasks')
+        .update({ status: 'pending', completed_at: completedAt })
+        .eq('agency_id', agencyId)
+        .eq('id', task.id);
+    }
     await fetchTasks();
     onRefresh();
   };
@@ -809,8 +922,7 @@ const TodasTasks: React.FC<{ clients: any[], onEditTask: (t: AgencyTask) => void
        };
     }
     
-    const isCompletedToday = t.completed_at && dayjs(t.completed_at).format('YYYY-MM-DD') === dayjs().format('YYYY-MM-DD');
-    const isDone = t.status === 'completed' || (t.recurrence_type !== 'none' && isCompletedToday);
+    const isDone = !isTaskPendingInCurrentCycle(t);
 
     if (isDone) {
        groups[gId].completed.push(t);
@@ -936,8 +1048,9 @@ const TodasTasks: React.FC<{ clients: any[], onEditTask: (t: AgencyTask) => void
 // SHARED UI: TASK ITEM
 // ==========================================
 const TaskListItem: React.FC<{ task: AgencyTask, onToggle: () => void, onEdit: () => void, isTodayView?: boolean }> = ({ task, onToggle, onEdit, isTodayView }) => {
-  const isCompletedToday = task.completed_at && dayjs(task.completed_at).format('YYYY-MM-DD') === dayjs().format('YYYY-MM-DD');
-  const isDone = task.status === 'completed' || (task.recurrence_type !== 'none' && isCompletedToday);
+  const isDone = !isTaskPendingInCurrentCycle(task);
+  const isOverdue = (task.recurrence_type === 'weekly' && isWeeklyTaskOverdue(task)) || 
+    ((task.recurrence_type === 'none' || !task.recurrence_type) && !isDone && task.due_date && dayjs(task.due_date).isBefore(dayjs(), 'day'));
 
   const getPriorityColor = (p: string) => {
     switch (p) {
@@ -950,10 +1063,9 @@ const TaskListItem: React.FC<{ task: AgencyTask, onToggle: () => void, onEdit: (
   };
   
   const dateObj = task.due_date ? dayjs(task.due_date) : null;
-  const isOverdue = !isDone && dateObj && dateObj.isBefore(dayjs(), 'day');
 
   return (
-    <div className={`group flex items-center gap-4 p-4 bg-white rounded-2xl border border-gray-100 hover:border-brand-dark/20 hover:shadow-sm transition-all ${isDone ? 'opacity-60 bg-gray-50' : ''}`}>
+    <div className={`group flex items-center gap-4 p-4 bg-white rounded-2xl border border-gray-100 hover:border-brand-dark/20 hover:shadow-sm transition-all ${isDone ? 'opacity-60 bg-gray-50 pointer-events-auto' : ''}`}>
       <button onClick={onToggle} className={`flex-shrink-0 text-gray-300 hover:text-brand-dark transition-colors ${isDone ? 'text-green-500' : ''}`}>
         {isDone ? <CheckCircle2 size={24} /> : <Circle size={24} />}
       </button>
@@ -983,14 +1095,20 @@ const TaskListItem: React.FC<{ task: AgencyTask, onToggle: () => void, onEdit: (
           {task.recurrence_type && task.recurrence_type !== 'none' && (
             <span title={`Recorrência: ${task.recurrence_type === 'daily' ? 'Diária' : 'Semanal'}`} className={`flex items-center gap-1 px-2 py-0.5 rounded-md border text-[9px] font-bold uppercase tracking-wider whitespace-nowrap bg-purple-50 text-purple-600 border-purple-100`}>
               <Repeat size={10} />
-              {task.recurrence_type === 'daily' ? 'Diária' : 'Semanal'}
+              {task.recurrence_type === 'daily' ? 'Diária 🔄' : getWeeklyDaysLabel(task.recurrence_days || [])}
             </span>
           )}
           
-          {dateObj && (
-            <span className={`flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider whitespace-nowrap ${isOverdue ? 'text-red-500 bg-red-50' : 'text-gray-500 bg-gray-50'}`}>
+          {isOverdue && (
+            <span className="flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider whitespace-nowrap text-red-500 bg-red-50 border border-red-100">
+              Atrasada
+            </span>
+          )}
+
+          {!isOverdue && dateObj && (
+            <span className="flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider whitespace-nowrap text-gray-500 bg-gray-50 border border-gray-100">
               <Calendar size={12} />
-              {isOverdue ? 'Atrasado' : dateObj.format('DD/MM')}
+              {dateObj.format('DD/MM')}
             </span>
           )}
         </div>
@@ -1009,30 +1127,45 @@ const TaskListItem: React.FC<{ task: AgencyTask, onToggle: () => void, onEdit: (
 // DRAWER: NOVA TAREFA
 // ==========================================
 const WEEK_DAYS = [
-  { id: 'monday', label: 'Seg' },
-  { id: 'tuesday', label: 'Ter' },
-  { id: 'wednesday', label: 'Qua' },
-  { id: 'thursday', label: 'Qui' },
-  { id: 'friday', label: 'Sex' },
-  { id: 'saturday', label: 'Sáb' },
-  { id: 'sunday', label: 'Dom' },
+  { id: 1, label: 'Seg' },
+  { id: 2, label: 'Ter' },
+  { id: 3, label: 'Qua' },
+  { id: 4, label: 'Qui' },
+  { id: 5, label: 'Sex' },
+  { id: 6, label: 'Sáb' },
+  { id: 0, label: 'Dom' },
 ];
 
 const TaskFormDrawer: React.FC<{ clients: any[], task?: AgencyTask | null, onClose: () => void, onSuccess: () => void }> = ({ clients, task, onClose, onSuccess }) => {
   const { agencyId } = useAuth();
-  const [form, setForm] = useState({
+  const [form, setForm] = useState<{
+    title: string;
+    client_id: string;
+    priority: AgencyTaskPriority;
+    due_date: string;
+    description: string;
+    recurrence_type: AgencyTaskRecurrenceType;
+    recurrence_days: number[];
+  }>({
     title: task?.title || '',
     client_id: task?.client_id || '',
-    priority: task?.priority || 'normal',
+    priority: (task?.priority as AgencyTaskPriority) || 'normal',
     due_date: task?.due_date || '',
     description: task?.description || '',
-    recurrence_type: task?.recurrence_type || 'none',
-    recurrence_days: task?.recurrence_days || []
+    recurrence_type: (task?.recurrence_type as AgencyTaskRecurrenceType) || 'none',
+    recurrence_days: task?.recurrence_days 
+      ? task.recurrence_days.map((d: any) => parseInt(d, 10)).filter((d: any) => !isNaN(d))
+      : []
   });
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.title.trim()) return;
+
+    if (form.recurrence_type === 'weekly' && form.recurrence_days.length === 0) {
+      alert('Selecione pelo menos 1 dia da semana para a recorrência semanal.');
+      return;
+    }
     
     const payload = {
       title: form.title,
@@ -1066,7 +1199,7 @@ const TaskFormDrawer: React.FC<{ clients: any[], task?: AgencyTask | null, onClo
     }
   };
 
-  const toggleDay = (dayId: string) => {
+  const toggleDay = (dayId: number) => {
     setForm(prev => {
       const days = [...prev.recurrence_days];
       const index = days.indexOf(dayId);
@@ -1103,7 +1236,7 @@ const TaskFormDrawer: React.FC<{ clients: any[], task?: AgencyTask | null, onClo
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <label className="text-[10px] font-bold uppercase tracking-widest text-gray-500">Prioridade</label>
-                <select value={form.priority} onChange={e => setForm({...form, priority: e.target.value})} className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-brand-dark/20 outline-none cursor-pointer">
+                <select value={form.priority} onChange={e => setForm({...form, priority: e.target.value as AgencyTaskPriority})} className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-brand-dark/20 outline-none cursor-pointer">
                   <option value="baixa">Baixa</option>
                   <option value="normal">Normal</option>
                   <option value="alta">Alta</option>
@@ -1119,7 +1252,7 @@ const TaskFormDrawer: React.FC<{ clients: any[], task?: AgencyTask | null, onClo
             <div className="space-y-4">
               <div className="space-y-2">
                 <label className="text-[10px] font-bold uppercase tracking-widest text-gray-500">Recorrência</label>
-                <select value={form.recurrence_type} onChange={e => setForm({...form, recurrence_type: e.target.value})} className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-brand-dark/20 outline-none cursor-pointer">
+                <select value={form.recurrence_type} onChange={e => setForm({...form, recurrence_type: e.target.value as AgencyTaskRecurrenceType})} className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-brand-dark/20 outline-none cursor-pointer">
                   <option value="none">Não recorrente</option>
                   <option value="daily">Diária</option>
                   <option value="weekly">Semanal</option>

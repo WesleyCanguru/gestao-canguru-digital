@@ -410,10 +410,10 @@ export const HomeTab: React.FC<{ onNavigateToClients: (client: Client) => void }
                         {dayjs(task.due_date).format('DD/MM/YY')}
                       </div>
                     )}
-                    {task.priority === 'urgent' && (
+                    {task.priority === 'urgente' && (
                       <span className="text-[9px] uppercase tracking-widest bg-red-600 text-white px-2 rounded font-bold">URGENTE</span>
                     )}
-                    {task.priority === 'high' && (
+                    {task.priority === 'alta' && (
                       <span className="text-[9px] uppercase tracking-widest bg-red-100 text-red-600 px-2 rounded font-bold">ALTA</span>
                     )}
                   </div>
