@@ -144,12 +144,12 @@ export const ActiveClientsSummary: React.FC<ActiveClientsSummaryProps> = ({ onSe
         const todayPosts = uniqueClientPosts.filter(p => p.status !== 'deleted' && p.date_key.startsWith(today));
         const todayPublished = todayPosts.filter(p => p.status === 'published').length;
         const todayAwaiting = todayPosts.filter(p => 
-          ['scheduled', 'approved', 'theme_approved', 'theme_pending', 'changes_requested'].includes(p.status)
+          ['scheduled', 'approved', 'theme_approved', 'theme_pending', 'changes_requested', 'pending_approval'].includes(p.status)
         ).length;
 
         const monthPublished = monthPosts.filter(p => p.status === 'published').length;
         const monthPlanned = monthPosts.filter(p => 
-          ['published', 'scheduled', 'approved', 'theme_approved', 'theme_pending', 'changes_requested'].includes(p.status)
+          ['published', 'scheduled', 'approved', 'theme_approved', 'theme_pending', 'changes_requested', 'pending_approval'].includes(p.status)
         ).length;
 
         const inRevision = monthPosts.filter(p => p.status === 'changes_requested');
@@ -158,7 +158,7 @@ export const ActiveClientsSummary: React.FC<ActiveClientsSummaryProps> = ({ onSe
 
         // Next scheduled (can look beyond current month if needed, but for dashboard context, current month is usually enough)
         // Actually, let's keep it looking at ALL future valid posts for accuracy on "what's next"
-        const nextPostAllowedStatus = ['scheduled', 'approved', 'theme_approved', 'changes_requested', 'theme_pending'];
+        const nextPostAllowedStatus = ['scheduled', 'approved', 'theme_approved', 'changes_requested', 'theme_pending', 'pending_approval'];
         const futurePosts = uniqueClientPosts
           .filter(p => {
              if (p.status === 'deleted' || p.date_key === 'test_rls') return false;
