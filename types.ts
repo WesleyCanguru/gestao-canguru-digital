@@ -361,6 +361,7 @@ export interface ClientQuickLink {
   type: QuickLinkType;
   label: string;
   url: string;
+  sort_order?: number;
   created_at: string;
 }
 

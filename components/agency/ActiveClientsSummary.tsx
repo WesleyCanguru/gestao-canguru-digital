@@ -26,8 +26,10 @@ interface ActiveClientsSummaryProps {
 }
 
 interface ClientStats {
-  today: number;
-  monthTotal: number;
+  todayPublished: number;
+  todayAwaiting: number;
+  monthPublished: number;
+  monthPlanned: number;
   inRevision: number;
   inApproval: number;
   drafts: number;
@@ -139,23 +141,31 @@ export const ActiveClientsSummary: React.FC<ActiveClientsSummaryProps> = ({ onSe
         });
 
         // Statistics strictly scoped to current month
-        const todayPosts = monthPosts.filter(p => p.date_key.startsWith(today) && (p.status === 'published' || p.status === 'scheduled' || p.status === 'approved'));
+        const todayPosts = uniqueClientPosts.filter(p => p.status !== 'deleted' && p.date_key.startsWith(today));
+        const todayPublished = todayPosts.filter(p => p.status === 'published').length;
+        const todayAwaiting = todayPosts.filter(p => 
+          ['scheduled', 'approved', 'theme_approved', 'theme_pending', 'changes_requested'].includes(p.status)
+        ).length;
+
+        const monthPublished = monthPosts.filter(p => p.status === 'published').length;
+        const monthPlanned = monthPosts.filter(p => 
+          ['published', 'scheduled', 'approved', 'theme_approved', 'theme_pending', 'changes_requested'].includes(p.status)
+        ).length;
+
         const inRevision = monthPosts.filter(p => p.status === 'changes_requested');
         const inApproval = monthPosts.filter(p => p.status === 'pending_approval');
         const drafts = monthPosts.filter(p => p.status === 'draft');
-        
-        // monthTotal is every post planned for the month
-        const monthTotal = monthPosts.length;
 
         // Next scheduled (can look beyond current month if needed, but for dashboard context, current month is usually enough)
         // Actually, let's keep it looking at ALL future valid posts for accuracy on "what's next"
+        const nextPostAllowedStatus = ['scheduled', 'approved', 'theme_approved', 'changes_requested', 'theme_pending'];
         const futurePosts = uniqueClientPosts
           .filter(p => {
              if (p.status === 'deleted' || p.date_key === 'test_rls') return false;
              const parts = p.date_key.split('-');
              if (parts.length < 3) return false;
              const postDateStr = `${parts[2]}-${parts[1]}-${parts[0]}`; // YYYY-MM-DD
-             return dayjs(postDateStr).isAfter(dayjs().subtract(1, 'day')) && (p.status === 'scheduled' || p.status === 'approved');
+             return dayjs(postDateStr).isAfter(dayjs().subtract(1, 'day')) && nextPostAllowedStatus.includes(p.status);
           })
           .sort((a, b) => {
              const partsA = a.date_key.split('-');
@@ -173,8 +183,10 @@ export const ActiveClientsSummary: React.FC<ActiveClientsSummaryProps> = ({ onSe
         }
 
         stats[client.id] = {
-          today: todayPosts.length,
-          monthTotal,
+          todayPublished,
+          todayAwaiting,
+          monthPublished,
+          monthPlanned,
           inRevision: inRevision.length,
           inApproval: inApproval.length,
           drafts: drafts.length,
@@ -222,7 +234,7 @@ export const ActiveClientsSummary: React.FC<ActiveClientsSummaryProps> = ({ onSe
           </div>
         ) : (
           clients.map((client) => {
-            const stats = clientStats[client.id] || { today: 0, monthTotal: 0, inRevision: 0, inApproval: 0, drafts: 0, nextDate: null };
+            const stats = clientStats[client.id] || { todayPublished: 0, todayAwaiting: 0, monthPublished: 0, monthPlanned: 0, inRevision: 0, inApproval: 0, drafts: 0, nextDate: null };
             const links = quickLinks[client.id] || [];
             
             return (
@@ -272,17 +284,35 @@ export const ActiveClientsSummary: React.FC<ActiveClientsSummaryProps> = ({ onSe
                 </div>
 
                 {/* Publications Stats Grid */}
-                <div className="grid grid-cols-2 gap-4 mb-4 pb-4 border-b border-gray-50 relative z-10 pointer-events-none">
+                <div className="grid grid-cols-2 gap-4 mb-4 pb-4 border-b border-gray-50 relative z-10 pointer-events-none w-full">
                   <div className="space-y-1">
-                    <p className="text-[9px] text-gray-400 font-bold uppercase tracking-widest">Publicações Hoje</p>
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-xl font-black text-brand-dark">{stats.today}</span>
-                      {stats.today > 0 && <CheckCircle2 size={14} className="text-green-500" />}
-                    </div>
+                    <p className="text-[9px] text-gray-400 font-bold uppercase tracking-widest">Hoje</p>
+                    {stats.todayPublished === 0 && stats.todayAwaiting === 0 ? (
+                      <p className="text-[10px] font-bold text-gray-400">—</p>
+                    ) : (
+                      <div className="flex flex-col gap-0.5 text-[9px] font-bold">
+                        <span className="text-green-600 flex items-center gap-1">✅ {stats.todayPublished} publicada{stats.todayPublished !== 1 && 's'}</span>
+                        <span className="text-amber-500 flex items-center gap-1">⏳ {stats.todayAwaiting} aguardando</span>
+                      </div>
+                    )}
                   </div>
                   <div className="space-y-1">
-                    <p className="text-[9px] text-gray-400 font-bold uppercase tracking-widest">Total no Mês</p>
-                    <span className="text-xl font-black text-brand-dark">{stats.monthTotal}</span>
+                    <p className="text-[9px] text-gray-400 font-bold uppercase tracking-widest">Mês</p>
+                    {stats.monthPlanned === 0 ? (
+                      <p className="text-[10px] font-bold text-gray-400">—</p>
+                    ) : (
+                      <div className="space-y-1 w-full pr-1">
+                        <div className="w-full bg-gray-100 h-2 rounded-full overflow-hidden">
+                          <div 
+                            className="bg-brand-dark h-full transition-all duration-300"
+                            style={{ width: `${Math.min(100, (stats.monthPublished / stats.monthPlanned) * 100)}%` }}
+                          />
+                        </div>
+                        <p className="text-[9px] font-bold text-gray-500 whitespace-nowrap">
+                          <span className="text-brand-dark font-extrabold">{stats.monthPublished}</span> de <span className="font-extrabold">{stats.monthPlanned}</span> pub.
+                        </p>
+                      </div>
+                    )}
                   </div>
                   <div className={`space-y-1 p-2 rounded-xl transition-colors ${stats.inRevision > 0 ? 'bg-red-50 border border-red-100' : ''}`}>
                     <p className={`text-[9px] font-bold uppercase tracking-widest ${stats.inRevision > 0 ? 'text-red-600' : 'text-red-500/80'}`}>Em Alteração</p>

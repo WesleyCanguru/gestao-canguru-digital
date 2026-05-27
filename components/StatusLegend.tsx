@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { Info, Target, LayoutTemplate } from 'lucide-react';
+import { Target } from 'lucide-react';
 import { motion } from 'motion/react';
 import { STATUS_CONFIG } from '../constants';
 import { PostStatus } from '../types';
@@ -8,10 +8,6 @@ import { PostStatus } from '../types';
 export const StatusLegend: React.FC = () => {
   const contentStatuses: PostStatus[] = [
     'draft', 'pending_approval', 'changes_requested', 'rejected', 'approved', 'scheduled', 'published'
-  ];
-  
-  const themeStatuses: PostStatus[] = [
-    'theme_pending', 'theme_approved_with_notes', 'theme_approved', 'theme_rejected'
   ];
 
   const renderBadge = (s: PostStatus) => {
@@ -39,20 +35,6 @@ export const StatusLegend: React.FC = () => {
       <div>
         <div className="flex items-center gap-3 mb-4 text-[10px] font-bold text-gray-400 uppercase tracking-[0.3em]">
           <div className="w-6 h-6 rounded-full bg-gray-50 flex items-center justify-center border border-black/[0.02]">
-            <LayoutTemplate size={12} />
-          </div>
-          Status de Tema
-        </div>
-        <div className="flex flex-wrap gap-3">
-          {themeStatuses.map(renderBadge)}
-        </div>
-      </div>
-
-      <div className="h-px bg-gray-100 w-full"></div>
-
-      <div>
-        <div className="flex items-center gap-3 mb-4 text-[10px] font-bold text-gray-400 uppercase tracking-[0.3em]">
-          <div className="w-6 h-6 rounded-full bg-gray-50 flex items-center justify-center border border-black/[0.02]">
             <Target size={12} />
           </div>
           Status de Conteúdo
@@ -64,3 +46,4 @@ export const StatusLegend: React.FC = () => {
     </motion.div>
   );
 };
+

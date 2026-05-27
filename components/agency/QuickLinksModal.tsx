@@ -41,6 +41,7 @@ export const QuickLinksModal: React.FC<QuickLinksModalProps> = ({ client, links,
     if (newLink.label && newLink.url) {
       onAdd({
         client_id: client.id,
+        agency_id: client.agency_id || 1,
         type: (newLink.type as any) || 'other',
         label: newLink.label || '',
         url: newLink.url || ''

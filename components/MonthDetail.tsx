@@ -766,7 +766,7 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack, ini
                 >
                   {userRole === 'admin' && (
                     <div 
-                      className={`absolute -top-2 -right-2 z-10 bg-white rounded-full p-1 shadow-md border ${isSelected ? 'border-brand-dark opacity-100' : 'border-gray-200 opacity-0 group-hover/card:opacity-100'} transition-all`}
+                      className={`absolute -top-2 -left-2 z-20 bg-white rounded-full w-8 h-8 shadow-md border flex items-center justify-center ${isSelected ? 'border-brand-dark opacity-100' : 'border-gray-200 opacity-0 group-hover/card:opacity-100'} transition-all cursor-pointer`}
                       onClick={(e) => togglePostSelection(e, group.primaryKey)}
                     >
                       <div className={`w-4 h-4 rounded-full border flex items-center justify-center ${isSelected ? 'bg-brand-dark border-brand-dark' : 'border-gray-300'}`}>
@@ -1225,7 +1225,6 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack, ini
 
                 {[
                   { id: 'draft', label: 'Produção', icon: <Edit2 size={12} /> },
-                  { id: 'theme_pending', label: 'Tema', icon: <Target size={12} /> },
                   { id: 'approved', label: 'Aprovar', icon: <Check size={12} /> },
                   { id: 'scheduled', label: 'Agendar', icon: <CalendarIcon size={12} /> },
                   { id: 'published', label: 'Publicar', icon: <CheckCircle2 size={12} /> }

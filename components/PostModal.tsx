@@ -36,10 +36,12 @@ const POST_TYPES = [
 
 import { STATUS_CONFIG } from '../constants';
 
-const STATUS_OPTIONS: { value: PostStatus; label: string }[] = Object.keys(STATUS_CONFIG).map(k => ({
+const STATUS_OPTIONS: { value: PostStatus; label: string }[] = Object.keys(STATUS_CONFIG)
+  .filter(k => !['theme_pending', 'theme_rejected', 'theme_approved_with_notes', 'theme_approved', 'internal_review', 'deleted'].includes(k))
+  .map(k => ({
     value: k as PostStatus,
     label: STATUS_CONFIG[k as PostStatus].label
-}));
+  }));
 
 export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, groupKeys, onClose, onUpdate, isNew = false, defaultDate = '' }) => {
   const { userRole, activeClient, agencyId } = useAuth();
@@ -811,17 +813,32 @@ export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, group
              <div className="sticky top-0 z-20 w-full p-4 sm:p-6 flex justify-between items-start pointer-events-none">
                   <div className="flex gap-3">
                       {!isNew && (
-                        <div className="pointer-events-auto flex items-center gap-2 px-3 sm:px-4 py-1.5 sm:py-2 rounded-full text-[9px] sm:text-[10px] font-bold border uppercase bg-white/10 backdrop-blur-md border-white/10 shadow-xl text-white tracking-widest">
+                        <div className="pointer-events-auto relative flex items-center gap-2 px-3 sm:px-4 py-1.5 sm:py-2 rounded-[2rem] text-[9px] sm:text-[10px] font-bold border uppercase bg-white/10 backdrop-blur-md border-white/10 shadow-xl text-white tracking-widest hover:bg-white/20 transition-all cursor-pointer">
                           <div className={`w-2 h-2 rounded-full animate-pulse ${
-                            post?.status === 'theme_approved' ? 'bg-[#e891eb]' :
-                            post?.status === 'theme_pending' ? 'bg-gray-500' :
                             post?.status === 'approved' ? 'bg-green-400' : 
                             post?.status === 'published' ? 'bg-blue-400' : 
-                            ['changes_requested', 'theme_approved_with_notes'].includes(post?.status || '') ? 'bg-orange-400' : 
-                            ['rejected', 'theme_rejected'].includes(post?.status || '') ? 'bg-red-400' : 
+                            ['changes_requested'].includes(post?.status || '') ? 'bg-orange-400' : 
+                            ['rejected'].includes(post?.status || '') ? 'bg-red-400' : 
                             'bg-yellow-400'
                           }`} />
-                          <span className="truncate">{getStatusLabel(post?.status || 'draft')}</span>
+                          
+                          <select 
+                            value={post?.status || 'draft'} 
+                            onChange={async (e) => {
+                              const newStatus = e.target.value as PostStatus;
+                              await changeStatus(newStatus);
+                            }}
+                            className="bg-transparent border-none text-white font-bold text-[9px] sm:text-[10px] pr-4 focus:outline-none appearance-none cursor-pointer tracking-widest uppercase"
+                          >
+                            {STATUS_OPTIONS.map(opt => (
+                              <option key={opt.value} value={opt.value} className="text-brand-dark bg-white font-bold text-[11px] uppercase tracking-widest py-2">
+                                {opt.label}
+                              </option>
+                            ))}
+                          </select>
+                          <div className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-white/70">
+                            <ChevronDown size={10} />
+                          </div>
                         </div>
                       )}
                   </div>
@@ -859,7 +876,7 @@ export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, group
 
              <div className="flex-grow p-4 sm:p-16 flex items-center justify-center">
                <div className="w-full max-w-lg transition-all duration-500 transform hover:scale-[1.01]">
-                  {['theme_pending', 'theme_rejected', 'theme_approved_with_notes', 'theme_approved'].includes(post?.status || manualStatus) ? (
+                  {false ? (
                       <div className="bg-white/10 backdrop-blur-md rounded-3xl p-8 border border-white/20 shadow-2xl text-center">
                           <div className="w-16 h-16 bg-brand-dark/20 flex items-center justify-center rounded-2xl mx-auto mb-6 border border-brand-dark/30 shadow-inner">
                               <FileText className="text-brand-dark w-8 h-8" />
@@ -936,71 +953,25 @@ export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, group
                    )}
                 </div>
               
-              {/* Approver Actions */}
-              {userRole === 'approver' && !isNew && (
-                  <div className="flex flex-col gap-2">
-                      {post?.status === 'theme_pending' ? (
-                          <>
-                              {!showThemeNotesInput && !showThemeRejectInput && (
-                                  <div className="flex gap-2">
-                                      <button onClick={handleApproveTheme} className="flex-1 flex items-center justify-center gap-1.5 px-3 py-3.5 bg-[#5DCAA5] hover:bg-[#4BA88A] text-brand-dark rounded-xl font-bold text-[10px] sm:text-[11px] uppercase tracking-widest shadow-xl transition-all active:scale-95"><CheckCircle2 size={16} /> Aprovar Tema</button>
-                                      <button onClick={() => setShowThemeNotesInput(true)} className="flex-1 flex items-center justify-center gap-1.5 px-3 py-3.5 bg-amber-100 hover:bg-amber-200 text-amber-800 rounded-xl font-bold text-[10px] sm:text-[11px] uppercase tracking-widest transition-all active:scale-95"><AlertTriangle size={16} /> Observação</button>
-                                      <button onClick={() => setShowThemeRejectInput(true)} className="flex-1 flex items-center justify-center gap-1.5 px-3 py-3.5 bg-rose-100 hover:bg-rose-200 text-rose-800 rounded-xl font-bold text-[10px] sm:text-[11px] uppercase tracking-widest transition-all active:scale-95"><XCircle size={16} /> Reprovar</button>
-                                  </div>
-                              )}
-                              
-                              {showThemeNotesInput && (
-                                  <div className="flex flex-col gap-2 w-full bg-amber-50 p-4 rounded-xl border border-amber-200">
-                                      <div className="flex justify-between items-center mb-2">
-                                          <span className="text-[11px] font-bold text-amber-800 uppercase tracking-widest">Sua observação</span>
-                                          <button onClick={() => setShowThemeNotesInput(false)} className="text-[10px] underline tracking-normal text-amber-800"><X size={14} /></button>
-                                      </div>
-                                      <textarea 
-                                          value={themeNoteText} 
-                                          onChange={e => setThemeNoteText(e.target.value)} 
-                                          className="w-full text-sm p-3 rounded-lg border border-amber-200 bg-white" 
-                                          placeholder="Ex: Gostei da ideia, mas adicione mais foco no produto X..."
-                                          rows={2}
-                                      />
-                                      <button onClick={handleApproveThemeWithNotes} className="w-full mt-2 py-3 bg-amber-500 hover:bg-amber-600 text-white rounded-lg font-bold text-[11px] uppercase tracking-widest">Aprovar com Observação</button>
-                                  </div>
-                              )}
-                              
-                              {showThemeRejectInput && (
-                                  <div className="flex flex-col gap-2 w-full bg-rose-50 p-4 rounded-xl border border-rose-200">
-                                      <div className="flex justify-between items-center mb-2">
-                                          <span className="text-[11px] font-bold text-rose-800 uppercase tracking-widest">Motivo da reprovação</span>
-                                          <button onClick={() => setShowThemeRejectInput(false)} className="text-[10px] underline tracking-normal text-rose-800"><X size={14} /></button>
-                                      </div>
-                                      <textarea 
-                                          value={themeNoteText} 
-                                          onChange={e => setThemeNoteText(e.target.value)} 
-                                          className="w-full text-sm p-3 rounded-lg border border-rose-200 bg-white" 
-                                          placeholder="Ex: Esse tema não faz sentido para o nosso momento atual..."
-                                          rows={2}
-                                      />
-                                      <button onClick={handleRejectTheme} className="w-full mt-2 py-3 bg-rose-600 hover:bg-rose-700 text-white rounded-lg font-bold text-[11px] uppercase tracking-widest">Reprovar Tema</button>
-                                  </div>
-                              )}
-                          </>
-                      ) : (
-                          <div className="flex gap-2">
-                              {!showRequestChangesInput ? (
-                                <>
-                                <button onClick={handleApprove} className="flex-1 flex items-center justify-center gap-1.5 px-3 py-3.5 bg-brand-dark hover:bg-black text-white rounded-xl font-bold text-[10px] sm:text-[11px] uppercase tracking-widest shadow-xl shadow-brand-dark/10 transition-all active:scale-95"><CheckCircle2 size={16} /> Aprovar</button>
-                                <button onClick={() => setShowRequestChangesInput(true)} className="flex-1 flex items-center justify-center gap-1.5 px-3 py-3.5 bg-white hover:bg-orange-50 text-orange-600 border border-orange-100 rounded-xl font-bold text-[10px] sm:text-[11px] uppercase tracking-widest transition-all active:scale-95"><AlertTriangle size={16} /> Ajuste</button>
-                                <button onClick={handleReject} className="flex-1 flex items-center justify-center gap-1.5 px-3 py-3.5 bg-white hover:bg-red-50 text-red-600 border border-red-100 rounded-xl font-bold text-[10px] sm:text-[11px] uppercase tracking-widest transition-all active:scale-95"><XCircle size={16} /> Reprovar</button>
-                                </>
-                              ) : (
-                                <div className="flex items-center justify-between w-full bg-orange-50 text-orange-800 px-4 py-3 rounded-xl border border-orange-100 text-[11px] font-bold uppercase tracking-widest">
-                                    <span>Escreva o ajuste abaixo</span>
-                                    <button onClick={() => setShowRequestChangesInput(false)} className="text-[10px] underline tracking-normal">Cancelar</button>
-                                </div>
-                              )}
-                          </div>
-                      )}
-                  </div>
-              )}
+               {/* Approver Actions */}
+               {userRole === 'approver' && !isNew && (
+                   <div className="flex flex-col gap-2">
+                       <div className="flex gap-2">
+                           {!showRequestChangesInput ? (
+                             <>
+                             <button onClick={handleApprove} className="flex-1 flex items-center justify-center gap-1.5 px-3 py-3.5 bg-brand-dark hover:bg-black text-white rounded-xl font-bold text-[10px] sm:text-[11px] uppercase tracking-widest shadow-xl shadow-brand-dark/10 transition-all active:scale-95"><CheckCircle2 size={16} /> Aprovar</button>
+                             <button onClick={() => setShowRequestChangesInput(true)} className="flex-1 flex items-center justify-center gap-1.5 px-3 py-3.5 bg-white hover:bg-orange-50 text-orange-600 border border-orange-100 rounded-xl font-bold text-[10px] sm:text-[11px] uppercase tracking-widest transition-all active:scale-95"><AlertTriangle size={16} /> Ajuste</button>
+                             <button onClick={handleReject} className="flex-1 flex items-center justify-center gap-1.5 px-3 py-3.5 bg-white hover:bg-red-50 text-red-600 border border-red-100 rounded-xl font-bold text-[10px] sm:text-[11px] uppercase tracking-widest transition-all active:scale-95"><XCircle size={16} /> Reprovar</button>
+                             </>
+                           ) : (
+                             <div className="flex items-center justify-between w-full bg-orange-50 text-orange-800 px-4 py-3 rounded-xl border border-orange-100 text-[11px] font-bold uppercase tracking-widest">
+                                 <span>Escreva o ajuste abaixo</span>
+                                 <button onClick={() => setShowRequestChangesInput(false)} className="text-[10px] underline tracking-normal">Cancelar</button>
+                             </div>
+                           )}
+                       </div>
+                   </div>
+               )}
            </div>
 
            <div className="flex-grow flex flex-col overflow-hidden">
@@ -1095,55 +1066,12 @@ export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, group
                             <textarea value={editedBullets} onChange={(e) => setEditedBullets(e.target.value)} rows={4} className="w-full text-xs p-3 border border-black/[0.08] rounded-xl focus:ring-2 focus:ring-brand-dark/10 focus:border-brand-dark outline-none resize-none leading-relaxed transition-all" />
                           </div>
                           
-                          {/* Theme Approval Integration */}
-                          <div className={`${requireThemeApproval || ['theme_pending', 'theme_approved_with_notes', 'theme_approved', 'theme_rejected'].includes(manualStatus) ? 'bg-[#E1F5EE]/50 border-[#E1F5EE]' : 'bg-gray-50 border-gray-100'} p-4 rounded-xl border transition-all mt-4`}>
-                              <label className="flex items-center gap-3 cursor-pointer">
-                                  <input 
-                                      type="checkbox" 
-                                      className="w-4 h-4 rounded text-[#1D9E75] focus:ring-[#1D9E75] border-gray-300" 
-                                      checked={requireThemeApproval}
-                                      onChange={(e) => setRequireThemeApproval(e.target.checked)}
-                                  />
-                                  <span className="text-xs font-bold text-gray-700 uppercase tracking-widest">Enviar tema para aprovação do cliente</span>
-                              </label>
-                              {requireThemeApproval && ['draft', 'theme_pending'].includes(manualStatus) && (
-                                  <p className="text-[10px] text-gray-500 mt-2 ml-7 leading-relaxed">
-                                      Ao salvar, este conteúdo ficará travado em <b>"Tema em Aprovação"</b>. O cliente verá apenas o <i>Tema Central</i> e a <i>Descrição</i> para decidir se a ideia pode seguir em frente.
-                                  </p>
-                              )}
-                              
-                              {['theme_rejected'].includes(manualStatus) && post?.theme_rejection_reason && (
-                                  <div className="bg-rose-50 text-rose-800 p-3 rounded-lg border border-rose-200 mt-3 ml-7">
-                                      <span className="block text-[9px] font-bold uppercase tracking-widest mb-1">Motivo da Reprovação</span>
-                                      <p className="text-xs">{post.theme_rejection_reason}</p>
-                                  </div>
-                              )}
-                              
-                              {['theme_approved_with_notes'].includes(manualStatus) && post?.theme_client_notes && (
-                                  <div className="bg-amber-50 text-amber-800 p-3 rounded-lg border border-amber-200 mt-3 ml-7">
-                                      <span className="block text-[9px] font-bold uppercase tracking-widest mb-1">Observação do Cliente</span>
-                                      <p className="text-xs">{post.theme_client_notes}</p>
-                                  </div>
-                              )}
-                              
-                              {manualStatus === 'theme_approved' || manualStatus === 'theme_approved_with_notes' ? (
-                                  <button 
-                                      onClick={async (e) => {
-                                          e.preventDefault();
-                                          await changeStatus('draft'); 
-                                          setRequireThemeApproval(false);
-                                      }} 
-                                      className="w-full mt-4 py-2.5 bg-brand-dark hover:bg-black text-white rounded-lg font-bold text-[10px] uppercase tracking-widest transition-all"
-                                  >
-                                      Tema aprovado. Colocar em Produção
-                                  </button>
-                              ) : null}
-                          </div>
+
                        </div>
                     </div>
 
                     {/* 4. Criativo & Legendas */}
-                    <div className={`bg-white p-5 rounded-2xl border border-black/[0.05] shadow-sm mb-8 ${requireThemeApproval && ['theme_pending', 'draft', 'theme_rejected'].includes(manualStatus) ? 'opacity-50 pointer-events-none' : ''}`}>
+                    <div className="bg-white p-5 rounded-2xl border border-black/[0.05] shadow-sm mb-8">
                         <h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-[0.2em] mb-4 flex items-center gap-2"><ImageIcon size={14} className="text-brand-dark" /> Criativo & Legenda</h3>
                         
                         {/* Image Upload */}
