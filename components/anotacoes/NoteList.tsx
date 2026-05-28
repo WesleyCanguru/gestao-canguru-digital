@@ -1,7 +1,7 @@
 import React from 'react';
 import { Note } from '../../hooks/useNotes';
 import { Notebook } from '../../hooks/useNotebooks';
-import { Plus, Pin } from 'lucide-react';
+import { Plus, Pin, Trash2 } from 'lucide-react';
 import dayjs from 'dayjs';
 
 interface NoteListProps {
@@ -10,9 +10,10 @@ interface NoteListProps {
   selectedId: string | null;
   onSelect: (id: string) => void;
   onCreate: () => void;
+  onDeleteNote?: (id: string) => void;
 }
 
-export function NoteList({ notebook, notes, selectedId, onSelect, onCreate }: NoteListProps) {
+export function NoteList({ notebook, notes, selectedId, onSelect, onCreate, onDeleteNote }: NoteListProps) {
   
   const extractPreview = (htmlStr: string) => {
     if (!htmlStr) return 'Sem conteúdo adicional';
@@ -58,14 +59,31 @@ export function NoteList({ notebook, notes, selectedId, onSelect, onCreate }: No
               <button
                 key={note.id}
                 onClick={() => onSelect(note.id)}
-                className={`w-full text-left p-5 transition-colors block ${selectedId === note.id ? 'bg-blue-50/50' : 'hover:bg-gray-50'}`}
+                className={`w-full text-left p-5 transition-colors block relative group/note ${selectedId === note.id ? 'bg-blue-50/50' : 'hover:bg-gray-50'}`}
                 style={{ textAlign: 'left' }}
               >
                 <div className="flex items-start justify-between gap-1 mb-1.5 w-full">
                   <h3 className="font-bold text-brand-dark text-sm truncate flex-1 min-w-0" style={{ textAlign: 'left' }}>
                     {note.title || 'Sem título'}
                   </h3>
-                  {note.is_pinned && <Pin size={13} className="text-brand-dark mt-0.5 shrink-0" />}
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    {note.is_pinned && <Pin size={13} className="text-brand-dark mt-0.5 shrink-0" />}
+                    {onDeleteNote && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          const confirmDelete = window.confirm("Tem certeza que deseja excluir esta nota? Esta ação não pode ser desfeita.");
+                          if (confirmDelete) {
+                            onDeleteNote(note.id);
+                          }
+                        }}
+                        className="hidden group-hover/note:flex p-1 hover:bg-gray-200 rounded text-gray-400 hover:text-red-500 transition-colors"
+                        title="Excluir Nota"
+                      >
+                        <Trash2 size={13} />
+                      </button>
+                    )}
+                  </div>
                 </div>
                 <p className="text-xs text-gray-500 line-clamp-2 mb-2 leading-relaxed text-left w-full overflow-hidden text-ellipsis" style={{ textAlign: 'left' }}>
                   {extractPreview(note.content)}

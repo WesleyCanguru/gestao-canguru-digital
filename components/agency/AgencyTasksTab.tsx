@@ -357,6 +357,9 @@ const HojeTasks: React.FC<{ clients: any[], onEditTask: (t: AgencyTask) => void,
     onRefresh();
   };
 
+  const [isRotinaDiaExpanded, setIsRotinaDiaExpanded] = useState(false);
+  const [isRotinaSemanaExpanded, setIsRotinaSemanaExpanded] = useState(false);
+
   if (loading) return <div className="text-gray-400 text-sm">Carregando...</div>;
 
   if (tasks.length === 0) {
@@ -373,11 +376,29 @@ const HojeTasks: React.FC<{ clients: any[], onEditTask: (t: AgencyTask) => void,
     );
   }
 
+  // Rotina do Dia (daily recurrence)
   const rotinaDia = tasks.filter(t => t.recurrence_type === 'daily');
-  const rotinaConcluida = rotinaDia.length > 0 && rotinaDia.every(t => !isTaskPendingInCurrentCycle(t));
+  const pendingRotinaDia = rotinaDia.filter(t => isTaskPendingInCurrentCycle(t));
+  const completedRotinaDia = rotinaDia.filter(t => !isTaskPendingInCurrentCycle(t));
+  const sortedCompletedRotinaDia = [...completedRotinaDia].sort((a,b) => {
+    if (!a.completed_at) return 1;
+    if (!b.completed_at) return -1;
+    return new Date(b.completed_at).getTime() - new Date(a.completed_at).getTime();
+  });
 
-  const altasUrgentes = tasks.filter(t => t.recurrence_type !== 'daily' && ['urgente', 'alta'].includes(t.priority));
-  const normaisBaixas = tasks.filter(t => t.recurrence_type !== 'daily' && ['normal', 'baixa'].includes(t.priority));
+  // Rotina da Semana (weekly recurrence)
+  const rotinaSemana = tasks.filter(t => t.recurrence_type === 'weekly');
+  const pendingRotinaSemana = rotinaSemana.filter(t => isTaskPendingInCurrentCycle(t));
+  const completedRotinaSemana = rotinaSemana.filter(t => !isTaskPendingInCurrentCycle(t));
+  const sortedCompletedRotinaSemana = [...completedRotinaSemana].sort((a,b) => {
+    if (!a.completed_at) return 1;
+    if (!b.completed_at) return -1;
+    return new Date(b.completed_at).getTime() - new Date(a.completed_at).getTime();
+  });
+
+  // Outras tarefas (não recorrentes - daily/weekly)
+  const altasUrgentes = tasks.filter(t => t.recurrence_type !== 'daily' && t.recurrence_type !== 'weekly' && ['urgente', 'alta'].includes(t.priority));
+  const normaisBaixas = tasks.filter(t => t.recurrence_type !== 'daily' && t.recurrence_type !== 'weekly' && ['normal', 'baixa'].includes(t.priority));
 
   const renderClientGroup = (taskList: AgencyTask[]) => {
     const groups: Record<string, { label: string, color?: string, tasks: AgencyTask[] }> = {};
@@ -426,7 +447,7 @@ const HojeTasks: React.FC<{ clients: any[], onEditTask: (t: AgencyTask) => void,
                ☀️ Rotina do Dia
             </h3>
             <div className="bg-brand-dark/5 border border-brand-dark/10 rounded-3xl p-5 md:p-6 mb-8">
-               {rotinaConcluida ? (
+               {pendingRotinaDia.length === 0 ? (
                   <div className="flex flex-col items-center justify-center py-6 text-center">
                      <div className="w-14 h-14 bg-green-100 text-green-500 rounded-full flex items-center justify-center mb-3">
                         <CheckCircle2 size={28} />
@@ -436,9 +457,95 @@ const HojeTasks: React.FC<{ clients: any[], onEditTask: (t: AgencyTask) => void,
                   </div>
                ) : (
                   <div className="space-y-2">
-                     {rotinaDia.map(task => (
+                     {pendingRotinaDia.map(task => (
                         <TaskListItem key={task.id} task={task} onToggle={() => toggleStatus(task)} onEdit={() => onEditTask(task)} isTodayView />
                      ))}
+                  </div>
+               )}
+
+               {completedRotinaDia.length > 0 && (
+                  <div className="pt-4 border-t border-gray-200/40 mt-4">
+                     <button
+                        onClick={() => setIsRotinaDiaExpanded(!isRotinaDiaExpanded)}
+                        className="flex items-center gap-2 text-[10px] font-extrabold text-gray-500 hover:text-brand-dark uppercase tracking-widest transition-colors mx-auto"
+                     >
+                        <span>
+                           {isRotinaDiaExpanded 
+                              ? `Ocultar ${completedRotinaDia.length} tarefas concluídas ▴`
+                              : `Ver ${completedRotinaDia.length} tarefas concluídas ▾`
+                           }
+                        </span>
+                     </button>
+                     <AnimatePresence>
+                        {isRotinaDiaExpanded && (
+                           <motion.div
+                              initial={{ height: 0, opacity: 0 }}
+                              animate={{ height: 'auto', opacity: 1 }}
+                              exit={{ height: 0, opacity: 0 }}
+                              className="overflow-hidden space-y-2 mt-4 opacity-70 grayscale-[0.2]"
+                           >
+                              {sortedCompletedRotinaDia.map(task => (
+                                 <TaskListItem key={task.id} task={task} onToggle={() => toggleStatus(task)} onEdit={() => onEditTask(task)} isTodayView />
+                              ))}
+                           </motion.div>
+                        )}
+                     </AnimatePresence>
+                  </div>
+               )}
+            </div>
+         </div>
+      )}
+
+      {/* Bloco: Rotina da Semana */}
+      {rotinaSemana.length > 0 && (
+         <div>
+            <h3 className="text-lg font-black text-brand-dark tracking-tight mb-4 flex items-center gap-2">
+               🔄 Rotina da Semana
+            </h3>
+            <div className="bg-brand-dark/5 border border-brand-dark/10 rounded-3xl p-5 md:p-6 mb-8">
+               {pendingRotinaSemana.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-6 text-center">
+                     <div className="w-14 h-14 bg-green-100 text-green-500 rounded-full flex items-center justify-center mb-3">
+                        <CheckCircle2 size={28} />
+                     </div>
+                     <h4 className="font-bold text-gray-900 text-lg">Rotina da semana concluída ✓</h4>
+                     <p className="text-gray-500 text-sm font-medium">Você finalizou todas as tarefas semanais.</p>
+                  </div>
+               ) : (
+                  <div className="space-y-2">
+                     {pendingRotinaSemana.map(task => (
+                        <TaskListItem key={task.id} task={task} onToggle={() => toggleStatus(task)} onEdit={() => onEditTask(task)} isTodayView />
+                     ))}
+                  </div>
+               )}
+
+               {completedRotinaSemana.length > 0 && (
+                  <div className="pt-4 border-t border-gray-200/40 mt-4">
+                     <button
+                        onClick={() => setIsRotinaSemanaExpanded(!isRotinaSemanaExpanded)}
+                        className="flex items-center gap-2 text-[10px] font-extrabold text-gray-500 hover:text-brand-dark uppercase tracking-widest transition-colors mx-auto"
+                     >
+                        <span>
+                           {isRotinaSemanaExpanded 
+                              ? `Ocultar ${completedRotinaSemana.length} tarefas concluídas ▴`
+                              : `Ver ${completedRotinaSemana.length} tarefas concluídas ▾`
+                           }
+                        </span>
+                     </button>
+                     <AnimatePresence>
+                        {isRotinaSemanaExpanded && (
+                           <motion.div
+                              initial={{ height: 0, opacity: 0 }}
+                              animate={{ height: 'auto', opacity: 1 }}
+                              exit={{ height: 0, opacity: 0 }}
+                              className="overflow-hidden space-y-2 mt-4 opacity-70 grayscale-[0.2]"
+                           >
+                              {sortedCompletedRotinaSemana.map(task => (
+                                 <TaskListItem key={task.id} task={task} onToggle={() => toggleStatus(task)} onEdit={() => onEditTask(task)} isTodayView />
+                              ))}
+                           </motion.div>
+                        )}
+                     </AnimatePresence>
                   </div>
                )}
             </div>
@@ -856,6 +963,7 @@ const TodasTasks: React.FC<{ clients: any[], onEditTask: (t: AgencyTask) => void
   const [tasks, setTasks] = useState<AgencyTask[]>([]);
   const [loading, setLoading] = useState(true);
   const [filterClient, setFilterClient] = useState('all');
+  const [isCompletedExpanded, setIsCompletedExpanded] = useState(false);
 
   useEffect(() => {
     fetchTasks();
@@ -868,7 +976,8 @@ const TodasTasks: React.FC<{ clients: any[], onEditTask: (t: AgencyTask) => void
       const { data } = await supabase
         .from('agency_tasks')
         .select('*, client:clients(id, name, color, initials)')
-        .eq('agency_id', agencyId);
+        .eq('agency_id', agencyId)
+        .or('recurrence_type.is.null,recurrence_type.eq.none');
 
       if (data) setTasks(data);
     } catch (err) {
@@ -901,57 +1010,47 @@ const TodasTasks: React.FC<{ clients: any[], onEditTask: (t: AgencyTask) => void
   };
 
   const filtered = tasks.filter(t => {
+    // Exclude daily and weekly recurring tasks (REQUISITO 2)
+    const isRecurring = t.recurrence_type === 'daily' || t.recurrence_type === 'weekly';
+    if (isRecurring) return false;
+
     if (filterClient === 'internal') return !t.client_id;
     if (filterClient !== 'all') return t.client_id === filterClient;
     return true;
   });
 
-  const priorityOrder = { urgente: 1, alta: 2, normal: 3, baixa: 4 };
+  const sortPendingTasks = (taskList: AgencyTask[]) => {
+    const priorityOrder = { urgente: 1, alta: 2, normal: 3, baixa: 4 };
 
-  const groups: Record<string, { label: string, color?: string, internal: boolean, pending: AgencyTask[], completed: AgencyTask[] }> = {};
+    return [...taskList].sort((a, b) => {
+      // 1. By due_date (earliest first, nulls last)
+      if (a.due_date && b.due_date) {
+        if (a.due_date !== b.due_date) {
+          return a.due_date.localeCompare(b.due_date);
+        }
+      } else if (a.due_date && !b.due_date) {
+        return -1;
+      } else if (!a.due_date && b.due_date) {
+        return 1;
+      }
 
-  filtered.forEach(t => {
-    const gId = t.client_id || 'interno';
-    if (!groups[gId]) {
-       groups[gId] = {
-         label: t.client?.name || 'Canguru Digital',
-         color: t.client?.color,
-         internal: !t.client_id,
-         pending: [],
-         completed: []
-       };
-    }
-    
-    const isDone = !isTaskPendingInCurrentCycle(t);
+      // 2. Priority sort within same day
+      const p1 = priorityOrder[a.priority as keyof typeof priorityOrder] || 3;
+      const p2 = priorityOrder[b.priority as keyof typeof priorityOrder] || 3;
+      if (p1 !== p2) return p1 - p2;
 
-    if (isDone) {
-       groups[gId].completed.push(t);
-    } else {
-       groups[gId].pending.push(t);
-    }
-  });
-
-  const sortTasks = (taskList: AgencyTask[]) => {
-     return taskList.sort((a,b) => {
-        const p1 = priorityOrder[a.priority as keyof typeof priorityOrder] || 3;
-        const p2 = priorityOrder[b.priority as keyof typeof priorityOrder] || 3;
-        if (p1 !== p2) return p1 - p2;
-        if (a.due_date === b.due_date) return 0;
-        if (!a.due_date) return 1;
-        if (!b.due_date) return -1;
-        return a.due_date.localeCompare(b.due_date);
-     });
+      // 3. Alphabetical fallback
+      return a.title.localeCompare(b.title);
+    });
   };
 
-  Object.values(groups).forEach(g => {
-    g.pending = sortTasks(g.pending);
-    g.completed = sortTasks(g.completed); // Optional, order completed as well.
-  });
+  const pendingTasks = sortPendingTasks(filtered.filter(t => t.status === 'pending'));
+  const completedTasks = filtered.filter(t => t.status === 'completed');
 
-  const sortedGroupsKeys = Object.keys(groups).sort((a,b) => {
-     if (groups[a].internal && !groups[b].internal) return -1;
-     if (!groups[a].internal && groups[b].internal) return 1;
-     return groups[a].label.localeCompare(groups[b].label);
+  const sortedCompleted = [...completedTasks].sort((a,b) => {
+    if (!a.completed_at) return 1;
+    if (!b.completed_at) return -1;
+    return new Date(b.completed_at).getTime() - new Date(a.completed_at).getTime();
   });
 
   return (
@@ -976,67 +1075,53 @@ const TodasTasks: React.FC<{ clients: any[], onEditTask: (t: AgencyTask) => void
 
       {loading ? (
         <div className="text-gray-400 text-sm">Carregando...</div>
-      ) : Object.keys(groups).length === 0 ? (
+      ) : filtered.length === 0 ? (
         <div className="text-center py-12 bg-white border border-dashed border-gray-200 rounded-3xl text-gray-400 text-sm font-medium shadow-sm">
            Nenhuma tarefa encontrada neste filtro.
         </div>
       ) : (
-        <div className="space-y-8">
-           {sortedGroupsKeys.map(key => {
-              const group = groups[key];
-              return (
-                 <div key={key} className="bg-white rounded-[2rem] border border-gray-100 shadow-sm shadow-black/[0.01] overflow-hidden">
-                    <div className="px-6 py-4 bg-gray-50/50 border-b border-gray-100 flex gap-3 items-center">
-                       {group.internal ? (
-                          <div className="w-8 h-8 rounded-lg bg-brand-dark flex flex-col items-center justify-center text-white text-[10px] uppercase font-black leading-tight border border-brand-dark/20">
-                             <div className="leading-[10px]">CG</div>
-                             <div className="leading-[10px]">RU</div>
-                          </div>
-                       ) : group.color ? (
-                          <div className="w-8 h-8 rounded-lg flex items-center justify-center text-white font-black text-sm border border-black/5" style={{ backgroundColor: group.color }}>
-                             {group.label.substring(0, 2).toUpperCase()}
-                          </div>
-                       ) : (
-                          <div className="w-8 h-8 rounded-lg bg-gray-200 flex items-center justify-center text-gray-500 border border-gray-300">
-                             <Briefcase size={14} />
-                          </div>
-                       )}
-                       <div>
-                          <h4 className="font-bold text-gray-900 text-base tracking-tight">{group.label}</h4>
-                          <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{group.internal ? 'Processos Internos' : 'Cliente da Agência'}</span>
-                       </div>
-                    </div>
-                    
-                    <div className="p-4 sm:p-6 space-y-6">
-                       {group.pending.length > 0 && (
-                          <div className="space-y-2">
-                             {group.pending.map(task => (
-                                <TaskListItem key={task.id} task={task} onToggle={() => toggleStatus(task)} onEdit={() => onEditTask(task)} />
-                             ))}
-                          </div>
-                       )}
+        <div className="bg-white rounded-[2rem] border border-gray-100 shadow-sm shadow-black/[0.01] overflow-hidden p-6 sm:p-8 space-y-6">
+          {pendingTasks.length > 0 ? (
+            <div className="space-y-2">
+              {pendingTasks.map(task => (
+                <TaskListItem key={task.id} task={task} onToggle={() => toggleStatus(task)} onEdit={() => onEditTask(task)} />
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-6 text-gray-400 text-sm">Nenhuma tarefa pendente.</div>
+          )}
 
-                       {/* Completed Tasks - Show at the end, semi-transparent */}
-                       {group.completed.length > 0 && (
-                          <div className="space-y-2 pt-2 border-t border-gray-50">
-                             <h5 className="text-[10px] font-extrabold text-gray-400 uppercase tracking-widest mb-3 flex items-center gap-1.5 ml-2">
-                                <CheckCircle2 size={12} className="text-green-500" /> Tarefas Concluídas ({group.completed.length})
-                             </h5>
-                             <div className="opacity-70 grayscale-[0.2]">
-                                {group.completed.map(task => (
-                                   <TaskListItem key={task.id} task={task} onToggle={() => toggleStatus(task)} onEdit={() => onEditTask(task)} />
-                                ))}
-                             </div>
-                          </div>
-                       )}
-
-                       {group.pending.length === 0 && group.completed.length === 0 && (
-                          <div className="text-gray-400 text-sm text-center py-4">Nenhuma tarefa</div>
-                       )}
-                    </div>
-                 </div>
-              );
-           })}
+          {/* Completed Tasks - Collapsible */}
+          {completedTasks.length > 0 && (
+            <div className="pt-4 border-t border-gray-100 mt-4">
+              <button
+                onClick={() => setIsCompletedExpanded(!isCompletedExpanded)}
+                className="flex items-center gap-2 text-[11px] font-extrabold text-gray-400 hover:text-brand-dark uppercase tracking-widest transition-colors mx-auto"
+              >
+                <span>
+                  {isCompletedExpanded 
+                    ? `Ocultar ${completedTasks.length} tarefas concluídas ▴`
+                    : `Ver ${completedTasks.length} tarefas concluídas ▾`
+                  }
+                </span>
+              </button>
+              
+              <AnimatePresence>
+                {isCompletedExpanded && (
+                  <motion.div
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: 'auto', opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    className="overflow-hidden space-y-2 mt-4 opacity-70 grayscale-[0.2]"
+                  >
+                    {sortedCompleted.map(task => (
+                      <TaskListItem key={task.id} task={task} onToggle={() => toggleStatus(task)} onEdit={() => onEditTask(task)} />
+                    ))}
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -1105,10 +1190,17 @@ const TaskListItem: React.FC<{ task: AgencyTask, onToggle: () => void, onEdit: (
             </span>
           )}
 
-          {!isOverdue && dateObj && (
-            <span className="flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider whitespace-nowrap text-gray-500 bg-gray-50 border border-gray-100">
+          {dateObj && (
+            <span className={`flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider whitespace-nowrap ${isOverdue ? 'text-red-500 bg-red-50 border border-red-100' : 'text-gray-500 bg-gray-50 border border-gray-100'}`}>
               <Calendar size={12} />
               {dateObj.format('DD/MM')}
+            </span>
+          )}
+
+          {isDone && task.completed_at && (
+            <span className="flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider whitespace-nowrap text-green-600 bg-green-50 border border-green-100">
+              <Clock size={12} />
+              Concluída em {dayjs(task.completed_at).format('DD/MM/YYYY [às] HH:mm')}
             </span>
           )}
         </div>

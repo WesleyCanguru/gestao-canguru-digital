@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { supabase, useAuth } from '../../lib/supabase';
 import { Client, ContractForm, ClientBriefing, OnboardingChecklist } from '../../types';
-import { CheckCircle, Clock, FileText, Target, ChevronRight, Check, Link as LinkIcon, Copy, Settings, ChevronLeft } from 'lucide-react';
+import { CheckCircle, Clock, FileText, Target, ChevronRight, Check, Link as LinkIcon, Copy, Settings, ChevronLeft, Download } from 'lucide-react';
 import { motion } from 'motion/react';
 import dayjs from 'dayjs';
 
-import { BriefingOnboarding, BRIEFING_QUESTIONS } from '../BriefingOnboarding';
+import { BriefingOnboarding, BRIEFING_QUESTIONS, handleDownloadBriefingPDF } from '../BriefingOnboarding';
 import { X } from 'lucide-react';
 import { ClientChecklistView } from './ClientChecklistView';
 import { OnboardingTemplatesModal } from './OnboardingTemplatesModal';
@@ -38,6 +38,55 @@ export const OnboardingTab: React.FC<{ onNavigateToClients: (client: Client) => 
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [expandedBriefingId, setExpandedBriefingId] = useState<string | null>(null);
   const [customTemplates, setCustomTemplates] = useState<Record<string, any>>({});
+  const [isManagingBriefings, setIsManagingBriefings] = useState(false);
+  const [tempActiveBriefings, setTempActiveBriefings] = useState<string[]>([]);
+
+  const startManaging = () => {
+    if (!viewingBriefingsClient) return;
+    setIsManagingBriefings(true);
+    const currentTypes = viewingBriefingsClient.features_settings?.active_briefing_types || [];
+    let types = [...currentTypes];
+    if (types.length === 0) {
+      (viewingBriefingsClient.services || []).forEach(service => {
+        const autoTypes = SERVICE_TO_BRIEFINGS[service] || [];
+        autoTypes.forEach(t => {
+          if (!types.includes(t)) types.push(t);
+        });
+      });
+    }
+    setTempActiveBriefings(types);
+  };
+
+  const handleSaveActiveBriefings = async () => {
+    if (!viewingBriefingsClient) return;
+    try {
+      const updatedFeaturesSettings = {
+        ...(viewingBriefingsClient.features_settings || {}),
+        active_briefing_types: tempActiveBriefings
+      };
+
+      const { error } = await supabase
+        .from('clients')
+        .update({
+          features_settings: updatedFeaturesSettings
+        })
+        .eq('id', viewingBriefingsClient.id);
+
+      if (error) throw error;
+
+      // Update state locally so the list remains synchronized
+      setViewingBriefingsClient(prev => prev ? {
+        ...prev,
+        features_settings: updatedFeaturesSettings
+      } : null);
+
+      setIsManagingBriefings(false);
+      fetchOnboardingData(); // Reload counts and data
+    } catch (err) {
+      console.error('Error saving active briefings:', err);
+      alert('Erro ao salvar briefings ativos.');
+    }
+  };
 
   const copyBriefingLink = (type: string) => {
     const baseUrl = window.location.origin;
@@ -60,10 +109,11 @@ export const OnboardingTab: React.FC<{ onNavigateToClients: (client: Client) => 
     if (!agencyId) return;
     setLoading(true);
     try {
-      const { data: templatesData } = await supabase
-        .from('agency_briefing_templates')
-        .select('*')
-        .eq('agency_id', agencyId);
+      const isSharedAgency = agencyId === 1 || agencyId === 2;
+      const { data: templatesData } = await (isSharedAgency 
+        ? supabase.from('agency_briefing_templates').select('*').in('agency_id', [1, 2]).order('created_at')
+        : supabase.from('agency_briefing_templates').select('*').eq('agency_id', agencyId).order('created_at')
+      );
       
       const templatesMap: Record<string, any> = {};
       if (templatesData) {
@@ -503,7 +553,7 @@ export const OnboardingTab: React.FC<{ onNavigateToClients: (client: Client) => 
               <div>
                 <h3 className="text-2xl font-black text-brand-dark tracking-tight">Briefings Estratégicos</h3>
                 <p className="text-sm font-bold text-gray-500 uppercase tracking-widest mt-1">Cliente: {viewingBriefingsClient.name}</p>
-                <div className="mt-4">
+                <div className="mt-4 flex flex-wrap gap-2">
                   <button 
                     onClick={() => copyBriefingLink('ALL')}
                     className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all ${
@@ -518,10 +568,19 @@ export const OnboardingTab: React.FC<{ onNavigateToClients: (client: Client) => 
                       <><LinkIcon size={14} /> Copiar Link do Painel Geral de Briefings</>
                     )}
                   </button>
+                  <button 
+                    onClick={startManaging}
+                    className="flex items-center gap-2 px-4 py-2.5 bg-white text-gray-500 hover:bg-brand-dark hover:text-white border border-gray-100 shadow-sm rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all"
+                  >
+                    <Settings size={14} /> Gerenciar Formulários
+                  </button>
                 </div>
               </div>
               <button 
-                onClick={() => setViewingBriefingsClient(null)}
+                onClick={() => {
+                  setViewingBriefingsClient(null);
+                  setIsManagingBriefings(false);
+                }}
                 className="p-3 hover:bg-white rounded-2xl transition-all shadow-sm group self-start"
               >
                 <X size={24} className="text-gray-400 group-hover:text-red-500 transition-colors" />
@@ -529,6 +588,55 @@ export const OnboardingTab: React.FC<{ onNavigateToClients: (client: Client) => 
             </div>
 
             <div className="flex-1 overflow-y-auto p-8 space-y-4 hide-scrollbar">
+              {isManagingBriefings && (
+                <div className="bg-gray-50 rounded-[2rem] p-6 border border-gray-100 mb-6 space-y-4">
+                  <div>
+                    <h4 className="text-sm font-bold text-brand-dark uppercase tracking-wider">Gerenciar Formulários Ativos</h4>
+                    <p className="text-xs text-gray-500 mt-1">Selecione quais briefings estratégicos este cliente deve preencher.</p>
+                  </div>
+                  <div className="flex flex-wrap gap-2 pt-2">
+                    {Array.from(new Set([...Object.keys(BRIEFING_QUESTIONS), ...Object.keys(customTemplates)])).map(typeKey => {
+                      const label = BRIEFING_QUESTIONS[typeKey]?.title || customTemplates[typeKey]?.title || typeKey;
+                      const isActive = tempActiveBriefings.includes(typeKey);
+                      
+                      return (
+                        <button
+                          key={typeKey}
+                          onClick={() => {
+                            setTempActiveBriefings(prev => 
+                              prev.includes(typeKey)
+                                ? prev.filter(t => t !== typeKey)
+                                : [...prev, typeKey]
+                            );
+                          }}
+                          className={`px-4 py-2.5 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all ${
+                            isActive 
+                              ? 'bg-brand-dark text-white shadow-md' 
+                              : 'bg-white text-gray-400 border border-gray-100 hover:border-brand-dark/20'
+                          }`}
+                        >
+                          {label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <div className="flex gap-2 justify-end pt-4 border-t border-gray-200/50">
+                    <button
+                      onClick={() => setIsManagingBriefings(false)}
+                      className="px-4 py-2 bg-white text-gray-500 hover:bg-gray-100 border border-gray-100 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      onClick={handleSaveActiveBriefings}
+                      className="px-4 py-2 bg-brand-dark text-white hover:opacity-90 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all shadow-md"
+                    >
+                      Salvar Alterações
+                    </button>
+                  </div>
+                </div>
+              )}
+
               {(() => {
                 const customTypesModal = viewingBriefingsClient.features_settings?.active_briefing_types || [];
                 const requiredTypesModal = new Set<string>(customTypesModal);
@@ -593,6 +701,18 @@ export const OnboardingTab: React.FC<{ onNavigateToClients: (client: Client) => 
                           </button>
 
                           <div className="flex items-center gap-2 ml-4 pl-4 border-l border-gray-100">
+                            {b.is_completed && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDownloadBriefingPDF(b, viewingBriefingsClient.name, customTemplates);
+                                }}
+                                className="flex items-center gap-2 px-4 py-2.5 bg-white text-gray-500 hover:bg-brand-dark hover:text-white border border-gray-100 shadow-sm rounded-xl text-[9px] font-bold uppercase tracking-widest transition-all"
+                                title="Exportar PDF das Respostas"
+                              >
+                                <Download size={14} /> PDF
+                              </button>
+                            )}
                             <button 
                               onClick={() => copyBriefingLink(b.briefing_type)}
                               className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-[9px] font-bold uppercase tracking-widest transition-all ${

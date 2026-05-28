@@ -9,13 +9,13 @@ import { ChevronLeft } from 'lucide-react';
 type MobileView = 'notebooks' | 'notes' | 'editor';
 
 export function AnotacoesTab() {
-  const { notebooks, loading: notebooksLoading, createNotebook } = useNotebooks();
+  const { notebooks, loading: notebooksLoading, createNotebook, deleteNotebook, renameNotebook } = useNotebooks();
   
   const [selectedNotebookId, setSelectedNotebookId] = useState<string | null>(null);
   const [selectedNoteId, setSelectedNoteId] = useState<string | null>(null);
   const [mobileView, setMobileView] = useState<MobileView>('notebooks');
 
-  const { notes, loading: notesLoading, createNote, updateNote } = useNotes(selectedNotebookId);
+  const { notes, loading: notesLoading, createNote, updateNote, deleteNote } = useNotes(selectedNotebookId);
 
   // Auto-select first notebook if none selected
   useEffect(() => {
@@ -85,6 +85,24 @@ export function AnotacoesTab() {
           selectedId={selectedNotebookId} 
           onSelect={handleSelectNotebook}
           onCreate={handleCreateNotebook}
+          onRename={renameNotebook}
+          onDelete={async (id) => {
+            const confirmedValue = window.confirm(`Tem certeza que deseja excluir o caderno? Todas as notas dentro dele também serão excluídas permanentemente.`);
+            if (!confirmedValue) return false;
+            const success = await deleteNotebook(id);
+            if (success) {
+              if (selectedNotebookId === id) {
+                const remaining = notebooks.filter(n => n.id !== id);
+                if (remaining.length > 0) {
+                  const defaultNb = remaining.find(n => n.is_default) || remaining.find(n => n.title === 'Geral') || remaining[0];
+                  setSelectedNotebookId(defaultNb.id);
+                } else {
+                  setSelectedNotebookId(null);
+                }
+              }
+            }
+            return success;
+          }}
         />
       </div>
 
@@ -95,6 +113,12 @@ export function AnotacoesTab() {
           selectedId={selectedNoteId}
           onSelect={handleSelectNote}
           onCreate={handleCreateNote}
+          onDeleteNote={async (id) => {
+            await deleteNote(id);
+            if (selectedNoteId === id) {
+              setSelectedNoteId(null);
+            }
+          }}
         />
       </div>
 
