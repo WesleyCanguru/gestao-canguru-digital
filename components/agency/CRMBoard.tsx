@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Plus, Search, LayoutGrid, List } from 'lucide-react';
+import { Plus, Search, LayoutGrid, List, Download } from 'lucide-react';
 import { DndContext, DragOverlay, closestCorners, KeyboardSensor, PointerSensor, useSensor, useSensors, DragStartEvent, DragEndEvent } from '@dnd-kit/core';
 import { SortableContext, arrayMove, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { AgencyCRM, AgencyLead } from '../../types';
@@ -109,6 +109,67 @@ export const CRMBoard: React.FC<CRMBoardProps> = ({ crm }) => {
     Object.values(lead.form_data).some(val => String(val).toLowerCase().includes(searchQuery.toLowerCase()))
   );
 
+  const handleExportCSV = () => {
+    if (!filteredLeads || filteredLeads.length === 0) return;
+
+    // Cabeçalhos base do CSV
+    const headers = ['Nome', 'Etapa', 'Data de Criação', 'Notas', 'Motivo da Perda'];
+    
+    // Obter campos de formulário customizados
+    const dynamicFields = crm.form_fields || [];
+    dynamicFields.forEach(field => {
+      headers.push(field.label);
+    });
+
+    // Função de limpeza de aspas e ponto-e-vírgula para CSV
+    const escapeCSV = (val: any) => {
+      if (val === null || val === undefined) return '';
+      let str = String(val);
+      str = str.replace(/"/g, '""');
+      if (str.includes(';') || str.includes('\n') || str.includes('"')) {
+        return `"${str}"`;
+      }
+      return str;
+    };
+
+    // Montar as colunas separadas por ponto e vírgula (padrão de Excel no Brasil)
+    const csvRows = [headers.join(';')];
+
+    filteredLeads.forEach(lead => {
+      const row = [
+        escapeCSV(lead.name),
+        escapeCSV(lead.stage),
+        escapeCSV(lead.created_at ? new Date(lead.created_at).toLocaleDateString('pt-BR') : ''),
+        escapeCSV(lead.notes),
+        escapeCSV(lead.loss_reason)
+      ];
+
+      // Campos dinâmicos do formulário
+      dynamicFields.forEach(field => {
+        const val = lead.form_data ? lead.form_data[field.key] : '';
+        row.push(escapeCSV(val));
+      });
+
+      csvRows.push(row.join(';'));
+    });
+
+    // Utiliza BOM (\uFEFF) para forçar o Excel a ler em UTF-8 corretamente
+    const csvContent = '\uFEFF' + csvRows.join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    
+    const link = document.createElement('a');
+    link.href = url;
+    
+    const safeCrmName = crm.name.replace(/[^a-z0-0_]/gi, '_').toLowerCase();
+    const dateStr = new Date().toLocaleDateString('pt-BR').replace(/\//g, '-');
+    link.setAttribute('download', `leads_${safeCrmName}_${dateStr}.csv`);
+    
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   const getLeadsByStage = (stageName: string) => {
     return filteredLeads.filter(l => l.stage === stageName).sort((a, b) => a.kanban_position - b.kanban_position);
   };
@@ -145,6 +206,20 @@ export const CRMBoard: React.FC<CRMBoardProps> = ({ crm }) => {
               <List className="w-4 h-4" />
             </button>
           </div>
+
+          <button
+            onClick={handleExportCSV}
+            disabled={filteredLeads.length === 0}
+            className={`flex items-center justify-center gap-2 px-4 py-3 border rounded-2xl font-bold text-xs uppercase tracking-widest transition-all shadow-sm w-full sm:w-auto ${
+              filteredLeads.length === 0
+                ? 'bg-gray-50 text-gray-400 border-gray-200 cursor-not-allowed opacity-60'
+                : 'bg-white hover:bg-gray-50 text-gray-700 border-gray-200 hover:border-gray-300'
+            }`}
+            title="Exportar Leads Filtrados para CSV"
+          >
+            <Download size={18} />
+            <span>Exportar</span>
+          </button>
           
           <button
             onClick={() => {
