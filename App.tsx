@@ -25,6 +25,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { PasswordVault } from './components/PasswordVault';
 import { TutorialCenter } from './components/TutorialCenter';
 import { AiPhotosView } from './components/AiPhotosView';
+import { PhotosApprovalPublic } from './components/PhotosApprovalPublic';
 import { RoteirosSection } from './components/anotacoes/RoteirosSection';
 import { ScriptApprovalPublic } from './components/anotacoes/ScriptApprovalPublic';
 
@@ -595,6 +596,7 @@ const App: React.FC = () => {
   const [contractToken, setContractToken] = useState<string | null>(null);
   const [themeToken, setThemeToken] = useState<string | null>(null);
   const [roteiroToken, setRoteiroToken] = useState<string | null>(null);
+  const [fotosClientId, setFotosClientId] = useState<string | null>(null);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -606,6 +608,12 @@ const App: React.FC = () => {
     const roteiroParam = params.get('roteiro') || params.get('script_id') || params.get('script');
     if (roteiroParam) {
       setRoteiroToken(roteiroParam);
+    }
+
+    // Suportar ?fotos=ID ou ?photos=ID
+    const fotosParam = params.get('fotos') || params.get('photos') || params.get('photos_client_id');
+    if (fotosParam) {
+      setFotosClientId(fotosParam);
     }
 
     const pathname = window.location.pathname;
@@ -622,6 +630,11 @@ const App: React.FC = () => {
     if (roteiroMatch) {
       setRoteiroToken(roteiroMatch[1]);
     }
+    // Suportar /fotos/ID ou /photos/ID ou /fotos-ia/ID
+    const fotosMatch = pathname.match(/^\/fotos\/([^/]+)\/?$/) || pathname.match(/^\/photos\/([^/]+)\/?$/) || pathname.match(/^\/fotos-ia\/([^/]+)\/?$/);
+    if (fotosMatch) {
+      setFotosClientId(fotosMatch[1]);
+    }
   }, []);
 
   if (contractToken) {
@@ -634,6 +647,14 @@ const App: React.FC = () => {
 
   if (roteiroToken) {
     return <ScriptApprovalPublic scriptId={roteiroToken} />;
+  }
+
+  if (fotosClientId) {
+    return (
+      <AuthProvider>
+        <PhotosApprovalPublic clientId={fotosClientId} />
+      </AuthProvider>
+    );
   }
 
   if (isPublicMode) {

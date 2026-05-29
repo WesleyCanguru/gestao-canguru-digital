@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth, supabase } from '../lib/supabase';
 import { motion } from 'motion/react';
-import { Camera, Upload, Check, X, MessageSquare, Trash2, Settings, AlertCircle, Sparkles } from 'lucide-react';
+import { Camera, Upload, Check, X, MessageSquare, Trash2, Settings, AlertCircle, Sparkles, Share2 } from 'lucide-react';
 import { ConfirmModal } from './ConfirmModal';
 
 interface AiPhoto {
@@ -39,6 +39,16 @@ export const AiPhotosView: React.FC = () => {
   const [confirmDeleteFeedbackId, setConfirmDeleteFeedbackId] = useState<string | null>(null);
 
   const isAdmin = userRole === 'admin';
+
+  const [copyFeedback, setCopyFeedback] = useState(false);
+
+  const handleCopyShareLink = () => {
+    if (!activeClient) return;
+    const link = `${window.location.origin}/?fotos=${activeClient.id}`;
+    navigator.clipboard.writeText(link);
+    setCopyFeedback(true);
+    setTimeout(() => setCopyFeedback(false), 2000);
+  };
 
   useEffect(() => {
     if (activeClient?.id) {
@@ -308,25 +318,40 @@ export const AiPhotosView: React.FC = () => {
 
       {isAdmin && (
         <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-black/[0.02] flex flex-col md:flex-row gap-4 items-center justify-between">
-          <div className="flex-1">
-            <h3 className="text-lg font-bold text-brand-dark">Adicionar Nova Foto</h3>
-            <p className="text-sm text-gray-500">Faça o upload de uma imagem gerada por IA para a aprovação do cliente.</p>
+          <div className="flex-grow">
+            <h3 className="text-lg font-bold text-brand-dark">Controle do Ensaio</h3>
+            <p className="text-sm text-gray-500">Faça o upload de novas imagens para o ensaio de IA e envie o link de compartilhamento seguro para o cliente.</p>
           </div>
-          <label className={`
-            px-8 py-3 rounded-xl font-bold transition-colors flex items-center justify-center gap-2 cursor-pointer
-            ${uploading ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-fuchsia-600 text-white hover:bg-fuchsia-700'}
-          `}>
-            <Upload size={18} />
-            {uploading ? 'Enviando...' : 'Selecionar Imagens'}
-            <input
-              type="file"
-              accept="image/*"
-              multiple
-              className="hidden"
-              onChange={handleFileUpload}
-              disabled={uploading}
-            />
-          </label>
+          <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
+            <button
+              onClick={handleCopyShareLink}
+              className={`
+                px-6 py-3 rounded-xl font-bold border transition-all flex items-center justify-center gap-2 text-sm
+                ${copyFeedback 
+                  ? 'bg-green-50 text-green-600 border-green-200 shadow-sm shadow-green-100' 
+                  : 'bg-white hover:bg-gray-50 text-gray-700 border-gray-200 hover:border-gray-300 shadow-sm'
+                }
+              `}
+            >
+              <Share2 size={16} />
+              {copyFeedback ? 'Link Copiado!' : 'Copiar Link de Compartilhamento'}
+            </button>
+            <label className={`
+              px-6 py-3 rounded-xl font-bold transition-all flex items-center justify-center gap-2 cursor-pointer text-sm shadow-sm
+              ${uploading ? 'bg-gray-100 text-gray-400 cursor-not-allowed border border-gray-200' : 'bg-fuchsia-600 text-white hover:bg-fuchsia-700'}
+            `}>
+              <Upload size={16} />
+              {uploading ? 'Enviando...' : 'Selecionar Imagens'}
+              <input
+                type="file"
+                accept="image/*"
+                multiple
+                className="hidden"
+                onChange={handleFileUpload}
+                disabled={uploading}
+              />
+            </label>
+          </div>
         </div>
       )}
 
