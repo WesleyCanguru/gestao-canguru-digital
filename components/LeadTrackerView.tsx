@@ -25,7 +25,8 @@ import {
   MessageCircle,
   Search,
   AlertTriangle,
-  FileEdit
+  FileEdit,
+  Download
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import dayjs from 'dayjs';
@@ -205,6 +206,69 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
       ...lead
     });
     setIsModalOpen(true);
+  };
+
+  const handleExportCSV = () => {
+    if (!leads || leads.length === 0) return;
+
+    const headers = [
+      'Nome do Lead',
+      'Telefone',
+      'Data do Lead',
+      'Canal/Origem de Tráfego',
+      'Unidade/Cidade',
+      'Especialidade',
+      'Potencial',
+      'Qualidade',
+      'Valor do Acordo',
+      'Etapa do Funil',
+      'Motivo da Perda',
+      'Notas'
+    ];
+
+    const escapeCSV = (val: any) => {
+      if (val === null || val === undefined) return '';
+      let str = String(val);
+      str = str.replace(/"/g, '""');
+      if (str.includes(';') || str.includes('\n') || str.includes('"')) {
+        return `"${str}"`;
+      }
+      return str;
+    };
+
+    const csvRows = [headers.join(';')];
+
+    leads.forEach(lead => {
+      const row = [
+        escapeCSV(lead.lead_name || ''),
+        escapeCSV(lead.phone || ''),
+        escapeCSV(lead.lead_date ? new Date(lead.lead_date).toLocaleDateString('pt-BR') : ''),
+        escapeCSV(lead.source || ''),
+        escapeCSV(lead.origin || ''),
+        escapeCSV(lead.specialty || ''),
+        escapeCSV(lead.potential || ''),
+        escapeCSV(lead.quality || ''),
+        escapeCSV(lead.deal_value || 0),
+        escapeCSV(lead.kanban_stage || ''),
+        escapeCSV(lead.loss_reason || ''),
+        escapeCSV(lead.notes || '')
+      ];
+      csvRows.push(row.join(';'));
+    });
+
+    const csvContent = '\uFEFF' + csvRows.join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    
+    const link = document.createElement('a');
+    link.href = url;
+    
+    const dateStr = new Date().toLocaleDateString('pt-BR').replace(/\//g, '-');
+    link.setAttribute('download', `leads_${dateStr}.csv`);
+    
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
   const handleSaveLead = async () => {
@@ -481,19 +545,32 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
             </div>
           </div>
           
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 sm:gap-4 flex-wrap sm:flex-nowrap">
             <input 
               type="month" 
               value={selectedMonth}
               onChange={(e) => setSelectedMonth(e.target.value)}
               className="bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm font-medium text-white focus:ring-2 focus:ring-white/20 outline-none [color-scheme:dark]"
             />
+            <button
+              onClick={handleExportCSV}
+              disabled={leads.length === 0}
+              className={`flex items-center gap-2 px-5 py-2.5 border rounded-xl font-bold text-xs uppercase tracking-widest transition-colors ${
+                leads.length === 0
+                  ? 'bg-white/5 text-white/40 border-white/10 cursor-not-allowed opacity-60'
+                  : 'bg-white/10 hover:bg-white/20 text-white border-white/20'
+              }`}
+              title="Exportar todos os leads para CSV"
+            >
+              <Download size={18} />
+              <span>Exportar</span>
+            </button>
             <button 
               onClick={handleOpenAddModal}
               className="flex items-center gap-2 px-6 py-2.5 bg-white text-black rounded-xl font-bold hover:bg-gray-100 transition-colors"
             >
               <Plus size={20} />
-              Novo Lead
+              <span>Novo Lead</span>
             </button>
           </div>
         </div>

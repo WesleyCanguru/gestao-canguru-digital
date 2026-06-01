@@ -14,6 +14,81 @@ interface PlatformViewProps {
   client?: Client | null;
 }
 
+const isVideoUrl = (url: string): boolean => {
+  if (!url) return false;
+  const cleanUrl = url.split('?')[0].toLowerCase();
+  return (
+    cleanUrl.endsWith('.mp4') ||
+    cleanUrl.endsWith('.webm') ||
+    cleanUrl.endsWith('.ogg') ||
+    cleanUrl.endsWith('.mov') ||
+    cleanUrl.endsWith('.m4v') ||
+    cleanUrl.includes('/video/') ||
+    cleanUrl.includes('video-')
+  );
+};
+
+const CarouselVideoPlayer: React.FC<{
+  src: string;
+  autoPlay: boolean;
+  onImageClick?: (url: string) => void;
+}> = ({ src, autoPlay, onImageClick }) => {
+  const videoRef = React.useRef<HTMLVideoElement | null>(null);
+  const [isMuted, setIsMuted] = React.useState(false);
+
+  React.useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    if (autoPlay) {
+      video.muted = isMuted;
+      video.play().catch(err => {
+        console.log("Autoplay with sound prevented, playing muted...", err);
+        video.muted = true;
+        setIsMuted(true);
+        video.play().catch(e => console.error("Error playing video:", e));
+      });
+    } else {
+      video.pause();
+    }
+  }, [src, autoPlay]);
+
+  React.useEffect(() => {
+    if (videoRef.current) {
+      videoRef.current.muted = isMuted;
+    }
+  }, [isMuted]);
+
+  return (
+    <div className="w-full h-full relative" onClick={() => onImageClick?.(src)}>
+      <video
+        ref={videoRef}
+        src={src}
+        className="w-full h-full object-cover"
+        controls
+        playsInline
+        loop
+      />
+      
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          setIsMuted(!isMuted);
+        }}
+        className="absolute bottom-12 right-4 bg-black/60 text-white p-2.5 rounded-full hover:bg-black/80 transition-colors z-10 shadow-lg flex items-center justify-center border border-white/10"
+        title={isMuted ? "Ativar som" : "Desativar som"}
+      >
+        {isMuted ? (
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="1" y1="1" x2="23" y2="23"></line><path d="M9 9v6a3 3 0 0 0 3 3h1.586l4.707 4.707A1 1 0 0 0 20 22V4a1 1 0 0 0-1.707-.707L13.586 8H12a3 3 0 0 0-3 3z"></path></svg>
+        ) : (
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path><path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path></svg>
+        )}
+      </button>
+    </div>
+  );
+};
+
 export const MediaRenderer: React.FC<{ 
   imageUrl: string | string[] | null; 
   isVideo: boolean | null; 
@@ -87,6 +162,7 @@ export const MediaRenderer: React.FC<{
       const currentImg = imageUrl[currentIndex];
       const hasNext = currentIndex < imageUrl.length - 1;
       const hasPrev = currentIndex > 0;
+      const isCurrentSlideVideo = isVideoUrl(currentImg);
 
       return (
         <div 
@@ -95,24 +171,32 @@ export const MediaRenderer: React.FC<{
           onTouchMove={onTouchMove}
           onTouchEnd={onTouchEndHandler}
         >
-            <img 
-              src={currentImg} 
-              className="w-full h-full object-cover cursor-pointer" 
-              alt={`Slide ${currentIndex + 1}`} 
-              onClick={() => onImageClick && onImageClick(currentImg)}
-            />
+            {isCurrentSlideVideo ? (
+              <CarouselVideoPlayer 
+                src={currentImg} 
+                autoPlay={currentIndex > 0} 
+                onImageClick={onImageClick} 
+              />
+            ) : (
+              <img 
+                src={currentImg} 
+                className="w-full h-full object-cover cursor-pointer" 
+                alt={`Slide ${currentIndex + 1}`} 
+                onClick={() => onImageClick && onImageClick(currentImg)}
+              />
+            )}
             
             {/* Navigation */}
             {imageUrl.length > 1 && (
                 <>
-                    <div className="absolute top-3 right-3 bg-black/60 text-white text-xs px-2 py-1 rounded-full font-medium">
+                    <div className="absolute top-3 right-3 bg-black/60 text-white text-xs px-2 py-1 rounded-full font-medium z-10">
                         {currentIndex + 1}/{imageUrl.length}
                     </div>
                     
                     {hasPrev && (
                         <button 
                             onClick={(e) => { e.stopPropagation(); setCurrentIndex(prev => prev - 1); }}
-                            className="absolute left-2 top-1/2 -translate-y-1/2 bg-white/80 hover:bg-white text-gray-800 p-1.5 rounded-full shadow-sm opacity-0 group-hover:opacity-100 transition-opacity"
+                            className="absolute left-2 top-1/2 -translate-y-1/2 bg-white/80 hover:bg-white text-gray-800 p-1.5 rounded-full shadow-sm opacity-0 group-hover:opacity-100 transition-opacity z-10"
                         >
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6"/></svg>
                         </button>
@@ -121,14 +205,14 @@ export const MediaRenderer: React.FC<{
                     {hasNext && (
                         <button 
                             onClick={(e) => { e.stopPropagation(); setCurrentIndex(prev => prev + 1); }}
-                            className="absolute right-2 top-1/2 -translate-y-1/2 bg-white/80 hover:bg-white text-gray-800 p-1.5 rounded-full shadow-sm opacity-0 group-hover:opacity-100 transition-opacity"
+                            className="absolute right-2 top-1/2 -translate-y-1/2 bg-white/80 hover:bg-white text-gray-800 p-1.5 rounded-full shadow-sm opacity-0 group-hover:opacity-100 transition-opacity z-10"
                         >
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6"/></svg>
                         </button>
                     )}
                     
                     {/* Dots */}
-                    <div className="absolute bottom-2 left-0 right-0 flex justify-center gap-1.5">
+                    <div className="absolute bottom-2 left-0 right-0 flex justify-center gap-1.5 z-10">
                         {imageUrl.map((_, idx) => (
                             <div key={idx} className={`w-1.5 h-1.5 rounded-full shadow-sm ${idx === currentIndex ? 'bg-blue-500' : 'bg-white/60'}`} />
                         ))}
