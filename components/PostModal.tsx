@@ -1389,13 +1389,24 @@ export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, group
         </div>
 
         {/* Mobile Tab Bar */}
-        <div className="md:hidden flex w-full bg-white border-t border-gray-200 z-50 shrink-0">
+        <div 
+          className="md:hidden flex w-full bg-white border-t border-gray-200 z-50 shrink-0"
+          style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 16px)' }}
+        >
            {hasContent && (
-             <button onClick={() => setMobileTab('preview')} className={`flex-1 py-3 text-[10px] font-bold uppercase tracking-widest flex flex-col items-center gap-1 transition-colors ${mobileTab === 'preview' ? 'text-brand-dark bg-gray-50' : 'text-gray-400 hover:bg-gray-50'}`}>
+             <button 
+               type="button"
+               onClick={() => setMobileTab('preview')} 
+               className={`flex-1 pt-4 pb-2 text-[10px] font-bold uppercase tracking-widest flex flex-col items-center gap-1 transition-colors cursor-pointer select-none touch-manipulation ${mobileTab === 'preview' ? 'text-brand-dark bg-gray-50' : 'text-gray-400 hover:bg-gray-50'}`}
+             >
                 <Eye size={18} /> Visualizar
              </button>
            )}
-           <button onClick={() => setMobileTab('edit')} className={`flex-1 py-3 text-[10px] font-bold uppercase tracking-widest flex flex-col items-center gap-1 transition-colors ${mobileTab === 'edit' ? 'text-brand-dark bg-gray-50' : 'text-gray-400 hover:bg-gray-50'}`}>
+           <button 
+             type="button"
+             onClick={() => setMobileTab('edit')} 
+             className={`flex-1 pt-4 pb-2 text-[10px] font-bold uppercase tracking-widest flex flex-col items-center gap-1 transition-colors cursor-pointer select-none touch-manipulation ${mobileTab === 'edit' ? 'text-brand-dark bg-gray-50' : 'text-gray-400 hover:bg-gray-50'}`}
+           >
               <FileText size={18} /> Detalhes
            </button>
         </div>
