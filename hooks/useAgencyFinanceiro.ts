@@ -9,12 +9,64 @@ export function useAgencyFinanceiro(monthYear: string) {
   const { agencyId } = useAuth();
   const [billings, setBillings] = useState<AgencyBilling[]>([]);
   const [expenses, setExpenses] = useState<AgencyExpense[]>([]);
+  const [ticketMedio, setTicketMedio] = useState(0);
+  const [faturamentoAcumulado, setFaturamentoAcumulado] = useState(0);
   const [loading, setLoading] = useState(true);
 
   const fetchData = async () => {
     if (!agencyId) return;
     setLoading(true);
     try {
+      // Fetch Clients for calculations (both active, completed, cancelled)
+      const { data: clientsForCalcs } = await supabase
+        .from('clients')
+        .select('id, base_value, created_at, updated_at, client_status, service_end_date, client_type')
+        .eq('agency_id', agencyId)
+        .in('client_status', ['active', 'completed', 'cancelled']);
+
+      // Calculate Ticket Médio (only active and recurring clients)
+      const activeRecurringClients = (clientsForCalcs || []).filter((c: any) => c.client_status === 'active' && c.client_type === 'recurring');
+      const totalActiveBaseValue = activeRecurringClients.reduce((sum: number, c: any) => sum + (Number(c.base_value) || 0), 0);
+      const computedTicketMedio = activeRecurringClients.length > 0 ? totalActiveBaseValue / activeRecurringClients.length : 0;
+
+      // Calculate Faturamento Acumulado no Ano
+      const anoAtual = dayjs().year();
+      const mesAtual = dayjs().month() + 1; // 1-12
+
+      let computedFaturamentoAcumulado = 0;
+
+      for (const client of (clientsForCalcs || []) as any[]) {
+        if (!client.base_value) continue;
+        
+        const criacao = dayjs(client.created_at);
+        const anoCriacao = criacao.year();
+        const mesCriacao = criacao.month() + 1;
+        
+        // Mês de início no ano atual
+        const mesInicio = anoCriacao < anoAtual ? 1 : mesCriacao;
+        
+        // Mês de fim
+        let mesFim = mesAtual;
+        if (client.client_status === 'cancelled' || client.client_status === 'completed') {
+          const endDateStr = client.service_end_date || client.updated_at;
+          if (endDateStr) {
+            const endDate = dayjs(endDateStr);
+            const anoEnd = endDate.year();
+            const mesEnd = endDate.month() + 1;
+            if (anoEnd < anoAtual) {
+              mesFim = 0;
+            } else if (anoEnd === anoAtual) {
+              mesFim = Math.min(mesAtual, mesEnd);
+            }
+          }
+        }
+        
+        const mesesAtivos = Math.max(0, mesFim - mesInicio + 1);
+        computedFaturamentoAcumulado += (Number(client.base_value) || 0) * mesesAtivos;
+      }
+
+      setTicketMedio(computedTicketMedio);
+      setFaturamentoAcumulado(computedFaturamentoAcumulado);
       // Fetch Clients to ensure we have all clients even if no billing record exists yet
       const { data: clientsData } = await supabase
         .from('clients')
@@ -79,23 +131,40 @@ export function useAgencyFinanceiro(monthYear: string) {
         .select('*')
         .eq('agency_id', agencyId)
         .eq('month_year', monthYear)
+        .not('is_deleted', 'is', true)
         .order('created_at', { ascending: false });
 
+      // Fetch all current month expenses (including deleted ones) to perform correct replication checks
+      const { data: allCurrentMonthExpenses } = await supabase
+        .from('agency_expenses')
+        .select('*')
+        .eq('agency_id', agencyId)
+        .eq('month_year', monthYear);
+
       let currentExpenses = (expensesData || []) as AgencyExpense[];
+      const existingAll = allCurrentMonthExpenses || [];
 
-      // Check if we need to carry over fixed expenses from previous month
-      const hasFixedExpenses = currentExpenses.some(e => e.category === 'fixed');
-      if (!hasFixedExpenses) {
-        const prevMonth = dayjs(monthYear + '-01').subtract(1, 'month').format('YYYY-MM');
-        const { data: prevExpenses } = await supabase
-          .from('agency_expenses')
-          .select('*')
-          .eq('agency_id', agencyId)
-          .eq('month_year', prevMonth)
-          .eq('category', 'fixed');
+      // Check fixed expenses from previous month that are NOT in the current month (matching by description)
+      const prevMonth = dayjs(monthYear + '-01').subtract(1, 'month').format('YYYY-MM');
+      const { data: prevExpenses } = await supabase
+        .from('agency_expenses')
+        .select('*')
+        .eq('agency_id', agencyId)
+        .eq('month_year', prevMonth)
+        .eq('category', 'fixed')
+        .not('is_deleted', 'is', true);
 
-        if (prevExpenses && prevExpenses.length > 0) {
-          const newExpensesToInsert = prevExpenses.map(e => ({
+      if (prevExpenses && prevExpenses.length > 0) {
+        // Filter out those that already have a matching description in the current month's expenses
+        const newExpensesToInsert = prevExpenses
+          .filter(prevExp => {
+            const hasMatch = existingAll.some(currExp => 
+              currExp.category === 'fixed' && 
+              currExp.description.toLowerCase().trim() === prevExp.description.toLowerCase().trim()
+            );
+            return !hasMatch;
+          })
+          .map(e => ({
             description: e.description,
             category: e.category,
             expense_type: e.expense_type,
@@ -105,16 +174,18 @@ export function useAgencyFinanceiro(monthYear: string) {
             paid: false,
             paid_at: null,
             notes: e.notes,
-            agency_id: agencyId
+            agency_id: agencyId,
+            is_deleted: false
           }));
 
+        if (newExpensesToInsert.length > 0) {
           const { data: insertedExpenses } = await supabase
             .from('agency_expenses')
             .insert(newExpensesToInsert)
             .select();
 
           if (insertedExpenses) {
-            currentExpenses = [...currentExpenses, ...insertedExpenses];
+            currentExpenses = [...currentExpenses, ...(insertedExpenses.filter(e => !e.is_deleted))];
           }
         }
       }
@@ -242,14 +313,39 @@ export function useAgencyFinanceiro(monthYear: string) {
 
   const deleteExpense = async (id: string) => {
     try {
-      const { error } = await supabase
+      // Fetch target expense first to verify its properties
+      const { data: targetExpense, error: fetchError } = await supabase
         .from('agency_expenses')
-        .delete()
+        .select('*')
         .eq('agency_id', agencyId)
-        .eq('id', id);
+        .eq('id', id)
+        .single();
 
-      if (error) throw error;
-      setExpenses(prev => prev.filter(e => e.id !== id));
+      if (fetchError) throw fetchError;
+
+      if (targetExpense.category === 'fixed') {
+        // Soft delete from this month onwards for matching fixed descriptions
+        const { error: updateError } = await supabase
+          .from('agency_expenses')
+          .update({ is_deleted: true })
+          .eq('agency_id', agencyId)
+          .eq('category', 'fixed')
+          .ilike('description', targetExpense.description)
+          .gte('month_year', targetExpense.month_year);
+
+        if (updateError) throw updateError;
+        setExpenses(prev => prev.filter(e => e.id !== id));
+      } else {
+        // Variable expense: soft delete only this specific one
+        const { error: updateError } = await supabase
+          .from('agency_expenses')
+          .update({ is_deleted: true })
+          .eq('agency_id', agencyId)
+          .eq('id', id);
+
+        if (updateError) throw updateError;
+        setExpenses(prev => prev.filter(e => e.id !== id));
+      }
     } catch (error) {
       console.error('Error deleting expense:', error);
       throw error;
@@ -275,6 +371,8 @@ export function useAgencyFinanceiro(monthYear: string) {
   return {
     billings,
     expenses,
+    ticketMedio,
+    faturamentoAcumulado,
     loading,
     updateBilling,
     deleteBilling,

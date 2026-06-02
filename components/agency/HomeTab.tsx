@@ -29,6 +29,8 @@ interface FinancialData {
   receitas: number;
   despesas: number;
   saldo: number;
+  ticketMedio: number;
+  faturamentoAcumulado: number;
 }
 
 interface CRMOverview {
@@ -40,7 +42,13 @@ interface CRMOverview {
 export const HomeTab: React.FC<{ onNavigateToClients: (client: Client) => void }> = ({ onNavigateToClients }) => {
   const { agencyId, agencyName } = useAuth();
   const [loading, setLoading] = useState(true);
-  const [financial, setFinancial] = useState<FinancialData>({ receitas: 0, despesas: 0, saldo: 0 });
+  const [financial, setFinancial] = useState<FinancialData>({ 
+    receitas: 0, 
+    despesas: 0, 
+    saldo: 0,
+    ticketMedio: 0,
+    faturamentoAcumulado: 0
+  });
   const [urgentTasks, setUrgentTasks] = useState<AgencyTask[]>([]);
   const [crmOverviews, setCrmOverviews] = useState<CRMOverview[]>([]);
   const [reporteiDashboards, setReporteiDashboards] = useState<{ id: string; name: string; url: string }[]>([]);
@@ -74,7 +82,8 @@ export const HomeTab: React.FC<{ onNavigateToClients: (client: Client) => void }
         { data: tempTasks },
         { data: tempCrms },
         { data: tempLeads },
-        { data: tempSettings }
+        { data: tempSettings },
+        { data: tempClients }
       ] = await Promise.all([
         supabase.from('agency_billing')
           .select('total_value')
@@ -84,7 +93,8 @@ export const HomeTab: React.FC<{ onNavigateToClients: (client: Client) => void }
         supabase.from('agency_expenses')
           .select('amount')
           .eq('agency_id', agencyId)
-          .eq('month_year', currentMonthYear),
+          .eq('month_year', currentMonthYear)
+          .not('is_deleted', 'is', true),
         supabase.from('agency_tasks')
           .select('*, client:clients(id, name, color, initials)')
           .eq('agency_id', agencyId)
@@ -101,7 +111,11 @@ export const HomeTab: React.FC<{ onNavigateToClients: (client: Client) => void }
         supabase.from('agency_settings')
           .select('*')
           .eq('agency_id', agencyId)
-          .in('key', ['home_reportei_dashboards', 'home_reportei_enabled'])
+          .in('key', ['home_reportei_dashboards', 'home_reportei_enabled']),
+        supabase.from('clients')
+          .select('id, base_value, created_at, updated_at, client_status, service_end_date, client_type')
+          .eq('agency_id', agencyId)
+          .in('client_status', ['active', 'completed', 'cancelled'])
       ]);
 
       // Calculate Finances
@@ -114,11 +128,54 @@ export const HomeTab: React.FC<{ onNavigateToClients: (client: Client) => void }
       if (tempExpenses) {
         totalDespesas = tempExpenses.reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
       }
+
+      // Calculate Ticket Médio (only active and recurring clients)
+      const activeRecurringClients = (tempClients || []).filter((c: any) => c.client_status === 'active' && c.client_type === 'recurring');
+      const totalActiveBaseValue = activeRecurringClients.reduce((sum: number, c: any) => sum + (Number(c.base_value) || 0), 0);
+      const ticketMedio = activeRecurringClients.length > 0 ? totalActiveBaseValue / activeRecurringClients.length : 0;
+
+      // Calculate Faturamento Acumulado no Ano
+      const anoAtual = dayjs().year();
+      const mesAtual = dayjs().month() + 1; // 1-12
+
+      let faturamentoAcumulado = 0;
+
+      for (const client of (tempClients || []) as any[]) {
+        if (!client.base_value) continue;
+        
+        const criacao = dayjs(client.created_at);
+        const anoCriacao = criacao.year();
+        const mesCriacao = criacao.month() + 1;
+        
+        // Mês de início no ano atual
+        const mesInicio = anoCriacao < anoAtual ? 1 : mesCriacao;
+        
+        // Mês de fim
+        let mesFim = mesAtual;
+        if (client.client_status === 'cancelled' || client.client_status === 'completed') {
+          const endDateStr = client.service_end_date || client.updated_at;
+          if (endDateStr) {
+            const endDate = dayjs(endDateStr);
+            const anoEnd = endDate.year();
+            const mesEnd = endDate.month() + 1;
+            if (anoEnd < anoAtual) {
+              mesFim = 0;
+            } else if (anoEnd === anoAtual) {
+              mesFim = Math.min(mesAtual, mesEnd);
+            }
+          }
+        }
+        
+        const mesesAtivos = Math.max(0, mesFim - mesInicio + 1);
+        faturamentoAcumulado += (Number(client.base_value) || 0) * mesesAtivos;
+      }
       
       setFinancial({
         receitas: totalReceitas,
         despesas: totalDespesas,
-        saldo: totalReceitas - totalDespesas
+        saldo: totalReceitas - totalDespesas,
+        ticketMedio,
+        faturamentoAcumulado
       });
 
       // Urgent Tasks (Due <= 3 days OR priority IN ['alta', 'urgente'])
@@ -269,8 +326,13 @@ export const HomeTab: React.FC<{ onNavigateToClients: (client: Client) => void }
   if (loading) {
     return (
       <div className="space-y-6">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {[1,2,3].map(i => <div key={i} className="h-32 bg-white rounded-3xl animate-pulse" />)}
+        <div className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {[1,2,3].map(i => <div key={i} className="h-32 bg-white rounded-3xl animate-pulse" />)}
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-2xl">
+            {[1,2].map(i => <div key={i} className="h-20 bg-white rounded-2xl animate-pulse" />)}
+          </div>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="h-64 bg-white rounded-3xl animate-pulse" />
@@ -283,6 +345,9 @@ export const HomeTab: React.FC<{ onNavigateToClients: (client: Client) => void }
   const formatCurrency = (val: number) => {
     return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
   };
+
+  const monthNames = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
+  const labelPeriodo = `Jan–${monthNames[dayjs().month()]} de ${dayjs().year()}`;
 
   return (
     <div className="space-y-8 pb-10">
@@ -330,45 +395,81 @@ export const HomeTab: React.FC<{ onNavigateToClients: (client: Client) => void }
       </div>
 
       {/* BLOCO 1 - FINANCEIRO */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="bg-white p-6 rounded-3xl border border-black/[0.03] shadow-sm flex flex-col justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-green-50 flex items-center justify-center text-green-600">
-              <TrendingUp size={20} />
-            </div>
-            <div>
-              <p className="text-[10px] uppercase tracking-widest text-gray-400 font-bold">Receitas do Mês</p>
-              <h3 className="text-xl font-bold text-brand-dark">
-                {showFinancials ? formatCurrency(financial.receitas) : 'R$ ••••••••'}
-              </h3>
+      <div className="space-y-4">
+        {/* Linha 1 - Principais */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="bg-white p-6 rounded-3xl border border-black/[0.03] shadow-sm flex flex-col justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-green-50 flex items-center justify-center text-green-600">
+                <TrendingUp size={20} />
+              </div>
+              <div>
+                <p className="text-[10px] uppercase tracking-widest text-gray-400 font-bold">Receitas do Mês</p>
+                <h3 className="text-xl font-bold text-brand-dark">
+                  {showFinancials ? formatCurrency(financial.receitas) : 'R$ ••••••••'}
+                </h3>
+              </div>
             </div>
           </div>
-        </div>
-        
-        <div className="bg-white p-6 rounded-3xl border border-black/[0.03] shadow-sm flex flex-col justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-red-50 flex items-center justify-center text-red-600">
-              <TrendingDown size={20} />
+          
+          <div className="bg-white p-6 rounded-3xl border border-black/[0.03] shadow-sm flex flex-col justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-red-50 flex items-center justify-center text-red-600">
+                <TrendingDown size={20} />
+              </div>
+              <div>
+                <p className="text-[10px] uppercase tracking-widest text-gray-400 font-bold">Despesas do Mês</p>
+                <h3 className="text-xl font-bold text-brand-dark">
+                  {showFinancials ? formatCurrency(financial.despesas) : 'R$ ••••••••'}
+                </h3>
+              </div>
             </div>
-            <div>
-              <p className="text-[10px] uppercase tracking-widest text-gray-400 font-bold">Despesas do Mês</p>
-              <h3 className="text-xl font-bold text-brand-dark">
-                {showFinancials ? formatCurrency(financial.despesas) : 'R$ ••••••••'}
-              </h3>
+          </div>
+
+          <div className="bg-white p-6 rounded-3xl border border-black/[0.03] shadow-sm flex flex-col justify-between">
+            <div className="flex items-center gap-3">
+              <div className={`w-10 h-10 rounded-full flex items-center justify-center ${financial.saldo >= 0 ? 'bg-blue-50 text-blue-600' : 'bg-orange-50 text-orange-600'}`}>
+                <DollarSign size={20} />
+              </div>
+              <div>
+                <p className="text-[10px] uppercase tracking-widest text-gray-400 font-bold">Saldo do Mês</p>
+                <h3 className={`text-xl font-bold ${!showFinancials ? 'text-brand-dark' : financial.saldo >= 0 ? 'text-green-600' : 'text-red-500'}`}>
+                  {showFinancials ? formatCurrency(financial.saldo) : 'R$ ••••••••'}
+                </h3>
+              </div>
             </div>
           </div>
         </div>
 
-        <div className="bg-white p-6 rounded-3xl border border-black/[0.03] shadow-sm flex flex-col justify-between">
-          <div className="flex items-center gap-3">
-            <div className={`w-10 h-10 rounded-full flex items-center justify-center ${financial.saldo >= 0 ? 'bg-blue-50 text-blue-600' : 'bg-orange-50 text-orange-600'}`}>
-              <DollarSign size={20} />
+        {/* Linha 2 - Indicadores de Apoio (Menores e mais discretos) */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-2xl">
+          <div className="bg-white/85 p-4 rounded-2xl border border-black/[0.02] shadow-sm flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-full bg-purple-50 flex items-center justify-center text-purple-600">
+                <Briefcase size={16} />
+              </div>
+              <div>
+                <p className="text-[9px] uppercase tracking-widest text-gray-400 font-bold">Ticket Médio</p>
+                <h4 className="text-base font-bold text-brand-dark">
+                  {showFinancials ? formatCurrency(financial.ticketMedio) : 'R$ ••••••••'}
+                </h4>
+                <p className="text-[8px] text-gray-400 font-medium mt-0.5">por cliente recorrente</p>
+              </div>
             </div>
-            <div>
-              <p className="text-[10px] uppercase tracking-widest text-gray-400 font-bold">Saldo do Mês</p>
-              <h3 className={`text-xl font-bold ${!showFinancials ? 'text-brand-dark' : financial.saldo >= 0 ? 'text-green-600' : 'text-red-500'}`}>
-                {showFinancials ? formatCurrency(financial.saldo) : 'R$ ••••••••'}
-              </h3>
+          </div>
+
+          <div className="bg-white/85 p-4 rounded-2xl border border-black/[0.02] shadow-sm flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-full bg-teal-50 flex items-center justify-center text-teal-600">
+                <BarChart3 size={16} />
+              </div>
+              <div>
+                <p className="text-[9px] uppercase tracking-widest text-gray-400 font-bold">Faturado no Ano</p>
+                <h4 className="text-base font-bold text-brand-dark">
+                  {showFinancials ? formatCurrency(financial.faturamentoAcumulado) : 'R$ ••••••••'}
+                </h4>
+                <p className="text-[8px] text-gray-400 font-medium mt-0.5">{labelPeriodo}</p>
+              </div>
             </div>
           </div>
         </div>

@@ -15,14 +15,18 @@ import {
   Edit2,
   X,
   Lock,
-  Zap
+  Zap,
+  Briefcase,
+  BarChart3
 } from 'lucide-react';
 import { useAgencyFinanceiro } from '../../hooks/useAgencyFinanceiro';
 import dayjs from 'dayjs';
 
 export const FinanceiroTab: React.FC = () => {
   const [currentMonthYear, setCurrentMonthYear] = useState(dayjs().format('YYYY-MM'));
-  const { billings, expenses, loading, updateBilling, deleteBilling, addExpense, updateExpense, deleteExpense } = useAgencyFinanceiro(currentMonthYear);
+  const { billings, expenses, ticketMedio, faturamentoAcumulado, loading, updateBilling, deleteBilling, addExpense, updateExpense, deleteExpense } = useAgencyFinanceiro(currentMonthYear);
+  const monthNames = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
+  const labelPeriodo = `Jan–${monthNames[dayjs().month()]} de ${dayjs().year()}`;
   const [showExpenseModal, setShowExpenseModal] = useState(false);
   const [showSporadicModal, setShowSporadicModal] = useState(false);
   const [deletingSporadicBilling, setDeletingSporadicBilling] = useState<any>(null);
@@ -42,6 +46,8 @@ export const FinanceiroTab: React.FC = () => {
     notes: ''
   });
   const [payingExpense, setPayingExpense] = useState<any>(null);
+  const [editingExpense, setEditingExpense] = useState<any>(null);
+  const [deletingExpense, setDeletingExpense] = useState<any>(null);
   const [isUpdating, setIsUpdating] = useState(false);
 
   const stats = useMemo(() => {
@@ -141,6 +147,45 @@ export const FinanceiroTab: React.FC = () => {
         setEditingBilling(null);
       } catch (error) {
         console.error('Failed to update billing:', error);
+      } finally {
+        setIsUpdating(false);
+      }
+    }
+  };
+
+  const startEditingExpense = (expense: any) => {
+    const dueDay = expense.due_date ? dayjs(expense.due_date).date() : 10;
+    setEditingExpense({
+      ...expense,
+      due_day: dueDay
+    });
+  };
+
+  const handleUpdateExpense = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (editingExpense && !isUpdating) {
+      setIsUpdating(true);
+      try {
+        let due_date = editingExpense.due_date;
+        if (editingExpense.category === 'fixed' && editingExpense.due_day) {
+          due_date = dayjs(currentMonthYear).date(editingExpense.due_day).format('YYYY-MM-DD');
+        } else if (editingExpense.category === 'variable') {
+          due_date = null;
+        }
+
+        await updateExpense(editingExpense.id, {
+          description: editingExpense.description,
+          category: editingExpense.category,
+          expense_type: editingExpense.expense_type,
+          amount: editingExpense.amount,
+          due_date,
+          notes: editingExpense.notes,
+          paid: editingExpense.paid,
+          paid_at: editingExpense.paid ? (editingExpense.paid_at || new Date().toISOString()) : null
+        });
+        setEditingExpense(null);
+      } catch (error) {
+        console.error('Failed to update expense:', error);
       } finally {
         setIsUpdating(false);
       }
@@ -254,34 +299,72 @@ export const FinanceiroTab: React.FC = () => {
         </div>
       </div>
 
-      {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-        {[
-          { label: 'Total a Receber', value: stats.totalToReceive, icon: DollarSign, color: 'text-blue-600', bg: 'bg-blue-50/50' },
-          { label: 'Total Recebido', value: stats.totalReceived, icon: CheckCircle2, color: 'text-emerald-600', bg: 'bg-emerald-50/50' },
-          { label: 'Total em Aberto', value: stats.totalOpen, icon: AlertCircle, color: 'text-amber-600', bg: 'bg-amber-50/50' },
-          { label: 'Total Fixas', value: stats.totalFixedExpenses, icon: Lock, color: 'text-indigo-600', bg: 'bg-indigo-50/50' },
-          { label: 'Total Variáveis', value: stats.totalVariableExpenses, icon: Zap, color: 'text-purple-600', bg: 'bg-purple-50/50' },
-          { label: 'Resultado do Mês', value: stats.result, icon: TrendingUp, color: stats.result >= 0 ? 'text-emerald-600' : 'text-rose-600', bg: stats.result >= 0 ? 'bg-emerald-50/50' : 'bg-rose-50/50' },
-        ].map((item, idx) => (
-          <motion.div 
-            key={idx}
-            whileHover={{ y: -3, boxShadow: '0 15px 20px -5px rgba(0, 0, 0, 0.04)' }}
-            className="bg-white p-6 rounded-[2rem] border border-black/[0.03] shadow-sm transition-all duration-300 flex items-center gap-5"
-          >
-            <div className={`w-12 h-12 ${item.bg} rounded-2xl flex-shrink-0 flex items-center justify-center ${item.color}`}>
-              <item.icon size={22} strokeWidth={1.5} />
-            </div>
-            <div className="min-w-0">
-              <p className="text-gray-400 text-[10px] uppercase tracking-[0.2em] font-bold mb-0.5 leading-tight">
-                {item.label}
-              </p>
-              <h3 className={`text-2xl font-bold tracking-tight ${item.label === 'Resultado do Mês' ? item.color : 'text-brand-dark'}`}>
-                {formatCurrency(item.value)}
-              </h3>
-            </div>
-          </motion.div>
-        ))}
+      {/* Summary Blocks */}
+      <div className="space-y-8">
+        {/* BLOCO FATURAMENTO */}
+        <div className="space-y-3">
+          <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest pl-1 font-sans">Faturamento</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-5">
+            {[
+              { label: 'Total a Receber', value: stats.totalToReceive, icon: DollarSign, color: 'text-blue-600', bg: 'bg-blue-50/50' },
+              { label: 'Total Recebido', value: stats.totalReceived, icon: CheckCircle2, color: 'text-emerald-600', bg: 'bg-emerald-50/50' },
+              { label: 'Total em Aberto', value: stats.totalOpen, icon: AlertCircle, color: 'text-amber-600', bg: 'bg-amber-50/50' },
+              { label: 'Ticket Médio', value: ticketMedio, icon: Briefcase, color: 'text-purple-600', bg: 'bg-purple-50/50', subtitle: 'por cliente recorrente' },
+              { label: 'Faturado no Ano', value: faturamentoAcumulado, icon: BarChart3, color: 'text-teal-600', bg: 'bg-teal-50/50', subtitle: labelPeriodo },
+            ].map((item, idx) => (
+              <motion.div 
+                key={idx}
+                whileHover={{ y: -3, boxShadow: '0 15px 20px -5px rgba(0, 0, 0, 0.04)' }}
+                className="bg-white p-5 rounded-[2rem] border border-black/[0.03] shadow-sm transition-all duration-300 flex items-center gap-4"
+              >
+                <div className={`w-10 h-10 ${item.bg} rounded-2xl flex-shrink-0 flex items-center justify-center ${item.color}`}>
+                  <item.icon size={18} strokeWidth={1.5} />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-gray-400 text-[9px] uppercase tracking-[0.15em] font-bold mb-0.5 leading-tight">
+                    {item.label}
+                  </p>
+                  <h3 className="text-xl font-bold tracking-tight text-brand-dark">
+                    {formatCurrency(item.value)}
+                  </h3>
+                  {('subtitle' in item) && item.subtitle && (
+                    <p className="text-[8px] text-gray-400 font-medium mt-0.5">{item.subtitle}</p>
+                  )}
+                </div>
+              </motion.div>
+            ))}
+          </div>
+        </div>
+
+        {/* BLOCO DESPESAS */}
+        <div className="space-y-3">
+          <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest pl-1 font-sans">Despesas</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+            {[
+              { label: 'Despesas Fixas', value: stats.totalFixedExpenses, icon: Lock, color: 'text-indigo-600', bg: 'bg-indigo-50/50' },
+              { label: 'Despesas Variáveis', value: stats.totalVariableExpenses, icon: Zap, color: 'text-purple-600', bg: 'bg-purple-50/50' },
+              { label: 'Resultado do Mês', value: stats.result, icon: TrendingUp, color: stats.result >= 0 ? 'text-emerald-600' : 'text-rose-600', bg: stats.result >= 0 ? 'bg-emerald-50/50' : 'bg-rose-50/50' },
+            ].map((item, idx) => (
+              <motion.div 
+                key={idx}
+                whileHover={{ y: -3, boxShadow: '0 15px 20px -5px rgba(0, 0, 0, 0.04)' }}
+                className="bg-white p-6 rounded-[2rem] border border-black/[0.03] shadow-sm transition-all duration-300 flex items-center gap-5"
+              >
+                <div className={`w-12 h-12 ${item.bg} rounded-2xl flex-shrink-0 flex items-center justify-center ${item.color}`}>
+                  <item.icon size={22} strokeWidth={1.5} />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-gray-400 text-[10px] uppercase tracking-[0.2em] font-bold mb-0.5 leading-tight">
+                    {item.label}
+                  </p>
+                  <h3 className={`text-2xl font-bold tracking-tight ${item.label === 'Resultado do Mês' ? item.color : 'text-brand-dark'}`}>
+                    {formatCurrency(item.value)}
+                  </h3>
+                </div>
+              </motion.div>
+            ))}
+          </div>
+        </div>
       </div>
 
       {/* Billings Table */}
@@ -505,6 +588,13 @@ export const FinanceiroTab: React.FC = () => {
               </div>
 
               <div className="flex items-center gap-2 pt-2 border-t border-gray-100/50">
+                <button 
+                  onClick={() => startEditingExpense(expense)}
+                  className="p-2.5 text-blue-600 bg-blue-50/50 hover:bg-blue-100/55 rounded-xl transition-all"
+                  title="Editar Despesa"
+                >
+                  <Edit2 size={16} />
+                </button>
                 {!expense.paid ? (
                   <button 
                     onClick={() => handleMarkExpensePaid(expense)}
@@ -521,8 +611,9 @@ export const FinanceiroTab: React.FC = () => {
                   </button>
                 )}
                 <button 
-                  onClick={() => deleteExpense(expense.id)}
+                  onClick={() => setDeletingExpense(expense)}
                   className="p-2.5 text-rose-600 bg-rose-50/50 hover:bg-rose-100 rounded-xl transition-all"
+                  title="Excluir Despesa"
                 >
                   <Trash2 size={16} />
                 </button>
@@ -577,6 +668,13 @@ export const FinanceiroTab: React.FC = () => {
                   <td className="px-8 py-5">{getExpenseStatusBadge(expense)}</td>
                   <td className="px-8 py-5">
                     <div className="flex items-center gap-2">
+                      <button 
+                        onClick={() => startEditingExpense(expense)}
+                        className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-all"
+                        title="Editar Detalhes"
+                      >
+                        <Edit2 size={14} />
+                      </button>
                       {!expense.paid ? (
                         <button 
                           onClick={() => handleMarkExpensePaid(expense)}
@@ -593,8 +691,9 @@ export const FinanceiroTab: React.FC = () => {
                         </button>
                       )}
                       <button 
-                        onClick={() => deleteExpense(expense.id)}
+                        onClick={() => setDeletingExpense(expense)}
                         className="p-2 text-gray-300 hover:text-rose-600 transition-colors opacity-0 group-hover:opacity-100"
+                        title="Excluir Despesa"
                       >
                         <Trash2 size={16} />
                       </button>
@@ -916,6 +1015,126 @@ export const FinanceiroTab: React.FC = () => {
           </motion.div>
         </div>
       )}
+
+      {/* Expense Edit Modal */}
+      {editingExpense && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-brand-dark/20 backdrop-blur-sm">
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.95, y: 20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            className="bg-white w-full max-w-md rounded-3xl p-8 shadow-2xl border border-black/[0.03]"
+          >
+            <div className="flex justify-between items-center mb-8">
+              <h3 className="text-xl font-bold text-brand-dark">Editar Despesa</h3>
+              <button type="button" onClick={() => setEditingExpense(null)} className="p-2 hover:bg-gray-50 rounded-xl transition-colors">
+                <X size={20} className="text-gray-400" />
+              </button>
+            </div>
+            <form onSubmit={handleUpdateExpense} className="space-y-6">
+              <div className="space-y-2">
+                <label className="text-[10px] uppercase tracking-widest font-bold text-gray-400 ml-1">Descrição</label>
+                <input 
+                  type="text" 
+                  required
+                  value={editingExpense.description}
+                  onChange={(e) => setEditingExpense({ ...editingExpense, description: e.target.value })}
+                  className="w-full px-4 py-3 bg-gray-50 border border-transparent rounded-2xl focus:bg-white focus:border-blue-600 transition-all outline-none text-sm font-medium"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <label className="text-[10px] uppercase tracking-widest font-bold text-gray-400 ml-1">Valor (R$)</label>
+                  <input 
+                    type="number" 
+                    required
+                    step="0.01"
+                    value={editingExpense.amount}
+                    onChange={(e) => setEditingExpense({ ...editingExpense, amount: Number(e.target.value) })}
+                    className="w-full px-4 py-3 bg-gray-50 border border-transparent rounded-2xl focus:bg-white focus:border-blue-600 transition-all outline-none text-sm font-medium"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-[10px] uppercase tracking-widest font-bold text-gray-400 ml-1">Recorrência</label>
+                  <select 
+                    value={editingExpense.category}
+                    onChange={(e) => setEditingExpense({ ...editingExpense, category: e.target.value as 'fixed' | 'variable' })}
+                    className="w-full px-4 py-3 bg-gray-50 border border-transparent rounded-2xl focus:bg-white focus:border-blue-600 transition-all outline-none text-sm font-medium appearance-none"
+                  >
+                    <option value="fixed">Fixa</option>
+                    <option value="variable">Variável</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-[10px] uppercase tracking-widest font-bold text-gray-400 ml-1">Tipo de Despesa</label>
+                <select 
+                  value={editingExpense.expense_type}
+                  onChange={(e) => setEditingExpense({ ...editingExpense, expense_type: e.target.value as 'tools' | 'freelancers' | 'extras' })}
+                  className="w-full px-4 py-3 bg-gray-50 border border-transparent rounded-2xl focus:bg-white focus:border-blue-600 transition-all outline-none text-sm font-medium appearance-none"
+                >
+                  <option value="tools">Ferramentas</option>
+                  <option value="freelancers">Freelancers</option>
+                  <option value="extras">Custos Extras</option>
+                </select>
+              </div>
+
+              {editingExpense.category === 'fixed' && (
+                <div className="space-y-2">
+                  <label className="text-[10px] uppercase tracking-widest font-bold text-gray-400 ml-1">Dia de Vencimento</label>
+                  <input 
+                    type="number" 
+                    required min={1} max={31}
+                    value={editingExpense.due_day || 10}
+                    onChange={(e) => setEditingExpense({ ...editingExpense, due_day: Number(e.target.value) })}
+                    className="w-full px-4 py-3 bg-gray-50 border border-transparent rounded-2xl focus:bg-white focus:border-blue-600 transition-all outline-none text-sm font-medium"
+                  />
+                </div>
+              )}
+
+              <div className="space-y-2">
+                <label className="text-[10px] uppercase tracking-widest font-bold text-gray-400 ml-1">Status</label>
+                <select 
+                  value={editingExpense.paid ? "true" : "false"}
+                  onChange={(e) => setEditingExpense({ ...editingExpense, paid: e.target.value === "true", paid_at: e.target.value === "true" ? (editingExpense.paid_at || new Date().toISOString()) : null })}
+                  className="w-full px-4 py-3 bg-gray-50 border border-transparent rounded-2xl focus:bg-white focus:border-blue-600 transition-all outline-none text-sm font-medium appearance-none"
+                >
+                  <option value="false">Pendente</option>
+                  <option value="true">Pago</option>
+                </select>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-[10px] uppercase tracking-widest font-bold text-gray-400 ml-1">Notas</label>
+                <textarea 
+                  value={editingExpense.notes || ''}
+                  onChange={(e) => setEditingExpense({ ...editingExpense, notes: e.target.value })}
+                  className="w-full px-4 py-3 bg-gray-50 border border-transparent rounded-2xl focus:bg-white focus:border-blue-600 transition-all outline-none text-sm font-medium resize-none"
+                  rows={2}
+                  placeholder="Observações..."
+                />
+              </div>
+
+              <div className="flex gap-3 pt-4">
+                <button 
+                  type="button"
+                  onClick={() => setEditingExpense(null)}
+                  className="flex-1 px-6 py-3 border border-gray-100 text-gray-400 rounded-2xl font-bold text-xs uppercase tracking-widest hover:bg-gray-50 transition-all"
+                >
+                  Cancelar
+                </button>
+                <button 
+                  type="submit"
+                  disabled={isUpdating}
+                  className="flex-1 px-6 py-3 bg-brand-dark text-white rounded-2xl font-bold text-xs uppercase tracking-widest hover:bg-gray-800 transition-all shadow-lg shadow-brand-dark/10 disabled:opacity-50"
+                >
+                  {isUpdating ? 'Salvando...' : 'Confirmar'}
+                </button>
+              </div>
+            </form>
+          </motion.div>
+        </div>
+      )}
       {/* Date Picker Modal for Variable Expenses */}
       {payingExpense && (
         <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-brand-dark/20 backdrop-blur-sm">
@@ -979,6 +1198,49 @@ export const FinanceiroTab: React.FC = () => {
                 onClick={async () => {
                   await deleteBilling(deletingSporadicBilling.id);
                   setDeletingSporadicBilling(null);
+                }}
+                className="flex-1 px-6 py-3 bg-rose-600 text-white rounded-2xl font-bold text-xs uppercase tracking-widest hover:bg-rose-700 transition-all shadow-lg shadow-rose-600/10"
+              >
+                Excluir
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
+      {/* Delete Expense Modal */}
+      {deletingExpense && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-brand-dark/20 backdrop-blur-sm">
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.95, y: 20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            className="bg-white w-full max-w-sm rounded-3xl p-8 shadow-2xl border border-black/[0.03] text-center"
+          >
+            <div className="w-16 h-16 bg-rose-50 text-rose-600 rounded-full flex items-center justify-center mx-auto mb-6">
+              <AlertCircle size={32} />
+            </div>
+            <h3 className="text-xl font-bold text-brand-dark mb-2">Excluir Despesa?</h3>
+            <p className="text-sm text-gray-500 mb-8">
+              {deletingExpense.category === 'fixed' ? (
+                <>
+                  Tem certeza que deseja excluir a despesa fixa <strong>{deletingExpense.description}</strong>? Como ela é uma despesa <strong>Fixa</strong>, ela será removida deste mês em diante, mas o histórico dos meses passados será preservado.
+                </>
+              ) : (
+                <>
+                  Tem certeza que deseja excluir a despesa <strong>{deletingExpense.description}</strong>? Esta ação não pode ser desfeita.
+                </>
+              )}
+            </p>
+            <div className="flex gap-3">
+              <button 
+                onClick={() => setDeletingExpense(null)}
+                className="flex-1 px-6 py-3 border border-gray-100 text-gray-400 rounded-2xl font-bold text-xs uppercase tracking-widest hover:bg-gray-50 transition-all"
+              >
+                Cancelar
+              </button>
+              <button 
+                onClick={async () => {
+                  await deleteExpense(deletingExpense.id);
+                  setDeletingExpense(null);
                 }}
                 className="flex-1 px-6 py-3 bg-rose-600 text-white rounded-2xl font-bold text-xs uppercase tracking-widest hover:bg-rose-700 transition-all shadow-lg shadow-rose-600/10"
               >
