@@ -22,7 +22,8 @@ import {
   BarChart3,
   Clock,
   Briefcase,
-  Repeat
+  Repeat,
+  GripVertical
 } from 'lucide-react';
 import { supabase, useAuth } from '../../lib/supabase';
 import { AgencyTask, AgencyTaskPriority, AgencyTaskRecurrenceType, ProcessInstance, ProcessChecklist } from '../../types';
@@ -31,6 +32,25 @@ import 'dayjs/locale/pt-br';
 import relativeTime from 'dayjs/plugin/relativeTime';
 import isToday from 'dayjs/plugin/isToday';
 import isTomorrow from 'dayjs/plugin/isTomorrow';
+
+// Imports para reordenação com dnd-kit
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent
+} from '@dnd-kit/core';
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
+  useSortable
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 
 dayjs.extend(relativeTime);
 dayjs.extend(isToday);
@@ -48,6 +68,36 @@ const PROCESS_TYPES = [
 ];
 
 // --- FUNÇÕES DE RECORRÊNCIA DAS TAREFAS ---
+
+// Retorna o estado de pendência ou agendamento de uma tarefa mensal
+function getMonthlyTaskState(task: AgencyTask, now = new Date()): 'pending' | 'completed' | 'not_started' {
+  const diaConfigurado = task.recurrence_days?.[0] ? parseInt(task.recurrence_days[0], 10) : null;
+  if (!diaConfigurado) return 'pending';
+
+  const inicioCicloAtual = new Date(now.getFullYear(), now.getMonth(), diaConfigurado);
+
+  if (task.completed_at) {
+    const lastDone = new Date(task.completed_at);
+    // Se a última conclusão foi depois ou igual ao início do ciclo do mês atual, ela está concluída
+    if (lastDone >= inicioCicloAtual && now >= inicioCicloAtual) {
+      return 'completed';
+    }
+    // Caso de cantinho: o mês começou, mas ainda não chegou o dia do mês configurado, e a tarefa foi concluída no ciclo do mês anterior
+    if (now < inicioCicloAtual) {
+      const inicioCicloMesAnterior = new Date(now.getFullYear(), now.getMonth() - 1, diaConfigurado);
+      if (lastDone >= inicioCicloMesAnterior) {
+        return 'completed';
+      }
+    }
+  }
+
+  // Se hoje ainda não chegou o dia do mês configurado, o ciclo do mês atual ainda não abriu
+  if (now < inicioCicloAtual) {
+    return 'not_started';
+  }
+
+  return 'pending';
+}
 
 // Retorna a data/hora do início do ciclo semanal atual (última ocorrência passada do dia configurado)
 function getLastWeeklyOccurrence(recurrenceDays: number[], from: Date): Date | null {
@@ -90,7 +140,28 @@ function isTaskPendingInCurrentCycle(task: AgencyTask): boolean {
     return cycleStart ? lastDone < cycleStart : true;
   }
 
+  if (task.recurrence_type === 'monthly') {
+    return getMonthlyTaskState(task, now) === 'pending';
+  }
+
   return task.status !== 'completed';
+}
+
+// Ordena tarefas pelo sort_order persistido; se for 0 ou nulo, cai na data de criação (preservando ordem natural/criação)
+function sortTasksByOrder(taskList: AgencyTask[]): AgencyTask[] {
+  return [...taskList].sort((a, b) => {
+    const orderA = a.sort_order ?? 0;
+    const orderB = b.sort_order ?? 0;
+    
+    if (orderA !== orderB) {
+      // Prioriza valores maiores que 0 para virem ordenados. Valores de 0/nulos vêm por último ou na ordem natural.
+      if (orderA === 0) return 1;
+      if (orderB === 0) return -1;
+      return orderA - orderB;
+    }
+    
+    return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+  });
 }
 
 // Retorna true se tarefa semanal está atrasada (ciclo atual já começou mas não foi feita)
@@ -276,6 +347,68 @@ const HojeTasks: React.FC<{ clients: any[], onEditTask: (t: AgencyTask) => void,
   const [tasks, setTasks] = useState<AgencyTask[]>([]);
   const [loading, setLoading] = useState(true);
 
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8,
+      },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
+
+  const handleDragEnd = async (event: DragEndEvent, type: 'daily' | 'weekly' | 'monthly') => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+
+    const pendingTypeTasks = sortTasksByOrder(
+      tasks.filter(t => {
+        if (t.recurrence_type !== type) return false;
+        if (type === 'monthly') {
+          return getMonthlyTaskState(t, new Date()) === 'pending';
+        }
+        return isTaskPendingInCurrentCycle(t);
+      })
+    );
+
+    const oldIndex = pendingTypeTasks.findIndex(t => t.id === active.id);
+    const newIndex = pendingTypeTasks.findIndex(t => t.id === over.id);
+
+    if (oldIndex !== -1 && newIndex !== -1) {
+      const reorderedPendingType = arrayMove(pendingTypeTasks, oldIndex, newIndex);
+
+      // Atualiza localmente
+      const updatedTasks = tasks.map(task => {
+        if (task.recurrence_type === type && (type === 'monthly' ? getMonthlyTaskState(task, new Date()) === 'pending' : isTaskPendingInCurrentCycle(task))) {
+          const indexInReordered = reorderedPendingType.findIndex(t => t.id === task.id);
+          if (indexInReordered !== -1) {
+            return { ...task, sort_order: indexInReordered + 1 };
+          }
+        }
+        return task;
+      });
+
+      setTasks(updatedTasks);
+
+      // Persiste no Supabase
+      const updates = reorderedPendingType.map((task, index) => {
+        const newOrder = index + 1;
+        return supabase
+          .from('agency_tasks')
+          .update({ sort_order: newOrder })
+          .eq('agency_id', agencyId)
+          .eq('id', task.id);
+      });
+
+      try {
+        await Promise.all(updates);
+      } catch (err) {
+        console.error('Erro ao salvar reordenação no Supabase:', err);
+      }
+    }
+  };
+
   useEffect(() => {
     fetchTasks();
   }, []);
@@ -288,7 +421,8 @@ const HojeTasks: React.FC<{ clients: any[], onEditTask: (t: AgencyTask) => void,
         .from('agency_tasks')
         .select('*, client:clients(id, name, color, initials)')
         .eq('agency_id', agencyId)
-        .or('status.eq.pending,recurrence_type.neq.none');
+        .or('status.eq.pending,recurrence_type.neq.none')
+        .order('sort_order', { ascending: true });
 
       if (data) {
         const todayString = dayjs().format('YYYY-MM-DD');
@@ -312,6 +446,10 @@ const HojeTasks: React.FC<{ clients: any[], onEditTask: (t: AgencyTask) => void,
             const isOverdue = isWeeklyTaskOverdue(task);
             
             return isDueToday || isOverdue;
+          }
+
+          if (task.recurrence_type === 'monthly') {
+            return true;
           }
 
           return false;
@@ -359,6 +497,7 @@ const HojeTasks: React.FC<{ clients: any[], onEditTask: (t: AgencyTask) => void,
 
   const [isRotinaDiaExpanded, setIsRotinaDiaExpanded] = useState(false);
   const [isRotinaSemanaExpanded, setIsRotinaSemanaExpanded] = useState(false);
+  const [isRotinaMesExpanded, setIsRotinaMesExpanded] = useState(false);
 
   if (loading) return <div className="text-gray-400 text-sm">Carregando...</div>;
 
@@ -378,7 +517,7 @@ const HojeTasks: React.FC<{ clients: any[], onEditTask: (t: AgencyTask) => void,
 
   // Rotina do Dia (daily recurrence)
   const rotinaDia = tasks.filter(t => t.recurrence_type === 'daily');
-  const pendingRotinaDia = rotinaDia.filter(t => isTaskPendingInCurrentCycle(t));
+  const pendingRotinaDia = sortTasksByOrder(rotinaDia.filter(t => isTaskPendingInCurrentCycle(t)));
   const completedRotinaDia = rotinaDia.filter(t => !isTaskPendingInCurrentCycle(t));
   const sortedCompletedRotinaDia = [...completedRotinaDia].sort((a,b) => {
     if (!a.completed_at) return 1;
@@ -388,7 +527,7 @@ const HojeTasks: React.FC<{ clients: any[], onEditTask: (t: AgencyTask) => void,
 
   // Rotina da Semana (weekly recurrence)
   const rotinaSemana = tasks.filter(t => t.recurrence_type === 'weekly');
-  const pendingRotinaSemana = rotinaSemana.filter(t => isTaskPendingInCurrentCycle(t));
+  const pendingRotinaSemana = sortTasksByOrder(rotinaSemana.filter(t => isTaskPendingInCurrentCycle(t)));
   const completedRotinaSemana = rotinaSemana.filter(t => !isTaskPendingInCurrentCycle(t));
   const sortedCompletedRotinaSemana = [...completedRotinaSemana].sort((a,b) => {
     if (!a.completed_at) return 1;
@@ -396,9 +535,20 @@ const HojeTasks: React.FC<{ clients: any[], onEditTask: (t: AgencyTask) => void,
     return new Date(b.completed_at).getTime() - new Date(a.completed_at).getTime();
   });
 
-  // Outras tarefas (não recorrentes - daily/weekly)
-  const altasUrgentes = tasks.filter(t => t.recurrence_type !== 'daily' && t.recurrence_type !== 'weekly' && ['urgente', 'alta'].includes(t.priority));
-  const normaisBaixas = tasks.filter(t => t.recurrence_type !== 'daily' && t.recurrence_type !== 'weekly' && ['normal', 'baixa'].includes(t.priority));
+  // Rotina do Mês (monthly recurrence)
+  const rotinaMes = tasks.filter(t => t.recurrence_type === 'monthly');
+  const pendingRotinaMes = sortTasksByOrder(rotinaMes.filter(t => getMonthlyTaskState(t, new Date()) === 'pending'));
+  const notStartedRotinaMes = sortTasksByOrder(rotinaMes.filter(t => getMonthlyTaskState(t, new Date()) === 'not_started'));
+  const completedRotinaMes = rotinaMes.filter(t => getMonthlyTaskState(t, new Date()) === 'completed');
+  const sortedCompletedRotinaMes = [...completedRotinaMes].sort((a,b) => {
+    if (!a.completed_at) return 1;
+    if (!b.completed_at) return -1;
+    return new Date(b.completed_at).getTime() - new Date(a.completed_at).getTime();
+  });
+
+  // Outras tarefas (não recorrentes - daily/weekly/monthly)
+  const altasUrgentes = tasks.filter(t => t.recurrence_type !== 'daily' && t.recurrence_type !== 'weekly' && t.recurrence_type !== 'monthly' && ['urgente', 'alta'].includes(t.priority));
+  const normaisBaixas = tasks.filter(t => t.recurrence_type !== 'daily' && t.recurrence_type !== 'weekly' && t.recurrence_type !== 'monthly' && ['normal', 'baixa'].includes(t.priority));
 
   const renderClientGroup = (taskList: AgencyTask[]) => {
     const groups: Record<string, { label: string, color?: string, tasks: AgencyTask[] }> = {};
@@ -456,11 +606,22 @@ const HojeTasks: React.FC<{ clients: any[], onEditTask: (t: AgencyTask) => void,
                      <p className="text-gray-500 text-sm font-medium">Você finalizou todas as tarefas diárias.</p>
                   </div>
                ) : (
-                  <div className="space-y-2">
-                     {pendingRotinaDia.map(task => (
-                        <TaskListItem key={task.id} task={task} onToggle={() => toggleStatus(task)} onEdit={() => onEditTask(task)} isTodayView />
-                     ))}
-                  </div>
+                  <DndContext 
+                    sensors={sensors}
+                    collisionDetection={closestCenter}
+                    onDragEnd={(event) => handleDragEnd(event, 'daily')}
+                  >
+                    <SortableContext 
+                      items={pendingRotinaDia.map(t => t.id)}
+                      strategy={verticalListSortingStrategy}
+                    >
+                      <div className="space-y-2">
+                         {pendingRotinaDia.map(task => (
+                            <SortableTaskListItem key={task.id} task={task} onToggle={() => toggleStatus(task)} onEdit={() => onEditTask(task)} isTodayView />
+                         ))}
+                      </div>
+                    </SortableContext>
+                  </DndContext>
                )}
 
                {completedRotinaDia.length > 0 && (
@@ -512,11 +673,22 @@ const HojeTasks: React.FC<{ clients: any[], onEditTask: (t: AgencyTask) => void,
                      <p className="text-gray-500 text-sm font-medium">Você finalizou todas as tarefas semanais.</p>
                   </div>
                ) : (
-                  <div className="space-y-2">
-                     {pendingRotinaSemana.map(task => (
-                        <TaskListItem key={task.id} task={task} onToggle={() => toggleStatus(task)} onEdit={() => onEditTask(task)} isTodayView />
-                     ))}
-                  </div>
+                  <DndContext 
+                    sensors={sensors}
+                    collisionDetection={closestCenter}
+                    onDragEnd={(event) => handleDragEnd(event, 'weekly')}
+                  >
+                    <SortableContext 
+                      items={pendingRotinaSemana.map(t => t.id)}
+                      strategy={verticalListSortingStrategy}
+                    >
+                      <div className="space-y-2">
+                         {pendingRotinaSemana.map(task => (
+                            <SortableTaskListItem key={task.id} task={task} onToggle={() => toggleStatus(task)} onEdit={() => onEditTask(task)} isTodayView />
+                         ))}
+                      </div>
+                    </SortableContext>
+                  </DndContext>
                )}
 
                {completedRotinaSemana.length > 0 && (
@@ -541,6 +713,88 @@ const HojeTasks: React.FC<{ clients: any[], onEditTask: (t: AgencyTask) => void,
                               className="overflow-hidden space-y-2 mt-4 opacity-70 grayscale-[0.2]"
                            >
                               {sortedCompletedRotinaSemana.map(task => (
+                                 <TaskListItem key={task.id} task={task} onToggle={() => toggleStatus(task)} onEdit={() => onEditTask(task)} isTodayView />
+                              ))}
+                           </motion.div>
+                        )}
+                     </AnimatePresence>
+                  </div>
+               )}
+            </div>
+         </div>
+      )}
+
+      {/* Bloco: Rotina do Mês */}
+      {rotinaMes.length > 0 && (
+         <div>
+            <h3 className="text-lg font-black text-brand-dark tracking-tight mb-4 flex items-center gap-2">
+               📅 Rotina do Mês
+            </h3>
+            <div className="bg-brand-dark/5 border border-brand-dark/10 rounded-3xl p-5 md:p-6 mb-8">
+               {pendingRotinaMes.length === 0 && notStartedRotinaMes.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-6 text-center">
+                     <div className="w-14 h-14 bg-green-100 text-green-500 rounded-full flex items-center justify-center mb-3">
+                        <CheckCircle2 size={28} />
+                     </div>
+                     <h4 className="font-bold text-gray-900 text-lg">Rotina do mês concluída ✓</h4>
+                     <p className="text-gray-500 text-sm font-medium">Você finalizou todas as tarefas mensais deste ciclo.</p>
+                  </div>
+               ) : (
+                  <div className="space-y-4">
+                     {/* Tarefas Abertas / Pendentes no Ciclo Atual */}
+                     {pendingRotinaMes.length > 0 && (
+                        <DndContext 
+                          sensors={sensors}
+                          collisionDetection={closestCenter}
+                          onDragEnd={(event) => handleDragEnd(event, 'monthly')}
+                        >
+                          <SortableContext 
+                            items={pendingRotinaMes.map(t => t.id)}
+                            strategy={verticalListSortingStrategy}
+                          >
+                            <div className="space-y-2">
+                               {pendingRotinaMes.map(task => (
+                                  <SortableTaskListItem key={task.id} task={task} onToggle={() => toggleStatus(task)} onEdit={() => onEditTask(task)} isTodayView />
+                               ))}
+                            </div>
+                          </SortableContext>
+                        </DndContext>
+                     )}
+
+                     {/* Tarefas Agendadas (Ainda não abriram) */}
+                     {notStartedRotinaMes.length > 0 && (
+                        <div className="space-y-2 pt-2 border-t border-gray-200/40 first:pt-0 first:border-00">
+                           <div className="text-[10px] uppercase font-bold text-gray-400 tracking-wider mb-2">Futuras Aberturas deste Mês</div>
+                           {notStartedRotinaMes.map(task => (
+                              <TaskListItem key={task.id} task={task} onToggle={() => toggleStatus(task)} onEdit={() => onEditTask(task)} isTodayView />
+                           ))}
+                        </div>
+                     )}
+                  </div>
+               )}
+
+               {completedRotinaMes.length > 0 && (
+                  <div className="pt-4 border-t border-gray-200/40 mt-4">
+                     <button
+                        onClick={() => setIsRotinaMesExpanded(!isRotinaMesExpanded)}
+                        className="flex items-center gap-2 text-[10px] font-extrabold text-gray-500 hover:text-brand-dark uppercase tracking-widest transition-colors mx-auto"
+                     >
+                        <span>
+                           {isRotinaMesExpanded 
+                              ? `Ocultar ${completedRotinaMes.length} tarefas concluídas ▴`
+                              : `Ver ${completedRotinaMes.length} tarefas concluídas ▾`
+                           }
+                        </span>
+                     </button>
+                     <AnimatePresence>
+                        {isRotinaMesExpanded && (
+                           <motion.div
+                              initial={{ height: 0, opacity: 0 }}
+                              animate={{ height: 'auto', opacity: 1 }}
+                              exit={{ height: 0, opacity: 0 }}
+                              className="overflow-hidden space-y-2 mt-4 opacity-70 grayscale-[0.2]"
+                           >
+                              {sortedCompletedRotinaMes.map(task => (
                                  <TaskListItem key={task.id} task={task} onToggle={() => toggleStatus(task)} onEdit={() => onEditTask(task)} isTodayView />
                               ))}
                            </motion.div>
@@ -1010,8 +1264,8 @@ const TodasTasks: React.FC<{ clients: any[], onEditTask: (t: AgencyTask) => void
   };
 
   const filtered = tasks.filter(t => {
-    // Exclude daily and weekly recurring tasks (REQUISITO 2)
-    const isRecurring = t.recurrence_type === 'daily' || t.recurrence_type === 'weekly';
+    // Exclude daily, weekly and monthly recurring tasks (REQUISITO 2)
+    const isRecurring = t.recurrence_type === 'daily' || t.recurrence_type === 'weekly' || t.recurrence_type === 'monthly';
     if (isRecurring) return false;
 
     if (filterClient === 'internal') return !t.client_id;
@@ -1132,7 +1386,42 @@ const TodasTasks: React.FC<{ clients: any[], onEditTask: (t: AgencyTask) => void
 // ==========================================
 // SHARED UI: TASK ITEM
 // ==========================================
-const TaskListItem: React.FC<{ task: AgencyTask, onToggle: () => void, onEdit: () => void, isTodayView?: boolean }> = ({ task, onToggle, onEdit, isTodayView }) => {
+const SortableTaskListItem: React.FC<{ 
+  task: AgencyTask; 
+  onToggle: () => void; 
+  onEdit: () => void; 
+  isTodayView?: boolean;
+}> = ({ task, onToggle, onEdit, isTodayView }) => {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging
+  } = useSortable({ id: task.id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    zIndex: isDragging ? 50 : undefined,
+    touchAction: 'none'
+  };
+
+  return (
+    <div ref={setNodeRef} style={style} {...attributes} {...listeners} className="outline-none">
+      <TaskListItem 
+        task={task} 
+        onToggle={onToggle} 
+        onEdit={onEdit} 
+        isTodayView={isTodayView} 
+        isDragging={isDragging} 
+      />
+    </div>
+  );
+};
+
+const TaskListItem: React.FC<{ task: AgencyTask, onToggle: () => void, onEdit: () => void, isTodayView?: boolean, isDragging?: boolean }> = ({ task, onToggle, onEdit, isTodayView, isDragging }) => {
   const isDone = !isTaskPendingInCurrentCycle(task);
   const isOverdue = (task.recurrence_type === 'weekly' && isWeeklyTaskOverdue(task)) || 
     ((task.recurrence_type === 'none' || !task.recurrence_type) && !isDone && task.due_date && dayjs(task.due_date).isBefore(dayjs(), 'day'));
@@ -1148,16 +1437,27 @@ const TaskListItem: React.FC<{ task: AgencyTask, onToggle: () => void, onEdit: (
   };
   
   const dateObj = task.due_date ? dayjs(task.due_date) : null;
+  const isMonthlyNotStarted = task.recurrence_type === 'monthly' && getMonthlyTaskState(task) === 'not_started';
 
   return (
-    <div className={`group flex items-center gap-4 p-4 bg-white rounded-2xl border border-gray-100 hover:border-brand-dark/20 hover:shadow-sm transition-all ${isDone ? 'opacity-60 bg-gray-50 pointer-events-auto' : ''}`}>
-      <button onClick={onToggle} className={`flex-shrink-0 text-gray-300 hover:text-brand-dark transition-colors ${isDone ? 'text-green-500' : ''}`}>
+    <div className={`group flex items-center gap-4 p-4 bg-white rounded-2xl border border-gray-100 hover:border-brand-dark/20 hover:shadow-sm transition-all ${isDone ? 'opacity-60 bg-gray-50 pointer-events-auto' : ''} ${isDragging ? 'shadow-lg border-brand-dark/30 scale-[1.01]' : ''}`}>
+      {isTodayView && !isDone && !isMonthlyNotStarted && (task.recurrence_type === 'daily' || task.recurrence_type === 'weekly' || task.recurrence_type === 'monthly') && (
+        <div className="text-gray-300 group-hover:text-gray-400 cursor-grab active:cursor-grabbing flex-shrink-0">
+          <GripVertical size={16} />
+        </div>
+      )}
+
+      <button 
+        disabled={isDone || isMonthlyNotStarted}
+        onClick={onToggle} 
+        className={`flex-shrink-0 text-gray-300 hover:text-brand-dark transition-colors ${isDone ? 'text-green-500 hover:text-green-600' : ''} ${isMonthlyNotStarted ? 'text-gray-200 cursor-not-allowed' : ''}`}
+      >
         {isDone ? <CheckCircle2 size={24} /> : <Circle size={24} />}
       </button>
       
       <div className="flex-1 min-w-0 flex flex-col md:flex-row md:items-center gap-2 md:gap-4">
         <div className="flex-1 truncate">
-          <span className={`font-bold text-sm ${isDone ? 'line-through text-gray-500' : 'text-gray-800'}`}>
+          <span className={`font-bold text-sm ${isDone ? 'line-through text-gray-500' : 'text-gray-800'} ${isMonthlyNotStarted ? 'text-gray-400 font-medium' : ''}`}>
             {task.title}
           </span>
         </div>
@@ -1178,15 +1478,21 @@ const TaskListItem: React.FC<{ task: AgencyTask, onToggle: () => void, onEdit: (
           </span>
 
           {task.recurrence_type && task.recurrence_type !== 'none' && (
-            <span title={`Recorrência: ${task.recurrence_type === 'daily' ? 'Diária' : 'Semanal'}`} className={`flex items-center gap-1 px-2 py-0.5 rounded-md border text-[9px] font-bold uppercase tracking-wider whitespace-nowrap bg-purple-50 text-purple-600 border-purple-100`}>
+            <span title={`Recorrência: ${task.recurrence_type === 'daily' ? 'Diária' : task.recurrence_type === 'weekly' ? 'Semanal' : 'Mensal'}`} className={`flex items-center gap-1 px-2 py-0.5 rounded-md border text-[9px] font-bold uppercase tracking-wider whitespace-nowrap bg-purple-50 text-purple-600 border-purple-100`}>
               <Repeat size={10} />
-              {task.recurrence_type === 'daily' ? 'Diária 🔄' : getWeeklyDaysLabel(task.recurrence_days || [])}
+              {task.recurrence_type === 'daily' ? 'Diária 🔄' : task.recurrence_type === 'weekly' ? getWeeklyDaysLabel(task.recurrence_days || []) : `Mensal (Dia ${task.recurrence_days?.[0] || '1'}) 📅`}
             </span>
           )}
           
           {isOverdue && (
             <span className="flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider whitespace-nowrap text-red-500 bg-red-50 border border-red-100">
               Atrasada
+            </span>
+          )}
+
+          {isMonthlyNotStarted && (
+            <span className="flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider whitespace-nowrap text-purple-600 bg-purple-50 border border-purple-100">
+              Abre dia {task.recurrence_days?.[0] || '1'}
             </span>
           )}
 
@@ -1258,6 +1564,11 @@ const TaskFormDrawer: React.FC<{ clients: any[], task?: AgencyTask | null, onClo
       alert('Selecione pelo menos 1 dia da semana para a recorrência semanal.');
       return;
     }
+
+    if (form.recurrence_type === 'monthly' && (form.recurrence_days.length === 0 || form.recurrence_days[0] < 1 || form.recurrence_days[0] > 28)) {
+      alert('Selecione um dia do mês válido entre 1 e 28.');
+      return;
+    }
     
     const payload = {
       title: form.title,
@@ -1266,7 +1577,11 @@ const TaskFormDrawer: React.FC<{ clients: any[], task?: AgencyTask | null, onClo
       due_date: form.due_date || null,
       description: form.description,
       recurrence_type: form.recurrence_type,
-      recurrence_days: form.recurrence_type === 'weekly' ? form.recurrence_days : null,
+      recurrence_days: form.recurrence_type === 'weekly' 
+        ? form.recurrence_days 
+        : (form.recurrence_type === 'monthly' 
+            ? (form.recurrence_days.length > 0 ? form.recurrence_days : [1]) 
+            : null),
       agency_id: agencyId
     };
     
@@ -1344,10 +1659,18 @@ const TaskFormDrawer: React.FC<{ clients: any[], task?: AgencyTask | null, onClo
             <div className="space-y-4">
               <div className="space-y-2">
                 <label className="text-[10px] font-bold uppercase tracking-widest text-gray-500">Recorrência</label>
-                <select value={form.recurrence_type} onChange={e => setForm({...form, recurrence_type: e.target.value as AgencyTaskRecurrenceType})} className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-brand-dark/20 outline-none cursor-pointer">
+                <select value={form.recurrence_type} onChange={e => {
+                  const val = e.target.value as AgencyTaskRecurrenceType;
+                  setForm(prev => ({
+                    ...prev,
+                    recurrence_type: val,
+                    recurrence_days: val === 'monthly' ? [1] : []
+                  }));
+                }} className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-brand-dark/20 outline-none cursor-pointer">
                   <option value="none">Não recorrente</option>
                   <option value="daily">Diária</option>
                   <option value="weekly">Semanal</option>
+                  <option value="monthly">Mensal</option>
                 </select>
               </div>
 
@@ -1369,6 +1692,25 @@ const TaskFormDrawer: React.FC<{ clients: any[], task?: AgencyTask | null, onClo
                       );
                     })}
                   </div>
+                </div>
+              )}
+
+              {form.recurrence_type === 'monthly' && (
+                <div className="p-4 bg-purple-50/50 border border-purple-100 rounded-xl space-y-3">
+                  <label className="text-[10px] font-bold uppercase tracking-widest text-purple-600/70">Dia do Mês (1 a 28)</label>
+                  <input
+                    type="number"
+                    min={1}
+                    max={28}
+                    value={form.recurrence_days?.[0] || 1}
+                    onChange={e => {
+                      const val = Math.max(1, Math.min(28, parseInt(e.target.value, 10) || 1));
+                      setForm(prev => ({ ...prev, recurrence_days: [val] }));
+                    }}
+                    className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-brand-dark/20 outline-none font-bold text-sm text-brand-dark"
+                    required
+                  />
+                  <p className="text-[10px] text-gray-400">Escolha o dia em que a tarefa se repete mensalmente.</p>
                 </div>
               )}
             </div>

@@ -480,6 +480,7 @@ export interface AgencyTask {
   completed_at?: string | null;
   client?: { id: string; name: string; color: string; initials: string };
   position?: number;
+  sort_order?: number | null;
 }
 
 export type ProcessResponsible = 'wesley' | 'sarah' | 'client';
