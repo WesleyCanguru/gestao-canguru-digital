@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { MonthlyDetailedPlan, DailyContent, PostStatus, PostData } from '../types';
-import { Instagram, Linkedin, CalendarDays, Target, BarChart3, Repeat, FileCheck, CheckCircle2, ArrowLeft, MessageCircle, List, Calendar as CalendarIcon, Plus, Loader2, Check, Edit2, Save, X, Trash, Sparkles, FileText } from 'lucide-react';
+import { MonthlyDetailedPlan, DailyContent, PostStatus, PostData, PostTheme } from '../types';
+import { Instagram, Linkedin, CalendarDays, Target, BarChart3, Repeat, FileCheck, CheckCircle2, ArrowLeft, MessageCircle, List, Calendar as CalendarIcon, Plus, Loader2, Check, Edit2, Edit3, RefreshCw, Save, X, Trash, Sparkles, FileText } from 'lucide-react';
 import { PostModal } from './PostModal';
 import { PostIdeasModal } from './PostIdeasModal';
 import { ImportPdfModal } from './ImportPdfModal';
@@ -18,7 +18,7 @@ interface MonthDetailProps {
   initialViewMode?: ViewMode;
 }
 
-type ViewMode = 'list' | 'calendar' | 'themes';
+type ViewMode = 'list' | 'calendar';
 
 // Interface auxiliar para agrupar posts visuais
 interface GroupedPost {
@@ -83,6 +83,405 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack, ini
 
   const isReleased = currentPlan?.is_released;
   const isLockedForClient = userRole !== 'admin' && !isReleased;
+
+  // --- STATE FOR NEW THEME SYSTEM ---
+  const [themes, setThemes] = useState<PostTheme[]>([]);
+  const [loadingThemes, setLoadingThemes] = useState(true);
+  
+  const [isThemeModalOpen, setIsThemeModalOpen] = useState(false);
+  const [selectedThemeDay, setSelectedThemeDay] = useState<number | null>(null);
+  const [selectedTheme, setSelectedTheme] = useState<PostTheme | null>(null);
+  const [isSavingTheme, setIsSavingTheme] = useState(false);
+
+  // Form states for Suggestion (Agency)
+  const [theme1, setTheme1] = useState('');
+  const [format1, setFormat1] = useState('Reels');
+  const [theme2, setTheme2] = useState('');
+  const [format2, setFormat2] = useState('Reels');
+
+  // Client Comment/Observation state
+  const [clientComment, setClientComment] = useState('');
+
+  // --- NEW INDEPENDENT EVALUATION SYSTEM ---
+  interface ThemeStatusState {
+    status_1: 'pending' | 'approved' | 'rejected' | 'revision';
+    comment_1: string;
+    status_2: 'pending' | 'approved' | 'rejected' | 'revision' | null;
+    comment_2: string;
+    chosen_theme?: 1 | 2 | null;
+  }
+
+  const [themeStatusState, setThemeStatusState] = useState<ThemeStatusState>({
+    status_1: 'pending',
+    comment_1: '',
+    status_2: 'pending',
+    comment_2: '',
+    chosen_theme: null
+  });
+
+  const [activeAction, setActiveAction] = useState<{
+    suggestionIndex: 1 | 2;
+    type: 'revision' | 'rejected';
+  } | null>(null);
+
+  const [actionReason, setActionReason] = useState('');
+  const [editingCommentIndex, setEditingCommentIndex] = useState<1 | 2 | null>(null);
+  const [editCommentText, setEditCommentText] = useState('');
+  const [confirmResetIndex, setConfirmResetIndex] = useState<1 | 2 | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+
+  const getThemeStatusObject = (theme: PostTheme): ThemeStatusState => {
+    try {
+      if (theme.status && (theme.status.startsWith('{') || theme.status.startsWith('['))) {
+        const parsed = JSON.parse(theme.status);
+        return {
+          status_1: parsed.status_1 || 'pending',
+          comment_1: parsed.comment_1 || '',
+          status_2: parsed.status_2 !== undefined ? parsed.status_2 : (theme.theme_2 ? 'pending' : null),
+          comment_2: parsed.comment_2 || '',
+          chosen_theme: parsed.chosen_theme || null,
+        };
+      }
+    } catch (e) {
+      console.error('Failed to parse theme status JSON:', e);
+    }
+
+    const legacyStatus = (theme.status as any) || 'pending';
+    return {
+      status_1: legacyStatus,
+      comment_1: theme.client_comment || '',
+      status_2: theme.theme_2 ? 'pending' : null,
+      comment_2: '',
+      chosen_theme: legacyStatus === 'approved' ? 1 : null,
+    };
+  };
+
+  const getOverallDayStatus = (theme: PostTheme): 'pending' | 'approved' | 'rejected' | 'revision' => {
+    const state = getThemeStatusObject(theme);
+    const hasTheme2 = !!theme.theme_2;
+
+    if (!hasTheme2) {
+      return state.status_1;
+    }
+
+    const s1 = state.status_1;
+    const s2 = state.status_2;
+
+    if (s1 === 'pending' || s2 === 'pending') {
+      return 'pending';
+    }
+
+    if (s1 === 'approved' && s2 === 'approved') {
+      return state.chosen_theme ? 'approved' : 'pending';
+    }
+
+    if (s1 === 'approved' || s2 === 'approved') {
+      return 'approved';
+    }
+
+    if (s1 === 'revision' || s2 === 'revision') {
+      return 'revision';
+    }
+
+    return 'rejected';
+  };
+
+  // Fetching themes function
+  const fetchThemes = useCallback(async () => {
+    if (!activeClient) return;
+    setLoadingThemes(true);
+    try {
+      const monthNum = monthIndex + 1;
+      const startDate = `${year}-${String(monthNum).padStart(2, '0')}-01`;
+      const endDate = `${year}-${String(monthNum).padStart(2, '0')}-${new Date(year, monthNum, 0).getDate()}`;
+      
+      const { data, error } = await supabase
+        .from('post_themes')
+        .select('*')
+        .eq('client_id', activeClient.id)
+        .gte('date', startDate)
+        .lte('date', endDate);
+      
+      if (error) throw error;
+      setThemes(data || []);
+    } catch (err) {
+      console.error('Error fetching post themes:', err);
+    } finally {
+      setLoadingThemes(false);
+    }
+  }, [activeClient, monthIndex]);
+
+  useEffect(() => {
+    fetchThemes();
+  }, [fetchThemes]);
+
+  const openCreateThemeModal = (day: number) => {
+    setSelectedThemeDay(day);
+    setSelectedTheme(null);
+    setTheme1('');
+    setFormat1('Reels');
+    setTheme2('');
+    setFormat2('Reels');
+    setClientComment('');
+    setThemeStatusState({
+      status_1: 'pending',
+      comment_1: '',
+      status_2: null,
+      comment_2: '',
+      chosen_theme: null
+    });
+    setActiveAction(null);
+    setEditingCommentIndex(null);
+    setEditCommentText('');
+    setConfirmResetIndex(null);
+    setConfirmDelete(false);
+    setIsThemeModalOpen(true);
+  };
+
+  const handleOpenThemeModal = (theme: PostTheme) => {
+    setSelectedTheme(theme);
+    setSelectedThemeDay(parseInt(theme.date.split('-')[2]));
+    setTheme1(theme.theme_1 || '');
+    setFormat1(theme.format_1 || 'Reels');
+    setTheme2(theme.theme_2 || '');
+    setFormat2(theme.format_2 || 'Reels');
+    setClientComment(theme.client_comment || '');
+    
+    const parsedState = getThemeStatusObject(theme);
+    setThemeStatusState(parsedState);
+    
+    setActiveAction(null);
+    setEditingCommentIndex(null);
+    setEditCommentText('');
+    setConfirmResetIndex(null);
+    setConfirmDelete(false);
+    setIsThemeModalOpen(true);
+  };
+
+  const handleSaveThemeSuggestion = async () => {
+    if (!activeClient || !agencyId || !selectedThemeDay) return;
+    if (!theme1.trim()) {
+      alert('O Tema 1 é obrigatório.');
+      return;
+    }
+
+    setIsSavingTheme(true);
+    try {
+      const monthNum = monthIndex + 1;
+      const dateStr = `${year}-${String(monthNum).padStart(2, '0')}-${String(selectedThemeDay).padStart(2, '0')}`;
+
+      const initialJSONState = {
+        status_1: 'pending',
+        comment_1: '',
+        status_2: theme2.trim() ? 'pending' : null,
+        comment_2: '',
+        chosen_theme: null
+      };
+
+      const payload = {
+        client_id: activeClient.id,
+        agency_id: agencyId,
+        date: dateStr,
+        theme_1: theme1.trim(),
+        format_1: format1,
+        theme_2: theme2.trim() || null,
+        format_2: theme2.trim() ? format2 : null,
+        status: JSON.stringify(initialJSONState),
+        client_comment: null,
+        reviewed_at: null,
+        reviewed_by: null
+      };
+
+      if (selectedTheme) {
+        const { error } = await supabase
+          .from('post_themes')
+          .update(payload)
+          .eq('id', selectedTheme.id);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase
+          .from('post_themes')
+          .insert(payload);
+        if (error) throw error;
+      }
+
+      await fetchThemes();
+      setIsThemeModalOpen(false);
+    } catch (err) {
+      console.error('Error saving theme suggestion:', err);
+      alert('Erro ao salvar sugestão de temas. Tente novamente.');
+    } finally {
+      setIsSavingTheme(false);
+    }
+  };
+
+  const handleDeleteThemeSuggestion = async () => {
+    if (!selectedTheme) return;
+
+    setIsSavingTheme(true);
+    try {
+      const { error } = await supabase
+        .from('post_themes')
+        .delete()
+        .eq('id', selectedTheme.id);
+      if (error) throw error;
+
+      await fetchThemes();
+      setIsThemeModalOpen(false);
+    } catch (err) {
+      console.error('Error deleting theme suggestion:', err);
+    } finally {
+      setIsSavingTheme(false);
+    }
+  };
+
+  const handleSaveClientReviewState = async (updatedState: ThemeStatusState) => {
+    if (!selectedTheme) return;
+    setIsSavingTheme(true);
+    try {
+      const userName = userRole === 'admin' ? 'Agência' : (activeClient?.name || 'Cliente');
+      
+      let finalStatus: 'pending' | 'approved' | 'rejected' | 'revision' = 'pending';
+      const s1 = updatedState.status_1;
+      const s2 = updatedState.status_2;
+      const hasTheme2 = !!selectedTheme.theme_2;
+
+      let finalChosenTheme = updatedState.chosen_theme;
+
+      if (!hasTheme2) {
+        finalStatus = s1;
+        finalChosenTheme = s1 === 'approved' ? 1 : null;
+      } else {
+        // Se ambos são aprovados
+        if (s1 === 'approved' && s2 === 'approved') {
+          // Se o cliente já escolheu qual publicar
+          if (finalChosenTheme === 1 || finalChosenTheme === 2) {
+            finalStatus = 'approved';
+          } else {
+            // Se ainda não escolheu, o dia fica pendente de decisão final
+            finalStatus = 'pending';
+            finalChosenTheme = null;
+          }
+        }
+        // Se apenas o tema 1 é aprovado
+        else if (s1 === 'approved' && s2 !== 'approved') {
+          if (s2 === 'pending') {
+            // Ainda aguardando avaliação do tema 2, status geral pendente, escolhido ainda indefinido
+            finalStatus = 'pending';
+            finalChosenTheme = null;
+          } else {
+            // Tema 2 foi rejeitado ou alterado, então o tema 1 é o definitivo
+            finalStatus = 'approved';
+            finalChosenTheme = 1;
+          }
+        }
+        // Se apenas o tema 2 é aprovado
+        else if (s2 === 'approved' && s1 !== 'approved') {
+          if (s1 === 'pending') {
+            // Ainda aguardando avaliação do tema 1, status geral pendente, escolhido ainda indefinido
+            finalStatus = 'pending';
+            finalChosenTheme = null;
+          } else {
+            // Tema 1 foi rejeitado ou alterado, então o tema 2 é o definitivo
+            finalStatus = 'approved';
+            finalChosenTheme = 2;
+          }
+        }
+        // Se nenhum é aprovado, mas pelo menos um está pendente
+        else if (s1 === 'pending' || s2 === 'pending') {
+          finalStatus = 'pending';
+          finalChosenTheme = null;
+        }
+        // Se pelo menos um está em revisão
+        else if (s1 === 'revision' || s2 === 'revision') {
+          finalStatus = 'revision';
+          finalChosenTheme = null;
+        }
+        // Se ambos foram rejeitados
+        else {
+          finalStatus = 'rejected';
+          finalChosenTheme = null;
+        }
+      }
+
+      const stateToSave = {
+        ...updatedState,
+        chosen_theme: finalChosenTheme
+      };
+
+      const { error } = await supabase
+        .from('post_themes')
+        .update({
+          status: JSON.stringify(stateToSave),
+          client_comment: stateToSave.comment_1 || stateToSave.comment_2 || null,
+          reviewed_at: new Date().toISOString(),
+          reviewed_by: userName
+        })
+        .eq('id', selectedTheme.id);
+
+      if (error) throw error;
+
+      await fetchThemes();
+      
+      const updatedTheme = {
+        ...selectedTheme,
+        status: JSON.stringify(stateToSave),
+        reviewed_at: new Date().toISOString(),
+        reviewed_by: userName
+      };
+      setSelectedTheme(updatedTheme);
+      setThemeStatusState(stateToSave);
+      
+      setActiveAction(null);
+      setEditingCommentIndex(null);
+      setActionReason('');
+    } catch (err) {
+      console.error('Error saving client review state:', err);
+      alert('Erro ao salvar avaliação. Tente novamente.');
+    } finally {
+      setIsSavingTheme(false);
+    }
+  };
+
+  const handleResetDecision = async (index: 1 | 2) => {
+    const updated = { ...themeStatusState };
+    if (index === 1) {
+      updated.status_1 = 'pending';
+      updated.comment_1 = '';
+    } else {
+      updated.status_2 = 'pending';
+      updated.comment_2 = '';
+    }
+    updated.chosen_theme = null;
+    await handleSaveClientReviewState(updated);
+  };
+
+  const handleSaveEditedComment = async (index: 1 | 2) => {
+    const updated = { ...themeStatusState };
+    if (index === 1) {
+      updated.comment_1 = editCommentText.trim();
+    } else {
+      updated.comment_2 = editCommentText.trim();
+    }
+    await handleSaveClientReviewState(updated);
+  };
+
+  const handleApproveSuggestion = async (index: 1 | 2) => {
+    const updated: ThemeStatusState = { ...themeStatusState };
+    if (index === 1) {
+      updated.status_1 = 'approved';
+    } else {
+      updated.status_2 = 'approved';
+    }
+
+    const hasTheme2 = !!selectedTheme?.theme_2;
+    if (hasTheme2 && updated.status_1 === 'approved' && updated.status_2 === 'approved') {
+      updated.chosen_theme = null;
+    }
+    
+    await handleSaveClientReviewState(updated);
+  };
+
 
   // 1. Helper: Gerar chave única
   const getDateKey = (day: string, platform: string) => {
@@ -699,6 +1098,26 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack, ini
     }
   };
 
+  const getThemeStatusColor = (status: string) => {
+    switch (status) {
+      case 'pending': return '#EAB308'; // yellow-500
+      case 'approved': return '#10B981'; // emerald-500
+      case 'rejected': return '#EF4444'; // red-500
+      case 'revision': return '#3B82F6'; // blue-500
+      default: return '#9CA3AF';
+    }
+  };
+
+  const getThemeStatusLabel = (status: string) => {
+    switch (status) {
+      case 'pending': return 'Pendente';
+      case 'approved': return 'Aprovado';
+      case 'rejected': return 'Reprovado';
+      case 'revision': return 'Pedido de Alteração';
+      default: return status;
+    }
+  };
+
   // --- CALENDAR RENDERER ---
   const renderCalendar = () => {
     const daysInMonth = new Date(year, monthIndex + 1, 0).getDate();
@@ -720,6 +1139,9 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack, ini
       const dayOfWeek = new Date(year, monthIndex, d).getDay();
       const dayName = ['DOM', 'SEG', 'TER', 'QUA', 'QUI', 'SEX', 'SÁB'][dayOfWeek];
 
+      const formattedDate = `${year}-${String(monthNum).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+      const dayTheme = themes.find(t => t.date === formattedDate);
+
       // Filtrar posts do dia (usando groupedPosts)
       const dayEvents = groupedPosts.filter(p => {
          const pDate = p.primaryKey.split('-').slice(0, 2).join('/');
@@ -734,9 +1156,22 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack, ini
           onDrop={(e) => handleDrop(e, d)}
         >
           <div className="flex justify-between items-start mb-3 md:mb-2">
-            <span className={`text-sm font-semibold ${dayEvents.length > 0 ? 'text-gray-900' : 'text-gray-400'}`}>
-              {d} <span className="md:hidden text-[10px] font-normal ml-1 text-gray-400">{dayName}</span>
-            </span>
+            <div className="flex items-center gap-1.5">
+              <span className={`text-sm font-semibold ${dayEvents.length > 0 ? 'text-gray-900' : 'text-gray-400'}`}>
+                {d} <span className="md:hidden text-[10px] font-normal ml-1 text-gray-400">{dayName}</span>
+              </span>
+              {dayTheme && (() => {
+                const overallStatus = getOverallDayStatus(dayTheme);
+                return (
+                  <div 
+                    onClick={(e) => { e.stopPropagation(); handleOpenThemeModal(dayTheme); }}
+                    className="w-2 h-2 rounded-full cursor-pointer transition-transform hover:scale-125 shadow-sm border border-white"
+                    style={{ backgroundColor: getThemeStatusColor(overallStatus) }}
+                    title={`Sugestão de Tema: ${getThemeStatusLabel(overallStatus)}`}
+                  />
+                );
+              })()}
+            </div>
             {userRole === 'admin' && (
                 <button 
                   onClick={(e) => { e.stopPropagation(); handleCreatePost(d); }}
@@ -814,6 +1249,74 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack, ini
                 </div>
                );
             })}
+
+            {dayTheme && (() => {
+              const overallStatus = getOverallDayStatus(dayTheme);
+              const statusObj = getThemeStatusObject(dayTheme);
+              return (
+                <div 
+                  onClick={(e) => { e.stopPropagation(); handleOpenThemeModal(dayTheme); }}
+                  className="p-3 rounded-xl border border-dashed hover:shadow-md cursor-pointer transition-all duration-300 flex flex-col gap-1.5 text-left shrink-0 bg-white"
+                  style={{ 
+                    borderColor: getThemeStatusColor(overallStatus) + '60',
+                    boxShadow: `0 4px 12px ${getThemeStatusColor(overallStatus)}08`
+                  }}
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="text-[8px] font-extrabold uppercase tracking-widest text-gray-400">Sugestão de Tema</span>
+                    <span 
+                      className="px-1.5 py-0.5 text-[7px] font-bold uppercase tracking-wider rounded-md text-white"
+                      style={{ backgroundColor: getThemeStatusColor(overallStatus) }}
+                    >
+                      {getThemeStatusLabel(overallStatus)}
+                    </span>
+                  </div>
+                  <div className="space-y-1.5">
+                    <div>
+                      <div className="flex items-center gap-1.5 justify-between">
+                        <p className="text-[10px] font-bold text-gray-700 leading-tight">
+                          💡 {dayTheme.theme_1}
+                        </p>
+                        <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: getThemeStatusColor(statusObj.status_1) }} />
+                      </div>
+                      <span className="inline-block text-[8px] font-semibold text-gray-400 px-1.5 py-0.5 bg-gray-50 rounded-md border border-gray-100 mt-1">
+                        {dayTheme.format_1}
+                      </span>
+                    </div>
+
+                    {dayTheme.theme_2 && (
+                      <>
+                        <div className="border-t border-gray-100 my-1.5" />
+                        <div>
+                          <div className="flex items-center gap-1.5 justify-between">
+                            <p className="text-[10px] font-bold text-gray-500 leading-tight">
+                              💡 {dayTheme.theme_2}
+                            </p>
+                            {statusObj.status_2 && (
+                              <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: getThemeStatusColor(statusObj.status_2) }} />
+                            )}
+                          </div>
+                          <span className="inline-block text-[8px] font-semibold text-gray-400 px-1.5 py-0.5 bg-gray-50 rounded-md border border-gray-100 mt-1">
+                            {dayTheme.format_2}
+                          </span>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                </div>
+              );
+            })()}
+
+            {userRole === 'admin' && dayEvents.length === 0 && !dayTheme && (
+              <div className="flex items-center justify-center py-4">
+                <button 
+                  onClick={(e) => { e.stopPropagation(); openCreateThemeModal(d); }}
+                  className="opacity-100 md:opacity-0 md:group-hover:opacity-100 bg-brand-dark/5 text-brand-dark hover:bg-brand-dark hover:text-white transition-all py-2 px-3 rounded-xl text-[10px] font-bold uppercase tracking-wider flex items-center gap-1.5 border border-brand-dark/10"
+                >
+                  <Plus size={12} /> Sugerir Temas
+                </button>
+              </div>
+            )}
           </div>
         </div>
       );
@@ -976,11 +1479,6 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack, ini
                     <button onClick={() => setViewMode('calendar')} className={`hidden md:flex items-center gap-1.5 sm:gap-2 px-3 sm:px-6 py-2 sm:py-2.5 rounded-lg sm:rounded-xl text-[9px] sm:text-[10px] font-bold uppercase tracking-widest transition-all duration-300 ${viewMode === 'calendar' ? 'bg-brand-dark text-white shadow-lg' : 'text-gray-400 hover:bg-gray-50'}`}>
                         <CalendarIcon size={14} /> <span>Calendário</span>
                     </button>
-                    {userRole === 'admin' && (
-                        <button onClick={() => setViewMode('themes')} className={`flex flex-1 sm:flex-none items-center justify-center gap-1.5 sm:gap-2 px-3 sm:px-6 py-2 sm:py-2.5 rounded-lg sm:rounded-xl text-[9px] sm:text-[10px] font-bold uppercase tracking-widest transition-all duration-300 ${viewMode === 'themes' ? 'bg-brand-dark text-white shadow-lg' : 'text-gray-400 hover:bg-gray-50'}`}>
-                            <Sparkles size={14} /> <span>Banco de Temas</span>
-                        </button>
-                    )}
                 </div>
             </div>
         </div>
@@ -1060,38 +1558,32 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack, ini
                 </div>
               </div>
             ) : (
-              <>
+              <div className="flex flex-wrap items-center gap-4">
                 <div className="inline-flex items-center gap-3 bg-white/10 backdrop-blur-md px-4 py-2 rounded-xl border border-white/10 text-white/80 text-[10px] font-bold uppercase tracking-[0.2em] mb-6 mt-2">
                   <Target size={12} className="text-white/40" />
-                  Tema: <span className="text-white">{currentPlan.theme || 'Não definido'}</span>
+                  Tema: <span className="text-white">{currentPlan?.theme || 'Não definido'}</span>
                 </div>
-              </>
+
+                {userRole === 'admin' && themes.length > 0 && (
+                  <div className="inline-flex flex-wrap items-center gap-x-4 gap-y-2 bg-white/10 backdrop-blur-md px-4 py-2 rounded-xl border border-white/10 text-white/80 text-[10px] font-bold uppercase tracking-[0.15em] mb-6 mt-2">
+                    <Sparkles size={12} className="text-white/40 animate-pulse" />
+                    <span>Temas do mês:</span>
+                    <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-yellow-500 animate-pulse" /> {themes.filter(t => getOverallDayStatus(t) === 'pending').length} pendentes</span>
+                    <span className="text-white/20">|</span>
+                    <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-emerald-500" /> {themes.filter(t => getOverallDayStatus(t) === 'approved').length} aprovados</span>
+                    <span className="text-white/20">|</span>
+                    <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-blue-500" /> {themes.filter(t => getOverallDayStatus(t) === 'revision').length} alterações</span>
+                    <span className="text-white/20">|</span>
+                    <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-red-500" /> {themes.filter(t => getOverallDayStatus(t) === 'rejected').length} reprovados</span>
+                  </div>
+                )}
+              </div>
             )}
           </div>
         </div>
 
         {/* Content */}
         <div className="p-6 md:p-10 bg-gray-50/50">
-           {viewMode === 'themes' ? (
-              <ThemeBankAdmin 
-                 key={themeBankKey}
-                 onTransferTheme={(theme) => {
-                    const emptyContent: DailyContent = {
-                       day: 'Nova Data',
-                       platform: 'meta',
-                       type: theme.format,
-                       theme: theme.title,
-                       bullets: theme.reference_links?.length > 0 
-                                ? [theme.description, `Referências: ${theme.reference_links.join(', ')}`] 
-                                : [theme.description]
-                    };
-                    setSelectedPost({ content: emptyContent, key: 'new' });
-                    setIsCreatingNew(true);
-                    setTransferringTheme(theme);
-                    setModalOpen(true);
-                 }}
-              />
-           ) : (
              <>
                <StatusLegend />
                <div className={viewMode === 'list' ? 'block' : 'block md:hidden'}>
@@ -1161,7 +1653,6 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack, ini
              </div>
            )}
            </>
-           )}
         </div>
       </div>
       
@@ -1171,6 +1662,603 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack, ini
           monthName={monthName}
           onClose={() => setShowPostIdeas(false)}
         />
+      )}
+
+      {/* --- MODAL DE APROVAÇÃO DE TEMAS --- */}
+      {isThemeModalOpen && selectedThemeDay && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          {/* Overlay */}
+          <div 
+            className="absolute inset-0 bg-[#0A0A0A]/60 backdrop-blur-md" 
+            onClick={() => setIsThemeModalOpen(false)}
+          />
+          
+          {/* Modal Card */}
+          <div className="bg-white rounded-[2.5rem] shadow-[0_25px_60px_-15px_rgba(0,0,0,0.15)] border border-gray-100 max-w-lg w-full overflow-hidden relative z-10 animate-in fade-in zoom-in-95 duration-300 flex flex-col max-h-[90vh]">
+            {/* Header */}
+            <div className="bg-brand-dark p-6 text-white flex justify-between items-center shrink-0">
+              <div>
+                <span className="text-[10px] font-black uppercase tracking-[0.2em] text-brand-green">
+                  Calendário Editorial
+                </span>
+                <h3 className="text-lg font-extrabold tracking-tight mt-1">
+                  Sugestão de Temas — Dia {selectedThemeDay} de {monthName}
+                </h3>
+              </div>
+              <button 
+                onClick={() => setIsThemeModalOpen(false)}
+                className="w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-all active:scale-95"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Scrollable Content */}
+            <div className="p-8 overflow-y-auto custom-scrollbar flex-grow space-y-6">
+              {/* HISTÓRICO DE REVISÃO GERAL (Para auditoria simples de quem atualizou por último) */}
+              {selectedTheme && selectedTheme.reviewed_at && (
+                <div className="p-4 rounded-2xl border border-gray-100 bg-gray-50/50 flex flex-col gap-1">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-gray-500">
+                      Última Avaliação Geral
+                    </span>
+                  </div>
+                  <p className="text-[11px] font-semibold text-gray-600">
+                    Processado por <span className="font-bold text-gray-900">{selectedTheme.reviewed_by}</span> em {new Date(selectedTheme.reviewed_at).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                  </p>
+                </div>
+              )}
+
+              {/* DUPLA APROVAÇÃO: EXIGIR ESCOLHA DE QUAL TEMA PUBLICAR */}
+              {userRole !== 'admin' && themeStatusState.status_1 === 'approved' && themeStatusState.status_2 === 'approved' && !themeStatusState.chosen_theme && (
+                <div className="p-5 bg-amber-50 rounded-2xl border border-amber-200 space-y-3 animate-in fade-in duration-300">
+                  <div className="flex items-center gap-2 text-amber-800">
+                    <Sparkles size={18} className="text-amber-500 shrink-0" />
+                    <h4 className="font-extrabold text-xs uppercase tracking-wider">Qual publicação você quer para este dia?</h4>
+                  </div>
+                  <p className="text-xs text-amber-700 leading-relaxed">
+                    Você aprovou os dois temas para o mesmo dia! Selecione qual deles será publicado no <strong>Dia {selectedThemeDay}</strong>. O outro tema será reposicionado para outro dia pela equipe da agência.
+                  </p>
+                  <div className="flex flex-col gap-2 pt-1">
+                    <button
+                      onClick={async () => {
+                        const updated: ThemeStatusState = { ...themeStatusState, chosen_theme: 1 };
+                        await handleSaveClientReviewState(updated);
+                      }}
+                      disabled={isSavingTheme}
+                      className="w-full bg-brand-dark hover:bg-opacity-95 text-white text-[10px] font-black uppercase tracking-widest py-3 px-4 rounded-xl transition-all shadow-md active:scale-95 text-left flex items-center justify-between"
+                    >
+                      <span>💡 1. {theme1}</span>
+                      <span className="bg-brand-green/20 text-brand-green text-[9px] px-2 py-0.5 rounded">Escolher este</span>
+                    </button>
+                    <button
+                      onClick={async () => {
+                        const updated: ThemeStatusState = { ...themeStatusState, chosen_theme: 2 };
+                        await handleSaveClientReviewState(updated);
+                      }}
+                      disabled={isSavingTheme}
+                      className="w-full bg-brand-dark hover:bg-opacity-95 text-white text-[10px] font-black uppercase tracking-widest py-3 px-4 rounded-xl transition-all shadow-md active:scale-95 text-left flex items-center justify-between"
+                    >
+                      <span>💡 2. {theme2}</span>
+                      <span className="bg-brand-green/20 text-brand-green text-[9px] px-2 py-0.5 rounded">Escolher este</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* MODO AGÊNCIA: EDIÇÃO OU CRIAÇÃO */}
+              {userRole === 'admin' ? (
+                <div className="space-y-6">
+                  {/* Tema 1 */}
+                  <div className="p-5 rounded-2xl border border-gray-100 bg-gray-50/30 space-y-4">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-black uppercase tracking-[0.15em] text-gray-400">Sugestão de Tema 1</span>
+                      <span className="text-[10px] font-bold text-brand-dark bg-brand-dark/5 px-2 py-0.5 rounded-md">Obrigatório</span>
+                    </div>
+                    <div className="space-y-3">
+                      <div>
+                        <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5">Ideia de Tema</label>
+                        <textarea
+                          value={theme1}
+                          onChange={(e) => setTheme1(e.target.value)}
+                          placeholder="Digite o título ou ideia do tema"
+                          className="w-full bg-white border border-gray-200 rounded-xl px-4 py-2.5 text-xs text-gray-900 focus:outline-none focus:border-brand-dark focus:ring-1 focus:ring-brand-dark transition-all resize-none min-h-[60px]"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5">Formato</label>
+                        <select
+                          value={format1}
+                          onChange={(e) => setFormat1(e.target.value)}
+                          className="w-full bg-white border border-gray-200 rounded-xl px-4 py-2.5 text-xs text-gray-900 focus:outline-none focus:border-brand-dark focus:ring-1 focus:ring-brand-dark transition-all font-semibold"
+                        >
+                          <option value="Reels">Reels</option>
+                          <option value="Carrossel">Carrossel</option>
+                          <option value="Imagem Estática">Imagem Estática</option>
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Tema 2 */}
+                  <div className="p-5 rounded-2xl border border-gray-100 bg-gray-50/30 space-y-4">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-black uppercase tracking-[0.15em] text-gray-400">Sugestão de Tema 2</span>
+                      <span className="text-[10px] font-bold text-gray-400 bg-gray-100 px-2 py-0.5 rounded-md">Opcional</span>
+                    </div>
+                    <div className="space-y-3">
+                      <div>
+                        <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5">Ideia de Tema</label>
+                        <textarea
+                          value={theme2}
+                          onChange={(e) => setTheme2(e.target.value)}
+                          placeholder="Digite o título ou ideia do tema (opcional)"
+                          className="w-full bg-white border border-gray-200 rounded-xl px-4 py-2.5 text-xs text-gray-900 focus:outline-none focus:border-brand-dark focus:ring-1 focus:ring-brand-dark transition-all resize-none min-h-[60px]"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5">Formato</label>
+                        <select
+                          value={format2}
+                          onChange={(e) => setFormat2(e.target.value)}
+                          disabled={!theme2.trim()}
+                          className="w-full bg-white border border-gray-200 rounded-xl px-4 py-2.5 text-xs text-gray-900 focus:outline-none focus:border-brand-dark focus:ring-1 focus:ring-brand-dark transition-all font-semibold disabled:opacity-50"
+                        >
+                          <option value="Reels">Reels</option>
+                          <option value="Carrossel">Carrossel</option>
+                          <option value="Imagem Estática">Imagem Estática</option>
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                /* MODO CLIENTE: LEITURA E AVALIAÇÃO INDEPENDENTE */
+                <div className="space-y-6">
+                  {/* --- CARD SUGESTÃO 1 --- */}
+                  <div className={`p-6 rounded-3xl border transition-all ${
+                    themeStatusState.status_1 === 'approved' ? 'bg-emerald-50/30 border-emerald-200/60 shadow-sm' :
+                    themeStatusState.status_1 === 'rejected' ? 'bg-rose-50/30 border-rose-200/60' :
+                    themeStatusState.status_1 === 'revision' ? 'bg-blue-50/30 border-blue-200/60' :
+                    'bg-gray-50/30 border-gray-100'
+                  }`}>
+                    <div className="flex items-center justify-between">
+                      <span className="text-[8px] font-black uppercase tracking-widest text-brand-dark border border-brand-dark/10 px-2.5 py-1 rounded-md bg-white shadow-sm">
+                        Sugestão 1
+                      </span>
+                      <span className={`px-2.5 py-1 text-[8px] font-black uppercase tracking-wider rounded-md text-white ${
+                        themeStatusState.status_1 === 'approved' ? 'bg-emerald-500' :
+                        themeStatusState.status_1 === 'rejected' ? 'bg-rose-500' :
+                        themeStatusState.status_1 === 'revision' ? 'bg-blue-500' :
+                        'bg-yellow-500'
+                      }`}>
+                        {themeStatusState.status_1 === 'approved' && themeStatusState.chosen_theme === 1 ? 'Aprovado (Que Segue)' :
+                         themeStatusState.status_1 === 'approved' ? 'Aprovado (Aguardando Escolha)' :
+                         getThemeStatusLabel(themeStatusState.status_1)}
+                      </span>
+                    </div>
+                    
+                    <h4 className="text-sm font-extrabold text-gray-900 mt-4">💡 {theme1}</h4>
+                    <span className="inline-block text-[9px] font-extrabold text-gray-500 bg-white border border-gray-150 px-2.5 py-1 rounded-md shadow-sm mt-2">
+                      {format1}
+                    </span>
+
+                    {/* BOTÕES DE AÇÃO SE TEMA 1 FOR PENDENTE */}
+                    {themeStatusState.status_1 === 'pending' && (!activeAction || activeAction.suggestionIndex !== 1) && (
+                      <div className="grid grid-cols-3 gap-2 mt-4 pt-4 border-t border-gray-100">
+                        <button
+                          onClick={() => handleApproveSuggestion(1)}
+                          disabled={isSavingTheme}
+                          className="flex items-center justify-center gap-1.5 py-2 px-1 rounded-xl bg-emerald-50 text-emerald-600 hover:bg-emerald-100 transition-all text-[9px] font-black uppercase tracking-widest shadow-sm"
+                        >
+                          <CheckCircle2 size={12} /> Aprovar
+                        </button>
+                        <button
+                          onClick={() => {
+                            setActiveAction({ suggestionIndex: 1, type: 'revision' });
+                            setActionReason('');
+                          }}
+                          disabled={isSavingTheme}
+                          className="flex items-center justify-center gap-1.5 py-2 px-1 rounded-xl bg-blue-50 text-blue-600 hover:bg-blue-100 transition-all text-[9px] font-black uppercase tracking-widest shadow-sm"
+                        >
+                          <Edit2 size={12} /> Alteração
+                        </button>
+                        <button
+                          onClick={() => {
+                            setActiveAction({ suggestionIndex: 1, type: 'rejected' });
+                            setActionReason('');
+                          }}
+                          disabled={isSavingTheme}
+                          className="flex items-center justify-center gap-1.5 py-2 px-1 rounded-xl bg-rose-50 text-rose-600 hover:bg-rose-100 transition-all text-[9px] font-black uppercase tracking-widest shadow-sm"
+                        >
+                          <Trash size={12} /> Reprovar
+                        </button>
+                      </div>
+                    )}
+
+                    {/* FORM INLINE PARA MOTIVO REJEIÇÃO/REVISÃO TEMA 1 */}
+                    {activeAction && activeAction.suggestionIndex === 1 && (
+                      <div className="bg-white border border-gray-150 rounded-2xl p-4 mt-4 space-y-3 shadow-inner animate-in slide-in-from-top-3 duration-300">
+                        <span className="text-[8px] font-black uppercase tracking-widest text-gray-400">
+                          {activeAction.type === 'revision' ? 'Pedir Alteração — Sugestão 1' : 'Reprovar — Sugestão 1'}
+                        </span>
+                        <textarea
+                          value={actionReason}
+                          onChange={(e) => setActionReason(e.target.value)}
+                          placeholder={activeAction.type === 'revision' ? "Digite detalhadamente qual alteração você deseja..." : "Digite o motivo da reprovação..."}
+                          className="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 text-xs text-gray-900 focus:outline-none focus:border-brand-dark focus:ring-1 focus:ring-brand-dark transition-all resize-none min-h-[70px]"
+                        />
+                        <div className="flex gap-2 justify-end">
+                          <button
+                            onClick={() => setActiveAction(null)}
+                            className="px-3 py-1.5 rounded-lg hover:bg-gray-100 text-gray-500 text-[9px] font-bold uppercase tracking-wider"
+                          >
+                            Cancelar
+                          </button>
+                          <button
+                            onClick={async () => {
+                              if (!actionReason.trim()) {
+                                alert('Por favor, informe a observação/motivo.');
+                                return;
+                              }
+                              const updated = { ...themeStatusState, status_1: activeAction.type, comment_1: actionReason.trim() };
+                              await handleSaveClientReviewState(updated);
+                            }}
+                            disabled={isSavingTheme}
+                            className={`px-4 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest text-white shadow-sm ${
+                              activeAction.type === 'revision' ? 'bg-blue-500 hover:bg-blue-600' : 'bg-rose-500 hover:bg-rose-600'
+                            }`}
+                          >
+                            Confirmar
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* MOSTRAR FEEDBACK E BOTÃO EDITAR PARA TEMA 1 */}
+                    {themeStatusState.status_1 !== 'pending' && (
+                      <div className="mt-4 pt-3 border-t border-gray-100/60 space-y-2">
+                        {themeStatusState.comment_1 && (
+                          <div className="bg-white/80 border border-black/[0.03] rounded-xl p-3 text-xs text-gray-600">
+                            <span className="font-bold text-[9px] uppercase text-gray-400 tracking-wider block mb-1">
+                              {themeStatusState.status_1 === 'revision' ? 'Feedback de Alteração:' : 'Motivo da Reprovação:'}
+                            </span>
+                            {editingCommentIndex === 1 ? (
+                              <div className="space-y-3 mt-1.5">
+                                <textarea
+                                  value={editCommentText}
+                                  onChange={(e) => setEditCommentText(e.target.value)}
+                                  className="w-full bg-white border border-gray-200 rounded-xl p-2.5 text-xs text-gray-900 focus:outline-none focus:border-brand-dark focus:ring-1 focus:ring-brand-dark transition-all resize-none min-h-[60px]"
+                                />
+                                <div className="flex justify-end gap-2">
+                                  <button
+                                    onClick={() => setEditingCommentIndex(null)}
+                                    className="px-3 py-1.5 rounded bg-gray-100 text-gray-600 text-[9px] font-bold uppercase transition-all"
+                                  >
+                                    Cancelar
+                                  </button>
+                                  <button
+                                    onClick={() => handleSaveEditedComment(1)}
+                                    disabled={isSavingTheme}
+                                    className="px-3 py-1.5 rounded bg-brand-dark text-white hover:bg-opacity-95 text-[9px] font-bold uppercase transition-all"
+                                  >
+                                    Salvar
+                                  </button>
+                                </div>
+                              </div>
+                            ) : (
+                              <p className="italic">"{themeStatusState.comment_1}"</p>
+                            )}
+                          </div>
+                        )}
+
+                        {editingCommentIndex !== 1 && (
+                          <div className="flex gap-2 items-center">
+                            {themeStatusState.comment_1 && (
+                              <button
+                                onClick={() => {
+                                  setEditingCommentIndex(1);
+                                  setEditCommentText(themeStatusState.comment_1);
+                                }}
+                                className="flex items-center gap-1 text-[9px] font-black uppercase tracking-wider text-brand-dark hover:opacity-85"
+                              >
+                                <Edit3 size={11} /> Editar Observação
+                              </button>
+                            )}
+                            {confirmResetIndex === 1 ? (
+                              <div className="flex items-center gap-2 bg-rose-50 border border-rose-100 px-3 py-1.5 rounded-xl ml-auto animate-in fade-in duration-200">
+                                <span className="text-[9px] font-bold text-rose-700">Confirmar?</span>
+                                <button
+                                  onClick={async (e) => {
+                                    e.stopPropagation();
+                                    setConfirmResetIndex(null);
+                                    await handleResetDecision(1);
+                                  }}
+                                  className="px-2 py-0.5 bg-rose-500 hover:bg-rose-600 text-white rounded text-[8px] font-black uppercase transition-all"
+                                >
+                                  Sim
+                                </button>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setConfirmResetIndex(null);
+                                  }}
+                                  className="px-2 py-0.5 bg-gray-150 hover:bg-gray-200 text-gray-700 rounded text-[8px] font-black uppercase transition-all"
+                                >
+                                  Não
+                                </button>
+                              </div>
+                            ) : (
+                              <button
+                                onClick={() => setConfirmResetIndex(1)}
+                                className="flex items-center gap-1 text-[9px] font-black uppercase tracking-wider text-rose-500 hover:opacity-85 ml-auto"
+                              >
+                                <RefreshCw size={11} /> Refazer Avaliação
+                              </button>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+
+                  {/* --- CARD SUGESTÃO 2 (Se existir) --- */}
+                  {theme2.trim() && (
+                    <div className={`p-6 rounded-3xl border transition-all ${
+                      themeStatusState.status_2 === 'approved' ? 'bg-emerald-50/30 border-emerald-200/60 shadow-sm' :
+                      themeStatusState.status_2 === 'rejected' ? 'bg-rose-50/30 border-rose-200/60' :
+                      themeStatusState.status_2 === 'revision' ? 'bg-blue-50/30 border-blue-200/60' :
+                      'bg-gray-50/30 border-gray-100'
+                    }`}>
+                      <div className="flex items-center justify-between">
+                        <span className="text-[8px] font-black uppercase tracking-widest text-brand-dark border border-brand-dark/10 px-2.5 py-1 rounded-md bg-white shadow-sm">
+                          Sugestão 2
+                        </span>
+                        <span className={`px-2.5 py-1 text-[8px] font-black uppercase tracking-wider rounded-md text-white ${
+                          themeStatusState.status_2 === 'approved' ? 'bg-emerald-500' :
+                          themeStatusState.status_2 === 'rejected' ? 'bg-rose-500' :
+                          themeStatusState.status_2 === 'revision' ? 'bg-blue-500' :
+                          'bg-yellow-500'
+                        }`}>
+                          {themeStatusState.status_2 === 'approved' && themeStatusState.chosen_theme === 2 ? 'Aprovado (Que Segue)' :
+                           themeStatusState.status_2 === 'approved' ? 'Aprovado (Aguardando Escolha)' :
+                           getThemeStatusLabel(themeStatusState.status_2 || 'pending')}
+                        </span>
+                      </div>
+                      
+                      <h4 className="text-sm font-extrabold text-gray-900 mt-4">💡 {theme2}</h4>
+                      <span className="inline-block text-[9px] font-extrabold text-gray-500 bg-white border border-gray-150 px-2.5 py-1 rounded-md shadow-sm mt-2">
+                        {format2}
+                      </span>
+
+                      {/* BOTÕES DE AÇÃO SE TEMA 2 FOR PENDENTE */}
+                      {themeStatusState.status_2 === 'pending' && (!activeAction || activeAction.suggestionIndex !== 2) && (
+                        <div className="grid grid-cols-3 gap-2 mt-4 pt-4 border-t border-gray-100">
+                          <button
+                            onClick={() => handleApproveSuggestion(2)}
+                            disabled={isSavingTheme}
+                            className="flex items-center justify-center gap-1.5 py-2 px-1 rounded-xl bg-emerald-50 text-emerald-600 hover:bg-emerald-100 transition-all text-[9px] font-black uppercase tracking-widest shadow-sm"
+                          >
+                            <CheckCircle2 size={12} /> Aprovar
+                          </button>
+                          <button
+                            onClick={() => {
+                              setActiveAction({ suggestionIndex: 2, type: 'revision' });
+                              setActionReason('');
+                            }}
+                            disabled={isSavingTheme}
+                            className="flex items-center justify-center gap-1.5 py-2 px-1 rounded-xl bg-blue-50 text-blue-600 hover:bg-blue-100 transition-all text-[9px] font-black uppercase tracking-widest shadow-sm"
+                          >
+                            <Edit2 size={12} /> Alteração
+                          </button>
+                          <button
+                            onClick={() => {
+                              setActiveAction({ suggestionIndex: 2, type: 'rejected' });
+                              setActionReason('');
+                            }}
+                            disabled={isSavingTheme}
+                            className="flex items-center justify-center gap-1.5 py-2 px-1 rounded-xl bg-rose-50 text-rose-600 hover:bg-rose-100 transition-all text-[9px] font-black uppercase tracking-widest shadow-sm"
+                          >
+                            <Trash size={12} /> Reprovar
+                          </button>
+                        </div>
+                      )}
+
+                      {/* FORM INLINE PARA MOTIVO REJEIÇÃO/REVISÃO TEMA 2 */}
+                      {activeAction && activeAction.suggestionIndex === 2 && (
+                        <div className="bg-white border border-gray-150 rounded-2xl p-4 mt-4 space-y-3 shadow-inner animate-in slide-in-from-top-3 duration-300">
+                          <span className="text-[8px] font-black uppercase tracking-widest text-gray-400">
+                            {activeAction.type === 'revision' ? 'Pedir Alteração — Sugestão 2' : 'Reprovar — Sugestão 2'}
+                          </span>
+                          <textarea
+                            value={actionReason}
+                            onChange={(e) => setActionReason(e.target.value)}
+                            placeholder={activeAction.type === 'revision' ? "Digite detalhadamente qual alteração você deseja..." : "Digite o motivo da reprovação..."}
+                            className="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 text-xs text-gray-900 focus:outline-none focus:border-brand-dark focus:ring-1 focus:ring-brand-dark transition-all resize-none min-h-[70px]"
+                          />
+                          <div className="flex gap-2 justify-end">
+                            <button
+                              onClick={() => setActiveAction(null)}
+                              className="px-3 py-1.5 rounded-lg hover:bg-gray-100 text-gray-500 text-[9px] font-bold uppercase tracking-wider"
+                            >
+                              Cancelar
+                            </button>
+                            <button
+                              onClick={async () => {
+                                if (!actionReason.trim()) {
+                                  alert('Por favor, informe a observação/motivo.');
+                                  return;
+                                }
+                                const updated = { ...themeStatusState, status_2: activeAction.type, comment_2: actionReason.trim() };
+                                await handleSaveClientReviewState(updated);
+                              }}
+                              disabled={isSavingTheme}
+                              className={`px-4 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest text-white shadow-sm ${
+                                activeAction.type === 'revision' ? 'bg-blue-500 hover:bg-blue-600' : 'bg-rose-500 hover:bg-rose-600'
+                              }`}
+                            >
+                              Confirmar
+                            </button>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* MOSTRAR FEEDBACK E BOTÃO EDITAR PARA TEMA 2 */}
+                      {themeStatusState.status_2 !== 'pending' && themeStatusState.status_2 !== null && (
+                        <div className="mt-4 pt-3 border-t border-gray-100/60 space-y-2">
+                          {themeStatusState.comment_2 && (
+                            <div className="bg-white/80 border border-black/[0.03] rounded-xl p-3 text-xs text-gray-600">
+                              <span className="font-bold text-[9px] uppercase text-gray-400 tracking-wider block mb-1">
+                                {themeStatusState.status_2 === 'revision' ? 'Feedback de Alteração:' : 'Motivo da Reprovação:'}
+                              </span>
+                              {editingCommentIndex === 2 ? (
+                                <div className="space-y-3 mt-1.5">
+                                  <textarea
+                                    value={editCommentText}
+                                    onChange={(e) => setEditCommentText(e.target.value)}
+                                    className="w-full bg-white border border-gray-200 rounded-xl p-2.5 text-xs text-gray-900 focus:outline-none focus:border-brand-dark focus:ring-1 focus:ring-brand-dark transition-all resize-none min-h-[60px]"
+                                  />
+                                  <div className="flex justify-end gap-2">
+                                    <button
+                                      onClick={() => setEditingCommentIndex(null)}
+                                      className="px-3 py-1.5 rounded bg-gray-100 text-gray-600 text-[9px] font-bold uppercase transition-all"
+                                    >
+                                      Cancelar
+                                    </button>
+                                    <button
+                                      onClick={() => handleSaveEditedComment(2)}
+                                      disabled={isSavingTheme}
+                                      className="px-3 py-1.5 rounded bg-brand-dark text-white hover:bg-opacity-95 text-[9px] font-bold uppercase transition-all"
+                                    >
+                                      Salvar
+                                    </button>
+                                  </div>
+                                </div>
+                              ) : (
+                                <p className="italic">"{themeStatusState.comment_2}"</p>
+                              )}
+                            </div>
+                          )}
+
+                           {editingCommentIndex !== 2 && (
+                             <div className="flex gap-2 items-center">
+                               {themeStatusState.comment_2 && (
+                                 <button
+                                   onClick={() => {
+                                     setEditingCommentIndex(2);
+                                     setEditCommentText(themeStatusState.comment_2);
+                                   }}
+                                   className="flex items-center gap-1 text-[9px] font-black uppercase tracking-wider text-brand-dark hover:opacity-85"
+                                 >
+                                   <Edit3 size={11} /> Editar Observação
+                                 </button>
+                               )}
+                               {confirmResetIndex === 2 ? (
+                                 <div className="flex items-center gap-2 bg-rose-50 border border-rose-100 px-3 py-1.5 rounded-xl ml-auto animate-in fade-in duration-200">
+                                   <span className="text-[9px] font-bold text-rose-700">Confirmar?</span>
+                                   <button
+                                     onClick={async (e) => {
+                                       e.stopPropagation();
+                                       setConfirmResetIndex(null);
+                                       await handleResetDecision(2);
+                                     }}
+                                     className="px-2 py-0.5 bg-rose-500 hover:bg-rose-600 text-white rounded text-[8px] font-black uppercase transition-all"
+                                   >
+                                     Sim
+                                   </button>
+                                   <button
+                                     onClick={(e) => {
+                                       e.stopPropagation();
+                                       setConfirmResetIndex(null);
+                                     }}
+                                     className="px-2 py-0.5 bg-gray-150 hover:bg-gray-200 text-gray-700 rounded text-[8px] font-black uppercase transition-all"
+                                   >
+                                     Não
+                                   </button>
+                                 </div>
+                               ) : (
+                                 <button
+                                   onClick={() => setConfirmResetIndex(2)}
+                                   className="flex items-center gap-1 text-[9px] font-black uppercase tracking-wider text-rose-500 hover:opacity-85 ml-auto"
+                                 >
+                                   <RefreshCw size={11} /> Refazer Avaliação
+                                 </button>
+                               )}
+                             </div>
+                           )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Footer Buttons */}
+            <div className="bg-gray-50 p-6 border-t border-gray-100 shrink-0 flex flex-wrap gap-3 items-center justify-end">
+              {userRole === 'admin' ? (
+                /* FOOTER AGÊNCIA */
+                <>
+                  {selectedTheme && (
+                    confirmDelete ? (
+                      <div className="flex items-center gap-2 bg-rose-50 border border-rose-100 px-3 py-1.5 rounded-xl mr-auto animate-in fade-in duration-200">
+                        <span className="text-[10px] font-bold text-rose-700">Confirmar Exclusão?</span>
+                        <button
+                          onClick={async () => {
+                            setConfirmDelete(false);
+                            await handleDeleteThemeSuggestion();
+                          }}
+                          className="px-3 py-1 bg-rose-500 hover:bg-rose-600 text-white rounded-lg text-[9px] font-black uppercase transition-all"
+                        >
+                          Sim
+                        </button>
+                        <button
+                          onClick={() => setConfirmDelete(false)}
+                          className="px-3 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-[9px] font-black uppercase transition-all"
+                        >
+                          Não
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => setConfirmDelete(true)}
+                        disabled={isSavingTheme}
+                        className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-rose-50 text-rose-600 hover:bg-rose-100 transition-all text-[10px] font-black uppercase tracking-widest mr-auto disabled:opacity-50"
+                      >
+                        <Trash size={14} /> Excluir
+                      </button>
+                    )
+                  )}
+                  <button
+                    onClick={() => setIsThemeModalOpen(false)}
+                    className="flex items-center gap-2 px-5 py-2.5 rounded-xl hover:bg-gray-100 text-gray-500 transition-all text-[10px] font-black uppercase tracking-widest"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    onClick={handleSaveThemeSuggestion}
+                    disabled={isSavingTheme || !theme1.trim()}
+                    className="flex items-center gap-2 px-7 py-2.5 rounded-xl bg-brand-dark text-white hover:bg-opacity-90 transition-all text-[10px] font-black uppercase tracking-widest disabled:opacity-50 shadow-lg"
+                  >
+                    {isSavingTheme ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />}
+                    {selectedTheme ? 'Atualizar' : 'Salvar Sugestão'}
+                  </button>
+                </>
+              ) : (
+                /* FOOTER CLIENTE */
+                <>
+                  <button
+                    onClick={() => setIsThemeModalOpen(false)}
+                    className="flex items-center gap-2 px-5 py-2.5 rounded-xl hover:bg-gray-100 text-gray-500 transition-all text-[10px] font-black uppercase tracking-widest"
+                  >
+                    Fechar
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
       )}
 
       <ConfirmModal

@@ -19,6 +19,11 @@ export const useClientOnboarding = (clientId?: string) => {
     }
 
     const checkCompletion = async () => {
+      if (!clientId || clientId === 'undefined' || clientId === 'null') {
+        setLoading(false);
+        return;
+      }
+
       try {
         const { data, error } = await supabase
           .from('onboarding_checklist')
@@ -27,7 +32,12 @@ export const useClientOnboarding = (clientId?: string) => {
           .eq('client_id', clientId)
           .order('phase', { ascending: true });
 
-        if (error) throw error;
+        if (error) {
+          console.warn('Onboarding check query error:', error.message);
+          setIsCompleted(false);
+          setStats({ total: 0, completed: 0, currentPhaseName: null });
+          return;
+        }
 
         if (data && data.length > 0) {
           const total = data.length;
@@ -48,6 +58,8 @@ export const useClientOnboarding = (clientId?: string) => {
         }
       } catch (err) {
         console.error('Error checking onboarding completion:', err);
+        setIsCompleted(false);
+        setStats({ total: 0, completed: 0, currentPhaseName: null });
       } finally {
         setLoading(false);
       }

@@ -242,6 +242,22 @@ export interface Client {
   service_end_date?: string | null;
 }
 
+export interface PostTheme {
+  id: string;
+  client_id: string;
+  agency_id: number;
+  date: string;
+  theme_1: string;
+  format_1: string;
+  theme_2?: string;
+  format_2?: string;
+  status: string;
+  client_comment?: string;
+  reviewed_at?: string;
+  reviewed_by?: string;
+  created_at: string;
+}
+
 export interface PostIdea {
   id: string;
   client_id: string;
@@ -330,7 +346,7 @@ export interface ClientLead {
   phone?: string;
   source?: string;
   specialty?: string;
-  potential?: 'alto' | 'baixo' | null;
+  potential?: 'alto' | 'medio' | 'baixo' | null;
   kanban_stage?: string;
   position: number;
   loss_reason?: string;
@@ -339,6 +355,7 @@ export interface ClientLead {
   closed: boolean;
   deal_value: number;
   notes: string | null;
+  closed_at?: string | null;
   created_at: string;
 }
 

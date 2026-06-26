@@ -11,6 +11,7 @@ import {
   TrendingUp, 
   Users, 
   CheckCircle, 
+  CheckSquare,
   DollarSign,
   X,
   ThumbsUp,
@@ -53,7 +54,7 @@ import {
   useSortable,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Legend, PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
 import { ClientLead, ClientLeadConfig } from '../types';
 import { useLeadTracker } from '../hooks/useLeadTracker';
 import { BRAZILIAN_STATES } from '../constants';
@@ -101,11 +102,23 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
   const [leads, setLeads] = useState<ClientLead[]>([]);
   const [loading, setLoading] = useState(true);
   
+  // CRM Tabs & Views
+  const [activeCRMTab, setActiveCRMTab] = useState<'relatorio' | 'funil' | 'fechados' | 'perdidos'>('relatorio');
+  const [isViewModalOpen, setIsViewModalOpen] = useState(false);
+  const [selectedLeadForView, setSelectedLeadForView] = useState<ClientLead | null>(null);
+  const [closedAtDate, setClosedAtDate] = useState('');
+  
+  // Filtros opcionais para listagens
+  const [filterSpecialty, setFilterSpecialty] = useState('');
+  const [filterSource, setFilterSource] = useState('');
+  const [filterOrigin, setFilterOrigin] = useState('');
+  
   // Modals
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isLossModalOpen, setIsLossModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [isWonModalOpen, setIsWonModalOpen] = useState(false);
+  const [winNotes, setWinNotes] = useState('');
   const [leadToDelete, setLeadToDelete] = useState<string | null>(null);
   const [leadToLose, setLeadToLose] = useState<string | null>(null);
   const [leadToWin, setLeadToWin] = useState<string | null>(null);
@@ -169,7 +182,12 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
     const monthLeads = leads.filter(l => (l.lead_date || l.created_at).startsWith(selectedMonth));
     
     const total = monthLeads.length;
-    const closedLeads = monthLeads.filter(l => l.kanban_stage === 'Fechado');
+    // Usar closed_at para calculos de fechados, com fallback para lead_date se null
+    const closedLeads = leads.filter(l => {
+      if (l.kanban_stage !== 'Fechado') return false;
+      const dateToUse = l.closed_at || l.lead_date || l.created_at;
+      return dateToUse.startsWith(selectedMonth);
+    });
     const closedMonth = closedLeads.length;
     
     const revenue = closedLeads.reduce((acc, l) => acc + (Number(l.deal_value) || 0), 0);
@@ -189,6 +207,66 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
     return { total, closedMonth, conversionRate, revenue, reasonData, lostCount: lostLeads.length };
   }, [leads, selectedMonth]);
 
+  const last6MonthsData = useMemo(() => {
+    const data = [];
+    for (let i = 5; i >= 0; i--) {
+      const m = dayjs().subtract(i, 'month');
+      const prefix = m.format('YYYY-MM');
+      const label = m.format('MM/YY'); // Formato pt-BR simples como "06/26"
+
+      const leadsInMonth = leads.filter(l => (l.lead_date || l.created_at).startsWith(prefix));
+      const closedInMonth = leads.filter(l => l.kanban_stage === 'Fechado' && (l.closed_at || l.lead_date || l.created_at).startsWith(prefix));
+
+      data.push({
+        name: label,
+        'Novos Leads': leadsInMonth.length,
+        'Contratos Fechados': closedInMonth.length
+      });
+    }
+    return data;
+  }, [leads]);
+
+  const statsFechados = useMemo(() => {
+    const closedLeads = leads.filter(l => l.kanban_stage === 'Fechado');
+    const totalRevenue = closedLeads.reduce((acc, lead) => acc + (lead.deal_value || 0), 0);
+    
+    // Meses específicos para o dashboard
+    const monthsData = [];
+    const currentYear = dayjs().year();
+    
+    // Pegar os últimos 4 meses incluindo o atual
+    for (let i = 3; i >= 0; i--) {
+      const mDate = dayjs().subtract(i, 'month');
+      const prefix = mDate.format('YYYY-MM');
+      const mLeads = closedLeads.filter(l => (l.closed_at || l.lead_date || l.created_at).startsWith(prefix));
+      const revenue = mLeads.reduce((acc, l) => acc + (l.deal_value || 0), 0);
+      
+      monthsData.push({
+        label: mDate.format('MMMM'),
+        value: revenue,
+        count: mLeads.length
+      });
+    }
+
+    return { totalRevenue, count: closedLeads.length, monthsData };
+  }, [leads]);
+
+  const statsPerdidos = useMemo(() => {
+    const lostLeads = leads.filter(l => l.kanban_stage === 'Perdido');
+    const reasonCounts: Record<string, number> = {};
+    
+    lostLeads.forEach(l => {
+      const r = l.loss_reason || 'Outro';
+      reasonCounts[r] = (reasonCounts[r] || 0) + 1;
+    });
+
+    const reasonData = Object.entries(reasonCounts)
+      .map(([name, value]) => ({ name, value }))
+      .sort((a, b) => b.value - a.value);
+
+    return { total: lostLeads.length, reasonData };
+  }, [leads]);
+
   const handleOpenAddModal = () => {
     setEditingLead(null);
     setFormData({
@@ -206,6 +284,11 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
       ...lead
     });
     setIsModalOpen(true);
+  };
+
+  const handleOpenViewModal = (lead: ClientLead) => {
+    setSelectedLeadForView(lead);
+    setIsViewModalOpen(true);
   };
 
   const handleExportCSV = () => {
@@ -273,6 +356,15 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
 
   const handleSaveLead = async () => {
     if (!formData.lead_name?.trim()) {
+      alert('Nome do Lead é obrigatório.');
+      return;
+    }
+    if (!formData.potential) {
+      alert('Selecione o potencial do lead.');
+      return;
+    }
+    if (!formData.notes?.trim()) {
+      alert('Observações é obrigatório. Registre o que o lead procura.');
       return;
     }
 
@@ -399,6 +491,8 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
     if (targetStage === 'Fechado' && activeLead.kanban_stage !== 'Fechado') {
       setLeadToWin(activeId);
       setDealValue(0);
+      setClosedAtDate('');
+      setWinNotes('');
       setIsWonModalOpen(true);
       return;
     }
@@ -437,6 +531,8 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
     if (newStage === 'Fechado') {
       setLeadToWin(leadId);
       setDealValue(0);
+      setClosedAtDate('');
+      setWinNotes('');
       setIsWonModalOpen(true);
       return;
     }
@@ -464,11 +560,23 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
 
   const handleConfirmWin = async () => {
     if (!leadToWin) return;
+    if (!closedAtDate) {
+      alert('A data de fechamento é obrigatória.');
+      return;
+    }
     try {
       // Confirma o ganho do lead
-      await updateLead(leadToWin, { kanban_stage: 'Fechado', deal_value: dealValue });
+      await updateLead(leadToWin, { 
+        kanban_stage: 'Fechado', 
+        closed: true, 
+        deal_value: dealValue,
+        closed_at: closedAtDate,
+        notes: winNotes || undefined
+      });
       setIsWonModalOpen(false);
       setLeadToWin(null);
+      setWinNotes('');
+      setClosedAtDate('');
       loadData();
     } catch (error) {
       console.error(error);
@@ -503,10 +611,14 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
     grouped['Perdido'] = [];
     
     leads.forEach(lead => {
-      const isClosedOrLost = lead.kanban_stage === 'Fechado' || lead.kanban_stage === 'Perdido';
-      if (isClosedOrLost) {
+      if (lead.kanban_stage === 'Fechado') {
+        const dateToUse = lead.closed_at || lead.lead_date || lead.created_at;
+        if (!dateToUse.startsWith(selectedMonth)) {
+          return; // Skip closed leads not from selected month
+        }
+      } else if (lead.kanban_stage === 'Perdido') {
         if (!(lead.lead_date || lead.created_at).startsWith(selectedMonth)) {
-          return; // Skip closed/lost leads not from selected month
+          return; // Skip lost leads not from selected month
         }
       }
 
@@ -520,6 +632,66 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
     });
     return grouped;
   }, [leads, stages, selectedMonth]);
+
+  const filteredClosedLeads = useMemo(() => {
+    return leads
+      .filter(l => l.kanban_stage === 'Fechado')
+      .filter(l => !filterSpecialty || l.specialty === filterSpecialty)
+      .filter(l => !filterSource || l.source === filterSource)
+      .filter(l => !filterOrigin || l.origin === filterOrigin)
+      .sort((a, b) => {
+        const dateA = a.closed_at || a.lead_date || a.created_at || '';
+        const dateB = b.closed_at || b.lead_date || b.created_at || '';
+        return dateB.localeCompare(dateA);
+      });
+  }, [leads, filterSpecialty, filterSource, filterOrigin]);
+
+  const filteredLostLeads = useMemo(() => {
+    return leads
+      .filter(l => l.kanban_stage === 'Perdido')
+      .filter(l => !filterSpecialty || l.specialty === filterSpecialty)
+      .filter(l => !filterSource || l.source === filterSource)
+      .filter(l => !filterOrigin || l.origin === filterOrigin)
+      .sort((a, b) => {
+        const dateA = a.lead_date || a.created_at || '';
+        const dateB = b.lead_date || b.created_at || '';
+        return dateB.localeCompare(dateA);
+      });
+  }, [leads, filterSpecialty, filterSource, filterOrigin]);
+
+  const MONTHS_LIST = [
+    { value: '01', label: 'Janeiro' },
+    { value: '02', label: 'Fevereiro' },
+    { value: '03', label: 'Março' },
+    { value: '04', label: 'Abril' },
+    { value: '05', label: 'Maio' },
+    { value: '06', label: 'Junho' },
+    { value: '07', label: 'Julho' },
+    { value: '08', label: 'Agosto' },
+    { value: '09', label: 'Setembro' },
+    { value: '10', label: 'Outubro' },
+    { value: '11', label: 'Novembro' },
+    { value: '12', label: 'Dezembro' }
+  ];
+
+  const YEARS_LIST = useMemo(() => {
+    const thisYear = dayjs().year();
+    return [
+      String(thisYear),
+      String(thisYear - 1),
+      String(thisYear - 2)
+    ];
+  }, []);
+
+  const handleMonthChange = (monthVal: string) => {
+    const yearVal = selectedMonth.split('-')[0];
+    setSelectedMonth(`${yearVal}-${monthVal}`);
+  };
+
+  const handleYearChange = (yearVal: string) => {
+    const monthVal = selectedMonth.split('-')[1];
+    setSelectedMonth(`${yearVal}-${monthVal}`);
+  };
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500 min-h-[calc(100vh-120px)] flex flex-col">
@@ -546,12 +718,6 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
           </div>
           
           <div className="flex items-center gap-2 sm:gap-4 flex-wrap sm:flex-nowrap">
-            <input 
-              type="month" 
-              value={selectedMonth}
-              onChange={(e) => setSelectedMonth(e.target.value)}
-              className="bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm font-medium text-white focus:ring-2 focus:ring-white/20 outline-none [color-scheme:dark]"
-            />
             <button
               onClick={handleExportCSV}
               disabled={leads.length === 0}
@@ -576,208 +742,674 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
         </div>
       </div>
 
-      {/* Mini Dashboard */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 shrink-0">
-        <div className="premium-card p-6 flex flex-col justify-between">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center text-blue-600">
-              <Users size={20} />
-            </div>
-            <span className="premium-label">Leads no Mês</span>
-          </div>
-          <div className="text-4xl font-bold tracking-tighter">{stats.total}</div>
+      {/* CRM Navigation Tabs */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-black/[0.05] pb-2 gap-4 shrink-0">
+        <div className="flex border-b-0 gap-6 overflow-x-auto custom-scrollbar">
+          <button
+            onClick={() => setActiveCRMTab('relatorio')}
+            className={`pb-3 font-bold text-xs uppercase tracking-widest transition-all relative whitespace-nowrap px-1 ${
+              activeCRMTab === 'relatorio' ? 'text-brand-dark font-black' : 'text-gray-400 hover:text-brand-dark'
+            }`}
+          >
+            📈 Relatório & Métricas
+            {activeCRMTab === 'relatorio' && <motion.div layoutId="activeCRMTabLine" className="absolute bottom-0 inset-x-0 h-0.5 bg-brand-dark" />}
+          </button>
+          <button
+            onClick={() => setActiveCRMTab('funil')}
+            className={`pb-3 font-bold text-xs uppercase tracking-widest transition-all relative whitespace-nowrap px-1 ${
+              activeCRMTab === 'funil' ? 'text-brand-dark font-black' : 'text-gray-400 hover:text-brand-dark'
+            }`}
+          >
+            📊 Funil / Kanban
+            {activeCRMTab === 'funil' && <motion.div layoutId="activeCRMTabLine" className="absolute bottom-0 inset-x-0 h-0.5 bg-brand-dark" />}
+          </button>
+          <button
+            onClick={() => setActiveCRMTab('fechados')}
+            className={`pb-3 font-bold text-xs uppercase tracking-widest transition-all relative whitespace-nowrap px-1 ${
+              activeCRMTab === 'fechados' ? 'text-brand-dark font-black' : 'text-gray-400 hover:text-brand-dark'
+            }`}
+          >
+            🤝 Contratos Fechados
+            {activeCRMTab === 'fechados' && <motion.div layoutId="activeCRMTabLine" className="absolute bottom-0 inset-x-0 h-0.5 bg-brand-dark" />}
+          </button>
+          <button
+            onClick={() => setActiveCRMTab('perdidos')}
+            className={`pb-3 font-bold text-xs uppercase tracking-widest transition-all relative whitespace-nowrap px-1 ${
+              activeCRMTab === 'perdidos' ? 'text-brand-dark font-black' : 'text-gray-400 hover:text-brand-dark'
+            }`}
+          >
+            💔 Leads Perdidos
+            {activeCRMTab === 'perdidos' && <motion.div layoutId="activeCRMTabLine" className="absolute bottom-0 inset-x-0 h-0.5 bg-brand-dark" />}
+          </button>
         </div>
 
-        <div className="premium-card p-6 flex flex-col justify-between">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="w-10 h-10 rounded-xl bg-emerald-50 flex items-center justify-center text-emerald-600">
-              <DollarSign size={20} />
-            </div>
-            <span className="premium-label">Fechados & Receita</span>
-          </div>
-          <div className="space-y-1">
-            <div className="text-2xl font-bold tracking-tighter text-emerald-600">
-              {stats.revenue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-            </div>
-            <div className="text-sm font-medium text-gray-400">
-              {stats.closedMonth} leads fechados no mês
-            </div>
-          </div>
-        </div>
+        {/* Seletor de mês visual de dois dropdowns */}
+        {(activeCRMTab === 'funil' || activeCRMTab === 'relatorio') && (
+          <div className="flex items-center gap-2 self-start sm:self-auto shrink-0 bg-gray-50 border border-black/[0.05] p-1.5 rounded-2xl">
+            <select
+              value={selectedMonth.split('-')[1]}
+              onChange={(e) => handleMonthChange(e.target.value)}
+              className="bg-transparent text-xs font-bold text-brand-dark focus:ring-0 outline-none border-none py-1.5 pl-3 pr-8 cursor-pointer select-none"
+            >
+              {MONTHS_LIST.map(m => (
+                <option key={m.value} value={m.value} className="bg-white text-gray-800 font-medium py-1">{m.label}</option>
+              ))}
+            </select>
 
-        <div className="premium-card p-6 flex flex-col justify-between">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="w-10 h-10 rounded-xl bg-purple-50 flex items-center justify-center text-purple-600">
-              <TrendingUp size={20} />
-            </div>
-            <span className="premium-label">Taxa de Conversão</span>
+            <select
+              value={selectedMonth.split('-')[0]}
+              onChange={(e) => handleYearChange(e.target.value)}
+              className="bg-transparent text-xs font-bold text-brand-dark focus:ring-0 outline-none border-none py-1.5 pl-3 pr-8 cursor-pointer select-none border-l border-black/[0.05]"
+            >
+              {YEARS_LIST.map(y => (
+                <option key={y} value={y} className="bg-white text-gray-800 font-medium py-1">{y}</option>
+              ))}
+            </select>
           </div>
-          <div className="text-4xl font-bold tracking-tighter">{stats.conversionRate}%</div>
-          <div className="text-xs text-gray-400 mt-2">Fechados / Total do mês</div>
-        </div>
+        )}
+      </div>
 
-        <div className="premium-card p-6 flex flex-col justify-between">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="w-10 h-10 rounded-xl bg-red-50 flex items-center justify-center text-red-600">
-              <ThumbsDown size={20} />
-            </div>
-            <span className="premium-label">Perdidos ({stats.lostCount})</span>
-          </div>
-          <div className="flex-1 min-h-[80px] -mx-2">
-            {stats.reasonData.length > 0 ? (
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={stats.reasonData}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={25}
-                    outerRadius={40}
-                    paddingAngle={2}
-                    dataKey="value"
+      {activeCRMTab === 'funil' && (
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          onDragStart={handleDragStart}
+          onDragOver={handleDragOver}
+          onDragEnd={handleDragEnd}
+        >
+          <div className="flex-1 overflow-x-auto pb-4 -mx-4 px-4 sm:mx-0 sm:px-0 min-h-[800px]">
+            <div className="flex gap-6 h-full min-w-max">
+              {/* Active Stages */}
+              {stages.map(stage => (
+                <div key={stage} className="w-80 flex flex-col h-full bg-gray-50/10 rounded-[2rem] p-4 border border-black/[0.01]">
+                  <div className="flex items-center justify-between mb-4 px-2">
+                    <h3 className="font-bold text-gray-700 text-sm">{stage}</h3>
+                    <span className="bg-white border border-black/[0.05] text-gray-500 text-xs font-bold px-2.5 py-1 rounded-full">
+                      {leadsByStage[stage]?.length || 0}
+                    </span>
+                  </div>
+                  
+                  <SortableContext 
+                    id={stage}
+                    items={leadsByStage[stage]?.map(l => l.id) || []}
+                    strategy={verticalListSortingStrategy}
                   >
-                    {stats.reasonData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
-                    ))}
-                  </Pie>
-                  <Tooltip 
-                    contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
-                    itemStyle={{ fontSize: '12px', fontWeight: 'bold' }}
-                  />
-                </PieChart>
-              </ResponsiveContainer>
+                    <DroppableColumn id={stage}>
+                      {leadsByStage[stage]?.length > 0 ? (
+                        leadsByStage[stage]?.map(lead => (
+                          <LeadCard 
+                            key={lead.id} 
+                            lead={lead} 
+                            stages={stages} 
+                            onMove={handleMoveStage}
+                            onEdit={() => handleOpenEditModal(lead)}
+                            onDelete={() => handleDeleteLead(lead.id)}
+                            onUpdateDealValue={handleUpdateDealValue}
+                            getSourceIcon={getSourceIcon}
+                            onView={() => handleOpenViewModal(lead)}
+                          />
+                        ))
+                      ) : (
+                        <div className="py-8 text-center text-xs text-gray-400 italic">
+                          Nenhum lead nesta etapa
+                        </div>
+                      )}
+                    </DroppableColumn>
+                  </SortableContext>
+                </div>
+              ))}
+
+              {/* Lost Column (Special) */}
+              <div className={`flex flex-col h-full transition-all duration-300 bg-red-50/10 rounded-[2rem] p-4 border border-red-500/[0.02] ${showLost ? 'w-80' : 'w-16'}`}>
+                <div className="flex items-center justify-between mb-4 px-2">
+                  {showLost ? (
+                    <>
+                      <h3 className="font-bold text-red-750 text-sm">Perdido</h3>
+                      <div className="flex items-center gap-2">
+                        <span className="bg-white border border-red-100/50 text-red-600 text-xs font-bold px-2.5 py-1 rounded-full">
+                          {leadsByStage['Perdido']?.length || 0}
+                        </span>
+                        <button onClick={() => setShowLost(false)} className="p-1 hover:bg-gray-100 rounded-full transition-colors">
+                          <ChevronLeft size={16} />
+                        </button>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="flex flex-col items-center w-full gap-4 pt-2">
+                      <button 
+                        onClick={() => setShowLost(true)}
+                        className="bg-red-50 text-red-650 text-xs font-bold px-2 py-2 rounded-full hover:bg-red-100 transition-colors"
+                        title="Ver Perdidos"
+                      >
+                        {leadsByStage['Perdido']?.length || 0}
+                      </button>
+                    </div>
+                  )}
+                </div>
+                
+                {showLost && (
+                  <SortableContext 
+                    id="Perdido"
+                    items={leadsByStage['Perdido']?.map(l => l.id) || []}
+                    strategy={verticalListSortingStrategy}
+                  >
+                    <DroppableColumn id="Perdido">
+                      {leadsByStage['Perdido']?.length > 0 ? (
+                        leadsByStage['Perdido']?.map(lead => (
+                          <LeadCard 
+                            key={lead.id} 
+                            lead={lead} 
+                            stages={stages} 
+                            onMove={handleMoveStage}
+                            onEdit={() => handleOpenEditModal(lead)}
+                            onDelete={() => handleDeleteLead(lead.id)}
+                            onUpdateDealValue={handleUpdateDealValue}
+                            getSourceIcon={getSourceIcon}
+                            onView={() => handleOpenViewModal(lead)}
+                          />
+                        ))
+                      ) : (
+                        <div className="py-8 text-center text-xs text-gray-400 italic">
+                          Nenhum lead marcado como perdido
+                        </div>
+                      )}
+                    </DroppableColumn>
+                  </SortableContext>
+                )}
+              </div>
+            </div>
+          </div>
+
+          <DragOverlay dropAnimation={{
+            sideEffects: defaultDropAnimationSideEffects({
+              styles: {
+                active: {
+                  opacity: '0.5',
+                },
+              },
+            }),
+          }}>
+            {activeId ? (
+              <LeadCard 
+                lead={leads.find(l => l.id === activeId)!} 
+                stages={stages} 
+                onMove={() => {}} 
+                onEdit={() => {}} 
+                onDelete={() => {}} 
+                onUpdateDealValue={() => {}} 
+                getSourceIcon={getSourceIcon}
+                onView={() => {}}
+                isOverlay
+              />
+            ) : null}
+          </DragOverlay>
+        </DndContext>
+      )}
+
+      {activeCRMTab === 'fechados' && (
+        <div className="flex-1 bg-white border border-black/[0.05] rounded-[2rem] p-6 sm:p-8 shadow-sm space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-black/[0.03] pb-4">
+            <div>
+              <h2 className="text-xl font-bold text-brand-dark">Histórico de Contratos Fechados</h2>
+              <p className="text-xs text-gray-400 mt-1 font-medium">Todos os fechamentos acumulados da agência (Histórico completo)</p>
+            </div>
+            
+            <div className="flex flex-wrap items-center gap-3">
+              <select
+                value={filterSpecialty}
+                onChange={(e) => setFilterSpecialty(e.target.value)}
+                className="bg-gray-50 border border-black/[0.05] rounded-xl px-3 py-1.5 text-xs font-semibold focus:ring-1 focus:ring-brand-dark outline-none cursor-pointer"
+              >
+                <option value="">Todas Especialidades</option>
+                {config.specialty_options?.map(opt => (
+                  <option key={opt} value={opt}>{opt}</option>
+                ))}
+              </select>
+
+              <select
+                value={filterSource}
+                onChange={(e) => setFilterSource(e.target.value)}
+                className="bg-gray-50 border border-black/[0.05] rounded-xl px-3 py-1.5 text-xs font-semibold focus:ring-1 focus:ring-brand-dark outline-none cursor-pointer"
+              >
+                <option value="">Todas as Fontes</option>
+                <option value="Google Ads">Google Ads</option>
+                <option value="Instagram">Instagram</option>
+                <option value="Site orgânico">Site orgânico</option>
+                <option value="Indicação">Indicação</option>
+              </select>
+
+              <select
+                value={filterOrigin}
+                onChange={(e) => setFilterOrigin(e.target.value)}
+                className="bg-gray-50 border border-black/[0.05] rounded-xl px-3 py-1.5 text-xs font-semibold focus:ring-1 focus:ring-brand-dark outline-none cursor-pointer"
+              >
+                <option value="">Todas Localidades</option>
+                {BRAZILIAN_STATES.map(st => (
+                  <option key={st} value={st}>{st}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {/* Mini Dashboard de Fechados */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 shrink-0">
+            <div className="bg-emerald-50/30 border border-emerald-500/10 rounded-2xl p-4 flex flex-col justify-between">
+              <span className="text-[10px] uppercase font-bold text-emerald-800/60 mb-1">Total Geral</span>
+              <div className="text-xl font-black text-emerald-900 tracking-tight">
+                {statsFechados.totalRevenue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+              </div>
+              <div className="text-[9px] font-bold text-emerald-600/40">{statsFechados.count} contratos fechados</div>
+            </div>
+            {statsFechados.monthsData.map(m => (
+              <div key={m.label} className="bg-white border border-black/[0.05] rounded-2xl p-4 flex flex-col justify-between shadow-sm">
+                <span className="text-[10px] uppercase font-bold text-gray-400 mb-1">{m.label}</span>
+                <div className="text-sm font-black text-gray-900 tracking-tight">
+                  {m.value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                </div>
+                <div className="text-[9px] font-bold text-brand-dark/40">{m.count} contratos</div>
+              </div>
+            ))}
+          </div>
+
+          <div className="overflow-x-auto min-w-full">
+            {filteredClosedLeads.length > 0 ? (
+              <table className="min-w-full border-collapse text-left">
+                <thead>
+                  <tr className="border-b border-black/[0.03] text-[10px] uppercase tracking-wider font-bold text-gray-400">
+                    <th className="pb-3 pl-2">Fechamento</th>
+                    <th className="pb-3">Nome</th>
+                    <th className="pb-3">Telefone</th>
+                    <th className="pb-3">Especialidade</th>
+                    <th className="pb-3">Local</th>
+                    <th className="pb-3">Potencial</th>
+                    <th className="pb-3">Valor</th>
+                    <th className="pb-3 pr-2 text-right">Canal</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-black/[0.02]">
+                  {filteredClosedLeads.map(lead => {
+                    const closedDate = lead.closed_at || lead.lead_date || lead.created_at;
+                    return (
+                      <tr 
+                        key={lead.id} 
+                        onClick={() => handleOpenViewModal(lead)}
+                        className="text-xs font-semibold text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer"
+                      >
+                        <td className="py-3.5 pl-2 text-emerald-700 font-bold">
+                          {dayjs(closedDate).format('DD/MM/YYYY')}
+                        </td>
+                        <td className="py-3.5 font-bold text-gray-900">{lead.lead_name}</td>
+                        <td className="py-3.5 text-gray-500 font-normal">{lead.phone || '—'}</td>
+                        <td className="py-3.5 italic text-brand-dark">{lead.specialty || '—'}</td>
+                        <td className="py-3.5 uppercase text-gray-500">{lead.origin || '—'}</td>
+                        <td className="py-3.5">
+                          {lead.potential === 'alto' && <span className="text-green-700 font-bold">🔥 Alto</span>}
+                          {lead.potential === 'medio' && <span className="text-yellow-700 font-bold">⚡ Médio</span>}
+                          {lead.potential === 'baixo' && <span className="text-gray-600 font-bold">❄️ Baixo</span>}
+                        </td>
+                        <td className="py-3.5 text-emerald-800 font-black">
+                          {Number(lead.deal_value || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                        </td>
+                        <td className="py-3.5 pr-2 text-right text-brand-dark flex items-center justify-end gap-1.5 font-normal text-[10px] uppercase tracking-wider mt-1.5">
+                          {getSourceIcon(lead.source)}
+                          <span>{lead.source || '—'}</span>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
             ) : (
-              <div className="h-full flex items-center justify-center text-sm text-gray-400">
-                Nenhum lead perdido
+              <div className="py-12 text-center text-sm text-gray-400 italic">
+                Nenhum lead fechado encontrado com os filtros aplicados
               </div>
             )}
           </div>
         </div>
-      </div>
+      )}
 
-      {/* Kanban Board */}
-      <DndContext
-        sensors={sensors}
-        collisionDetection={closestCenter}
-        onDragStart={handleDragStart}
-        onDragOver={handleDragOver}
-        onDragEnd={handleDragEnd}
-      >
-        <div className="flex-1 overflow-x-auto pb-4 -mx-4 px-4 sm:mx-0 sm:px-0 min-h-[800px]">
-          <div className="flex gap-6 h-full min-w-max">
-            {/* Active Stages */}
-            {stages.map(stage => (
-              <div key={stage} className="w-80 flex flex-col h-full">
-                <div className="flex items-center justify-between mb-4 px-2">
-                  <h3 className="font-bold text-gray-700">{stage}</h3>
-                  <span className="bg-gray-100 text-gray-500 text-xs font-bold px-2 py-1 rounded-full">
-                    {leadsByStage[stage]?.length || 0}
-                  </span>
+      {activeCRMTab === 'perdidos' && (
+        <div className="flex-1 bg-white border border-black/[0.05] rounded-[2rem] p-6 sm:p-8 shadow-sm space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-black/[0.03] pb-4">
+            <div>
+              <h2 className="text-xl font-bold text-red-700">Histórico de Leads Perdidos</h2>
+              <p className="text-xs text-gray-400 mt-1 font-medium">Todas as oportunidades perdidas no funil comercial</p>
+            </div>
+            
+            <div className="flex flex-wrap items-center gap-3">
+              <select
+                value={filterSpecialty}
+                onChange={(e) => setFilterSpecialty(e.target.value)}
+                className="bg-gray-50 border border-black/[0.05] rounded-xl px-3 py-1.5 text-xs font-semibold focus:ring-1 focus:ring-brand-dark outline-none cursor-pointer"
+              >
+                <option value="">Todas Especialidades</option>
+                {config.specialty_options?.map(opt => (
+                  <option key={opt} value={opt}>{opt}</option>
+                ))}
+              </select>
+
+              <select
+                value={filterSource}
+                onChange={(e) => setFilterSource(e.target.value)}
+                className="bg-gray-50 border border-black/[0.05] rounded-xl px-3 py-1.5 text-xs font-semibold focus:ring-1 focus:ring-brand-dark outline-none cursor-pointer"
+              >
+                <option value="">Todas as Fontes</option>
+                <option value="Google Ads">Google Ads</option>
+                <option value="Instagram">Instagram</option>
+                <option value="Site orgânico">Site orgânico</option>
+                <option value="Indicação">Indicação</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Mini Dashboard de Perdidos */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-3 shrink-0">
+            {statsPerdidos.reasonData.slice(0, 6).map(entry => (
+              <div key={entry.name} className="bg-white border border-black/[0.05] rounded-2xl p-3 flex flex-col justify-between shadow-sm">
+                <span className="text-[9px] uppercase font-bold text-gray-400 line-clamp-1">{entry.name}</span>
+                <div className="flex items-end justify-between mt-1">
+                  <div className="text-lg font-black text-red-700 tracking-tighter">{entry.value}</div>
+                  <div className="text-[8px] font-bold text-red-300">{statsPerdidos.total > 0 ? ((entry.value / statsPerdidos.total) * 100).toFixed(0) : 0}%</div>
                 </div>
-                
-                <SortableContext 
-                  id={stage}
-                  items={leadsByStage[stage]?.map(l => l.id) || []}
-                  strategy={verticalListSortingStrategy}
-                >
-                  <DroppableColumn id={stage}>
-                    {leadsByStage[stage]?.map(lead => (
-                      <LeadCard 
-                        key={lead.id} 
-                        lead={lead} 
-                        stages={stages} 
-                        onMove={handleMoveStage}
-                        onEdit={() => handleOpenEditModal(lead)}
-                        onDelete={() => handleDeleteLead(lead.id)}
-                        onUpdateDealValue={handleUpdateDealValue}
-                        getSourceIcon={getSourceIcon}
-                      />
-                    ))}
-                  </DroppableColumn>
-                </SortableContext>
               </div>
             ))}
+          </div>
 
-            {/* Lost Column (Special) */}
-            <div className={`flex flex-col h-full transition-all duration-300 ${showLost ? 'w-80' : 'w-16'}`}>
-              <div className="flex items-center justify-between mb-4 px-2">
-                {showLost ? (
-                  <>
-                    <h3 className="font-bold text-red-600">Perdido</h3>
-                    <div className="flex items-center gap-2">
-                      <span className="bg-red-50 text-red-600 text-xs font-bold px-2 py-1 rounded-full">
-                        {leadsByStage['Perdido']?.length || 0}
-                      </span>
-                      <button onClick={() => setShowLost(false)} className="p-1 hover:bg-gray-100 rounded">
-                        <ChevronLeft size={16} />
-                      </button>
-                    </div>
-                  </>
+          <div className="overflow-x-auto min-w-full">
+            {filteredLostLeads.length > 0 ? (
+              <table className="min-w-full border-collapse text-left">
+                <thead>
+                  <tr className="border-b border-black/[0.03] text-[10px] uppercase tracking-wider font-bold text-gray-400">
+                    <th className="pb-3 pl-2">Data do Lead</th>
+                    <th className="pb-3">Nome</th>
+                    <th className="pb-3">Telefone</th>
+                    <th className="pb-3">Especialidade</th>
+                    <th className="pb-3">Local</th>
+                    <th className="pb-3">Motivo da Perda</th>
+                    <th className="pb-3 pr-2 text-right">Canal</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-black/[0.02]">
+                  {filteredLostLeads.map(lead => {
+                    const leadDate = lead.lead_date || lead.created_at;
+                    return (
+                      <tr 
+                        key={lead.id} 
+                        onClick={() => handleOpenViewModal(lead)}
+                        className="text-xs font-semibold text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer"
+                      >
+                        <td className="py-3.5 pl-2 text-gray-400">
+                          {dayjs(leadDate).format('DD/MM/YYYY')}
+                        </td>
+                        <td className="py-3.5 font-bold text-gray-900">{lead.lead_name}</td>
+                        <td className="py-3.5 text-gray-500 font-normal">{lead.phone || '—'}</td>
+                        <td className="py-3.5 italic text-brand-dark">{lead.specialty || '—'}</td>
+                        <td className="py-3.5 uppercase text-gray-500">{lead.origin || '—'}</td>
+                        <td className="py-3.5 text-red-600 font-bold">
+                          {lead.loss_reason || '—'}
+                        </td>
+                        <td className="py-3.5 pr-2 text-right text-brand-dark flex items-center justify-end gap-1.5 font-normal text-[10px] uppercase tracking-wider mt-1.5">
+                          {getSourceIcon(lead.source)}
+                          <span>{lead.source || '—'}</span>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            ) : (
+              <div className="py-12 text-center text-sm text-gray-400 italic">
+                Nenhum lead perdido encontrado com os filtros aplicados
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {activeCRMTab === 'relatorio' && (
+        <div className="space-y-8">
+          {/* Mini Dashboard de Relatórios */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 shrink-0">
+            <div className="premium-card p-6 flex flex-col justify-between">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center text-blue-600">
+                  <Users size={20} />
+                </div>
+                <span className="premium-label">Leads no Mês</span>
+              </div>
+              <div className="text-4xl font-bold tracking-tighter">{stats.total}</div>
+            </div>
+
+            <div className="premium-card p-6 flex flex-col justify-between">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-10 h-10 rounded-xl bg-emerald-50 flex items-center justify-center text-emerald-600">
+                  <CheckSquare size={20} />
+                </div>
+                <span className="premium-label">Fechados no Mês</span>
+              </div>
+              <div className="text-4xl font-bold tracking-tighter text-emerald-600">{stats.closedMonth}</div>
+            </div>
+
+            <div className="premium-card p-6 flex flex-col justify-between">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-10 h-10 rounded-xl bg-purple-50 flex items-center justify-center text-purple-600">
+                  <TrendingUp size={20} />
+                </div>
+                <span className="premium-label">Taxa de Conversão</span>
+              </div>
+              <div className="text-4xl font-bold tracking-tighter text-purple-600">{stats.conversionRate}%</div>
+            </div>
+
+            <div className="premium-card p-6 flex flex-col justify-between">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-10 h-10 rounded-xl bg-emerald-50 flex items-center justify-center text-emerald-600">
+                  <DollarSign size={20} />
+                </div>
+                <span className="premium-label">Faturamento CRM</span>
+              </div>
+              <div className="text-2xl font-bold tracking-tight text-emerald-700">
+                {stats.revenue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+              </div>
+            </div>
+          </div>
+
+          {/* Gráficos e Detalhes de Performance */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            {/* Gráfico de Barras dos Últimos 6 Meses */}
+            <div className="lg:col-span-2 bg-white border border-black/[0.05] rounded-[2rem] p-6 sm:p-8 shadow-sm">
+              <h3 className="text-base font-bold text-brand-dark mb-1">Performance Comercial (Últimos 6 Meses)</h3>
+              <p className="text-xs text-gray-400 mb-6 font-medium">Gráfico comparativo de Novos Leads vs Contratos Fechados</p>
+              
+              <div className="h-[280px] w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={last6MonthsData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(0,0,0,0.03)" />
+                    <XAxis dataKey="name" stroke="#a3a3a3" fontSize={11} tickLine={false} axisLine={false} />
+                    <YAxis stroke="#a3a3a3" fontSize={11} tickLine={false} axisLine={false} />
+                    <Tooltip cursor={{ fill: 'rgba(0,0,0,0.02)' }} />
+                    <Legend iconType="circle" wrapperStyle={{ fontSize: '11px', fontWeight: 'bold', paddingTop: '10px' }} />
+                    <Bar dataKey="Novos Leads" fill="rgba(17,17,17,0.7)" radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="Contratos Fechados" fill="rgba(16,185,129,0.8)" radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+
+            {/* Motivos de Perda no Mês */}
+            <div className="bg-white border border-black/[0.05] rounded-[2rem] p-6 sm:p-8 shadow-sm flex flex-col justify-between">
+              <div>
+                <h3 className="text-base font-bold text-brand-dark mb-1">Perdas do Mês</h3>
+                <p className="text-xs text-gray-400 mb-6">Motivos recorrentes na etapa de perda comercial</p>
+
+                {stats.lostCount > 0 ? (
+                  <div className="space-y-4">
+                    {stats.reasonData.slice(0, 4).map((entry, index) => {
+                      const perc = Math.round((entry.value / stats.lostCount) * 100);
+                      return (
+                        <div key={entry.name} className="space-y-1">
+                          <div className="flex justify-between text-xs font-bold text-gray-700">
+                            <span>{entry.name}</span>
+                            <span>{entry.value} ({perc}%)</span>
+                          </div>
+                          <div className="h-1.5 w-full bg-gray-100 rounded-full overflow-hidden">
+                            <div 
+                              className="h-full bg-red-400 rounded-full" 
+                              style={{ width: `${perc}%` }}
+                            />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
                 ) : (
-                  <div className="flex flex-col items-center w-full gap-4 pt-2">
-                    <button 
-                      onClick={() => setShowLost(true)}
-                      className="bg-red-50 text-red-600 text-xs font-bold px-2 py-1 rounded-full hover:bg-red-100 transition-colors"
-                      title="Ver Perdidos"
-                    >
-                      {leadsByStage['Perdido']?.length || 0}
-                    </button>
+                  <div className="h-[180px] flex items-center justify-center text-sm text-gray-400 italic">
+                    Nenhum lead perdido neste período
                   </div>
                 )}
               </div>
-              
-              {showLost && (
-                <SortableContext 
-                  id="Perdido"
-                  items={leadsByStage['Perdido']?.map(l => l.id) || []}
-                  strategy={verticalListSortingStrategy}
-                >
-                  <DroppableColumn id="Perdido">
-                    {leadsByStage['Perdido']?.map(lead => (
-                      <LeadCard 
-                        key={lead.id} 
-                        lead={lead} 
-                        stages={stages} 
-                        onMove={handleMoveStage}
-                        onEdit={() => handleOpenEditModal(lead)}
-                        onDelete={() => handleDeleteLead(lead.id)}
-                        onUpdateDealValue={handleUpdateDealValue}
-                        getSourceIcon={getSourceIcon}
-                      />
-                    ))}
-                  </DroppableColumn>
-                </SortableContext>
+
+              {stats.lostCount > 0 && (
+                <div className="mt-4 pt-4 border-t border-black/[0.03] flex items-center justify-between text-xs text-gray-500">
+                  <span>Total de perdas no mês:</span>
+                  <span className="font-bold text-red-600">{stats.lostCount} leads</span>
+                </div>
               )}
             </div>
           </div>
         </div>
-
-        <DragOverlay dropAnimation={{
-          sideEffects: defaultDropAnimationSideEffects({
-            styles: {
-              active: {
-                opacity: '0.5',
-              },
-            },
-          }),
-        }}>
-          {activeId ? (
-            <LeadCard 
-              lead={leads.find(l => l.id === activeId)!} 
-              stages={stages} 
-              onMove={() => {}} 
-              onEdit={() => {}} 
-              onDelete={() => {}} 
-              onUpdateDealValue={() => {}} 
-              getSourceIcon={getSourceIcon}
-              isOverlay
-            />
-          ) : null}
-        </DragOverlay>
-      </DndContext>
+      )}
 
       {/* Modals */}
       <AnimatePresence>
+        {isViewModalOpen && selectedLeadForView && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsViewModalOpen(false)}
+              className="absolute inset-0 bg-brand-dark/40 backdrop-blur-sm"
+            />
+            
+            <motion.div 
+              initial={{ scale: 0.9, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.9, opacity: 0, y: 20 }}
+              className="bg-white rounded-[2.5rem] p-8 w-full max-w-lg relative z-10 shadow-2xl max-h-[90vh] overflow-y-auto custom-scrollbar space-y-6"
+            >
+              <div className="flex items-start justify-between border-b border-black/[0.03] pb-4">
+                <div>
+                  <span className="text-[10px] uppercase font-bold tracking-widest text-gray-400">Ficha do Lead</span>
+                  <h3 className="text-2xl font-bold tracking-tight text-brand-dark mt-1">
+                    {selectedLeadForView.lead_name}
+                  </h3>
+                </div>
+                <button onClick={() => setIsViewModalOpen(false)} className="p-2 hover:bg-gray-50 rounded-full transition-colors mt-1">
+                  <X size={20} />
+                </button>
+              </div>
+
+              <div className="grid grid-cols-2 gap-6">
+                <div>
+                  <span className="text-[10px] uppercase font-black text-gray-400 block mb-1">Status Atual</span>
+                  <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-brand-dark/5 text-xs font-bold text-brand-dark">
+                    <span>{selectedLeadForView.kanban_stage}</span>
+                  </div>
+                </div>
+
+                <div>
+                  <span className="text-[10px] uppercase font-black text-gray-400 block mb-1">Potencial</span>
+                  <div>
+                    {selectedLeadForView.potential === 'alto' && <span className="text-xs font-bold text-green-700">🔥 Alto</span>}
+                    {selectedLeadForView.potential === 'medio' && <span className="text-xs font-bold text-yellow-700">⚡ Médio</span>}
+                    {selectedLeadForView.potential === 'baixo' && <span className="text-xs font-bold text-gray-600">❄️ Baixo</span>}
+                  </div>
+                </div>
+
+                <div>
+                  <span className="text-[10px] uppercase font-black text-gray-400 block mb-1">Especialidade</span>
+                  <p className="text-sm font-semibold text-gray-800">{selectedLeadForView.specialty || '—'}</p>
+                </div>
+
+                <div>
+                  <span className="text-[10px] uppercase font-black text-gray-400 block mb-1">Faturamento Estimado</span>
+                  <p className="text-sm font-extrabold text-emerald-800">
+                    {Number(selectedLeadForView.deal_value || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                  </p>
+                </div>
+
+                <div>
+                  <span className="text-[10px] uppercase font-black text-gray-400 block mb-1">Contato</span>
+                  <p className="text-sm font-semibold text-gray-800">{selectedLeadForView.phone || '—'}</p>
+                </div>
+
+                <div>
+                  <span className="text-[10px] uppercase font-black text-gray-400 block mb-1">Canal de Origem</span>
+                  <p className="text-xs font-bold text-brand-dark uppercase tracking-wider flex items-center gap-1.5 mt-1">
+                    {getSourceIcon(selectedLeadForView.source)}
+                    <span>{selectedLeadForView.source || '—'}</span>
+                  </p>
+                </div>
+
+                <div>
+                  <span className="text-[10px] uppercase font-black text-gray-400 block mb-1">Estado / Região</span>
+                  <p className="text-sm font-semibold uppercase text-gray-800">{selectedLeadForView.origin || '—'}</p>
+                </div>
+
+                <div>
+                  <span className="text-[10px] uppercase font-black text-gray-400 block mb-1">Data de Cadastro</span>
+                  <p className="text-sm font-semibold text-gray-500">
+                    {dayjs(selectedLeadForView.lead_date || selectedLeadForView.created_at).format('DD/MM/YYYY')}
+                  </p>
+                </div>
+              </div>
+
+              {selectedLeadForView.kanban_stage === 'Fechado' && (
+                <div className="bg-emerald-50/50 border border-emerald-500/10 rounded-2xl p-4">
+                  <span className="text-[10px] uppercase font-black text-emerald-800 block mb-1">Concluído em</span>
+                  <p className="text-sm font-bold text-emerald-900">
+                    {dayjs(selectedLeadForView.closed_at || selectedLeadForView.lead_date || selectedLeadForView.created_at).format('DD/MM/YYYY')}
+                  </p>
+                </div>
+              )}
+
+              {selectedLeadForView.kanban_stage === 'Perdido' && (
+                <div className="bg-red-50/50 border border-red-500/10 rounded-2xl p-4">
+                  <span className="text-[10px] uppercase font-black text-red-800 block mb-1">Motivo da Perda</span>
+                  <p className="text-sm font-bold text-red-900">
+                    {selectedLeadForView.loss_reason || '—'}
+                  </p>
+                </div>
+              )}
+
+              <div className="space-y-2 border-t border-black/[0.03] pt-4">
+                <span className="text-[10px] uppercase font-black text-gray-400 block">Observações / Informações de Histórico</span>
+                <div className="bg-gray-50 rounded-2xl p-4 text-xs font-medium text-gray-600 whitespace-pre-wrap leading-relaxed max-h-40 overflow-y-auto">
+                  {selectedLeadForView.notes || 'Nenhuma observação registrada.'}
+                </div>
+              </div>
+
+              <div className="flex gap-3 justify-end pt-4">
+                <button
+                  onClick={() => {
+                    setIsViewModalOpen(false);
+                    handleOpenEditModal(selectedLeadForView);
+                  }}
+                  className="px-5 py-2.5 bg-gray-100 hover:bg-gray-200 text-brand-dark rounded-xl font-bold text-xs uppercase tracking-wider transition-colors"
+                >
+                  Editar Dados
+                </button>
+                <button
+                  onClick={() => setIsViewModalOpen(false)}
+                  className="px-5 py-2.5 bg-brand-dark text-white rounded-xl font-bold text-xs uppercase tracking-wider transition-colors"
+                >
+                  OK / Fechar
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+
         {isModalOpen && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
             <motion.div 
@@ -878,23 +1510,36 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
                 </div>
 
                 <div>
-                  <label className="premium-label mb-2 block">Potencial</label>
-                  <div className="grid grid-cols-2 gap-4">
+                  <label className="premium-label mb-2 block">Potencial *</label>
+                  <div className="grid grid-cols-3 gap-3">
                     <button 
-                      onClick={() => setFormData(prev => ({ ...prev, potential: prev.potential === 'alto' ? null : 'alto' }))}
-                      className={`flex items-center justify-center gap-2 p-4 rounded-2xl border transition-all font-bold ${
+                      type="button"
+                      onClick={() => setFormData(prev => ({ ...prev, potential: 'alto' }))}
+                      className={`flex items-center justify-center gap-1.5 p-3 rounded-2xl border transition-all text-xs font-bold ${
                         formData.potential === 'alto' 
-                          ? 'bg-green-50 border-green-200 text-green-700' 
+                          ? 'bg-green-50 border-green-200 text-green-700 font-extrabold shadow-sm' 
                           : 'bg-white border-black/[0.05] text-gray-400 hover:bg-gray-50'
                       }`}
                     >
                       🔥 Alto
                     </button>
                     <button 
-                      onClick={() => setFormData(prev => ({ ...prev, potential: prev.potential === 'baixo' ? null : 'baixo' }))}
-                      className={`flex items-center justify-center gap-2 p-4 rounded-2xl border transition-all font-bold ${
+                      type="button"
+                      onClick={() => setFormData(prev => ({ ...prev, potential: 'medio' }))}
+                      className={`flex items-center justify-center gap-1.5 p-3 rounded-2xl border transition-all text-xs font-bold ${
+                        formData.potential === 'medio' 
+                          ? 'bg-yellow-50 border-yellow-200 text-yellow-700 font-extrabold shadow-sm' 
+                          : 'bg-white border-black/[0.05] text-gray-400 hover:bg-gray-50'
+                      }`}
+                    >
+                      ⚡ Médio
+                    </button>
+                    <button 
+                      type="button"
+                      onClick={() => setFormData(prev => ({ ...prev, potential: 'baixo' }))}
+                      className={`flex items-center justify-center gap-1.5 p-3 rounded-2xl border transition-all text-xs font-bold ${
                         formData.potential === 'baixo' 
-                          ? 'bg-gray-100 border-gray-300 text-gray-600' 
+                          ? 'bg-gray-100 border-gray-300 text-gray-700 font-extrabold shadow-sm' 
                           : 'bg-white border-black/[0.05] text-gray-400 hover:bg-gray-50'
                       }`}
                     >
@@ -903,13 +1548,25 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
                   </div>
                 </div>
 
+                {formData.kanban_stage === 'Fechado' && (
+                  <div>
+                    <label className="premium-label mb-2 block font-black text-emerald-800">📅 Data do Contrato Fechado (De Fato)</label>
+                    <input 
+                      type="date"
+                      value={formData.closed_at || ''}
+                      onChange={(e) => setFormData(prev => ({ ...prev, closed_at: e.target.value }))}
+                      className="w-full bg-emerald-50 border border-emerald-100 rounded-2xl p-4 text-sm font-bold text-emerald-800 focus:ring-2 focus:ring-emerald-200 outline-none"
+                    />
+                  </div>
+                )}
+
                 <div>
-                  <label className="premium-label mb-2 block">Observações</label>
+                  <label className="premium-label mb-2 block">Observações *</label>
                   <textarea 
                     value={formData.notes || ''}
                     onChange={(e) => setFormData(prev => ({ ...prev, notes: e.target.value }))}
                     className="w-full bg-gray-50 border border-black/[0.05] rounded-2xl p-4 text-sm font-medium focus:ring-2 focus:ring-brand-green/20 outline-none min-h-[100px]"
-                    placeholder="Alguma nota importante?"
+                    placeholder="Registre o que o lead procura (Obrigatório)"
                   />
                 </div>
 
@@ -990,17 +1647,43 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
                 <DollarSign size={32} />
               </div>
               <h3 className="text-xl font-bold tracking-tight mb-2 text-center">Contrato Fechado! 🎉</h3>
-              <p className="text-sm text-gray-500 mb-6 text-center">Qual foi o valor do contrato fechado?</p>
+              <p className="text-sm text-gray-500 mb-6 text-center">Informe os detalhes do fechamento</p>
               
-              <div className="relative mb-6">
-                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 font-bold">R$</span>
-                <input 
-                  type="number"
-                  value={dealValue || ''}
-                  onChange={(e) => setDealValue(Number(e.target.value))}
-                  className="w-full bg-gray-50 border border-black/[0.05] rounded-2xl py-4 pl-12 pr-4 text-lg font-bold focus:ring-2 focus:ring-brand-green/20 outline-none"
-                  placeholder="0,00"
-                />
+              <div className="space-y-4 mb-6">
+                <div>
+                  <label className="text-[10px] uppercase font-bold text-gray-400 mb-1 block">Data do Contrato (De Fato) *</label>
+                  <input 
+                    type="date"
+                    value={closedAtDate}
+                    onChange={(e) => setClosedAtDate(e.target.value)}
+                    className="w-full bg-gray-50 border border-black/[0.05] rounded-2xl py-3 px-4 text-sm font-bold text-brand-dark focus:ring-2 focus:ring-brand-green/20 outline-none"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="text-[10px] uppercase font-bold text-gray-400 mb-1 block">Valor do Contrato</label>
+                  <div className="relative">
+                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 font-bold">R$</span>
+                    <input 
+                      type="number"
+                      value={dealValue || ''}
+                      onChange={(e) => setDealValue(Number(e.target.value))}
+                      className="w-full bg-gray-50 border border-black/[0.05] rounded-2xl py-4 pl-12 pr-4 text-lg font-bold focus:ring-2 focus:ring-brand-green/20 outline-none"
+                      placeholder="0,00"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-[10px] uppercase font-bold text-gray-400 mb-1 block">Motivo do Fechamento / Notas</label>
+                  <textarea 
+                    value={winNotes}
+                    onChange={(e) => setWinNotes(e.target.value)}
+                    className="w-full bg-gray-50 border border-black/[0.05] rounded-2xl p-4 text-sm font-medium focus:ring-2 focus:ring-brand-green/20 outline-none h-24 resize-none"
+                    placeholder="Ex: Cliente fechou pacote trimestral..."
+                  />
+                </div>
               </div>
 
               <div className="flex gap-3">
@@ -1012,7 +1695,10 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
                 </button>
                 <button 
                   onClick={handleConfirmWin}
-                  className="flex-1 py-3 rounded-xl font-bold bg-emerald-500 text-white hover:bg-emerald-600 transition-colors shadow-lg shadow-emerald-500/20"
+                  disabled={!closedAtDate}
+                  className={`flex-1 py-3 rounded-xl font-bold transition-all ${
+                    !closedAtDate ? 'bg-gray-300 cursor-not-allowed' : 'bg-emerald-600 text-white hover:bg-emerald-700 shadow-lg shadow-emerald-500/20'
+                  }`}
                 >
                   Confirmar
                 </button>
@@ -1075,6 +1761,7 @@ interface LeadCardProps {
   onDelete: () => void;
   onUpdateDealValue: (id: string, val: number) => void;
   getSourceIcon: (source?: string) => React.ReactNode;
+  onView: () => void;
 }
 
 const LeadCard: React.FC<LeadCardProps & { isOverlay?: boolean }> = ({ 
@@ -1085,6 +1772,7 @@ const LeadCard: React.FC<LeadCardProps & { isOverlay?: boolean }> = ({
   onDelete, 
   onUpdateDealValue, 
   getSourceIcon,
+  onView,
   isOverlay 
 }) => {
   const isClosed = lead.kanban_stage === 'Fechado';
@@ -1113,13 +1801,22 @@ const LeadCard: React.FC<LeadCardProps & { isOverlay?: boolean }> = ({
     }
   };
 
+  const handleCardClick = (e: React.MouseEvent) => {
+    const target = e.target as HTMLElement;
+    if (target.closest('button') || target.closest('select') || target.closest('a') || target.closest('input')) {
+      return;
+    }
+    onView();
+  };
+
   return (
     <div 
       ref={setNodeRef}
       style={style}
       {...attributes}
       {...listeners}
-      className={`bg-white rounded-2xl p-4 shadow-sm border border-black/[0.05] group relative hover:shadow-md transition-shadow cursor-grab active:cursor-grabbing ${isOverlay ? 'shadow-xl rotate-2 scale-105 z-50' : ''}`}
+      onClick={handleCardClick}
+      className={`bg-white rounded-2xl p-4 shadow-sm border border-black/[0.05] group relative hover:shadow-md transition-shadow cursor-pointer ${isOverlay ? 'shadow-xl rotate-2 scale-105 z-50' : ''}`}
     >
       {/* Action Buttons (Hover) */}
       <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity z-10">
@@ -1155,6 +1852,9 @@ const LeadCard: React.FC<LeadCardProps & { isOverlay?: boolean }> = ({
       <div className="flex flex-wrap gap-1.5 mb-3">
         {lead.potential === 'alto' && (
           <span className="px-2 py-0.5 rounded-md bg-green-100 text-green-700 text-[10px] font-bold">🔥 Alto</span>
+        )}
+        {lead.potential === 'medio' && (
+          <span className="px-2 py-0.5 rounded-md bg-yellow-100 text-yellow-800 text-[10px] font-bold">⚡ Médio</span>
         )}
         {lead.potential === 'baixo' && (
           <span className="px-2 py-0.5 rounded-md bg-gray-100 text-gray-600 text-[10px] font-bold">❄️ Baixo</span>
