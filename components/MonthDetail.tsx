@@ -44,6 +44,7 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack, ini
   const [newPostDefaultDate, setNewPostDefaultDate] = useState<string>('');
 
   const [viewMode, setViewMode] = useState<ViewMode>(initialViewMode || 'calendar');
+  const [listSubTab, setListSubTab] = useState<'posts' | 'themes'>('posts');
   
   // Confirm Action State
   const [confirmAction, setConfirmAction] = useState<{
@@ -184,6 +185,57 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack, ini
     }
 
     return 'rejected';
+  };
+
+  const getThemeDayDetails = (dateStr: string) => {
+    const parts = dateStr.split('-');
+    const y = parseInt(parts[0]);
+    const m = parseInt(parts[1]) - 1;
+    const d = parseInt(parts[2]);
+    
+    const dateObj = new Date(y, m, d);
+    const dayOfWeek = dateObj.getDay();
+    const dayNameShort = ['DOM', 'SEG', 'TER', 'QUA', 'QUI', 'SEX', 'SÁB'][dayOfWeek];
+    
+    return {
+      dayNum: d,
+      dayStr: d < 10 ? `0${d}` : `${d}`,
+      dayNameShort,
+    };
+  };
+
+  const getThemeOverallStatusInfo = (status: 'pending' | 'approved' | 'rejected' | 'revision') => {
+    switch (status) {
+      case 'approved':
+        return {
+          bg: 'bg-emerald-50 border-emerald-100 hover:border-emerald-200 text-emerald-800',
+          badge: 'bg-emerald-500 text-white',
+          label: 'Aprovado',
+          dot: 'bg-emerald-500'
+        };
+      case 'revision':
+        return {
+          bg: 'bg-blue-50 border-blue-100 hover:border-blue-200 text-blue-800',
+          badge: 'bg-blue-500 text-white',
+          label: 'Solicitado Alteração',
+          dot: 'bg-blue-500'
+        };
+      case 'rejected':
+        return {
+          bg: 'bg-rose-50 border-rose-100 hover:border-rose-200 text-rose-800',
+          badge: 'bg-rose-500 text-white',
+          label: 'Reprovado',
+          dot: 'bg-rose-500'
+        };
+      case 'pending':
+      default:
+        return {
+          bg: 'bg-amber-50/60 border-amber-100 hover:border-amber-200 text-amber-800',
+          badge: 'bg-amber-500 text-white',
+          label: 'Aguardando Avaliação',
+          dot: 'bg-amber-500 animate-pulse'
+        };
+    }
   };
 
   // Fetching themes function
@@ -1587,6 +1639,33 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack, ini
              <>
                <StatusLegend />
                <div className={viewMode === 'list' ? 'block' : 'block md:hidden'}>
+                  {/* Seletor de Sub-abas (Postagens vs Temas) */}
+                  <div className="flex bg-white/60 backdrop-blur-md p-1 rounded-2xl border border-black/[0.03] shadow-[0_4px_20px_rgba(0,0,0,0.02)] mb-6 max-w-md mx-auto gap-1">
+                    <button
+                      onClick={() => setListSubTab('posts')}
+                      className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all duration-300 ${
+                        listSubTab === 'posts'
+                          ? 'bg-brand-dark text-white shadow-md'
+                          : 'text-gray-400 hover:text-gray-700 hover:bg-gray-50/50'
+                      }`}
+                    >
+                      <List size={14} />
+                      <span>Postagens ({groupedPosts.length})</span>
+                    </button>
+                    <button
+                      onClick={() => setListSubTab('themes')}
+                      className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all duration-300 ${
+                        listSubTab === 'themes'
+                          ? 'bg-brand-dark text-white shadow-md'
+                          : 'text-gray-400 hover:text-gray-700 hover:bg-gray-50/50'
+                      }`}
+                    >
+                      <Sparkles size={14} />
+                      <span>Sugestão de Temas ({themes.length})</span>
+                    </button>
+                  </div>
+
+                  {listSubTab === 'posts' ? (
              <div className="flex flex-col gap-4">
                 {groupedPosts.map((group, idx) => {
                    const statusColor = getStatusColorClass(group.status);
@@ -1645,7 +1724,120 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack, ini
                    )
                 })}
              </div>
-           </div>
+                  ) : (
+                    <div className="flex flex-col gap-4 animate-in fade-in duration-300">
+                      {themes.length === 0 ? (
+                        <div className="text-center py-12 px-4 bg-white rounded-2xl border border-gray-100 shadow-sm">
+                          <Sparkles size={36} className="text-gray-300 mx-auto mb-3 animate-pulse" />
+                          <h3 className="font-bold text-gray-700 mb-1">Nenhum tema sugerido</h3>
+                          <p className="text-xs text-gray-400">Quando a agência cadastrar sugestões de temas para este mês, elas aparecerão aqui para sua aprovação.</p>
+                        </div>
+                      ) : (
+                        [...themes]
+                          .sort((a, b) => a.date.localeCompare(b.date))
+                          .map((theme, idx) => {
+                            const overallStatus = getOverallDayStatus(theme);
+                            const info = getThemeOverallStatusInfo(overallStatus);
+                            const dayDetails = getThemeDayDetails(theme.date);
+                            const hasTheme2 = !!theme.theme_2;
+
+                            return (
+                              <div
+                                key={theme.id || idx}
+                                onClick={() => handleOpenThemeModal(theme)}
+                                className="p-5 rounded-2xl border border-black/[0.03] flex flex-col md:flex-row gap-4 cursor-pointer hover:shadow-md hover:border-black/[0.08] transition-all bg-white relative group animate-in fade-in duration-300"
+                              >
+                                {/* Esquerda: Data do Tema */}
+                                <div className="flex md:flex-col items-center md:items-start gap-3 md:gap-0 md:w-24 flex-shrink-0">
+                                  <span className="font-extrabold text-gray-900 text-3xl tracking-tight leading-none">
+                                    {dayDetails.dayStr}
+                                  </span>
+                                  <div className="flex flex-col md:mt-1">
+                                    <span className="text-[10px] font-black tracking-widest text-gray-400 uppercase leading-none">
+                                      {dayDetails.dayNameShort}
+                                    </span>
+                                  </div>
+                                </div>
+
+                                {/* Centro: Título e Detalhes dos Temas */}
+                                <div className="flex-grow space-y-3">
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <span className={`px-2.5 py-1 rounded-full text-[8px] font-black uppercase tracking-wider ${info.badge}`}>
+                                      {info.label}
+                                    </span>
+                                    {hasTheme2 && (
+                                      <span className="text-[9px] font-bold text-brand-dark bg-brand-dark/5 px-2 py-0.5 rounded-full border border-brand-dark/10">
+                                        Duas Sugestões
+                                      </span>
+                                    )}
+                                  </div>
+
+                                  <div className="space-y-2.5">
+                                    {/* Sugestão 1 */}
+                                    <div className="flex items-start gap-2.5 text-sm">
+                                      <span className="text-amber-500 flex-shrink-0 mt-0.5">💡</span>
+                                      <div className="space-y-0.5">
+                                        <span className="font-bold text-gray-800 text-[13px] inline-flex items-center gap-1.5 mr-1">
+                                          Tema 1:
+                                        </span>
+                                        <span className="text-gray-600 text-[13px] font-medium leading-relaxed">{theme.theme_1}</span>
+                                        <span className="ml-2 px-2 py-0.5 bg-gray-100 text-gray-600 rounded-lg text-[9px] font-extrabold uppercase tracking-wider">
+                                          {theme.format_1}
+                                        </span>
+                                      </div>
+                                    </div>
+
+                                    {/* Sugestão 2 se existir */}
+                                    {hasTheme2 && (
+                                      <div className="flex items-start gap-2.5 text-sm border-t border-gray-50 pt-2.5 mt-2.5">
+                                        <span className="text-amber-400 flex-shrink-0 mt-0.5">💡</span>
+                                        <div className="space-y-0.5">
+                                          <span className="font-bold text-gray-800 text-[13px] inline-flex items-center gap-1.5 mr-1">
+                                            Tema 2:
+                                          </span>
+                                          <span className="text-gray-600 text-[13px] font-medium leading-relaxed">{theme.theme_2}</span>
+                                          <span className="ml-2 px-2 py-0.5 bg-gray-100 text-gray-600 rounded-lg text-[9px] font-extrabold uppercase tracking-wider">
+                                            {theme.format_2}
+                                          </span>
+                                        </div>
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+
+                                {/* Direita: Botão Avaliar */}
+                                <div className="flex md:flex-col items-stretch md:items-end gap-2 w-full md:w-auto mt-2 md:mt-0 flex-shrink-0 justify-center">
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleOpenThemeModal(theme);
+                                    }}
+                                    className={`flex items-center justify-center gap-2 px-5 py-3 rounded-xl border transition-all text-[10px] font-black uppercase tracking-widest w-full md:w-auto shadow-sm ${
+                                      overallStatus === 'pending'
+                                        ? 'bg-amber-500 text-white hover:bg-amber-600 border-amber-500'
+                                        : 'bg-white hover:bg-gray-50 text-gray-600 border-gray-200'
+                                    }`}
+                                  >
+                                    {overallStatus === 'pending' ? (
+                                      <>
+                                        <Sparkles size={12} />
+                                        <span>Avaliar</span>
+                                      </>
+                                    ) : (
+                                      <>
+                                        <RefreshCw size={12} />
+                                        <span>Ver / Alterar</span>
+                                      </>
+                                    )}
+                                  </button>
+                                </div>
+                              </div>
+                            );
+                          })
+                      )}
+                    </div>
+                  )}
+                </div>
 
            {viewMode === 'calendar' && (
              <div className="hidden md:block">
