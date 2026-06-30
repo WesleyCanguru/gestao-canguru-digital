@@ -1323,6 +1323,11 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack, ini
                       {getThemeStatusLabel(overallStatus)}
                     </span>
                   </div>
+                  {overallStatus === 'revision' && dayTheme.client_comment && (
+                    <div className="text-[9px] text-blue-600 bg-blue-50/70 border border-blue-100/50 p-1.5 rounded-lg font-semibold leading-normal italic">
+                      💡 {dayTheme.client_comment}
+                    </div>
+                  )}
                   <div className="space-y-1.5">
                     <div>
                       <div className="flex items-center gap-1.5 justify-between">
@@ -1772,6 +1777,12 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack, ini
                                     )}
                                   </div>
 
+                                  {overallStatus === 'revision' && theme.client_comment && (
+                                    <div className="text-xs text-blue-600 bg-blue-50/70 border border-blue-100/50 p-3 rounded-xl font-semibold italic leading-relaxed">
+                                      💡 {theme.client_comment}
+                                    </div>
+                                  )}
+
                                   <div className="space-y-2.5">
                                     {/* Sugestão 1 */}
                                     <div className="flex items-start gap-2.5 text-sm">
@@ -1941,6 +1952,18 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack, ini
               {/* MODO AGÊNCIA: EDIÇÃO OU CRIAÇÃO */}
               {userRole === 'admin' ? (
                 <div className="space-y-6">
+                  {selectedTheme && getOverallDayStatus(selectedTheme) === 'revision' && selectedTheme.client_comment && (
+                    <div className="p-5 bg-blue-50/70 border border-blue-200 rounded-2xl space-y-2 animate-in fade-in duration-300">
+                      <div className="flex items-center gap-2 text-blue-800">
+                        <span className="text-base shrink-0">⚠️</span>
+                        <h4 className="font-extrabold text-xs uppercase tracking-wider">Pedido de Alteração do Cliente:</h4>
+                      </div>
+                      <p className="text-xs text-blue-700 italic font-semibold leading-relaxed bg-white/60 p-3.5 rounded-xl border border-blue-100">
+                        "{selectedTheme.client_comment}"
+                      </p>
+                    </div>
+                  )}
+
                   {/* Tema 1 */}
                   <div className="p-5 rounded-2xl border border-gray-100 bg-gray-50/30 space-y-4">
                     <div className="flex items-center justify-between">
