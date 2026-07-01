@@ -27,10 +27,27 @@ export const handleDownloadBriefingPDF = (briefing: any, clientName: string, cus
           .answer { font-size: 15px; color: #333; background: #f9f9f9; padding: 15px 20px; border-left: 4px solid #111; border-radius: 4px; white-space: pre-wrap; }
           .empty { font-style: italic; color: #999; }
           .footer { margin-top: 50px; font-size: 12px; color: #aaa; text-align: center; border-top: 1px solid #eee; padding-top: 20px; }
-          @media print { body { padding: 0; } }
+          @media print { 
+            body { padding: 0; } 
+            .no-print { display: none !important; }
+          }
         </style>
       </head>
       <body>
+        <div class="no-print" style="position: sticky; top: 0; background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); border: 1px solid #e5e7eb; border-radius: 16px; padding: 14px 20px; display: flex; justify-content: space-between; align-items: center; margin: -20px 0 40px 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; box-shadow: 0 4px 20px rgba(0,0,0,0.05); z-index: 1000;">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span style="font-size: 14px; font-weight: 700; color: #111827;">📄 Visualização do Briefing</span>
+          </div>
+          <div style="display: flex; gap: 10px;">
+            <button onclick="window.print()" style="background: #f3f4f6; color: #1f2937; border: 1px solid #e5e7eb; padding: 8px 16px; border-radius: 10px; font-size: 13px; font-weight: 700; cursor: pointer; transition: all 0.2s;">
+              Imprimir / Salvar PDF
+            </button>
+            <button onclick="goBack()" style="background: #111827; color: white; border: none; padding: 8px 16px; border-radius: 10px; font-size: 13px; font-weight: 700; cursor: pointer; transition: all 0.2s;">
+              Voltar ao Aplicativo ➔
+            </button>
+          </div>
+        </div>
+
         <h1>Briefing: ${title}</h1>
         <div class="subtitle">
           <div><strong>Cliente:</strong> ${clientName || 'Cliente'}</div>
@@ -50,7 +67,23 @@ export const handleDownloadBriefingPDF = (briefing: any, clientName: string, cus
         
         <div class="footer">Gerado por Canguru Digital</div>
         <script>
-          window.onload = function() { setTimeout(function() { window.print(); }, 500); };
+          function goBack() {
+            try {
+              window.close();
+            } catch (e) {}
+            try {
+              if (window.history.length > 1) {
+                window.history.back();
+                return;
+              }
+            } catch (e) {}
+            window.location.href = window.location.origin;
+          }
+          window.onload = function() { 
+            setTimeout(function() { 
+              window.print(); 
+            }, 500); 
+          };
         </script>
       </body>
     </html>
