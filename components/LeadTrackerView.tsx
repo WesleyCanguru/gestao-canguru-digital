@@ -97,6 +97,21 @@ const LEAD_SOURCES = [
   'Outro'
 ];
 
+export const isContractSentStage = (stageName?: string) => {
+  if (!stageName) return false;
+  const lower = stageName.toLowerCase();
+  if (lower === 'fechado' || lower === 'perdido' || lower.includes('assinado') || lower.includes('concluido') || lower.includes('concluído')) {
+    return false;
+  }
+  return (
+    lower.includes('contrato enviado') || 
+    lower.includes('proposta enviada') || 
+    lower.includes('enviado') ||
+    lower.includes('contrato') || 
+    lower.includes('proposta')
+  );
+};
+
 export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, config, onBack }) => {
   const { fetchLeads, addLead, updateLead, deleteLead, updateLeadStage, updateLeadsPositions } = useLeadTracker();
   const [leads, setLeads] = useState<ClientLead[]>([]);
@@ -124,6 +139,10 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
   const [leadToWin, setLeadToWin] = useState<string | null>(null);
   const [lossReason, setLossReason] = useState('');
   const [dealValue, setDealValue] = useState<number>(0);
+  const [isContractValueModalOpen, setIsContractValueModalOpen] = useState(false);
+  const [leadForContractValue, setLeadForContractValue] = useState<string | null>(null);
+  const [contractValueStage, setContractValueStage] = useState<string>('');
+  const [estimatedContractValue, setEstimatedContractValue] = useState<number>(0);
   const [editingLead, setEditingLead] = useState<ClientLead | null>(null);
   const [selectedMonth, setSelectedMonth] = useState<string>(dayjs().format('YYYY-MM'));
 
@@ -193,6 +212,11 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
     const revenue = closedLeads.reduce((acc, l) => acc + (Number(l.deal_value) || 0), 0);
     const conversionRate = total > 0 ? Math.round((closedMonth / total) * 100) : 0;
     
+    // Propostas enviadas (inclui leads que têm a flag quote_sent = true ou estão atualmente na etapa de proposta)
+    const contractSentLeads = monthLeads.filter(l => l.quote_sent || (l.kanban_stage && isContractSentStage(l.kanban_stage)));
+    const contractSentRevenue = contractSentLeads.reduce((acc, l) => acc + (Number(l.deal_value) || 0), 0);
+    const contractSentCount = contractSentLeads.length;
+
     // Loss reasons breakdown
     const lostLeads = monthLeads.filter(l => l.kanban_stage === 'Perdido' && l.loss_reason);
     const reasonCounts = lostLeads.reduce((acc, l) => {
@@ -204,7 +228,16 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
       .sort((a, b) => (b[1] as number) - (a[1] as number))
       .map(([name, value]) => ({ name, value }));
       
-    return { total, closedMonth, conversionRate, revenue, reasonData, lostCount: lostLeads.length };
+    return { 
+      total, 
+      closedMonth, 
+      conversionRate, 
+      revenue, 
+      reasonData, 
+      lostCount: lostLeads.length,
+      contractSentRevenue,
+      contractSentCount
+    };
   }, [leads, selectedMonth]);
 
   const last6MonthsData = useMemo(() => {
@@ -497,6 +530,14 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
       return;
     }
 
+    if (isContractSentStage(targetStage) && activeLead.kanban_stage !== targetStage) {
+      setLeadForContractValue(activeId);
+      setContractValueStage(targetStage);
+      setEstimatedContractValue(activeLead.deal_value || 0);
+      setIsContractValueModalOpen(true);
+      return;
+    }
+
     // Reorder within the same stage or move to new stage
     const stageLeads = leads.filter(l => l.kanban_stage === targetStage);
     const oldIndex = stageLeads.findIndex(l => l.id === activeId);
@@ -537,6 +578,15 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
       return;
     }
 
+    if (isContractSentStage(newStage)) {
+      setLeadForContractValue(leadId);
+      setContractValueStage(newStage);
+      const lead = leads.find(l => l.id === leadId);
+      setEstimatedContractValue(lead?.deal_value || 0);
+      setIsContractValueModalOpen(true);
+      return;
+    }
+
     try {
       await updateLeadStage(leadId, newStage);
       loadData();
@@ -567,16 +617,33 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
     try {
       // Confirma o ganho do lead
       await updateLead(leadToWin, { 
-        kanban_stage: 'Fechado', 
-        closed: true, 
-        deal_value: dealValue,
-        closed_at: closedAtDate,
-        notes: winNotes || undefined
+         kanban_stage: 'Fechado', 
+         closed: true, 
+         deal_value: dealValue,
+         closed_at: closedAtDate,
+         notes: winNotes || undefined
       });
       setIsWonModalOpen(false);
       setLeadToWin(null);
       setWinNotes('');
       setClosedAtDate('');
+      loadData();
+    } catch (error) {
+      console.error(error);
+    }
+  };
+
+  const handleConfirmContractValue = async () => {
+    if (!leadForContractValue || !contractValueStage) return;
+    try {
+      await updateLead(leadForContractValue, {
+        kanban_stage: contractValueStage,
+        deal_value: estimatedContractValue,
+        quote_sent: true
+      });
+      setIsContractValueModalOpen(false);
+      setLeadForContractValue(null);
+      setContractValueStage('');
       loadData();
     } catch (error) {
       console.error(error);
@@ -1169,7 +1236,7 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
       {activeCRMTab === 'relatorio' && (
         <div className="space-y-8">
           {/* Mini Dashboard de Relatórios */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 shrink-0">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 shrink-0">
             <div className="premium-card p-6 flex flex-col justify-between">
               <div className="flex items-center gap-3 mb-4">
                 <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center text-blue-600">
@@ -1200,6 +1267,24 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
               <div className="text-4xl font-bold tracking-tighter text-purple-600">{stats.conversionRate}%</div>
             </div>
 
+            <div className="premium-card p-6 flex flex-col justify-between border-l-4 border-amber-500 bg-amber-50/10">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center text-amber-600">
+                  <FileText size={20} />
+                </div>
+                <span className="premium-label font-bold text-amber-800">Propostas Enviadas</span>
+              </div>
+              <div className="text-2xl font-black tracking-tight text-amber-700">
+                {stats.contractSentRevenue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+              </div>
+              <div className="text-[10px] text-gray-400 mt-2 font-semibold">
+                <div className="text-amber-600 font-bold flex items-center gap-1 mb-1">
+                  <span>💼 Dinheiro na Mesa</span>
+                </div>
+                <div>{stats.contractSentCount} proposta{stats.contractSentCount === 1 ? '' : 's'} enviada{stats.contractSentCount === 1 ? '' : 's'} este mês</div>
+              </div>
+            </div>
+
             <div className="premium-card p-6 flex flex-col justify-between">
               <div className="flex items-center gap-3 mb-4">
                 <div className="w-10 h-10 rounded-xl bg-emerald-50 flex items-center justify-center text-emerald-600">
@@ -1209,6 +1294,9 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
               </div>
               <div className="text-2xl font-bold tracking-tight text-emerald-700">
                 {stats.revenue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+              </div>
+              <div className="text-[10px] text-gray-400 mt-1 font-semibold">
+                Soma dos contratos fechados de fato
               </div>
             </div>
           </div>
@@ -1746,6 +1834,73 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
             </motion.div>
           </div>
         )}
+
+        {isContractValueModalOpen && (
+          <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => {
+                setIsContractValueModalOpen(false);
+                setLeadForContractValue(null);
+                setContractValueStage('');
+                loadData();
+              }}
+              className="absolute inset-0 bg-brand-dark/40 backdrop-blur-sm"
+            />
+            
+            <motion.div 
+              initial={{ scale: 0.9, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.9, opacity: 0, y: 20 }}
+              className="bg-white rounded-[2.5rem] p-8 w-full max-w-sm relative z-10 shadow-2xl text-center"
+            >
+              <div className="w-16 h-16 bg-amber-50 text-amber-500 rounded-full flex items-center justify-center mx-auto mb-6">
+                <FileText size={32} />
+              </div>
+              <h3 className="text-xl font-bold tracking-tight mb-2 text-center">Proposta Enviada! 💼</h3>
+              <p className="text-sm text-gray-500 mb-6 text-center">Informe o valor estimado da proposta que foi enviada para o lead (dinheiro na mesa!).</p>
+              
+              <div className="space-y-4 mb-6 text-left">
+                <div>
+                  <label className="text-[10px] uppercase font-bold text-gray-400 mb-1 block">Valor da Proposta</label>
+                  <div className="relative">
+                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 font-bold">R$</span>
+                    <input 
+                      type="number"
+                      value={estimatedContractValue || ''}
+                      onChange={(e) => setEstimatedContractValue(Number(e.target.value))}
+                      className="w-full bg-gray-50 border border-black/[0.05] rounded-2xl py-4 pl-12 pr-4 text-lg font-bold focus:ring-2 focus:ring-brand-green/20 outline-none"
+                      placeholder="0,00"
+                      autoFocus
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex gap-3">
+                <button 
+                  onClick={() => {
+                    setIsContractValueModalOpen(false);
+                    setLeadForContractValue(null);
+                    setContractValueStage('');
+                    loadData();
+                  }}
+                  className="flex-1 py-3 rounded-xl font-bold text-gray-500 hover:bg-gray-100 transition-colors"
+                >
+                  Cancelar
+                </button>
+                <button 
+                  onClick={handleConfirmContractValue}
+                  className="flex-1 py-3 rounded-xl font-bold bg-amber-500 text-white hover:bg-amber-600 transition-colors shadow-lg shadow-amber-500/20"
+                >
+                  Confirmar
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
       </AnimatePresence>
     </div>
   );
@@ -1777,6 +1932,8 @@ const LeadCard: React.FC<LeadCardProps & { isOverlay?: boolean }> = ({
 }) => {
   const isClosed = lead.kanban_stage === 'Fechado';
   const isLost = lead.kanban_stage === 'Perdido';
+  const isContractStage = lead.kanban_stage && isContractSentStage(lead.kanban_stage);
+  const showValueField = isClosed || isContractStage || lead.quote_sent;
 
   const {
     attributes,
@@ -1886,17 +2043,34 @@ const LeadCard: React.FC<LeadCardProps & { isOverlay?: boolean }> = ({
         </div>
       )}
 
-      {/* Deal Value (If Closed) */}
-      {isClosed && (
-        <div className="mb-3 bg-emerald-50 rounded-lg p-2 border border-emerald-100 flex items-center justify-between" onPointerDown={e => e.stopPropagation()}>
-          <span className="text-[10px] font-bold text-emerald-700 uppercase">Valor do Contrato</span>
+      {/* Deal Value (If Closed, Proposal Stage, or Quote was sent) */}
+      {showValueField && (
+        <div 
+          className={`mb-3 rounded-lg p-2 border flex items-center justify-between ${
+            isClosed 
+              ? 'bg-emerald-50 border-emerald-100 text-emerald-700' 
+              : isLost 
+                ? 'bg-red-50/70 border-red-200 text-red-700'
+                : 'bg-amber-50/70 border-amber-200 text-amber-700'
+          }`} 
+          onPointerDown={e => e.stopPropagation()}
+        >
+          <span className="text-[10px] font-bold uppercase">
+            {isClosed ? 'Valor Fechado' : isLost ? 'Valor Perdido' : 'Valor Estimado'}
+          </span>
           <div className="flex items-center gap-1">
-            <span className="text-xs font-bold text-emerald-600">R$</span>
+            <span className="text-xs font-bold">R$</span>
             <input 
               type="number"
               defaultValue={lead.deal_value || 0}
               onBlur={(e) => onUpdateDealValue(lead.id, Number(e.target.value))}
-              className="bg-transparent border-none p-0 w-16 text-xs font-bold text-emerald-700 focus:ring-0 text-right"
+              className={`bg-transparent border-none p-0 w-16 text-xs font-bold focus:ring-0 text-right ${
+                isClosed 
+                  ? 'text-emerald-700' 
+                  : isLost 
+                    ? 'text-red-700'
+                    : 'text-amber-700'
+              }`}
             />
           </div>
         </div>
