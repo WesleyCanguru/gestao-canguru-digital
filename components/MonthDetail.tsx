@@ -1731,11 +1731,45 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack, ini
              </div>
                   ) : (
                     <div className="flex flex-col gap-4 animate-in fade-in duration-300">
+                      {userRole === 'admin' && (
+                        <div className="flex justify-end mb-2">
+                          <button
+                            onClick={() => {
+                              const today = new Date().getDate();
+                              const daysInMonth = new Date(year, monthIndex + 1, 0).getDate();
+                              const defaultDay = today <= daysInMonth ? today : 1;
+                              openCreateThemeModal(defaultDay);
+                            }}
+                            className="w-full sm:w-auto bg-brand-dark text-white hover:bg-brand-dark/95 transition-all py-3.5 px-6 rounded-2xl text-[11px] font-black uppercase tracking-widest flex items-center justify-center gap-2 shadow-lg shadow-brand-dark/10"
+                          >
+                            <Plus size={14} /> Sugerir Novo Tema
+                          </button>
+                        </div>
+                      )}
+
                       {themes.length === 0 ? (
-                        <div className="text-center py-12 px-4 bg-white rounded-2xl border border-gray-100 shadow-sm">
-                          <Sparkles size={36} className="text-gray-300 mx-auto mb-3 animate-pulse" />
+                        <div className="text-center py-12 px-4 bg-white rounded-2xl border border-gray-100 shadow-sm flex flex-col items-center justify-center">
+                          <Sparkles size={36} className="text-gray-300 mb-3 animate-pulse" />
                           <h3 className="font-bold text-gray-700 mb-1">Nenhum tema sugerido</h3>
-                          <p className="text-xs text-gray-400">Quando a agência cadastrar sugestões de temas para este mês, elas aparecerão aqui para sua aprovação.</p>
+                          <p className="text-xs text-gray-400 max-w-sm mb-4">
+                            {userRole === 'admin' 
+                              ? "Cadastre sugestões de temas de conteúdo para o cliente avaliar e aprovar antes de iniciar a produção."
+                              : "Quando a agência cadastrar sugestões de temas para este mês, elas aparecerão aqui para sua aprovação."
+                            }
+                          </p>
+                          {userRole === 'admin' && (
+                            <button
+                              onClick={() => {
+                                const today = new Date().getDate();
+                                const daysInMonth = new Date(year, monthIndex + 1, 0).getDate();
+                                const defaultDay = today <= daysInMonth ? today : 1;
+                                openCreateThemeModal(defaultDay);
+                              }}
+                              className="bg-brand-dark text-white hover:bg-brand-dark/95 transition-all py-3 px-6 rounded-2xl text-[11px] font-black uppercase tracking-widest flex items-center gap-2 shadow-lg shadow-brand-dark/10"
+                            >
+                              <Plus size={14} /> Sugerir Primeiro Tema
+                            </button>
+                          )}
                         </div>
                       ) : (
                         [...themes]
@@ -1952,6 +1986,26 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack, ini
               {/* MODO AGÊNCIA: EDIÇÃO OU CRIAÇÃO */}
               {userRole === 'admin' ? (
                 <div className="space-y-6">
+                  {/* Seletor de Dia do Mês (apenas na criação) */}
+                  {!selectedTheme && (
+                    <div className="p-5 rounded-2xl border border-gray-100 bg-gray-50/30 space-y-3">
+                      <label className="block text-[10px] font-black uppercase tracking-[0.15em] text-gray-400">
+                        Dia de Publicação ({monthName})
+                      </label>
+                      <select
+                        value={selectedThemeDay}
+                        onChange={(e) => setSelectedThemeDay(parseInt(e.target.value))}
+                        className="w-full bg-white border border-gray-200 rounded-xl px-4 py-2.5 text-xs text-gray-900 focus:outline-none focus:border-brand-dark focus:ring-1 focus:ring-brand-dark transition-all font-semibold"
+                      >
+                        {Array.from({ length: new Date(year, monthIndex + 1, 0).getDate() }, (_, i) => i + 1).map(day => (
+                          <option key={day} value={day}>
+                            Dia {day}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
                   {selectedTheme && getOverallDayStatus(selectedTheme) === 'revision' && selectedTheme.client_comment && (
                     <div className="p-5 bg-blue-50/70 border border-blue-200 rounded-2xl space-y-2 animate-in fade-in duration-300">
                       <div className="flex items-center gap-2 text-blue-800">
