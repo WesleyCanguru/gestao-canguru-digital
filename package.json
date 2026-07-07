@@ -37,6 +37,7 @@
     "motion": "^12.35.2",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
+    "react-onesignal": "^3.5.6",
     "recharts": "^3.8.1"
   },
   "devDependencies": {

@@ -2,6 +2,8 @@
 import { createClient } from '@supabase/supabase-js';
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { UserRole, Client } from '../types';
+import OneSignal from 'react-onesignal';
+
 
 const SUPABASE_URL = 'https://wtzphiyybitcucwkfpgv.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_uLQGmz7lWazPN1Uqb4_4vQ_HggVpMz9';
@@ -19,6 +21,22 @@ import SHA256 from 'crypto-js/sha256';
 export const hashPassword = async (password: string): Promise<string> => {
   return SHA256(password).toString();
 };
+
+export const setupNotifications = async (agencyUser: { id: string; agency_id: number }) => {
+  try {
+    // Identificar o usuário pelo ID único
+    await OneSignal.login(agencyUser.id);
+
+    // Adicionar tag com o agency_id para direcionamento das notificações
+    await OneSignal.User.addTag('agency_id', String(agencyUser.agency_id));
+
+    // Solicitar permissão de notificação (aparece o popup do browser/iOS)
+    await OneSignal.Notifications.requestPermission();
+  } catch (error) {
+    console.warn('OneSignal setup warning (pode ser ignorado se Web Push não estiver configurado no painel):', error);
+  }
+};
+
 
 interface AuthContextType {
   userRole: UserRole | null;
@@ -94,7 +112,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             }
          });
     }
+
+    // Configurar OneSignal para usuário da agência persistido
+    const storedUserType = localStorage.getItem('next_app_user_type');
+    const storedUserId = localStorage.getItem('next_app_user_id');
+    const storedAgencyId = localStorage.getItem('next_app_agency_id');
+    if (storedUserType === 'agency' && storedUserId && storedAgencyId) {
+      setupNotifications({
+        id: storedUserId,
+        agency_id: parseInt(storedAgencyId, 10)
+      }).catch(err => {
+        console.error('Erro ao restaurar OneSignal do localStorage:', err);
+      });
+    }
   }, []);
+
 
   const login = (role: UserRole) => {
     // Fallback/Legacy direct login mechanism (usually won't be used now without agency context)
@@ -132,6 +164,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setUserRole(agencyUser.role as UserRole);
           
           localStorage.setItem('next_app_user_type', 'agency');
+          localStorage.setItem('next_app_user_id', agencyUser.id);
           localStorage.setItem('next_app_agency_id', String(agencyUser.agency_id));
           localStorage.setItem('next_app_agency_name', agencyUser.agency_name || '');
           if (agencyUser.logo_url) {
@@ -141,8 +174,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           }
           localStorage.setItem('next_app_role', agencyUser.role);
           
+          // Chamar configuração de notificações do OneSignal
+          setupNotifications({ id: agencyUser.id, agency_id: agencyUser.agency_id }).catch(err => {
+              console.error('Erro ao configurar notificações no login:', err);
+          });
+          
           return { success: true };
       }
+
 
       // 2. Verificar senhas de clientes no banco de dados
       const { data, error } = await supabase
@@ -226,6 +265,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     localStorage.removeItem('next_app_agency_id');
     localStorage.removeItem('next_app_agency_name');
     localStorage.removeItem('next_app_logo_url');
+    localStorage.removeItem('next_app_user_id');
+    
+    // Desvincular identidade no OneSignal ao fazer logout
+    OneSignal.logout().catch(err => {
+      console.warn('Aviso no logout do OneSignal (pode ser ignorado se não inicializado):', err);
+    });
     
     window.location.href = '/';
   };
