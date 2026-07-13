@@ -155,7 +155,10 @@ const ContractHistoryModal: React.FC<{
   onSave: () => void;
 }> = ({ client, onClose, onSave }) => {
   const [history, setHistory] = useState<{ date: string; value: number }[]>([]);
-  const [newDate, setNewDate] = useState('');
+  const currentMonthStr = dayjs().format('MM');
+  const currentYearStr = dayjs().format('YYYY');
+  const [selectedMonth, setSelectedMonth] = useState(currentMonthStr);
+  const [selectedYear, setSelectedYear] = useState(currentYearStr);
   const [newValue, setNewValue] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -167,18 +170,41 @@ const ContractHistoryModal: React.FC<{
     }
   }, [client]);
 
+  const monthsList = [
+    { value: '01', label: 'Janeiro' },
+    { value: '02', label: 'Fevereiro' },
+    { value: '03', label: 'Março' },
+    { value: '04', label: 'Abril' },
+    { value: '05', label: 'Maio' },
+    { value: '06', label: 'Junho' },
+    { value: '07', label: 'Julho' },
+    { value: '08', label: 'Agosto' },
+    { value: '09', label: 'Setembro' },
+    { value: '10', label: 'Outubro' },
+    { value: '11', label: 'Novembro' },
+    { value: '12', label: 'Dezembro' }
+  ];
+
+  const currentYear = dayjs().year();
+  const yearsList = Array.from({ length: 11 }, (_, i) => String(currentYear - 3 + i)); // de 3 anos atrás até 7 anos no futuro
+
   const handleAdd = () => {
-    if (!newDate || !newValue) return;
+    if (!selectedMonth || !selectedYear || !newValue) return;
     const parsedValue = parseFloat(newValue);
     if (isNaN(parsedValue)) return;
 
-    // We only want month and year YYYY-MM
-    const dateFormatted = newDate; 
+    const dateFormatted = `${selectedYear}-${selectedMonth}`; 
+    
+    // Verifica se já existe um reajuste para este mês no histórico local
+    if (history.some(item => item.date === dateFormatted)) {
+      alert('Já existe um reajuste cadastrado para este mesmo mês!');
+      return;
+    }
+
     const updatedHistory = [...history, { date: dateFormatted, value: parsedValue }];
     updatedHistory.sort((a, b) => a.date.localeCompare(b.date));
     
     setHistory(updatedHistory);
-    setNewDate('');
     setNewValue('');
   };
 
@@ -286,31 +312,46 @@ const ContractHistoryModal: React.FC<{
 
         <div className="border-t border-gray-100 pt-6 mb-6">
           <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3">Adicionar Nova Alteração</h3>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="text-[10px] text-gray-400 font-bold uppercase tracking-widest block mb-1">Mês de Início</label>
-              <input
-                type="month"
-                value={newDate}
-                onChange={(e) => setNewDate(e.target.value)}
-                className="w-full px-3 py-2 bg-gray-50 border border-transparent rounded-xl focus:bg-white focus:border-brand-dark transition-all outline-none text-xs font-medium"
-              />
+          <div className="grid grid-cols-12 gap-2">
+            <div className="col-span-4">
+              <label className="text-[10px] text-gray-400 font-bold uppercase tracking-widest block mb-1">Mês</label>
+              <select
+                value={selectedMonth}
+                onChange={(e) => setSelectedMonth(e.target.value)}
+                className="w-full px-2.5 py-2.5 bg-gray-50 border border-transparent rounded-xl focus:bg-white focus:border-brand-dark transition-all outline-none text-xs font-semibold cursor-pointer"
+              >
+                {monthsList.map(m => (
+                  <option key={m.value} value={m.value}>{m.label}</option>
+                ))}
+              </select>
             </div>
-            <div>
-              <label className="text-[10px] text-gray-400 font-bold uppercase tracking-widest block mb-1">Novo Valor (R$)</label>
+            <div className="col-span-4">
+              <label className="text-[10px] text-gray-400 font-bold uppercase tracking-widest block mb-1">Ano</label>
+              <select
+                value={selectedYear}
+                onChange={(e) => setSelectedYear(e.target.value)}
+                className="w-full px-2.5 py-2.5 bg-gray-50 border border-transparent rounded-xl focus:bg-white focus:border-brand-dark transition-all outline-none text-xs font-semibold cursor-pointer"
+              >
+                {yearsList.map(y => (
+                  <option key={y} value={y}>{y}</option>
+                ))}
+              </select>
+            </div>
+            <div className="col-span-4">
+              <label className="text-[10px] text-gray-400 font-bold uppercase tracking-widest block mb-1">Valor (R$)</label>
               <input
                 type="number"
                 placeholder="1330"
                 value={newValue}
                 onChange={(e) => setNewValue(e.target.value)}
-                className="w-full px-3 py-2 bg-gray-50 border border-transparent rounded-xl focus:bg-white focus:border-brand-dark transition-all outline-none text-xs font-medium"
+                className="w-full px-2.5 py-2.5 bg-gray-50 border border-transparent rounded-xl focus:bg-white focus:border-brand-dark transition-all outline-none text-xs font-semibold"
               />
             </div>
           </div>
           <button
             type="button"
             onClick={handleAdd}
-            disabled={!newDate || !newValue}
+            disabled={!newValue}
             className="w-full mt-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl font-bold text-xs uppercase tracking-widest transition-colors disabled:opacity-50"
           >
             Inserir no Histórico

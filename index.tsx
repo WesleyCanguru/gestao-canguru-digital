@@ -3,9 +3,18 @@ import ReactDOM from 'react-dom/client';
 import App from './App';
 import OneSignal from 'react-onesignal';
 
+// Configurações do OneSignal por agência/domínio
+const ONESIGNAL_CONFIG: Record<string, string> = {
+  'bolsa.kanoastudio.com.br': '6f0b836b-2960-4636-b12a-d211551fd014',
+  'bolsa.cangurudigital.com.br': 'dba12918-fbf1-4b24-9376-2740c1fd0e4b',
+};
+
+const hostname = window.location.hostname;
+const appId = ONESIGNAL_CONFIG[hostname] || 'dba12918-fbf1-4b24-9376-2740c1fd0e4b';
+
 // Inicialização do OneSignal
 OneSignal.init({
-  appId: 'dba12918-fbf1-4b24-9376-2740c1fd0e4b',
+  appId,
   serviceWorkerParam: { scope: '/' },
   allowLocalhostAsSecureOrigin: true,
   notifyButton: { enable: false } as any,
