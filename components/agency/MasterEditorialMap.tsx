@@ -97,7 +97,9 @@ export const MasterEditorialMap: React.FC<MasterEditorialMapProps> = ({ onBackTo
           clients (
             id,
             name,
-            logo_url
+            logo_url,
+            client_status,
+            cancelled_at
           )
         `)
         .eq('agency_id', agencyId)
@@ -173,6 +175,17 @@ export const MasterEditorialMap: React.FC<MasterEditorialMapProps> = ({ onBackTo
 
       const matchesMonthStr = dMonth === targetMonth && dYear === targetYear;
       if (!matchesMonthStr) return false;
+
+      // Ocultar posts futuros de clientes cancelados
+      if (post.clients?.client_status === 'cancelled') {
+        const cancelledAt = post.clients.cancelled_at;
+        if (cancelledAt) {
+          const postDateStr = `${parts[2]}-${parts[1]}-${parts[0]}`; // YYYY-MM-DD
+          if (postDateStr > cancelledAt) {
+            return false;
+          }
+        }
+      }
 
       const matchesClient = filterClient === 'all' || post.client_id === filterClient;
       const matchesStatus = filterStatus === 'all' || post.status === filterStatus;

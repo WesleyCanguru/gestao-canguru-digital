@@ -133,6 +133,9 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [cancellingClient, setCancellingClient] = useState<Client | null>(null);
   const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
+  const [cancelDate, setCancelDate] = useState('');
+  const [cancelLastPaymentDate, setCancelLastPaymentDate] = useState('');
+  const [cancelLastPaymentValue, setCancelLastPaymentValue] = useState<number>(0);
   const [showInactive, setShowInactive] = useState(false);
   const [clientContract, setClientContract] = useState<any | null>(null);
   const [loadingContract, setLoadingContract] = useState(false);
@@ -212,6 +215,9 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
     client_type: 'recurring' as 'recurring' | 'one_time',
     client_status: 'active' as 'active' | 'cancelled' | 'completed',
     service_end_date: '',
+    cancelled_at: '',
+    last_payment_date: '',
+    last_payment_value: null as number | null,
   });
   const [uploading, setUploading] = useState(false);
   const [newContractLinkInfo, setNewContractLinkInfo] = useState<{ clientId: string, token: string } | null>(null);
@@ -310,7 +316,11 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
         agency_id: agencyId, // <-- Insert with correct agencyId
         client_type: form.client_type,
         client_status: editingClientId ? form.client_status : 'active',
+        is_active: editingClientId ? form.client_status !== 'cancelled' : true,
         service_end_date: form.client_type === 'one_time' ? (form.service_end_date || null) : null,
+        cancelled_at: (editingClientId && form.client_status === 'cancelled') ? (form.cancelled_at || null) : null,
+        last_payment_date: (editingClientId && form.client_status === 'cancelled') ? (form.last_payment_date || null) : null,
+        last_payment_value: (editingClientId && form.client_status === 'cancelled') ? (form.last_payment_value || null) : null,
       };
 
       let clientData;
@@ -571,6 +581,9 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
       client_type: 'recurring',
       client_status: 'active',
       service_end_date: '',
+      cancelled_at: '',
+      last_payment_date: '',
+      last_payment_value: null as number | null,
       ...{ kanban_stages: ['Novo Lead', 'Em Contato', 'Reunião Agendada', 'Proposta Enviada', 'Fechado'], specialty_options: [] }
     });
     setEditingClientId(null);
@@ -626,6 +639,9 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
       client_type: client.client_type || 'recurring',
       client_status: client.client_status || 'active',
       service_end_date: client.service_end_date || '',
+      cancelled_at: client.cancelled_at || '',
+      last_payment_date: client.last_payment_date || '',
+      last_payment_value: client.last_payment_value !== undefined ? client.last_payment_value : null,
       ...{ 
         kanban_stages: leadConfig?.kanban_stages || ['Novo Lead', 'Em Contato', 'Reunião Agendada', 'Proposta Enviada', 'Fechado'], 
         specialty_options: leadConfig?.specialty_options || [] 
@@ -661,12 +677,30 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
     }
   };
 
+  const openCancelModal = (client: Client) => {
+    setCancellingClient(client);
+    setCancelDate(new Date().toISOString().split('T')[0]);
+    setCancelLastPaymentDate('');
+    setCancelLastPaymentValue(client.base_value || 0);
+    setIsCancelModalOpen(true);
+  };
+
   const handleCancelClient = async () => {
     if (!cancellingClient) return;
+    if (!cancelDate) {
+      setErrorMsg("A data de cancelamento é obrigatória.");
+      return;
+    }
     try {
       const { error } = await supabase
         .from('clients')
-        .update({ client_status: 'cancelled' })
+        .update({ 
+          client_status: 'cancelled',
+          is_active: false,
+          cancelled_at: cancelDate,
+          last_payment_date: cancelLastPaymentDate || null,
+          last_payment_value: cancelLastPaymentValue || null
+        })
         .eq('id', cancellingClient.id);
 
       if (error) throw error;
@@ -1132,6 +1166,45 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
                   </label>
                 </div>
               </div>
+
+              {form.client_status === 'cancelled' && (
+                <div className="sm:col-span-2 mt-4 pt-6 border-t border-gray-100 bg-red-50/20 p-6 rounded-2xl border border-red-100/50">
+                  <h3 className="text-sm font-bold text-red-700 uppercase tracking-wider mb-4 flex items-center gap-2">
+                    <XCircle size={16} className="text-red-500" /> Informações de Cancelamento
+                  </h3>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Data de Cancelamento *</label>
+                      <input 
+                        type="date" 
+                        value={form.cancelled_at || ''} 
+                        onChange={e => setForm(f => ({...f, cancelled_at: e.target.value}))}
+                        className="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-500 bg-white" 
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Data do Último Pagamento</label>
+                      <input 
+                        type="date" 
+                        value={form.last_payment_date || ''} 
+                        onChange={e => setForm(f => ({...f, last_payment_date: e.target.value}))}
+                        className="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-500 bg-white" 
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Valor do Último Pagamento (R$)</label>
+                      <input 
+                        type="number" 
+                        value={form.last_payment_value === null ? '' : form.last_payment_value} 
+                        onChange={e => setForm(f => ({...f, last_payment_value: e.target.value === '' ? null : Number(e.target.value)}))}
+                        placeholder="Ex: 1500"
+                        className="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-500 bg-white" 
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* Seção de Acesso */}
               <div className="sm:col-span-2 mt-4 pt-6 border-t border-gray-100">
@@ -1637,10 +1710,7 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
                         <span className="text-[9px] font-bold uppercase tracking-widest">Editar</span>
                       </button>
                       <button 
-                        onClick={() => {
-                          setCancellingClient(client);
-                          setIsCancelModalOpen(true);
-                        }}
+                        onClick={() => openCancelModal(client)}
                         className="flex flex-col items-center justify-center gap-1 p-2 text-gray-400 hover:text-[#dc2626] transition-colors"
                         title="Cancelar Cliente"
                       >
@@ -1812,25 +1882,79 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
         confirmButtonColor="red"
       />
 
-      <ConfirmModal
-        isOpen={isCancelModalOpen}
-        title="Cancelar Cliente"
-        message={
-          <>
-            Tem certeza que deseja marcar o cliente <strong>{cancellingClient?.name}</strong> como cancelado?
-            <br /><br />
-            O histórico será preservado, mas ele sairá da lista de clientes ativos.
-          </>
-        }
-        confirmText="Sim, Cancelar"
-        cancelText="Voltar"
-        onConfirm={handleCancelClient}
-        onCancel={() => {
-          setIsCancelModalOpen(false);
-          setCancellingClient(null);
-        }}
-        confirmButtonColor="red"
-      />
+      {isCancelModalOpen && cancellingClient && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-white rounded-[2rem] p-8 max-w-md w-full shadow-2xl relative text-left"
+          >
+            <h2 className="text-xl font-bold text-brand-dark mb-2">Cancelar Cliente</h2>
+            <p className="text-sm text-gray-500 mb-6 font-medium">
+              Preencha os dados de encerramento para manter o histórico registrado do cliente <strong>{cancellingClient.name}</strong>.
+            </p>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">
+                  Data de cancelamento *
+                </label>
+                <input 
+                  type="date" 
+                  value={cancelDate} 
+                  onChange={e => setCancelDate(e.target.value)}
+                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" 
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">
+                  Data do último pagamento (Opcional)
+                </label>
+                <input 
+                  type="date" 
+                  value={cancelLastPaymentDate} 
+                  onChange={e => setCancelLastPaymentDate(e.target.value)}
+                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" 
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">
+                  Valor do último pagamento (R$) (Opcional)
+                </label>
+                <input 
+                  type="number" 
+                  value={cancelLastPaymentValue === 0 ? '' : cancelLastPaymentValue} 
+                  onChange={e => setCancelLastPaymentValue(Number(e.target.value))}
+                  placeholder="Ex: 1500"
+                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" 
+                />
+              </div>
+            </div>
+
+            <div className="flex gap-4 mt-8">
+              <button 
+                onClick={() => {
+                  setIsCancelModalOpen(false);
+                  setCancellingClient(null);
+                }}
+                className="flex-1 py-3 bg-white hover:bg-gray-50 text-gray-500 border border-black/[0.05] rounded-xl font-bold text-xs uppercase tracking-widest transition-all shadow-sm"
+              >
+                Voltar
+              </button>
+              <button 
+                onClick={handleCancelClient}
+                disabled={!cancelDate}
+                className="flex-1 py-3 bg-[#dc2626] hover:bg-opacity-90 disabled:opacity-50 text-white rounded-xl font-bold text-xs uppercase tracking-widest transition-all shadow-lg"
+              >
+                Confirmar
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
     </div>
   );
 };

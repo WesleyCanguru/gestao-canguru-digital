@@ -72,10 +72,14 @@ export function useAgencyFinanceiro(monthYear: string) {
         .from('clients')
         .select('*, contract:contract_forms(contract_start_date)')
         .eq('agency_id', agencyId)
-        .eq('is_active', true)
         .order('name');
 
-      const clients = (clientsData || []) as any[];
+      const clients = (clientsData || []).filter(c => {
+        if (c.client_status !== 'cancelled') return true;
+        if (!c.cancelled_at) return false;
+        const cancelMonthYear = dayjs(c.cancelled_at).format('YYYY-MM');
+        return monthYear <= cancelMonthYear;
+      }) as any[];
 
       // Fetch Billings for the month
       const { data: billingsData } = await supabase
@@ -84,7 +88,16 @@ export function useAgencyFinanceiro(monthYear: string) {
         .eq('agency_id', agencyId)
         .eq('month_year', monthYear);
 
-      let currentBillings = (billingsData || []) as AgencyBilling[];
+      let currentBillings = ((billingsData || []) as AgencyBilling[]).filter(b => {
+        if (b.is_sporadic) return true;
+        const c = b.client as any;
+        if (c && c.client_status === 'cancelled') {
+          if (!c.cancelled_at) return false;
+          const cancelMonthYear = dayjs(c.cancelled_at).format('YYYY-MM');
+          return monthYear <= cancelMonthYear;
+        }
+        return true;
+      });
 
       // If a client doesn't have a billing record for this month, we should ideally create one or show it as pending
       // For now, let's just merge them in memory for the UI
@@ -270,6 +283,40 @@ export function useAgencyFinanceiro(monthYear: string) {
           })
           .eq('agency_id', agencyId)
           .eq('id', dbData.client_id);
+
+        // Sync with contract_forms value_history
+        const { data: contractData } = await supabase
+          .from('contract_forms')
+          .select('*')
+          .eq('client_id', dbData.client_id)
+          .eq('status', 'signed')
+          .limit(1);
+
+        if (contractData && contractData.length > 0) {
+          const contract = contractData[0];
+          const formData = contract.form_data || {};
+          const history = formData.value_history || [];
+          
+          const monthYearToUpdate = dbData.month_year; // Format e.g. "2026-07"
+          const existingEntryIndex = history.findIndex((h: any) => h.date === monthYearToUpdate);
+          
+          if (existingEntryIndex > -1) {
+            history[existingEntryIndex].value = dbData.base_value;
+          } else {
+            history.push({ date: monthYearToUpdate, value: dbData.base_value });
+          }
+          
+          // Sort history by date
+          history.sort((a: any, b: any) => a.date.localeCompare(b.date));
+          
+          await supabase
+            .from('contract_forms')
+            .update({
+              contract_value: dbData.base_value,
+              form_data: { ...formData, value_history: history }
+            })
+            .eq('id', contract.id);
+        }
       }
     } catch (error) {
       console.error('Error updating billing:', error);

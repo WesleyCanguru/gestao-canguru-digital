@@ -419,7 +419,7 @@ const HojeTasks: React.FC<{ clients: any[], onEditTask: (t: AgencyTask) => void,
       setLoading(true);
       const { data } = await supabase
         .from('agency_tasks')
-        .select('*, client:clients(id, name, color, initials)')
+        .select('*, client:clients(id, name, color, initials, client_status)')
         .eq('agency_id', agencyId)
         .or('status.eq.pending,recurrence_type.neq.none')
         .order('sort_order', { ascending: true });
@@ -427,7 +427,9 @@ const HojeTasks: React.FC<{ clients: any[], onEditTask: (t: AgencyTask) => void,
       if (data) {
         const todayString = dayjs().format('YYYY-MM-DD');
 
-        const hojeTasks = data.filter(task => {
+        const activeData = data.filter(task => !task.client || task.client.client_status !== 'cancelled');
+
+        const hojeTasks = activeData.filter(task => {
           const isPending = isTaskPendingInCurrentCycle(task);
           
           if (task.recurrence_type === 'none' || !task.recurrence_type) {
@@ -1229,11 +1231,14 @@ const TodasTasks: React.FC<{ clients: any[], onEditTask: (t: AgencyTask) => void
       setLoading(true);
       const { data } = await supabase
         .from('agency_tasks')
-        .select('*, client:clients(id, name, color, initials)')
+        .select('*, client:clients(id, name, color, initials, client_status)')
         .eq('agency_id', agencyId)
         .or('recurrence_type.is.null,recurrence_type.eq.none');
 
-      if (data) setTasks(data);
+      if (data) {
+        const activeTasks = data.filter(t => !t.client || t.client.client_status !== 'cancelled');
+        setTasks(activeTasks);
+      }
     } catch (err) {
       console.error('Error fetching todas tasks:', err);
     } finally {

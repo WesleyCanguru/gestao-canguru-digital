@@ -240,6 +240,9 @@ export interface Client {
   client_type?: 'recurring' | 'one_time';
   client_status?: 'active' | 'cancelled' | 'completed';
   service_end_date?: string | null;
+  cancelled_at?: string | null;
+  last_payment_date?: string | null;
+  last_payment_value?: number | null;
 }
 
 export interface PostTheme {

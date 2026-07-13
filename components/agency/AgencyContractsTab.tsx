@@ -4,7 +4,7 @@ import { ContractForm, Client } from '../../types';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 import ptBr from 'dayjs/locale/pt-br';
-import { FileText, Link as LinkIcon, Upload, Eye, FileSignature, CheckCircle, Clock, DollarSign, Copy } from 'lucide-react';
+import { FileText, Link as LinkIcon, Upload, Eye, FileSignature, CheckCircle, Clock, DollarSign, Copy, TrendingUp, Trash2 } from 'lucide-react';
 import { motion } from 'motion/react';
 
 const fieldLabels: Record<string, string> = {
@@ -149,6 +149,196 @@ const ContractDataViewer: React.FC<{ data: any, onClose: () => void }> = ({ data
   );
 };
 
+const ContractHistoryModal: React.FC<{
+  client: ClientWithContract;
+  onClose: () => void;
+  onSave: () => void;
+}> = ({ client, onClose, onSave }) => {
+  const [history, setHistory] = useState<{ date: string; value: number }[]>([]);
+  const [newDate, setNewDate] = useState('');
+  const [newValue, setNewValue] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (client.contract?.form_data?.value_history) {
+      setHistory(client.contract.form_data.value_history);
+    } else {
+      setHistory([]);
+    }
+  }, [client]);
+
+  const handleAdd = () => {
+    if (!newDate || !newValue) return;
+    const parsedValue = parseFloat(newValue);
+    if (isNaN(parsedValue)) return;
+
+    // We only want month and year YYYY-MM
+    const dateFormatted = newDate; 
+    const updatedHistory = [...history, { date: dateFormatted, value: parsedValue }];
+    updatedHistory.sort((a, b) => a.date.localeCompare(b.date));
+    
+    setHistory(updatedHistory);
+    setNewDate('');
+    setNewValue('');
+  };
+
+  const handleDelete = (index: number) => {
+    const updatedHistory = history.filter((_, i) => i !== index);
+    setHistory(updatedHistory);
+  };
+
+  const handleConfirm = async () => {
+    setLoading(true);
+    try {
+      const formData = client.contract?.form_data || {};
+      const updatedFormData = {
+        ...formData,
+        value_history: history
+      };
+
+      const latestValue = history.length > 0 
+        ? [...history].sort((a, b) => a.date.localeCompare(b.date))[history.length - 1].value 
+        : (client.contract?.contract_value || client.base_value || 0);
+
+      const { error: contractError } = await supabase
+        .from('contract_forms')
+        .update({
+          form_data: updatedFormData,
+          contract_value: latestValue
+        })
+        .eq('id', client.contract?.id);
+
+      if (contractError) throw contractError;
+
+      const { error: clientError } = await supabase
+        .from('clients')
+        .update({
+          base_value: latestValue
+        })
+        .eq('id', client.id);
+
+      if (clientError) throw clientError;
+
+      onSave();
+      onClose();
+    } catch (err: any) {
+      console.error(err);
+      alert('Erro ao salvar histórico: ' + err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        className="bg-white rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-2xl relative max-h-[90vh] overflow-y-auto"
+      >
+        <h2 className="text-xl font-bold text-brand-dark mb-2">Histórico de Reajustes</h2>
+        <p className="text-xs text-gray-500 mb-6">Configure o histórico de reajustes da mensalidade para {client.name}.</p>
+
+        <div className="bg-gray-50 p-4 rounded-2xl border border-gray-100 mb-6">
+          <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3">Valor Inicial Assinado</h3>
+          <div className="text-base font-black text-brand-dark">
+            {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(client.contract?.contract_value || client.base_value || 0)}
+          </div>
+          {client.contract?.contract_start_date && (
+            <p className="text-xs text-gray-400 mt-1">
+              Vigência inicial: {dayjs(client.contract.contract_start_date).format('DD/MM/YYYY')}
+            </p>
+          )}
+        </div>
+
+        <div className="space-y-4 mb-6">
+          <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest">Reajustes Programados/Históricos</h3>
+          
+          {history.length === 0 ? (
+            <div className="text-xs text-gray-400 italic py-4 text-center border border-dashed border-gray-200 rounded-2xl bg-gray-50/50">
+              Nenhuma alteração registrada. O valor inicial é mantido para todos os meses.
+            </div>
+          ) : (
+            <div className="divide-y divide-gray-100 max-h-48 overflow-y-auto border border-gray-100 rounded-2xl bg-white">
+              {history.map((item, index) => (
+                <div key={index} className="flex items-center justify-between p-3 text-sm">
+                  <div>
+                    <span className="font-bold text-gray-700">
+                      {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(item.value)}
+                    </span>
+                    <span className="text-xs text-gray-400 block">
+                      A partir de: {dayjs(item.date + '-01').format('MMMM [de] YYYY')}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleDelete(index)}
+                    className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                    title="Excluir reajuste"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="border-t border-gray-100 pt-6 mb-6">
+          <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3">Adicionar Nova Alteração</h3>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-[10px] text-gray-400 font-bold uppercase tracking-widest block mb-1">Mês de Início</label>
+              <input
+                type="month"
+                value={newDate}
+                onChange={(e) => setNewDate(e.target.value)}
+                className="w-full px-3 py-2 bg-gray-50 border border-transparent rounded-xl focus:bg-white focus:border-brand-dark transition-all outline-none text-xs font-medium"
+              />
+            </div>
+            <div>
+              <label className="text-[10px] text-gray-400 font-bold uppercase tracking-widest block mb-1">Novo Valor (R$)</label>
+              <input
+                type="number"
+                placeholder="1330"
+                value={newValue}
+                onChange={(e) => setNewValue(e.target.value)}
+                className="w-full px-3 py-2 bg-gray-50 border border-transparent rounded-xl focus:bg-white focus:border-brand-dark transition-all outline-none text-xs font-medium"
+              />
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={handleAdd}
+            disabled={!newDate || !newValue}
+            className="w-full mt-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl font-bold text-xs uppercase tracking-widest transition-colors disabled:opacity-50"
+          >
+            Inserir no Histórico
+          </button>
+        </div>
+
+        <div className="flex gap-3 border-t border-gray-100 pt-6">
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex-1 py-3 border border-gray-200 rounded-xl text-gray-600 font-bold hover:bg-gray-50 transition-colors text-xs uppercase tracking-widest"
+          >
+            Cancelar
+          </button>
+          <button
+            type="button"
+            onClick={handleConfirm}
+            disabled={loading}
+            className="flex-1 py-3 bg-brand-dark text-white rounded-xl font-bold hover:bg-brand-dark/90 transition-all text-xs uppercase tracking-widest disabled:opacity-50"
+          >
+            {loading ? 'Salvando...' : 'Confirmar'}
+          </button>
+        </div>
+      </motion.div>
+    </div>
+  );
+};
+
 
 dayjs.extend(relativeTime);
 dayjs.locale(ptBr);
@@ -164,6 +354,8 @@ export const AgencyContractsTab: React.FC = () => {
   const [uploadModalOpen, setUploadModalOpen] = useState(false);
   const [selectedClient, setSelectedClient] = useState<ClientWithContract | null>(null);
   const [viewDataModalOpen, setViewDataModalOpen] = useState(false);
+  const [isCancelledExpanded, setIsCancelledExpanded] = useState(false);
+  const [historyModalOpen, setHistoryModalOpen] = useState(false);
 
   // Form states
   const [contractValue, setContractValue] = useState('');
@@ -233,28 +425,97 @@ export const AgencyContractsTab: React.FC = () => {
     alert('Link copiado para a área de transferência!');
   };
 
-  const calculateMonths = (startDate: string) => {
-    const start = dayjs(startDate);
-    const now = dayjs();
-    return now.diff(start, 'month');
+  const getValueForMonth = (
+    monthYear: string, // "YYYY-MM"
+    initialValue: number,
+    history: { date: string; value: number }[] | undefined
+  ) => {
+    if (!history || history.length === 0) return initialValue;
+    const sorted = [...history].sort((a, b) => a.date.localeCompare(b.date));
+    let activeValue = initialValue;
+    for (const entry of sorted) {
+      if (entry.date <= monthYear) {
+        activeValue = entry.value;
+      } else {
+        break;
+      }
+    }
+    return activeValue;
   };
 
-  const formatDuration = (startDate: string) => {
-    const start = dayjs(startDate);
-    const now = dayjs();
-    const months = now.diff(start, 'month');
-    const years = Math.floor(months / 12);
-    const remainingMonths = months % 12;
+  const calculateClientLTV = (client: ClientWithContract) => {
+    const startDate = client.contract?.contract_start_date || client.created_at;
+    if (!startDate) return 0;
     
-    if (years === 0) return `${months} meses`;
+    const start = dayjs(startDate);
+    const end = client.client_status === 'cancelled' && client.cancelled_at ? dayjs(client.cancelled_at) : dayjs();
+    
+    // Prepaid billing periods: diff in months + 1
+    const monthsCount = end.diff(start, 'month') + 1;
+    
+    const initialValue = client.contract?.contract_value || client.base_value || 0;
+    const history = client.contract?.form_data?.value_history || [];
+    
+    let totalLTV = 0;
+    for (let i = 0; i < monthsCount; i++) {
+      const monthYear = start.add(i, 'month').format('YYYY-MM');
+      const monthValue = getValueForMonth(monthYear, initialValue, history);
+      totalLTV += monthValue;
+    }
+    
+    return totalLTV;
+  };
+
+  const formatClientPermanence = (client: ClientWithContract) => {
+    const startDate = client.contract?.contract_start_date || client.created_at;
+    if (!startDate) return '1 mês';
+    
+    const start = dayjs(startDate);
+    const end = client.client_status === 'cancelled' && client.cancelled_at ? dayjs(client.cancelled_at) : dayjs();
+    
+    const monthsCount = end.diff(start, 'month') + 1;
+    const years = Math.floor(monthsCount / 12);
+    const remainingMonths = monthsCount % 12;
+    
+    if (years === 0) return `${monthsCount} ${monthsCount === 1 ? 'mês' : 'meses'}`;
     if (remainingMonths === 0) return `${years} ${years === 1 ? 'ano' : 'anos'}`;
     return `${years} ${years === 1 ? 'ano' : 'anos'} e ${remainingMonths} ${remainingMonths === 1 ? 'mês' : 'meses'}`;
   };
 
-  const mrrTotal = clients.reduce((acc, c) => acc + (c.contract?.status === 'signed' ? (c.contract.contract_value || 0) : 0), 0);
-  const activeContracts = clients.filter(c => c.contract?.status === 'signed').length;
+  const getCurrentContractValue = (client: ClientWithContract) => {
+    const initialValue = client.contract?.contract_value || client.base_value || 0;
+    const history = client.contract?.form_data?.value_history || [];
+    const currentMonth = dayjs().format('YYYY-MM');
+    return getValueForMonth(currentMonth, initialValue, history);
+  };
+
+  const formatValueHistory = (client: ClientWithContract) => {
+    const initialValue = client.contract?.contract_value || client.base_value || 0;
+    const history = client.contract?.form_data?.value_history || [];
+    if (!history || history.length === 0) return null;
+    
+    const sorted = [...history].sort((a, b) => a.date.localeCompare(b.date));
+    const parts: string[] = [];
+    
+    const formattedInitial = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(initialValue);
+    parts.push(`Começou com ${formattedInitial}`);
+    
+    sorted.forEach((h: any) => {
+      const formattedVal = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(h.value);
+      const monthLabel = dayjs(h.date + '-01').format('MMM/YYYY');
+      parts.push(`alterou para ${formattedVal} em ${monthLabel}`);
+    });
+    
+    return parts.join(' ➔ ');
+  };
+
+  const activeClientsList = clients.filter(c => c.client_status !== 'cancelled');
+  const cancelledClientsList = clients.filter(c => c.client_status === 'cancelled');
+
+  const mrrTotal = activeClientsList.reduce((acc, c) => acc + (c.contract?.status === 'signed' ? getCurrentContractValue(c) : 0), 0);
+  const activeContracts = activeClientsList.filter(c => c.contract?.status === 'signed').length;
   
-  const oldestContract = [...clients]
+  const oldestContract = [...activeClientsList]
     .filter(c => c.contract?.status === 'signed' && c.contract?.contract_start_date)
     .sort((a, b) => dayjs(a.contract!.contract_start_date).unix() - dayjs(b.contract!.contract_start_date).unix())[0];
 
@@ -398,16 +659,13 @@ export const AgencyContractsTab: React.FC = () => {
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
         {/* Mobile View */}
         <div className="block md:hidden p-4 space-y-4 bg-gray-50/30">
-          {clients.map(client => {
+          {activeClientsList.map(client => {
             const isSigned = client.contract?.status === 'signed';
             const isPending = client.contract?.status === 'pending';
             const isSubmitted = client.contract?.status === 'submitted';
             const hasContractForm = !!client.contract;
 
             const startDate = client.contract?.contract_start_date;
-            const monthlyValue = client.contract?.contract_value || 0;
-            const monthsElapsed = startDate ? calculateMonths(startDate) : 0;
-            const lifetimeValue = Math.max(monthsElapsed, 1) * monthlyValue;
 
             return (
               <div key={client.id} className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm flex flex-col gap-4">
@@ -441,12 +699,19 @@ export const AgencyContractsTab: React.FC = () => {
                   <div className="grid grid-cols-2 gap-3 pt-3 border-t border-gray-50 text-sm">
                     <div>
                       <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1">Mensalidade</p>
-                      <p className="font-bold text-brand-dark">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(monthlyValue)}</p>
-                      <p className="text-xs text-gray-500">{formatDuration(startDate)}</p>
+                      <p className="font-bold text-brand-dark">
+                        {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(getCurrentContractValue(client))}
+                      </p>
+                      <p className="text-xs text-gray-500">{formatClientPermanence(client)}</p>
+                      {formatValueHistory(client) && (
+                        <p className="text-[9px] text-gray-400 italic mt-1 leading-tight">{formatValueHistory(client)}</p>
+                      )}
                     </div>
                     <div>
                       <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1">Estimativa LTV</p>
-                      <p className="font-bold text-gray-600">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(lifetimeValue)}</p>
+                      <p className="font-bold text-gray-600">
+                        {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(calculateClientLTV(client))}
+                      </p>
                     </div>
                   </div>
                 )}
@@ -506,6 +771,12 @@ export const AgencyContractsTab: React.FC = () => {
                         </button>
                       )}
                       <button
+                        onClick={() => { setSelectedClient(client); setHistoryModalOpen(true); }}
+                        className="flex-1 flex justify-center items-center gap-1.5 py-2 rounded-xl border border-gray-200 text-gray-600 hover:text-brand-dark hover:border-brand-dark transition-colors text-xs font-bold"
+                      >
+                        <TrendingUp size={14} /> Reajustes
+                      </button>
+                      <button
                         onClick={() => { setSelectedClient(client); setUploadModalOpen(true); }}
                         className="flex-1 flex justify-center items-center gap-1.5 bg-gray-50 text-gray-600 border border-gray-200 py-2 rounded-xl text-xs font-bold hover:bg-gray-100 transition-colors"
                       >
@@ -532,16 +803,13 @@ export const AgencyContractsTab: React.FC = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
-              {clients.map(client => {
+              {activeClientsList.map(client => {
                 const isSigned = client.contract?.status === 'signed';
                 const isPending = client.contract?.status === 'pending';
                 const isSubmitted = client.contract?.status === 'submitted';
                 const hasContractForm = !!client.contract;
 
                 const startDate = client.contract?.contract_start_date;
-                const monthlyValue = client.contract?.contract_value || 0;
-                const monthsElapsed = startDate ? calculateMonths(startDate) : 0;
-                const lifetimeValue = Math.max(monthsElapsed, 1) * monthlyValue;
 
                 return (
                   <tr key={client.id} className="hover:bg-gray-50/50 transition-colors">
@@ -585,11 +853,16 @@ export const AgencyContractsTab: React.FC = () => {
                       {isSigned && startDate ? (
                         <div className="flex flex-col">
                           <span className="font-bold text-brand-dark">
-                            {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(monthlyValue)}/mês
+                            {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(getCurrentContractValue(client))}/mês
                           </span>
                           <span className="text-xs text-gray-500 mt-0.5">
-                            Desde {dayjs(startDate).format('MMM YYYY')} ({formatDuration(startDate)})
+                            Desde {dayjs(startDate).format('MMM YYYY')} ({formatClientPermanence(client)})
                           </span>
+                          {formatValueHistory(client) && (
+                            <span className="text-[10px] text-gray-400 italic mt-1 bg-gray-50 px-2 py-0.5 rounded border border-gray-100 max-w-md whitespace-normal leading-relaxed">
+                              {formatValueHistory(client)}
+                            </span>
+                          )}
                         </div>
                       ) : (
                         <span className="text-gray-400 text-sm">-</span>
@@ -598,7 +871,7 @@ export const AgencyContractsTab: React.FC = () => {
                     <td className="px-6 py-4">
                       {isSigned && startDate ? (
                         <span className="font-bold text-gray-600">
-                          {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(lifetimeValue)}
+                          {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(calculateClientLTV(client))}
                         </span>
                       ) : (
                         <span className="text-gray-400 text-sm">-</span>
@@ -661,6 +934,13 @@ export const AgencyContractsTab: React.FC = () => {
                               </button>
                             )}
                             <button
+                              onClick={() => { setSelectedClient(client); setHistoryModalOpen(true); }}
+                              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-200 text-gray-600 hover:text-brand-dark hover:border-brand-dark transition-colors text-xs font-bold"
+                              title="Histórico de reajustes de valor"
+                            >
+                              <TrendingUp size={14} /> Reajustes
+                            </button>
+                            <button
                               onClick={() => { setSelectedClient(client); setUploadModalOpen(true); }}
                               className="flex items-center gap-1.5 bg-gray-50 text-gray-600 border border-gray-200 px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-gray-100 transition-colors"
                             >
@@ -677,6 +957,167 @@ export const AgencyContractsTab: React.FC = () => {
           </table>
         </div>
       </div>
+
+      {/* Seção Colapsável de Contratos Encerrados */}
+      {cancelledClientsList.length > 0 && (
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden mt-6">
+          <button
+            type="button"
+            onClick={() => setIsCancelledExpanded(!isCancelledExpanded)}
+            className="w-full px-6 py-5 flex items-center justify-between bg-gray-50/50 hover:bg-gray-50 transition-colors text-left outline-none"
+          >
+            <div className="flex items-center gap-2.5">
+              <span className="w-2.5 h-2.5 rounded-full bg-gray-400 animate-pulse" />
+              <h3 className="text-base font-bold text-gray-700">Contratos Encerrados ({cancelledClientsList.length})</h3>
+            </div>
+            <span className="text-xs font-bold text-gray-400 uppercase tracking-widest">
+              {isCancelledExpanded ? 'Ocultar ▴' : 'Visualizar ▾'}
+            </span>
+          </button>
+
+          {isCancelledExpanded && (
+            <div className="border-t border-gray-100">
+              {/* Mobile View para Cancelados */}
+              <div className="block md:hidden p-4 space-y-4 bg-gray-50/30">
+                {cancelledClientsList.map(client => {
+                  const start = dayjs(client.created_at);
+                  const end = client.cancelled_at ? dayjs(client.cancelled_at) : dayjs();
+                  const ltvValue = calculateClientLTV(client);
+
+                  return (
+                    <div key={client.id} className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm flex flex-col gap-4">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <h4 className="font-bold text-gray-700">{client.name}</h4>
+                          {client.segment && <p className="text-xs text-gray-400">{client.segment}</p>}
+                        </div>
+                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest bg-gray-100 text-gray-500">
+                          Encerrado
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-3 pt-3 border-t border-gray-50 text-sm">
+                        <div>
+                          <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1">Última Mensalidade</p>
+                          <p className="font-bold text-gray-500">
+                            {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(getCurrentContractValue(client))}
+                          </p>
+                          <p className="text-xs text-gray-400">Permanência: {formatClientPermanence(client)}</p>
+                          {formatValueHistory(client) && (
+                            <p className="text-[9px] text-gray-400 italic mt-1 leading-tight">{formatValueHistory(client)}</p>
+                          )}
+                        </div>
+                        <div>
+                          <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1">LTV Real</p>
+                          <p className="font-bold text-brand-dark">
+                            {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(ltvValue)}
+                          </p>
+                        </div>
+                      </div>
+
+                      {client.contract && (
+                        <div className="flex gap-2 pt-3 border-t border-gray-50">
+                          {client.contract.signed_contract_url && (
+                            <button
+                              type="button"
+                              onClick={() => window.open(client.contract!.signed_contract_url!, '_blank')}
+                              className="flex-1 flex justify-center items-center gap-1.5 py-2 rounded-xl border border-gray-200 text-gray-600 hover:text-brand-dark transition-colors text-xs font-bold"
+                            >
+                              <FileText size={14} /> Ver PDF
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => { setSelectedClient(client); setViewDataModalOpen(true); }}
+                            className="flex-1 flex justify-center items-center gap-1.5 py-2 rounded-xl bg-gray-50 text-gray-600 hover:bg-gray-100 transition-colors text-xs font-bold"
+                          >
+                            <Eye size={14} /> Ver Dados
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Desktop View para Cancelados */}
+              <div className="hidden md:block overflow-x-auto">
+                <table className="w-full text-left text-sm whitespace-nowrap">
+                  <thead className="bg-gray-50/50 border-b border-gray-100">
+                    <tr>
+                      <th className="px-6 py-4 font-bold text-gray-500 uppercase tracking-wider text-xs">Cliente</th>
+                      <th className="px-6 py-4 font-bold text-gray-500 uppercase tracking-wider text-xs">Status</th>
+                      <th className="px-6 py-4 font-bold text-gray-500 uppercase tracking-wider text-xs">Período Ativo</th>
+                      <th className="px-6 py-4 font-bold text-gray-500 uppercase tracking-wider text-xs">Permanência</th>
+                      <th className="px-6 py-4 font-bold text-gray-500 uppercase tracking-wider text-xs">LTV Real</th>
+                      <th className="px-6 py-4 font-bold text-gray-500 uppercase tracking-wider text-xs">Contrato</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-50">
+                    {cancelledClientsList.map(client => {
+                      const start = dayjs(client.created_at);
+                      const end = client.cancelled_at ? dayjs(client.cancelled_at) : dayjs();
+                      const ltvValue = calculateClientLTV(client);
+
+                      return (
+                        <tr key={client.id} className="hover:bg-gray-50/50 transition-colors">
+                          <td className="px-6 py-4">
+                            <div className="flex flex-col">
+                              <span className="font-bold text-gray-600">{client.name}</span>
+                              {client.segment && <span className="text-xs text-gray-400">{client.segment}</span>}
+                            </div>
+                          </td>
+                          <td className="px-6 py-4">
+                            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest bg-gray-100 text-gray-500">
+                              Encerrado
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 text-xs text-gray-500">
+                            {dayjs(client.created_at).format('DD/MM/YYYY')} até {client.cancelled_at ? dayjs(client.cancelled_at).format('DD/MM/YYYY') : '-'}
+                          </td>
+                          <td className="px-6 py-4 text-xs text-gray-500 flex flex-col justify-center">
+                            <span>{formatClientPermanence(client)}</span>
+                            {formatValueHistory(client) && (
+                              <span className="text-[10px] text-gray-400 italic mt-0.5 max-w-xs whitespace-normal leading-tight">
+                                {formatValueHistory(client)}
+                              </span>
+                            )}
+                          </td>
+                          <td className="px-6 py-4 font-bold text-brand-dark">
+                            {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(ltvValue)}
+                          </td>
+                          <td className="px-6 py-4">
+                            <div className="flex items-center gap-2">
+                              {client.contract?.signed_contract_url && (
+                                <button
+                                  type="button"
+                                  onClick={() => window.open(client.contract!.signed_contract_url!, '_blank')}
+                                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-200 text-gray-600 hover:text-brand-dark hover:border-brand-dark transition-colors text-xs font-bold"
+                                >
+                                  <FileText size={14} /> Ver PDF
+                                </button>
+                              )}
+                              {client.contract && (
+                                <button
+                                  type="button"
+                                  onClick={() => { setSelectedClient(client); setViewDataModalOpen(true); }}
+                                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gray-50 text-gray-500 hover:bg-gray-100 transition-colors text-xs font-bold"
+                                >
+                                  <Eye size={14} /> Ver Dados
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {uploadModalOpen && selectedClient && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
@@ -747,6 +1188,14 @@ export const AgencyContractsTab: React.FC = () => {
         <ContractDataViewer
           data={selectedClient.contract.form_data}
           onClose={() => setViewDataModalOpen(false)}
+        />
+      )}
+
+      {historyModalOpen && selectedClient && (
+        <ContractHistoryModal
+          client={selectedClient}
+          onClose={() => setHistoryModalOpen(false)}
+          onSave={fetchData}
         />
       )}
     </div>
