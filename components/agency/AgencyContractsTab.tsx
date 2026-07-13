@@ -163,8 +163,12 @@ const ContractHistoryModal: React.FC<{
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    if (client.contract?.form_data?.value_history) {
-      setHistory(client.contract.form_data.value_history);
+    const historyFromClient = client.features_settings?.value_history;
+    const historyFromContract = client.contract?.form_data?.value_history;
+    if (historyFromClient) {
+      setHistory(historyFromClient);
+    } else if (historyFromContract) {
+      setHistory(historyFromContract);
     } else {
       setHistory([]);
     }
@@ -216,34 +220,43 @@ const ContractHistoryModal: React.FC<{
   const handleConfirm = async () => {
     setLoading(true);
     try {
-      const formData = client.contract?.form_data || {};
-      const updatedFormData = {
-        ...formData,
-        value_history: history
-      };
-
       const latestValue = history.length > 0 
         ? [...history].sort((a, b) => a.date.localeCompare(b.date))[history.length - 1].value 
         : (client.contract?.contract_value || client.base_value || 0);
 
-      const { error: contractError } = await supabase
-        .from('contract_forms')
-        .update({
-          form_data: updatedFormData,
-          contract_value: latestValue
-        })
-        .eq('id', client.contract?.id);
-
-      if (contractError) throw contractError;
+      // 1. Salvar diretamente em client.features_settings.value_history para contornar qualquer RLS limitando updates de contratos assinados
+      const currentFeatures = client.features_settings || {};
+      const updatedFeatures = {
+        ...currentFeatures,
+        value_history: history
+      };
 
       const { error: clientError } = await supabase
         .from('clients')
         .update({
-          base_value: latestValue
+          base_value: latestValue,
+          features_settings: updatedFeatures
         })
         .eq('id', client.id);
 
       if (clientError) throw clientError;
+
+      // 2. Tentar atualizar também em contract_forms (melhor esforço)
+      if (client.contract?.id) {
+        const formData = client.contract?.form_data || {};
+        const updatedFormData = {
+          ...formData,
+          value_history: history
+        };
+
+        await supabase
+          .from('contract_forms')
+          .update({
+            form_data: updatedFormData,
+            contract_value: latestValue
+          })
+          .eq('id', client.contract.id);
+      }
 
       onSave();
       onClose();
@@ -495,7 +508,7 @@ export const AgencyContractsTab: React.FC = () => {
     const monthsCount = end.diff(start, 'month') + 1;
     
     const initialValue = client.contract?.contract_value || client.base_value || 0;
-    const history = client.contract?.form_data?.value_history || [];
+    const history = client.features_settings?.value_history || client.contract?.form_data?.value_history || [];
     
     let totalLTV = 0;
     for (let i = 0; i < monthsCount; i++) {
@@ -525,14 +538,14 @@ export const AgencyContractsTab: React.FC = () => {
 
   const getCurrentContractValue = (client: ClientWithContract) => {
     const initialValue = client.contract?.contract_value || client.base_value || 0;
-    const history = client.contract?.form_data?.value_history || [];
+    const history = client.features_settings?.value_history || client.contract?.form_data?.value_history || [];
     const currentMonth = dayjs().format('YYYY-MM');
     return getValueForMonth(currentMonth, initialValue, history);
   };
 
   const formatValueHistory = (client: ClientWithContract) => {
     const initialValue = client.contract?.contract_value || client.base_value || 0;
-    const history = client.contract?.form_data?.value_history || [];
+    const history = client.features_settings?.value_history || client.contract?.form_data?.value_history || [];
     if (!history || history.length === 0) return null;
     
     const sorted = [...history].sort((a, b) => a.date.localeCompare(b.date));

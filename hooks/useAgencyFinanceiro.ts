@@ -275,11 +275,37 @@ export function useAgencyFinanceiro(monthYear: string) {
 
       // Update client base_value and due_day so it carries over to next months
       if (dbData.client_id && !dbData.is_sporadic && billing.update_global_contract !== false) {
+        // Fetch current client features_settings first to preserve other settings
+        const { data: clientData } = await supabase
+          .from('clients')
+          .select('features_settings')
+          .eq('id', dbData.client_id)
+          .single();
+
+        const currentFeatures = clientData?.features_settings || {};
+        const clientHistory = currentFeatures.value_history || [];
+        
+        const monthYearToUpdate = dbData.month_year; // Format e.g. "2026-07"
+        const existingClientEntryIndex = clientHistory.findIndex((h: any) => h.date === monthYearToUpdate);
+        
+        if (existingClientEntryIndex > -1) {
+          clientHistory[existingClientEntryIndex].value = dbData.base_value;
+        } else {
+          clientHistory.push({ date: monthYearToUpdate, value: dbData.base_value });
+        }
+        clientHistory.sort((a: any, b: any) => a.date.localeCompare(b.date));
+
+        const updatedFeatures = {
+          ...currentFeatures,
+          value_history: clientHistory
+        };
+
         await supabase
           .from('clients')
           .update({
             base_value: dbData.base_value,
-            due_day: dbData.due_day
+            due_day: dbData.due_day,
+            features_settings: updatedFeatures
           })
           .eq('agency_id', agencyId)
           .eq('id', dbData.client_id);
@@ -297,7 +323,6 @@ export function useAgencyFinanceiro(monthYear: string) {
           const formData = contract.form_data || {};
           const history = formData.value_history || [];
           
-          const monthYearToUpdate = dbData.month_year; // Format e.g. "2026-07"
           const existingEntryIndex = history.findIndex((h: any) => h.date === monthYearToUpdate);
           
           if (existingEntryIndex > -1) {
