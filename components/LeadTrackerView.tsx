@@ -86,7 +86,8 @@ const LOSS_REASONS = [
   'Lead inválido',
   'Desistiu de resolver',
   'Caso sem viabilidade',
-  'Localização não atendida'
+  'Localização não atendida',
+  'Outro'
 ];
 
 const LEAD_SOURCES = [
@@ -138,6 +139,7 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
   const [leadToLose, setLeadToLose] = useState<string | null>(null);
   const [leadToWin, setLeadToWin] = useState<string | null>(null);
   const [lossReason, setLossReason] = useState('');
+  const [customLossReason, setCustomLossReason] = useState('');
   const [dealValue, setDealValue] = useState<number>(0);
   const [isContractValueModalOpen, setIsContractValueModalOpen] = useState(false);
   const [leadForContractValue, setLeadForContractValue] = useState<string | null>(null);
@@ -599,9 +601,11 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
     if (!leadToLose || !lossReason) return;
     try {
       // Confirma a perda do lead
-      await updateLeadStage(leadToLose, 'Perdido', lossReason);
+      const finalReason = lossReason === 'Outro' ? (customLossReason || 'Outro') : lossReason;
+      await updateLeadStage(leadToLose, 'Perdido', finalReason);
       setIsLossModalOpen(false);
       setLeadToLose(null);
+      setCustomLossReason('');
       loadData();
     } catch (error) {
       console.error(error);
@@ -1696,6 +1700,16 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
                   <option key={opt} value={opt}>{opt}</option>
                 ))}
               </select>
+
+              {lossReason === 'Outro' && (
+                <input
+                  type="text"
+                  value={customLossReason}
+                  onChange={(e) => setCustomLossReason(e.target.value)}
+                  placeholder="Especifique o motivo..."
+                  className="w-full bg-gray-50 border border-black/[0.05] rounded-2xl p-4 text-sm font-medium focus:ring-2 focus:ring-brand-green/20 outline-none mb-6"
+                />
+              )}
 
               <div className="flex gap-3">
                 <button 

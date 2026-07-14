@@ -24,7 +24,18 @@ export const CRMLeadModal: React.FC<CRMLeadModalProps> = ({ crm, lead, isOpen, o
   useEffect(() => {
     if (lead) {
       setName(lead.name);
-      setFormData(lead.form_data || {});
+      
+      const isPredefined = ["Não respondeu", "Achou caro", "Não era o momento", "Escolheu concorrente"].includes(lead.loss_reason || '');
+      const temp_loss_reason = lead.loss_reason 
+        ? (isPredefined ? lead.loss_reason : 'Outro')
+        : '';
+      const temp_custom_loss_reason = lead.loss_reason && !isPredefined ? lead.loss_reason : '';
+
+      setFormData({
+        ...(lead.form_data || {}),
+        temp_loss_reason,
+        temp_custom_loss_reason
+      });
       setNotes(lead.notes || '');
       setStage(lead.stage);
     } else {
@@ -45,17 +56,34 @@ export const CRMLeadModal: React.FC<CRMLeadModalProps> = ({ crm, lead, isOpen, o
 
     setIsSaving(true);
     try {
+      const isPerdido = stage === 'Perdido' || crm.kanban_stages.find(s => s.name === stage)?.id === 'perdido';
+      
+      let resolvedLossReason = null;
+      if (isPerdido) {
+        resolvedLossReason = formData.temp_loss_reason === 'Outro' ? formData.temp_custom_loss_reason : formData.temp_loss_reason;
+        if (!resolvedLossReason && formData.temp_loss_reason) {
+          resolvedLossReason = 'Outro';
+        }
+      }
+
+      // Clean up temporary fields
+      const cleanFormData = { ...formData };
+      delete cleanFormData.temp_loss_reason;
+      delete cleanFormData.temp_custom_loss_reason;
+
       if (lead) {
         await updateLead(lead.id, {
           name,
-          form_data: formData,
-          notes
+          form_data: cleanFormData,
+          notes,
+          loss_reason: resolvedLossReason
         });
         if (stage !== lead.stage) {
           await moveLeadToStage(lead, stage, crm.kanban_stages, crm.auto_advance_time);
         }
       } else {
-        const newLead = await addLead(crm.id, name, formData);
+        const newLead = await addLead(crm.id, name, cleanFormData);
+        await updateLead(newLead.id, { loss_reason: resolvedLossReason });
         if (stage !== crm.kanban_stages[0]?.name) {
           await moveLeadToStage(newLead, stage, crm.kanban_stages, crm.auto_advance_time);
         }
@@ -145,6 +173,51 @@ export const CRMLeadModal: React.FC<CRMLeadModalProps> = ({ crm, lead, isOpen, o
                 </div>
               )}
             </div>
+
+            {/* Conditional inputs based on selected stage */}
+            {(stage === 'Proposta Enviada' || crm.kanban_stages.find(s => s.name === stage)?.id === 'proposta_enviada') && (
+              <div className="bg-purple-50/50 border border-purple-100 p-4 rounded-xl space-y-3">
+                <label className="block text-sm font-bold text-purple-900">💜 Valor da Proposta (R$)</label>
+                <input
+                  type="number"
+                  value={formData.deal_value || ''}
+                  onChange={(e) => setFormData({ ...formData, deal_value: parseFloat(e.target.value) || null })}
+                  className="w-full px-4 py-2 bg-white border border-purple-200 rounded-xl text-gray-900 focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all"
+                  placeholder="Ex: 1500"
+                />
+              </div>
+            )}
+
+            {(stage === 'Perdido' || crm.kanban_stages.find(s => s.name === stage)?.id === 'perdido') && (
+              <div className="bg-red-50/50 border border-red-100 p-4 rounded-xl space-y-3">
+                <label className="block text-sm font-bold text-red-900">❌ Motivo da Perda</label>
+                <div className="space-y-2">
+                  {["Não respondeu", "Achou caro", "Não era o momento", "Escolheu concorrente", "Outro"].map(option => (
+                    <label key={option} className="flex items-center gap-3 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="modal_loss_reason"
+                        value={option}
+                        checked={formData.temp_loss_reason === option}
+                        onChange={(e) => setFormData({ ...formData, temp_loss_reason: e.target.value })}
+                        className="w-4 h-4 text-red-600 focus:ring-red-500 border-gray-300"
+                      />
+                      <span className="text-sm font-medium text-gray-700">{option}</span>
+                    </label>
+                  ))}
+                </div>
+
+                {formData.temp_loss_reason === 'Outro' && (
+                  <input
+                    type="text"
+                    value={formData.temp_custom_loss_reason || ''}
+                    onChange={(e) => setFormData({ ...formData, temp_custom_loss_reason: e.target.value })}
+                    placeholder="Especifique o motivo..."
+                    className="w-full bg-white border border-red-200 rounded-xl p-2.5 text-sm font-medium focus:ring-2 focus:ring-red-500/20 outline-none mt-2"
+                  />
+                )}
+              </div>
+            )}
 
             {/* Auto Advance Info */}
             {lead && lead.next_stage_at && (

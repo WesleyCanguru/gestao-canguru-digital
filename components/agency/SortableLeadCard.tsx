@@ -8,9 +8,10 @@ interface SortableLeadCardProps {
   lead: AgencyLead;
   crm: AgencyCRM;
   onClick: () => void;
+  onMoveStage?: (lead: AgencyLead, stageName: string) => void;
 }
 
-export const SortableLeadCard: React.FC<SortableLeadCardProps> = ({ lead, crm, onClick }) => {
+export const SortableLeadCard: React.FC<SortableLeadCardProps> = ({ lead, crm, onClick, onMoveStage }) => {
   const {
     attributes,
     listeners,
@@ -28,7 +29,7 @@ export const SortableLeadCard: React.FC<SortableLeadCardProps> = ({ lead, crm, o
 
   return (
     <div ref={setNodeRef} style={style} {...attributes} {...listeners}>
-      <CRMLeadCard lead={lead} crm={crm} onClick={onClick} />
+      <CRMLeadCard lead={lead} crm={crm} onClick={onClick} onMoveStage={onMoveStage} />
     </div>
   );
 };

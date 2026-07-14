@@ -149,11 +149,30 @@ const ContractDataViewer: React.FC<{ data: any, onClose: () => void }> = ({ data
   );
 };
 
+const monthsList = [
+  { value: '01', label: 'Janeiro' },
+  { value: '02', label: 'Fevereiro' },
+  { value: '03', label: 'Março' },
+  { value: '04', label: 'Abril' },
+  { value: '05', label: 'Maio' },
+  { value: '06', label: 'Junho' },
+  { value: '07', label: 'Julho' },
+  { value: '08', label: 'Agosto' },
+  { value: '09', label: 'Setembro' },
+  { value: '10', label: 'Outubro' },
+  { value: '11', label: 'Novembro' },
+  { value: '12', label: 'Dezembro' }
+];
+
+const currentYear = dayjs().year();
+const yearsList = Array.from({ length: 11 }, (_, i) => String(currentYear - 3 + i)); // de 3 anos atrás até 7 anos no futuro
+
 const ContractHistoryModal: React.FC<{
   client: ClientWithContract;
   onClose: () => void;
   onSave: () => void;
 }> = ({ client, onClose, onSave }) => {
+  const { agencyId } = useAuth();
   const [history, setHistory] = useState<{ date: string; value: number }[]>([]);
   const currentMonthStr = dayjs().format('MM');
   const currentYearStr = dayjs().format('YYYY');
@@ -173,24 +192,6 @@ const ContractHistoryModal: React.FC<{
       setHistory([]);
     }
   }, [client]);
-
-  const monthsList = [
-    { value: '01', label: 'Janeiro' },
-    { value: '02', label: 'Fevereiro' },
-    { value: '03', label: 'Março' },
-    { value: '04', label: 'Abril' },
-    { value: '05', label: 'Maio' },
-    { value: '06', label: 'Junho' },
-    { value: '07', label: 'Julho' },
-    { value: '08', label: 'Agosto' },
-    { value: '09', label: 'Setembro' },
-    { value: '10', label: 'Outubro' },
-    { value: '11', label: 'Novembro' },
-    { value: '12', label: 'Dezembro' }
-  ];
-
-  const currentYear = dayjs().year();
-  const yearsList = Array.from({ length: 11 }, (_, i) => String(currentYear - 3 + i)); // de 3 anos atrás até 7 anos no futuro
 
   const handleAdd = () => {
     if (!selectedMonth || !selectedYear || !newValue) return;
@@ -231,15 +232,20 @@ const ContractHistoryModal: React.FC<{
         value_history: history
       };
 
-      const { error: clientError } = await supabase
+      const { data: clientUpdateData, error: clientError } = await supabase
         .from('clients')
         .update({
           base_value: latestValue,
           features_settings: updatedFeatures
         })
-        .eq('id', client.id);
+        .eq('id', client.id)
+        .eq('agency_id', agencyId)
+        .select();
 
       if (clientError) throw clientError;
+      if (!clientUpdateData || clientUpdateData.length === 0) {
+        throw new Error('A atualização do cliente falhou. Certifique-se de que você tem permissão de edição.');
+      }
 
       // 2. Tentar atualizar também em contract_forms (melhor esforço)
       if (client.contract?.id) {
@@ -249,13 +255,19 @@ const ContractHistoryModal: React.FC<{
           value_history: history
         };
 
-        await supabase
+        const { data: contractUpdateData, error: contractError } = await supabase
           .from('contract_forms')
           .update({
             form_data: updatedFormData,
             contract_value: latestValue
           })
-          .eq('id', client.contract.id);
+          .eq('id', client.contract.id)
+          .eq('agency_id', agencyId)
+          .select();
+          
+        if (contractError) {
+          console.warn('Erro ao atualizar contract_forms:', contractError);
+        }
       }
 
       onSave();
@@ -414,8 +426,17 @@ export const AgencyContractsTab: React.FC = () => {
   // Form states
   const [contractValue, setContractValue] = useState('');
   const [startDate, setStartDate] = useState('');
+  const [startDay, setStartDay] = useState(dayjs().format('DD'));
+  const [startMonth, setStartMonth] = useState(dayjs().format('MM'));
+  const [startYear, setStartYear] = useState(dayjs().format('YYYY'));
   const [file, setFile] = useState<File | null>(null);
   const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (startYear && startMonth && startDay) {
+      setStartDate(`${startYear}-${startMonth}-${startDay}`);
+    }
+  }, [startDay, startMonth, startYear]);
 
   useEffect(() => {
     fetchData();
@@ -1208,13 +1229,38 @@ export const AgencyContractsTab: React.FC = () => {
 
               <div>
                 <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Data de Início *</label>
-                <input 
-                  type="date" 
-                  required
-                  value={startDate}
-                  onChange={e => setStartDate(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-brand-dark focus:border-transparent outline-none"
-                />
+                <div className="grid grid-cols-3 gap-2">
+                  <select
+                    value={startDay}
+                    onChange={(e) => setStartDay(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-brand-dark focus:border-transparent outline-none text-xs font-semibold bg-white"
+                  >
+                    {Array.from({ length: 31 }, (_, i) => {
+                      const day = String(i + 1).padStart(2, '0');
+                      return <option key={day} value={day}>{day}</option>;
+                    })}
+                  </select>
+
+                  <select
+                    value={startMonth}
+                    onChange={(e) => setStartMonth(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-brand-dark focus:border-transparent outline-none text-xs font-semibold bg-white"
+                  >
+                    {monthsList.map(m => (
+                      <option key={m.value} value={m.value}>{m.label}</option>
+                    ))}
+                  </select>
+
+                  <select
+                    value={startYear}
+                    onChange={(e) => setStartYear(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-brand-dark focus:border-transparent outline-none text-xs font-semibold bg-white"
+                  >
+                    {yearsList.map(y => (
+                      <option key={y} value={y}>{y}</option>
+                    ))}
+                  </select>
+                </div>
               </div>
 
               <div className="flex gap-3 pt-4">

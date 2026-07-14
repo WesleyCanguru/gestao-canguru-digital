@@ -431,6 +431,8 @@ export interface AgencyLead {
   auto_advance_paused: boolean;
   kanban_position: number;
   loss_reason: string | null;
+  deal_value?: number | null;
+  stage_changed_at?: string;
   form_data: Record<string, any>;
   notes: string | null;
   created_at: string;

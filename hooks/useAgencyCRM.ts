@@ -30,10 +30,15 @@ export function useAgencyCRM() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [agencyId]);
 
   const fetchLeads = useCallback(async (crmId: string) => {
     if (!agencyId) return;
+    const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(crmId);
+    if (!crmId || !isUUID) {
+      console.warn('Skipping fetchLeads due to invalid/missing crmId:', crmId);
+      return [];
+    }
     setLoading(true);
     try {
       const { data, error } = await supabase
@@ -54,7 +59,7 @@ export function useAgencyCRM() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [agencyId]);
 
   const createCRM = async (data: Partial<AgencyCRM>) => {
     if (!agencyId) throw new Error('Agency ID not found');
@@ -251,7 +256,17 @@ export function useAgencyCRM() {
     for (const lead of leadsToAdvance) {
       const currentStageIndex = stages.findIndex(s => s.name === lead.stage);
       if (currentStageIndex !== -1 && currentStageIndex < stages.length - 1) {
-        const nextStage = stages[currentStageIndex + 1];
+        let nextStage = stages[currentStageIndex + 1];
+        
+        // CORRECTION: Mensagem Final stage (stage_1775861497416 or "Mensagem Final") must auto-advance to Perdido, skipping Proposta Enviada
+        const currentStage = stages[currentStageIndex];
+        if (currentStage.id === 'stage_1775861497416' || currentStage.name === 'Mensagem Final') {
+          const perdidoStage = stages.find(s => s.id === 'perdido' || s.name === 'Perdido');
+          if (perdidoStage) {
+            nextStage = perdidoStage;
+          }
+        }
+
         const nextStageAt = calculateNextStageAt(nextStage.auto_advance_days, crm.auto_advance_time);
         
         const updateData = {

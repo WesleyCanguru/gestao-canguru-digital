@@ -3,8 +3,14 @@ import { supabase } from '../lib/supabase';
 import { ClientLead, ClientLeadConfig } from '../types';
 import dayjs from 'dayjs';
 
+const isUUID = (val: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val);
+
 export function useLeadTracker() {
   const fetchConfig = async (clientId: string): Promise<ClientLeadConfig | null> => {
+    if (!clientId || !isUUID(clientId)) {
+      console.warn('Skipping fetchConfig due to invalid/missing clientId:', clientId);
+      return null;
+    }
     try {
       const { data, error } = await supabase
         .from('client_lead_configs')
@@ -21,6 +27,10 @@ export function useLeadTracker() {
   };
 
   const fetchLeads = async (clientId: string): Promise<ClientLead[]> => {
+    if (!clientId || !isUUID(clientId)) {
+      console.warn('Skipping fetchLeads due to invalid/missing clientId:', clientId);
+      return [];
+    }
     try {
       const { data, error } = await supabase
         .from('client_leads')
@@ -135,6 +145,9 @@ export function useLeadTracker() {
   };
 
   const upsertConfig = async (clientId: string, config: Partial<ClientLeadConfig>) => {
+    if (!clientId || !isUUID(clientId)) {
+      throw new Error('Invalid client ID format');
+    }
     try {
       const { data, error } = await supabase
         .from('client_lead_configs')
