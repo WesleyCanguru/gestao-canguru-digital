@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Save, Trash2, Clock, Pause, Play } from 'lucide-react';
+import { X, Save, Trash2, Clock, Pause, Play, Edit } from 'lucide-react';
 import { AgencyCRM, AgencyLead } from '../../types';
 import { useAgencyCRM } from '../../hooks/useAgencyCRM';
 import { ConfirmModal } from '../ConfirmModal';
@@ -20,6 +20,7 @@ export const CRMLeadModal: React.FC<CRMLeadModalProps> = ({ crm, lead, isOpen, o
   const [stage, setStage] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
 
   useEffect(() => {
     if (lead) {
@@ -38,11 +39,13 @@ export const CRMLeadModal: React.FC<CRMLeadModalProps> = ({ crm, lead, isOpen, o
       });
       setNotes(lead.notes || '');
       setStage(lead.stage);
+      setIsEditing(false);
     } else {
       setName('');
       setFormData({});
       setNotes('');
       setStage(crm.kanban_stages[0]?.name || '');
+      setIsEditing(true);
     }
   }, [lead, crm]);
 
@@ -97,6 +100,34 @@ export const CRMLeadModal: React.FC<CRMLeadModalProps> = ({ crm, lead, isOpen, o
     }
   };
 
+  const handleCancel = () => {
+    if (lead) {
+      if (isEditing) {
+        // Revert to original values and exit edit mode
+        setName(lead.name);
+        
+        const isPredefined = ["Não respondeu", "Achou caro", "Não era o momento", "Escolheu concorrente"].includes(lead.loss_reason || '');
+        const temp_loss_reason = lead.loss_reason 
+          ? (isPredefined ? lead.loss_reason : 'Outro')
+          : '';
+        const temp_custom_loss_reason = lead.loss_reason && !isPredefined ? lead.loss_reason : '';
+
+        setFormData({
+          ...(lead.form_data || {}),
+          temp_loss_reason,
+          temp_custom_loss_reason
+        });
+        setNotes(lead.notes || '');
+        setStage(lead.stage);
+        setIsEditing(false);
+      } else {
+        onClose();
+      }
+    } else {
+      onClose();
+    }
+  };
+
   const handleDelete = async () => {
     if (!lead) return;
 
@@ -128,7 +159,7 @@ export const CRMLeadModal: React.FC<CRMLeadModalProps> = ({ crm, lead, isOpen, o
         {/* Header */}
         <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
           <h2 className="text-xl font-bold text-gray-900">
-            {lead ? 'Detalhes do Lead' : 'Novo Lead'}
+            {lead ? (isEditing ? 'Editar Lead' : 'Detalhes do Lead') : 'Novo Lead'}
           </h2>
           <button onClick={onClose} className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition-colors">
             <X className="w-5 h-5" />
@@ -145,7 +176,8 @@ export const CRMLeadModal: React.FC<CRMLeadModalProps> = ({ crm, lead, isOpen, o
                 type="text"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-dark/20 focus:border-brand-dark transition-all"
+                disabled={!isEditing}
+                className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-dark/20 focus:border-brand-dark transition-all disabled:opacity-100 disabled:bg-gray-50/30 disabled:text-gray-600 disabled:border-gray-100/80 disabled:cursor-default"
                 placeholder="Ex: João Silva"
               />
             </div>
@@ -156,7 +188,8 @@ export const CRMLeadModal: React.FC<CRMLeadModalProps> = ({ crm, lead, isOpen, o
                 <select
                   value={stage}
                   onChange={(e) => setStage(e.target.value)}
-                  className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-dark/20 focus:border-brand-dark transition-all"
+                  disabled={!isEditing}
+                  className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-dark/20 focus:border-brand-dark transition-all disabled:opacity-100 disabled:bg-gray-50/30 disabled:text-gray-600 disabled:border-gray-100/80 disabled:cursor-default"
                 >
                   {crm.kanban_stages.map(s => (
                     <option key={s.id} value={s.name}>{s.name}</option>
@@ -182,7 +215,8 @@ export const CRMLeadModal: React.FC<CRMLeadModalProps> = ({ crm, lead, isOpen, o
                   type="number"
                   value={formData.deal_value || ''}
                   onChange={(e) => setFormData({ ...formData, deal_value: parseFloat(e.target.value) || null })}
-                  className="w-full px-4 py-2 bg-white border border-purple-200 rounded-xl text-gray-900 focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all"
+                  disabled={!isEditing}
+                  className="w-full px-4 py-2 bg-white border border-purple-200 rounded-xl text-gray-900 focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all disabled:opacity-100 disabled:bg-purple-50/30 disabled:text-purple-900/80 disabled:border-purple-100/80 disabled:cursor-default"
                   placeholder="Ex: 1500"
                 />
               </div>
@@ -200,7 +234,8 @@ export const CRMLeadModal: React.FC<CRMLeadModalProps> = ({ crm, lead, isOpen, o
                         value={option}
                         checked={formData.temp_loss_reason === option}
                         onChange={(e) => setFormData({ ...formData, temp_loss_reason: e.target.value })}
-                        className="w-4 h-4 text-red-600 focus:ring-red-500 border-gray-300"
+                        disabled={!isEditing}
+                        className="w-4 h-4 text-red-600 focus:ring-red-500 border-gray-300 disabled:opacity-70 disabled:cursor-default"
                       />
                       <span className="text-sm font-medium text-gray-700">{option}</span>
                     </label>
@@ -213,7 +248,8 @@ export const CRMLeadModal: React.FC<CRMLeadModalProps> = ({ crm, lead, isOpen, o
                     value={formData.temp_custom_loss_reason || ''}
                     onChange={(e) => setFormData({ ...formData, temp_custom_loss_reason: e.target.value })}
                     placeholder="Especifique o motivo..."
-                    className="w-full bg-white border border-red-200 rounded-xl p-2.5 text-sm font-medium focus:ring-2 focus:ring-red-500/20 outline-none mt-2"
+                    disabled={!isEditing}
+                    className="w-full bg-white border border-red-200 rounded-xl p-2.5 text-sm font-medium focus:ring-2 focus:ring-red-500/20 outline-none mt-2 disabled:opacity-100 disabled:bg-red-50/30 disabled:text-red-900/80 disabled:border-red-100/80 disabled:cursor-default"
                   />
                 )}
               </div>
@@ -235,11 +271,12 @@ export const CRMLeadModal: React.FC<CRMLeadModalProps> = ({ crm, lead, isOpen, o
                 </div>
                 <button
                   onClick={toggleAutoAdvance}
+                  disabled={!isEditing}
                   className={`px-3 py-1.5 rounded-lg text-sm font-medium flex items-center gap-2 transition-colors ${
                     lead.auto_advance_paused 
-                      ? 'bg-brand-dark text-white hover:bg-brand-dark/90' 
-                      : 'bg-white text-gray-700 border border-gray-200 hover:bg-gray-50'
-                  }`}
+                      ? 'bg-brand-dark text-white hover:bg-brand-dark/90 disabled:bg-gray-300 disabled:text-gray-500' 
+                      : 'bg-white text-gray-700 border border-gray-200 hover:bg-gray-50 disabled:border-gray-100 disabled:text-gray-400'
+                  } disabled:cursor-default`}
                 >
                   {lead.auto_advance_paused ? (
                     <><Play className="w-4 h-4" /> Retomar</>
@@ -268,7 +305,8 @@ export const CRMLeadModal: React.FC<CRMLeadModalProps> = ({ crm, lead, isOpen, o
                         value={formData[field.key] || ''}
                         onChange={(e) => setFormData({ ...formData, [field.key]: e.target.value })}
                         required={field.required}
-                        className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-dark/20 focus:border-brand-dark transition-all"
+                        disabled={!isEditing}
+                        className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-dark/20 focus:border-brand-dark transition-all disabled:opacity-100 disabled:bg-gray-50/30 disabled:text-gray-600 disabled:border-gray-100/80 disabled:cursor-default"
                       >
                         <option value="">Selecione...</option>
                         {field.options?.map(opt => (
@@ -281,8 +319,9 @@ export const CRMLeadModal: React.FC<CRMLeadModalProps> = ({ crm, lead, isOpen, o
                         onChange={(e) => setFormData({ ...formData, [field.key]: e.target.value })}
                         required={field.required}
                         placeholder={field.placeholder}
+                        disabled={!isEditing}
                         rows={3}
-                        className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-dark/20 focus:border-brand-dark transition-all resize-none"
+                        className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-dark/20 focus:border-brand-dark transition-all resize-none disabled:opacity-100 disabled:bg-gray-50/30 disabled:text-gray-600 disabled:border-gray-100/80 disabled:cursor-default"
                       />
                     ) : (
                       <input
@@ -291,7 +330,8 @@ export const CRMLeadModal: React.FC<CRMLeadModalProps> = ({ crm, lead, isOpen, o
                         onChange={(e) => setFormData({ ...formData, [field.key]: e.target.value })}
                         required={field.required}
                         placeholder={field.placeholder}
-                        className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-dark/20 focus:border-brand-dark transition-all"
+                        disabled={!isEditing}
+                        className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-dark/20 focus:border-brand-dark transition-all disabled:opacity-100 disabled:bg-gray-50/30 disabled:text-gray-600 disabled:border-gray-100/80 disabled:cursor-default"
                       />
                     )}
                   </div>
@@ -309,7 +349,8 @@ export const CRMLeadModal: React.FC<CRMLeadModalProps> = ({ crm, lead, isOpen, o
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               rows={4}
-              className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-dark/20 focus:border-brand-dark transition-all resize-none"
+              disabled={!isEditing}
+              className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-dark/20 focus:border-brand-dark transition-all resize-none disabled:opacity-100 disabled:bg-gray-50/30 disabled:text-gray-600 disabled:border-gray-100/80 disabled:cursor-default"
               placeholder="Adicione observações, histórico de conversas, etc..."
             />
           </div>
@@ -317,7 +358,7 @@ export const CRMLeadModal: React.FC<CRMLeadModalProps> = ({ crm, lead, isOpen, o
 
         {/* Footer */}
         <div className="px-6 py-4 border-t border-gray-100 bg-gray-50/50 flex items-center justify-between shrink-0">
-          {lead ? (
+          {lead && isEditing ? (
             <button
               onClick={() => setIsConfirmingDelete(true)}
               className="flex items-center gap-2 px-4 py-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors font-medium text-sm"
@@ -330,19 +371,29 @@ export const CRMLeadModal: React.FC<CRMLeadModalProps> = ({ crm, lead, isOpen, o
           )}
           <div className="flex items-center gap-3">
             <button
-              onClick={onClose}
+              onClick={handleCancel}
               className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors font-medium text-sm"
             >
-              Cancelar
+              {isEditing ? 'Cancelar' : 'Fechar'}
             </button>
-            <button
-              onClick={handleSave}
-              disabled={isSaving}
-              className="flex items-center gap-2 bg-brand-dark text-white px-6 py-2 rounded-lg hover:bg-brand-dark/90 transition-colors font-medium text-sm shadow-sm disabled:opacity-50"
-            >
-              <Save className="w-4 h-4" />
-              {isSaving ? 'Salvando...' : 'Salvar'}
-            </button>
+            {isEditing ? (
+              <button
+                onClick={handleSave}
+                disabled={isSaving}
+                className="flex items-center gap-2 bg-brand-dark text-white px-6 py-2 rounded-lg hover:bg-brand-dark/90 transition-colors font-medium text-sm shadow-sm disabled:opacity-50"
+              >
+                <Save className="w-4 h-4" />
+                {isSaving ? 'Salvando...' : 'Salvar'}
+              </button>
+            ) : (
+              <button
+                onClick={() => setIsEditing(true)}
+                className="flex items-center gap-2 bg-brand-dark text-white px-6 py-2 rounded-lg hover:bg-brand-dark/90 transition-colors font-medium text-sm shadow-sm"
+              >
+                <Edit className="w-4 h-4" />
+                Editar
+              </button>
+            )}
           </div>
         </div>
       </div>
