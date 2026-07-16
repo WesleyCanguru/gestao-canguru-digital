@@ -126,16 +126,19 @@ export function useAgencyCRM() {
     }
   };
 
-  const addLead = async (crmId: string, name: string, formData: Record<string, any>) => {
+  const addLead = async (crmId: string, name: string, formData: Record<string, any>, initialStage?: string) => {
     if (!agencyId) throw new Error('Agency ID not found');
     try {
+      const targetCRM = crms.find(c => c.id === crmId);
+      const defaultStage = initialStage || targetCRM?.kanban_stages[0]?.name || 'Novos Leads';
+
       const { data: newLead, error } = await supabase
         .from('agency_leads')
         .insert({
           crm_id: crmId,
           agency_id: agencyId,
           name,
-          stage: 'Novos Leads', // Default stage, might need to be dynamic based on CRM stages
+          stage: defaultStage,
           stage_entered_at: new Date().toISOString(),
           next_stage_at: null,
           auto_advance_paused: false,

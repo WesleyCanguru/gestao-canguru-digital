@@ -82,7 +82,7 @@ export const CRMLeadModal: React.FC<CRMLeadModalProps> = ({ crm, lead, isOpen, o
           await moveLeadToStage(lead, stage, crm.kanban_stages, crm.auto_advance_time);
         }
       } else {
-        const newLead = await addLead(crm.id, name, cleanFormData);
+        const newLead = await addLead(crm.id, name, cleanFormData, stage);
         await updateLead(newLead.id, { loss_reason: resolvedLossReason });
         if (stage !== crm.kanban_stages[0]?.name) {
           await moveLeadToStage(newLead, stage, crm.kanban_stages, crm.auto_advance_time);

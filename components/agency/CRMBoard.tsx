@@ -240,12 +240,22 @@ export const CRMBoard: React.FC<CRMBoardProps> = ({ crm }) => {
   };
 
   const getLeadsByStage = (stageName: string) => {
-    return filteredLeads.filter(l => l.stage === stageName).sort((a, b) => a.kanban_position - b.kanban_position);
+    const firstStageName = crm.kanban_stages[0]?.name;
+    return filteredLeads.filter(l => {
+      if (l.stage === stageName) return true;
+      if (l.stage === 'Novos Leads' && stageName === firstStageName) return true;
+      return false;
+    }).sort((a, b) => a.kanban_position - b.kanban_position);
   };
 
   const dashboardStats = React.useMemo(() => {
     const counts = crm.kanban_stages.reduce((acc, stage) => {
-      acc[stage.name] = filteredLeads.filter(l => l.stage === stage.name).length;
+      const isFirst = stage.name === crm.kanban_stages[0]?.name;
+      acc[stage.name] = filteredLeads.filter(l => {
+        if (l.stage === stage.name) return true;
+        if (l.stage === 'Novos Leads' && isFirst) return true;
+        return false;
+      }).length;
       return acc;
     }, {} as Record<string, number>);
 
