@@ -53,7 +53,7 @@ export function useAgencyCRM() {
       setLeads(data || []);
       return data;
     } catch (err: any) {
-      console.error('Error fetching leads:', err);
+      console.warn('Error fetching leads:', err);
       setError(err.message);
       return [];
     } finally {

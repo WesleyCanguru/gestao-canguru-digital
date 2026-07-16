@@ -136,8 +136,16 @@ function isTaskPendingInCurrentCycle(task: AgencyTask): boolean {
 
   if (task.recurrence_type === 'weekly') {
     const days = (task.recurrence_days || []).map((d: any) => parseInt(d, 10)).filter((d: any) => !isNaN(d));
-    const cycleStart = getLastWeeklyOccurrence(days, now);
-    return cycleStart ? lastDone < cycleStart : true;
+    let cycleStart = getLastWeeklyOccurrence(days, now);
+    if (!cycleStart) {
+      // Fallback: início da semana atual (segunda-feira passada)
+      const d = new Date(now);
+      d.setHours(0, 0, 0, 0);
+      const day = d.getDay();
+      const diff = d.getDate() - day + (day === 0 ? -6 : 1); // ajusta para segunda-feira
+      cycleStart = new Date(d.setDate(diff));
+    }
+    return lastDone < cycleStart;
   }
 
   if (task.recurrence_type === 'monthly') {
@@ -441,13 +449,7 @@ const HojeTasks: React.FC<{ clients: any[], onEditTask: (t: AgencyTask) => void,
           }
 
           if (task.recurrence_type === 'weekly') {
-            const now = new Date();
-            const currentDayOfWeek = now.getDay(); // 0-6
-            const days = (task.recurrence_days || []).map((d: any) => parseInt(d, 10)).filter((d: any) => !isNaN(d));
-            const isDueToday = days.includes(currentDayOfWeek);
-            const isOverdue = isWeeklyTaskOverdue(task);
-            
-            return isDueToday || isOverdue;
+            return true;
           }
 
           if (task.recurrence_type === 'monthly') {

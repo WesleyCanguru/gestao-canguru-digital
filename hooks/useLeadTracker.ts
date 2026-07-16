@@ -42,7 +42,7 @@ export function useLeadTracker() {
       if (error) throw error;
       return data || [];
     } catch (error) {
-      console.error('Error fetching leads:', error);
+      console.warn('Error fetching leads:', error);
       return [];
     }
   };
