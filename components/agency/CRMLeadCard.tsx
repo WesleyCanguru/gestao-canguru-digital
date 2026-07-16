@@ -119,6 +119,38 @@ export const CRMLeadCard: React.FC<CRMLeadCardProps> = ({ lead, crm, onClick, on
           </div>
         )}
 
+        {/* Badges para CRM Conhecidos */}
+        {lead.form_data && (lead.form_data.tipo_contato || lead.form_data.nivel_relacionamento) && (
+          <div className="flex flex-wrap gap-1 mb-3">
+            {lead.form_data.tipo_contato && (() => {
+              const val = lead.form_data.tipo_contato;
+              let colorClass = 'bg-gray-50 text-gray-700 border-gray-100';
+              if (val === 'Amigo Próximo') colorClass = 'bg-blue-50 text-blue-700 border-blue-100';
+              else if (val === 'Familiar') colorClass = 'bg-green-50 text-green-700 border-green-100';
+              else if (val === 'Conhecido') colorClass = 'bg-gray-50 text-gray-700 border-gray-100';
+              else if (val === 'Indicação') colorClass = 'bg-amber-50 text-amber-700 border-amber-100';
+              else if (val === 'Parceiro Estratégico') colorClass = 'bg-purple-50 text-purple-700 border-purple-100';
+              return (
+                <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${colorClass}`}>
+                  {val}
+                </span>
+              );
+            })()}
+            {lead.form_data.nivel_relacionamento && (() => {
+              const val = lead.form_data.nivel_relacionamento;
+              let colorClass = 'bg-slate-50 text-slate-700 border-slate-100';
+              if (val === 'Alto') colorClass = 'bg-emerald-50 text-emerald-700 border-emerald-100';
+              else if (val === 'Médio') colorClass = 'bg-amber-50 text-amber-700 border-amber-100';
+              else if (val === 'Baixo') colorClass = 'bg-slate-50 text-slate-700 border-slate-100';
+              return (
+                <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${colorClass}`} title="Nível de Relacionamento">
+                  🤝 {val}
+                </span>
+              );
+            })()}
+          </div>
+        )}
+
         {isPropostaEnviadaStage && (
           <div className="text-[10px] text-amber-600 bg-amber-50 border border-amber-100 px-2 py-1 rounded-md inline-block mt-1 font-semibold">
             Proposta {getRelativeTimeString(stageEnteredDate)}

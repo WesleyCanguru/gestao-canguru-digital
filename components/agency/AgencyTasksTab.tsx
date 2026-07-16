@@ -1455,7 +1455,7 @@ const TaskListItem: React.FC<{ task: AgencyTask, onToggle: () => void, onEdit: (
       )}
 
       <button 
-        disabled={isDone || isMonthlyNotStarted}
+        disabled={isMonthlyNotStarted}
         onClick={onToggle} 
         className={`flex-shrink-0 text-gray-300 hover:text-brand-dark transition-colors ${isDone ? 'text-green-500 hover:text-green-600' : ''} ${isMonthlyNotStarted ? 'text-gray-200 cursor-not-allowed' : ''}`}
       >
