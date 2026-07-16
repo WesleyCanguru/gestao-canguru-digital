@@ -3,6 +3,19 @@ import { Clock, AlertCircle, ArrowRight } from 'lucide-react';
 import { AgencyCRM, AgencyLead } from '../../types';
 import { useAgencyCRM } from '../../hooks/useAgencyCRM';
 
+const formatInstagramUrl = (handle: string) => {
+  const clean = handle.trim().replace(/^@/, '');
+  return `https://instagram.com/${clean}`;
+};
+
+const formatWhatsAppUrl = (phone: string) => {
+  const digits = phone.replace(/\D/g, '');
+  if (digits.length === 10 || digits.length === 11) {
+    return `https://wa.me/55${digits}`;
+  }
+  return `https://wa.me/${digits}`;
+};
+
 interface CRMLeadCardProps {
   lead: AgencyLead;
   crm: AgencyCRM;
@@ -148,6 +161,38 @@ export const CRMLeadCard: React.FC<CRMLeadCardProps> = ({ lead, crm, onClick, on
                 </span>
               );
             })()}
+          </div>
+        )}
+
+        {/* Links Rápidos (Instagram / WhatsApp) */}
+        {lead.form_data && (lead.form_data.instagram || lead.form_data.whatsapp) && (
+          <div className="flex flex-wrap items-center gap-2 mb-3">
+            {lead.form_data.instagram && (
+              <a
+                href={formatInstagramUrl(lead.form_data.instagram)}
+                target="_blank"
+                rel="noreferrer"
+                onClick={(e) => e.stopPropagation()}
+                className="inline-flex items-center gap-1 text-[11px] font-medium text-pink-600 bg-pink-50 hover:bg-pink-100 border border-pink-200/50 px-2.5 py-1 rounded-lg transition-all"
+                title={`Ir para o Instagram de ${lead.name}`}
+              >
+                <span className="text-xs">📸</span>
+                <span>@{lead.form_data.instagram.trim().replace(/^@/, '')}</span>
+              </a>
+            )}
+            {lead.form_data.whatsapp && (
+              <a
+                href={formatWhatsAppUrl(lead.form_data.whatsapp)}
+                target="_blank"
+                rel="noreferrer"
+                onClick={(e) => e.stopPropagation()}
+                className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-600 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200/50 px-2.5 py-1 rounded-lg transition-all"
+                title={`Conversar no WhatsApp de ${lead.name}`}
+              >
+                <span className="text-xs">💬</span>
+                <span>WhatsApp</span>
+              </a>
+            )}
           </div>
         )}
 

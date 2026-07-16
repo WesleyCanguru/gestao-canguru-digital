@@ -23,6 +23,19 @@ const getLeadOrigin = (lead: AgencyLead) => {
   );
   return originKey ? String(lead.form_data[originKey]) : 'Inbound/Indireto';
 };
+
+const formatInstagramUrl = (handle: string) => {
+  const clean = handle.trim().replace(/^@/, '');
+  return `https://instagram.com/${clean}`;
+};
+
+const formatWhatsAppUrl = (phone: string) => {
+  const digits = phone.replace(/\D/g, '');
+  if (digits.length === 10 || digits.length === 11) {
+    return `https://wa.me/55${digits}`;
+  }
+  return `https://wa.me/${digits}`;
+};
 import { DndContext, DragOverlay, closestCorners, KeyboardSensor, PointerSensor, useSensor, useSensors, DragStartEvent, DragEndEvent } from '@dnd-kit/core';
 import { SortableContext, arrayMove, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { AgencyCRM, AgencyLead } from '../../types';
@@ -721,6 +734,37 @@ export const CRMBoard: React.FC<CRMBoardProps> = ({ crm }) => {
                         {primaryValue && (
                           <div className="text-sm text-gray-500 line-clamp-1">
                             <span className="font-medium text-gray-600">{primaryField?.label}:</span> {String(primaryValue)}
+                          </div>
+                        )}
+                        {/* Links Rápidos (Instagram / WhatsApp) */}
+                        {lead.form_data && (lead.form_data.instagram || lead.form_data.whatsapp) && (
+                          <div className="flex flex-wrap items-center gap-2 mt-2">
+                            {lead.form_data.instagram && (
+                              <a
+                                href={formatInstagramUrl(lead.form_data.instagram)}
+                                target="_blank"
+                                rel="noreferrer"
+                                onClick={(e) => e.stopPropagation()}
+                                className="inline-flex items-center gap-1 text-[10px] font-semibold text-pink-600 bg-pink-50 hover:bg-pink-100 border border-pink-200/50 px-2 py-0.5 rounded-md transition-all"
+                                title={`Ir para o Instagram de ${lead.name}`}
+                              >
+                                <span>📸</span>
+                                <span>@{lead.form_data.instagram.trim().replace(/^@/, '')}</span>
+                              </a>
+                            )}
+                            {lead.form_data.whatsapp && (
+                              <a
+                                href={formatWhatsAppUrl(lead.form_data.whatsapp)}
+                                target="_blank"
+                                rel="noreferrer"
+                                onClick={(e) => e.stopPropagation()}
+                                className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-600 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200/50 px-2 py-0.5 rounded-md transition-all"
+                                title={`Conversar no WhatsApp de ${lead.name}`}
+                              >
+                                <span>💬</span>
+                                <span>WhatsApp</span>
+                              </a>
+                            )}
                           </div>
                         )}
                       </div>
