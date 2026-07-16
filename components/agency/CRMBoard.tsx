@@ -245,7 +245,12 @@ export const CRMBoard: React.FC<CRMBoardProps> = ({ crm }) => {
       if (l.stage === stageName) return true;
       if (l.stage === 'Novos Leads' && stageName === firstStageName) return true;
       return false;
-    }).sort((a, b) => a.kanban_position - b.kanban_position);
+    }).sort((a, b) => {
+      if (a.kanban_position !== b.kanban_position) {
+        return a.kanban_position - b.kanban_position;
+      }
+      return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+    });
   };
 
   const dashboardStats = React.useMemo(() => {
@@ -694,7 +699,7 @@ export const CRMBoard: React.FC<CRMBoardProps> = ({ crm }) => {
                       <p className="text-gray-500 font-medium">Nenhum lead encontrado.</p>
                    </div>
                 ) : null}
-                {filteredLeads.map(lead => {
+                {[...filteredLeads].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()).map(lead => {
                   const primaryField = crm.form_fields.find(f => lead.form_data[f.key]);
                   const primaryValue = primaryField ? lead.form_data[primaryField.key] : null;
                   

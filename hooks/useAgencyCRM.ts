@@ -47,7 +47,7 @@ export function useAgencyCRM() {
         .eq('agency_id', agencyId)
         .eq('crm_id', crmId)
         .order('kanban_position', { ascending: true })
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: true });
 
       if (error) throw error;
       setLeads(data || []);
