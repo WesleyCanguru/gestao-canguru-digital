@@ -36,7 +36,7 @@ const formatWhatsAppUrl = (phone: string) => {
   }
   return `https://wa.me/${digits}`;
 };
-import { DndContext, DragOverlay, closestCorners, KeyboardSensor, PointerSensor, useSensor, useSensors, DragStartEvent, DragEndEvent, useDroppable } from '@dnd-kit/core';
+import { DndContext, DragOverlay, closestCorners, KeyboardSensor, MouseSensor, TouchSensor, useSensor, useSensors, DragStartEvent, DragEndEvent, useDroppable } from '@dnd-kit/core';
 import { SortableContext, arrayMove, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { AgencyCRM, AgencyLead } from '../../types';
 import { useAgencyCRM } from '../../hooks/useAgencyCRM';
@@ -44,11 +44,33 @@ import { CRMLeadCard } from './CRMLeadCard';
 import { CRMLeadModal } from './CRMLeadModal';
 import { SortableLeadCard } from './SortableLeadCard';
 
-class SmartPointerSensor extends PointerSensor {
+class SmartMouseSensor extends MouseSensor {
   static activators = [
     {
-      eventName: 'onPointerDown' as const,
-      handler: ({ nativeEvent }: { nativeEvent: PointerEvent }) => {
+      eventName: 'onMouseDown' as const,
+      handler: ({ nativeEvent }: { nativeEvent: MouseEvent }) => {
+        const target = nativeEvent.target as HTMLElement;
+        if (
+          target.closest('button') ||
+          target.closest('a') ||
+          target.closest('select') ||
+          target.closest('input') ||
+          target.closest('textarea') ||
+          target.closest('[role="button"]')
+        ) {
+          return false;
+        }
+        return true;
+      },
+    },
+  ];
+}
+
+class SmartTouchSensor extends TouchSensor {
+  static activators = [
+    {
+      eventName: 'onTouchStart' as const,
+      handler: ({ nativeEvent }: { nativeEvent: TouchEvent }) => {
         const target = nativeEvent.target as HTMLElement;
         if (
           target.closest('button') ||
@@ -112,9 +134,15 @@ export const CRMBoard: React.FC<CRMBoardProps> = ({ crm }) => {
   }, [viewMode]);
 
   const sensors = useSensors(
-    useSensor(SmartPointerSensor, {
+    useSensor(SmartMouseSensor, {
       activationConstraint: {
         distance: 5,
+      },
+    }),
+    useSensor(SmartTouchSensor, {
+      activationConstraint: {
+        delay: 200,
+        tolerance: 6,
       },
     }),
     useSensor(KeyboardSensor, {
