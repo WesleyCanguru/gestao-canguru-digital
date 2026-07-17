@@ -36,13 +36,49 @@ const formatWhatsAppUrl = (phone: string) => {
   }
   return `https://wa.me/${digits}`;
 };
-import { DndContext, DragOverlay, closestCorners, KeyboardSensor, PointerSensor, useSensor, useSensors, DragStartEvent, DragEndEvent } from '@dnd-kit/core';
+import { DndContext, DragOverlay, closestCorners, KeyboardSensor, PointerSensor, useSensor, useSensors, DragStartEvent, DragEndEvent, useDroppable } from '@dnd-kit/core';
 import { SortableContext, arrayMove, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { AgencyCRM, AgencyLead } from '../../types';
 import { useAgencyCRM } from '../../hooks/useAgencyCRM';
 import { CRMLeadCard } from './CRMLeadCard';
 import { CRMLeadModal } from './CRMLeadModal';
 import { SortableLeadCard } from './SortableLeadCard';
+
+class SmartPointerSensor extends PointerSensor {
+  static activators = [
+    {
+      eventName: 'onPointerDown' as const,
+      handler: ({ nativeEvent }: { nativeEvent: PointerEvent }) => {
+        const target = nativeEvent.target as HTMLElement;
+        if (
+          target.closest('button') ||
+          target.closest('a') ||
+          target.closest('select') ||
+          target.closest('input') ||
+          target.closest('textarea') ||
+          target.closest('[role="button"]')
+        ) {
+          return false;
+        }
+        return true;
+      },
+    },
+  ];
+}
+
+interface DroppableColumnProps {
+  id: string;
+  children: React.ReactNode;
+}
+
+const DroppableColumn: React.FC<DroppableColumnProps> = ({ id, children }) => {
+  const { setNodeRef } = useDroppable({ id });
+  return (
+    <div ref={setNodeRef} className="flex-1 overflow-y-auto p-3 space-y-3 min-h-[150px]">
+      {children}
+    </div>
+  );
+};
 
 interface CRMBoardProps {
   crm: AgencyCRM;
@@ -76,7 +112,7 @@ export const CRMBoard: React.FC<CRMBoardProps> = ({ crm }) => {
   }, [viewMode]);
 
   const sensors = useSensors(
-    useSensor(PointerSensor, {
+    useSensor(SmartPointerSensor, {
       activationConstraint: {
         distance: 5,
       },
@@ -672,7 +708,7 @@ export const CRMBoard: React.FC<CRMBoardProps> = ({ crm }) => {
                         </div>
 
                         {/* Column Content */}
-                        <div className="flex-1 overflow-y-auto p-3 space-y-3 min-h-[150px]" id={stage.name}>
+                        <DroppableColumn id={stage.name}>
                           <SortableContext
                             id={stage.name}
                             items={stageLeads.map(l => l.id)}
@@ -691,7 +727,7 @@ export const CRMBoard: React.FC<CRMBoardProps> = ({ crm }) => {
                               />
                             ))}
                           </SortableContext>
-                        </div>
+                        </DroppableColumn>
                       </div>
                     );
                   })}
@@ -769,10 +805,19 @@ export const CRMBoard: React.FC<CRMBoardProps> = ({ crm }) => {
                         )}
                       </div>
                       
-                      <div className="flex flex-wrap items-center gap-3 sm:w-auto">
-                        <div className="text-xs font-bold px-2.5 py-1 bg-gray-100 text-gray-600 rounded-md">
-                          {lead.stage}
-                        </div>
+                      <div className="flex flex-wrap items-center gap-3 sm:w-auto" onClick={(e) => e.stopPropagation()}>
+                        <select
+                          value={lead.stage}
+                          onChange={(e) => {
+                            const targetStage = e.target.value;
+                            handleMoveStageRequest(lead, targetStage);
+                          }}
+                          className="text-xs font-semibold text-gray-600 bg-gray-100 hover:bg-gray-200 border border-gray-200 rounded-md px-2.5 py-1 outline-none transition-all cursor-pointer"
+                        >
+                          {crm.kanban_stages.map(s => (
+                            <option key={s.id} value={s.name}>{s.name}</option>
+                          ))}
+                        </select>
                         
                         {lead.next_stage_at && !lead.auto_advance_paused && (
                           <div className={`text-[10px] font-bold px-2.5 py-1 rounded-md border ${isOverdue ? 'text-red-700 bg-red-50 border-red-100' : 'text-blue-700 bg-blue-50 border-blue-100'}`}>

@@ -203,11 +203,36 @@ export const CRMLeadCard: React.FC<CRMLeadCardProps> = ({ lead, crm, onClick, on
         )}
       </div>
 
-      <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-50 shrink-0">
-        {renderCountdownBadge()}
-        <div className="text-[10px] text-gray-400 ml-auto font-medium">
-          {new Date(lead.created_at).toLocaleDateString()}
+      <div className="flex flex-col gap-2 mt-3 pt-3 border-t border-gray-100 shrink-0">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+            <span className="text-[10px] text-gray-400 font-medium">Etapa:</span>
+            <select
+              value={lead.stage}
+              onChange={(e) => {
+                const targetStage = e.target.value;
+                if (onMoveStage) {
+                  onMoveStage(lead, targetStage);
+                } else {
+                  moveLeadToStage(lead, targetStage, crm.kanban_stages, crm.auto_advance_time);
+                }
+              }}
+              className="text-[10px] font-semibold text-gray-600 bg-gray-50 hover:bg-gray-100 border border-gray-200 rounded-md px-1.5 py-0.5 outline-none max-w-[130px] transition-colors cursor-pointer"
+            >
+              {crm.kanban_stages.map(s => (
+                <option key={s.id} value={s.name}>{s.name}</option>
+              ))}
+            </select>
+          </div>
+          <div className="text-[10px] text-gray-400 font-medium">
+            {new Date(lead.created_at).toLocaleDateString('pt-BR')}
+          </div>
         </div>
+        {renderCountdownBadge() && (
+          <div className="flex justify-start">
+            {renderCountdownBadge()}
+          </div>
+        )}
       </div>
     </div>
   );
