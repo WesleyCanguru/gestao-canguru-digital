@@ -58,6 +58,7 @@ dayjs.extend(isTomorrow);
 dayjs.locale('pt-br');
 
 import { ProcessTemplatesModal } from './ProcessTemplatesModal';
+import { CustomDatePicker } from '../CustomPickers';
 
 const PROCESS_TYPES = [
   { id: 'carrossel', name: 'Publicação', icon: ImageIcon, color: 'text-purple-500 bg-purple-50 border-purple-100' },
@@ -1659,7 +1660,7 @@ const TaskFormDrawer: React.FC<{ clients: any[], task?: AgencyTask | null, onClo
               </div>
               <div className="space-y-2">
                 <label className="text-[10px] font-bold uppercase tracking-widest text-gray-500">Data Limite</label>
-                <input type="date" value={form.due_date} onChange={e => setForm({...form, due_date: e.target.value})} className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-brand-dark/20 outline-none" />
+                <CustomDatePicker value={form.due_date} onChange={date => setForm({...form, due_date: date})} />
               </div>
             </div>
 

@@ -73,16 +73,16 @@ export const CustomDatePicker: React.FC<CustomDatePickerProps> = ({ value, onCha
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
-        className="w-full flex items-center justify-between text-xs font-bold p-3 border border-black/[0.08] rounded-xl outline-none hover:border-brand-dark/30 focus:ring-2 focus:ring-brand-dark/10 focus:border-brand-dark transition-all bg-white text-gray-700"
+        className="w-full flex items-center justify-between text-sm font-medium px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl outline-none hover:border-brand-dark/30 focus:bg-white focus:ring-2 focus:ring-brand-dark/20 transition-all text-gray-800"
       >
         <span className="flex items-center gap-2">
-          <CalendarIcon size={14} className="text-gray-400" />
+          <CalendarIcon size={16} className="text-gray-400" />
           {value ? dayjs(value).format('DD/MM/YYYY') : 'Selecionar data'}
         </span>
       </button>
 
       {isOpen && (
-        <div className="absolute top-full left-0 mt-2 p-4 bg-white rounded-2xl shadow-[0_10px_40px_rgba(0,0,0,0.1)] border border-black/[0.05] z-50 w-[280px] animate-in fade-in slide-in-from-top-2 duration-200">
+        <div className="absolute top-full right-0 mt-2 p-4 bg-white rounded-2xl shadow-[0_10px_40px_rgba(0,0,0,0.15)] border border-gray-200/50 z-50 w-[280px] animate-in fade-in slide-in-from-top-2 duration-200">
           <div className="flex items-center justify-between mb-4">
             <button type="button" onClick={prevMonth} className="p-1.5 hover:bg-gray-100 rounded-lg text-gray-500 transition-colors">
               <ChevronLeft size={16} />
