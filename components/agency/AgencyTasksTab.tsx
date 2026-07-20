@@ -38,7 +38,8 @@ import {
   DndContext,
   closestCenter,
   KeyboardSensor,
-  PointerSensor,
+  MouseSensor,
+  TouchSensor,
   useSensor,
   useSensors,
   DragEndEvent
@@ -51,6 +52,52 @@ import {
   useSortable
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
+
+class SmartMouseSensor extends MouseSensor {
+  static activators = [
+    {
+      eventName: 'onMouseDown' as const,
+      handler: ({ nativeEvent }: { nativeEvent: MouseEvent }) => {
+        const target = nativeEvent.target as HTMLElement;
+        if (
+          target.closest('button') ||
+          target.closest('a') ||
+          target.closest('select') ||
+          target.closest('input') ||
+          target.closest('textarea') ||
+          target.closest('[role="button"]') ||
+          target.closest('.no-drag')
+        ) {
+          return false;
+        }
+        return true;
+      },
+    },
+  ];
+}
+
+class SmartTouchSensor extends TouchSensor {
+  static activators = [
+    {
+      eventName: 'onTouchStart' as const,
+      handler: ({ nativeEvent }: { nativeEvent: TouchEvent }) => {
+        const target = nativeEvent.target as HTMLElement;
+        if (
+          target.closest('button') ||
+          target.closest('a') ||
+          target.closest('select') ||
+          target.closest('input') ||
+          target.closest('textarea') ||
+          target.closest('[role="button"]') ||
+          target.closest('.no-drag')
+        ) {
+          return false;
+        }
+        return true;
+      },
+    },
+  ];
+}
 
 dayjs.extend(relativeTime);
 dayjs.extend(isToday);
@@ -357,9 +404,15 @@ const HojeTasks: React.FC<{ clients: any[], onEditTask: (t: AgencyTask) => void,
   const [loading, setLoading] = useState(true);
 
   const sensors = useSensors(
-    useSensor(PointerSensor, {
+    useSensor(SmartMouseSensor, {
       activationConstraint: {
-        distance: 8,
+        distance: 5,
+      },
+    }),
+    useSensor(SmartTouchSensor, {
+      activationConstraint: {
+        delay: 200,
+        tolerance: 6,
       },
     }),
     useSensor(KeyboardSensor, {
@@ -414,6 +467,45 @@ const HojeTasks: React.FC<{ clients: any[], onEditTask: (t: AgencyTask) => void,
         await Promise.all(updates);
       } catch (err) {
         console.error('Erro ao salvar reordenação no Supabase:', err);
+      }
+    }
+  };
+
+  const handleClientTasksDragEnd = async (event: DragEndEvent, taskList: AgencyTask[]) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+
+    const oldIndex = taskList.findIndex(t => t.id === active.id);
+    const newIndex = taskList.findIndex(t => t.id === over.id);
+
+    if (oldIndex !== -1 && newIndex !== -1) {
+      const reordered = arrayMove(taskList, oldIndex, newIndex);
+
+      // Atualiza localmente
+      const updatedTasks = tasks.map(task => {
+        const indexInReordered = reordered.findIndex(t => t.id === task.id);
+        if (indexInReordered !== -1) {
+          return { ...task, sort_order: indexInReordered + 1 };
+        }
+        return task;
+      });
+
+      setTasks(updatedTasks);
+
+      // Persiste no Supabase
+      const updates = reordered.map((task, index) => {
+        const newOrder = index + 1;
+        return supabase
+          .from('agency_tasks')
+          .update({ sort_order: newOrder })
+          .eq('agency_id', agencyId)
+          .eq('id', task.id);
+      });
+
+      try {
+        await Promise.all(updates);
+      } catch (err) {
+        console.error('Erro ao salvar reordenação de cliente no Supabase:', err);
       }
     }
   };
@@ -573,6 +665,7 @@ const HojeTasks: React.FC<{ clients: any[], onEditTask: (t: AgencyTask) => void,
 
     return sortedGroups.map(key => {
        const group = groups[key];
+       const sortedGroupTasks = sortTasksByOrder(group.tasks);
        return (
          <div key={key} className="mb-6 bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-sm">
             <div className="bg-gray-50/50 px-4 py-3 border-b border-gray-100 flex items-center gap-2">
@@ -583,11 +676,22 @@ const HojeTasks: React.FC<{ clients: any[], onEditTask: (t: AgencyTask) => void,
                )}
                <h4 className="font-bold text-gray-800 text-sm tracking-tight">{group.label}</h4>
             </div>
-            <div className="divide-y divide-gray-50">
-               {group.tasks.map(task => (
-                 <TaskListItem key={task.id} task={task} onToggle={() => toggleStatus(task)} onEdit={() => onEditTask(task)} isTodayView />
-               ))}
-            </div>
+            <DndContext
+              sensors={sensors}
+              collisionDetection={closestCenter}
+              onDragEnd={(event) => handleClientTasksDragEnd(event, sortedGroupTasks)}
+            >
+              <SortableContext
+                items={sortedGroupTasks.map(t => t.id)}
+                strategy={verticalListSortingStrategy}
+              >
+                <div className="divide-y divide-gray-50">
+                   {sortedGroupTasks.map(task => (
+                     <SortableTaskListItem key={task.id} task={task} onToggle={() => toggleStatus(task)} onEdit={() => onEditTask(task)} isTodayView />
+                   ))}
+                </div>
+              </SortableContext>
+            </DndContext>
          </div>
        );
     });
@@ -1224,6 +1328,23 @@ const TodasTasks: React.FC<{ clients: any[], onEditTask: (t: AgencyTask) => void
   const [filterClient, setFilterClient] = useState('all');
   const [isCompletedExpanded, setIsCompletedExpanded] = useState(false);
 
+  const sensors = useSensors(
+    useSensor(SmartMouseSensor, {
+      activationConstraint: {
+        distance: 5,
+      },
+    }),
+    useSensor(SmartTouchSensor, {
+      activationConstraint: {
+        delay: 200,
+        tolerance: 6,
+      },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
+
   useEffect(() => {
     fetchTasks();
   }, []);
@@ -1271,6 +1392,45 @@ const TodasTasks: React.FC<{ clients: any[], onEditTask: (t: AgencyTask) => void
     onRefresh();
   };
 
+  const handleClientTasksDragEnd = async (event: DragEndEvent, taskList: AgencyTask[]) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+
+    const oldIndex = taskList.findIndex(t => t.id === active.id);
+    const newIndex = taskList.findIndex(t => t.id === over.id);
+
+    if (oldIndex !== -1 && newIndex !== -1) {
+      const reordered = arrayMove(taskList, oldIndex, newIndex);
+
+      // Atualiza localmente o estado `tasks`
+      const updatedTasks = tasks.map(task => {
+        const indexInReordered = reordered.findIndex(t => t.id === task.id);
+        if (indexInReordered !== -1) {
+          return { ...task, sort_order: indexInReordered + 1 };
+        }
+        return task;
+      });
+
+      setTasks(updatedTasks);
+
+      // Persiste no Supabase
+      const updates = reordered.map((task, index) => {
+        const newOrder = index + 1;
+        return supabase
+          .from('agency_tasks')
+          .update({ sort_order: newOrder })
+          .eq('agency_id', agencyId)
+          .eq('id', task.id);
+      });
+
+      try {
+        await Promise.all(updates);
+      } catch (err) {
+        console.error('Erro ao salvar reordenação de cliente em Todas no Supabase:', err);
+      }
+    }
+  };
+
   const filtered = tasks.filter(t => {
     // Exclude daily, weekly and monthly recurring tasks (REQUISITO 2)
     const isRecurring = t.recurrence_type === 'daily' || t.recurrence_type === 'weekly' || t.recurrence_type === 'monthly';
@@ -1281,32 +1441,6 @@ const TodasTasks: React.FC<{ clients: any[], onEditTask: (t: AgencyTask) => void
     return true;
   });
 
-  const sortPendingTasks = (taskList: AgencyTask[]) => {
-    const priorityOrder = { urgente: 1, alta: 2, normal: 3, baixa: 4 };
-
-    return [...taskList].sort((a, b) => {
-      // 1. By due_date (earliest first, nulls last)
-      if (a.due_date && b.due_date) {
-        if (a.due_date !== b.due_date) {
-          return a.due_date.localeCompare(b.due_date);
-        }
-      } else if (a.due_date && !b.due_date) {
-        return -1;
-      } else if (!a.due_date && b.due_date) {
-        return 1;
-      }
-
-      // 2. Priority sort within same day
-      const p1 = priorityOrder[a.priority as keyof typeof priorityOrder] || 3;
-      const p2 = priorityOrder[b.priority as keyof typeof priorityOrder] || 3;
-      if (p1 !== p2) return p1 - p2;
-
-      // 3. Alphabetical fallback
-      return a.title.localeCompare(b.title);
-    });
-  };
-
-  const pendingTasks = sortPendingTasks(filtered.filter(t => t.status === 'pending'));
   const completedTasks = filtered.filter(t => t.status === 'completed');
 
   const sortedCompleted = [...completedTasks].sort((a,b) => {
@@ -1314,6 +1448,111 @@ const TodasTasks: React.FC<{ clients: any[], onEditTask: (t: AgencyTask) => void
     if (!b.completed_at) return -1;
     return new Date(b.completed_at).getTime() - new Date(a.completed_at).getTime();
   });
+
+  // Agrupar tarefas pendentes por dia
+  const groupTasksByDay = (taskList: AgencyTask[]) => {
+    const groups: Record<string, AgencyTask[]> = {};
+    
+    taskList.forEach(t => {
+      const key = t.due_date || 'sem_data';
+      if (!groups[key]) {
+        groups[key] = [];
+      }
+      groups[key].push(t);
+    });
+
+    const groupedList = Object.keys(groups).map(key => {
+      let label = '';
+      let isOverdue = false;
+      let dateValue = key === 'sem_data' ? '9999-12-31' : key;
+
+      if (key === 'sem_data') {
+        label = 'Sem Data Limite';
+      } else {
+        const d = dayjs(key);
+        const isTodayDate = d.isToday();
+        const isTomorrowDate = d.isTomorrow();
+        const isBeforeToday = d.isBefore(dayjs(), 'day');
+
+        if (isTodayDate) {
+          label = `Hoje — ${d.format('DD [de] MMMM')}`;
+        } else if (isTomorrowDate) {
+          label = `Amanhã — ${d.format('DD [de] MMMM')}`;
+        } else if (isBeforeToday) {
+          label = `Atrasada — ${d.format('DD [de] MMMM')}`;
+          isOverdue = true;
+        } else {
+          const weekday = d.format('dddd');
+          const capitalizedWeekday = weekday.charAt(0).toUpperCase() + weekday.slice(1);
+          label = `${capitalizedWeekday}, ${d.format('DD/MM')}`;
+        }
+      }
+
+      return {
+        dayId: key,
+        label,
+        isOverdue,
+        dateValue,
+        tasks: groups[key]
+      };
+    });
+
+    groupedList.sort((a, b) => a.dateValue.localeCompare(b.dateValue));
+    return groupedList;
+  };
+
+  const pendingGroupedByDay = groupTasksByDay(filtered.filter(t => t.status === 'pending'));
+
+  const renderClientGroupForDay = (taskList: AgencyTask[], dayId: string, sectionKey: string) => {
+    const groups: Record<string, { label: string, color?: string, tasks: AgencyTask[] }> = {};
+    taskList.forEach(t => {
+      const gId = t.client_id || 'interno';
+      if (!groups[gId]) {
+         groups[gId] = {
+           label: t.client?.name || 'Canguru Digital',
+           color: t.client?.color,
+           tasks: []
+         };
+      }
+      groups[gId].tasks.push(t);
+    });
+
+    const sortedGroups = Object.keys(groups).sort((a,b) => groups[a].label.localeCompare(groups[b].label));
+
+    return sortedGroups.map(key => {
+       const group = groups[key];
+       const sortedGroupTasks = sortTasksByOrder(group.tasks);
+       
+       return (
+         <div key={key} className="mb-4 bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-sm">
+            <div className="bg-gray-50/50 px-4 py-2 border-b border-gray-100 flex items-center gap-2">
+               {group.color ? (
+                  <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: group.color }}></span>
+               ) : (
+                  <Briefcase size={14} className="text-brand-dark" />
+               )}
+               <h4 className="font-bold text-gray-800 text-[11px] tracking-tight">{group.label}</h4>
+            </div>
+            <DndContext
+              sensors={sensors}
+              collisionDetection={closestCenter}
+              onDragEnd={(event) => handleClientTasksDragEnd(event, sortedGroupTasks)}
+            >
+              <SortableContext
+                items={sortedGroupTasks.map(t => t.id)}
+                strategy={verticalListSortingStrategy}
+              >
+                <div className="divide-y divide-gray-50">
+                   {sortedGroupTasks.map(task => (
+                     <SortableTaskListItem key={task.id} task={task} onToggle={() => toggleStatus(task)} onEdit={() => onEditTask(task)} isTodayView />
+                   ))}
+                </div>
+              </SortableContext>
+            </DndContext>
+         </div>
+       );
+    });
+  };
 
   return (
     <div className="space-y-6">
@@ -1343,11 +1582,51 @@ const TodasTasks: React.FC<{ clients: any[], onEditTask: (t: AgencyTask) => void
         </div>
       ) : (
         <div className="bg-white rounded-[2rem] border border-gray-100 shadow-sm shadow-black/[0.01] overflow-hidden p-6 sm:p-8 space-y-6">
-          {pendingTasks.length > 0 ? (
-            <div className="space-y-2">
-              {pendingTasks.map(task => (
-                <TaskListItem key={task.id} task={task} onToggle={() => toggleStatus(task)} onEdit={() => onEditTask(task)} />
-              ))}
+          {pendingGroupedByDay.length > 0 ? (
+            <div className="space-y-10">
+              {pendingGroupedByDay.map(group => {
+                const dayAltasUrgentes = group.tasks.filter(t => ['urgente', 'alta'].includes(t.priority));
+                const dayNormaisBaixas = group.tasks.filter(t => ['normal', 'baixa'].includes(t.priority));
+
+                return (
+                  <div key={group.dayId} className="border-b border-gray-50 pb-8 last:border-0 last:pb-0">
+                    {/* Título do Dia */}
+                    <div className="flex items-center gap-2.5 mb-6">
+                      <Calendar size={18} className={group.isOverdue ? "text-red-500" : "text-brand-dark"} />
+                      <h3 className={`text-base font-black tracking-tight ${group.isOverdue ? "text-red-600 font-extrabold" : "text-brand-dark"}`}>
+                        {group.label}
+                      </h3>
+                      {group.isOverdue && (
+                        <span className="px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest bg-red-50 text-red-600 border border-red-100 animate-pulse">
+                          Atrasada
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="pl-0 sm:pl-4 space-y-6">
+                      {/* Sub-bloco: Prioridade Alta & Urgente */}
+                      {dayAltasUrgentes.length > 0 && (
+                        <div>
+                          <div className="text-[10px] font-bold text-red-600 uppercase tracking-widest mb-3 flex items-center gap-1.5">
+                            ⚡ Prioridade Alta & Urgente
+                          </div>
+                          {renderClientGroupForDay(dayAltasUrgentes, group.dayId, 'altas')}
+                        </div>
+                      )}
+
+                      {/* Sub-bloco: Normal & Baixa */}
+                      {dayNormaisBaixas.length > 0 && (
+                        <div className="opacity-95 hover:opacity-100 transition-opacity">
+                          <div className="text-[10px] font-bold text-blue-500 uppercase tracking-widest mb-3 flex items-center gap-1.5">
+                            ● Normal & Baixa
+                          </div>
+                          {renderClientGroupForDay(dayNormaisBaixas, group.dayId, 'normais')}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           ) : (
             <div className="text-center py-6 text-gray-400 text-sm">Nenhuma tarefa pendente.</div>
@@ -1355,7 +1634,7 @@ const TodasTasks: React.FC<{ clients: any[], onEditTask: (t: AgencyTask) => void
 
           {/* Completed Tasks - Collapsible */}
           {completedTasks.length > 0 && (
-            <div className="pt-4 border-t border-gray-100 mt-4">
+            <div className="pt-6 border-t border-gray-100 mt-6">
               <button
                 onClick={() => setIsCompletedExpanded(!isCompletedExpanded)}
                 className="flex items-center gap-2 text-[11px] font-extrabold text-gray-400 hover:text-brand-dark uppercase tracking-widest transition-colors mx-auto"
@@ -1449,7 +1728,7 @@ const TaskListItem: React.FC<{ task: AgencyTask, onToggle: () => void, onEdit: (
 
   return (
     <div className={`group flex items-center gap-4 p-4 bg-white rounded-2xl border border-gray-100 hover:border-brand-dark/20 hover:shadow-sm transition-all ${isDone ? 'opacity-60 bg-gray-50 pointer-events-auto' : ''} ${isDragging ? 'shadow-lg border-brand-dark/30 scale-[1.01]' : ''}`}>
-      {isTodayView && !isDone && !isMonthlyNotStarted && (task.recurrence_type === 'daily' || task.recurrence_type === 'weekly' || task.recurrence_type === 'monthly') && (
+      {!isDone && !isMonthlyNotStarted && (
         <div className="text-gray-300 group-hover:text-gray-400 cursor-grab active:cursor-grabbing flex-shrink-0">
           <GripVertical size={16} />
         </div>
