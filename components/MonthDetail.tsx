@@ -11,6 +11,8 @@ import { StatusLegend } from './StatusLegend';
 import { ConfirmModal } from './ConfirmModal';
 import { useEditorialData, MONTH_NAMES, DAY_NAMES } from '../hooks/useEditorialData';
 import { motion, AnimatePresence } from 'motion/react';
+import dayjs from 'dayjs';
+import { CustomDatePicker } from './CustomPickers';
 
 interface MonthDetailProps {
   monthName: string;
@@ -91,6 +93,7 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack, ini
   
   const [isThemeModalOpen, setIsThemeModalOpen] = useState(false);
   const [selectedThemeDay, setSelectedThemeDay] = useState<number | null>(null);
+  const [selectedThemeDate, setSelectedThemeDate] = useState<string>('');
   const [selectedTheme, setSelectedTheme] = useState<PostTheme | null>(null);
   const [isSavingTheme, setIsSavingTheme] = useState(false);
 
@@ -99,6 +102,8 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack, ini
   const [format1, setFormat1] = useState('Reels');
   const [theme2, setTheme2] = useState('');
   const [format2, setFormat2] = useState('Reels');
+  const [showSecondThemeForm, setShowSecondThemeForm] = useState(false);
+  const [isEditingTheme, setIsEditingTheme] = useState(false);
 
   // Client Comment/Observation state
   const [clientComment, setClientComment] = useState('');
@@ -269,6 +274,9 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack, ini
 
   const openCreateThemeModal = (day: number) => {
     setSelectedThemeDay(day);
+    const mNum = monthIndex + 1;
+    const dateStr = `${year}-${String(mNum).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    setSelectedThemeDate(dateStr);
     setSelectedTheme(null);
     setTheme1('');
     setFormat1('Reels');
@@ -282,6 +290,8 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack, ini
       comment_2: '',
       chosen_theme: null
     });
+    setShowSecondThemeForm(false);
+    setIsEditingTheme(true); // Na criação, sempre entra em modo edição diretamente
     setActiveAction(null);
     setEditingCommentIndex(null);
     setEditCommentText('');
@@ -293,6 +303,7 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack, ini
   const handleOpenThemeModal = (theme: PostTheme) => {
     setSelectedTheme(theme);
     setSelectedThemeDay(parseInt(theme.date.split('-')[2]));
+    setSelectedThemeDate(theme.date);
     setTheme1(theme.theme_1 || '');
     setFormat1(theme.format_1 || 'Reels');
     setTheme2(theme.theme_2 || '');
@@ -301,6 +312,9 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack, ini
     
     const parsedState = getThemeStatusObject(theme);
     setThemeStatusState(parsedState);
+    
+    setShowSecondThemeForm(!!theme.theme_2);
+    setIsEditingTheme(false); // Em temas existentes, abre no modo leitura/visualização por padrão
     
     setActiveAction(null);
     setEditingCommentIndex(null);
@@ -311,7 +325,7 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack, ini
   };
 
   const handleSaveThemeSuggestion = async () => {
-    if (!activeClient || !agencyId || !selectedThemeDay) return;
+    if (!activeClient || !agencyId || !selectedThemeDate) return;
     if (!theme1.trim()) {
       alert('O Tema 1 é obrigatório.');
       return;
@@ -319,16 +333,36 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack, ini
 
     setIsSavingTheme(true);
     try {
-      const monthNum = monthIndex + 1;
-      const dateStr = `${year}-${String(monthNum).padStart(2, '0')}-${String(selectedThemeDay).padStart(2, '0')}`;
+      const dateStr = selectedThemeDate;
+      const useTheme2 = showSecondThemeForm && !!theme2.trim();
 
       const initialJSONState = {
         status_1: 'pending',
         comment_1: '',
-        status_2: theme2.trim() ? 'pending' : null,
+        status_2: useTheme2 ? 'pending' : null,
         comment_2: '',
         chosen_theme: null
       };
+
+      const hasTextChanged = 
+        selectedTheme && (
+          selectedTheme.theme_1 !== theme1.trim() ||
+          selectedTheme.format_1 !== format1 ||
+          (selectedTheme.theme_2 || '') !== (useTheme2 ? theme2.trim() : '') ||
+          (selectedTheme.format_2 || '') !== (useTheme2 ? format2 : '')
+        );
+
+      let payloadStatus = JSON.stringify(initialJSONState);
+      let payloadClientComment = null;
+      let payloadReviewedAt = null;
+      let payloadReviewedBy = null;
+
+      if (selectedTheme && !hasTextChanged) {
+        payloadStatus = selectedTheme.status;
+        payloadClientComment = selectedTheme.client_comment || null;
+        payloadReviewedAt = selectedTheme.reviewed_at || null;
+        payloadReviewedBy = selectedTheme.reviewed_by || null;
+      }
 
       const payload = {
         client_id: activeClient.id,
@@ -336,12 +370,12 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack, ini
         date: dateStr,
         theme_1: theme1.trim(),
         format_1: format1,
-        theme_2: theme2.trim() || null,
-        format_2: theme2.trim() ? format2 : null,
-        status: JSON.stringify(initialJSONState),
-        client_comment: null,
-        reviewed_at: null,
-        reviewed_by: null
+        theme_2: useTheme2 ? theme2.trim() : null,
+        format_2: useTheme2 ? format2 : null,
+        status: payloadStatus,
+        client_comment: payloadClientComment,
+        reviewed_at: payloadReviewedAt,
+        reviewed_by: payloadReviewedBy
       };
 
       if (selectedTheme) {
@@ -349,12 +383,24 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack, ini
           .from('post_themes')
           .update(payload)
           .eq('id', selectedTheme.id);
-        if (error) throw error;
+        if (error) {
+          if (error.code === '23505') {
+            alert('Já existe uma sugestão de tema para essa data. Escolha outra data.');
+            return;
+          }
+          throw error;
+        }
       } else {
         const { error } = await supabase
           .from('post_themes')
           .insert(payload);
-        if (error) throw error;
+        if (error) {
+          if (error.code === '23505') {
+            alert('Já existe uma sugestão de tema para essa data. Escolha outra data.');
+            return;
+          }
+          throw error;
+        }
       }
 
       await fetchThemes();
@@ -740,7 +786,12 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack, ini
       e.preventDefault();
       const key = e.dataTransfer.getData('text/plain');
       if (key) {
-          await movePost(key, targetDay);
+          if (key.startsWith('theme-')) {
+              const themeId = key.substring(6);
+              await moveTheme(themeId, targetDay);
+          } else {
+              await movePost(key, targetDay);
+          }
       }
   };
 
@@ -840,6 +891,54 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack, ini
               alert("Erro ao mover publicação.");
           } finally {
               setLoadingPosts(false);
+          }
+        }
+      });
+  };
+
+  const moveTheme = async (themeId: string, targetDay: number) => {
+      if (!activeClient) return;
+
+      const m = (monthIndex + 1) < 10 ? `0${monthIndex + 1}` : `${monthIndex + 1}`;
+      const y = year.toString();
+      const d = targetDay < 10 ? `0${targetDay}` : `${targetDay}`;
+      const newDate = `${y}-${m}-${d}`;
+
+      const theme = themes.find(t => t.id === themeId);
+      if (!theme) return;
+
+      // Check if moving to same day
+      if (theme.date === newDate) return;
+
+      setConfirmAction({
+        isOpen: true,
+        title: 'Mover Sugestão de Tema',
+        message: `Tem certeza que deseja mover esta sugestão de tema para o dia ${d}/${m}?`,
+        confirmText: 'Mover',
+        confirmButtonColor: 'brand',
+        onConfirm: async () => {
+          setConfirmAction(prev => ({ ...prev, isOpen: false }));
+          setLoadingThemes(true);
+          try {
+            const { error } = await supabase
+              .from('post_themes')
+              .update({ date: newDate })
+              .eq('id', themeId);
+            
+            if (error) {
+              if (error.code === '23505') {
+                alert('Já existe uma sugestão de tema para essa data. Escolha outra data.');
+                return;
+              }
+              throw error;
+            }
+            
+            await fetchThemes();
+          } catch (err) {
+            console.error('Error moving theme suggestion:', err);
+            alert('Erro ao mover sugestão de tema.');
+          } finally {
+            setLoadingThemes(false);
           }
         }
       });
@@ -1209,20 +1308,9 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack, ini
         >
           <div className="flex justify-between items-start mb-3 md:mb-2">
             <div className="flex items-center gap-1.5">
-              <span className={`text-sm font-semibold ${dayEvents.length > 0 ? 'text-gray-900' : 'text-gray-400'}`}>
+              <span className={`text-sm font-semibold ${dayEvents.length > 0 || dayTheme ? 'text-gray-900' : 'text-gray-400'}`}>
                 {d} <span className="md:hidden text-[10px] font-normal ml-1 text-gray-400">{dayName}</span>
               </span>
-              {dayTheme && (() => {
-                const overallStatus = getOverallDayStatus(dayTheme);
-                return (
-                  <div 
-                    onClick={(e) => { e.stopPropagation(); handleOpenThemeModal(dayTheme); }}
-                    className="w-2 h-2 rounded-full cursor-pointer transition-transform hover:scale-125 shadow-sm border border-white"
-                    style={{ backgroundColor: getThemeStatusColor(overallStatus) }}
-                    title={`Sugestão de Tema: ${getThemeStatusLabel(overallStatus)}`}
-                  />
-                );
-              })()}
             </div>
             {userRole === 'admin' && (
                 <button 
@@ -1308,11 +1396,16 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack, ini
               return (
                 <div 
                   onClick={(e) => { e.stopPropagation(); handleOpenThemeModal(dayTheme); }}
-                  className="p-3 rounded-xl border border-dashed hover:shadow-md cursor-pointer transition-all duration-300 flex flex-col gap-1.5 text-left shrink-0 bg-white"
+                  draggable={userRole === 'admin'}
+                  onDragStart={(e) => handleDragStart(e, `theme-${dayTheme.id}`)}
+                  className={`p-3 rounded-xl border border-dashed hover:shadow-md transition-all duration-300 flex flex-col gap-1.5 text-left shrink-0 bg-white ${
+                    userRole === 'admin' ? 'cursor-grab active:cursor-grabbing hover:scale-[1.02]' : 'cursor-pointer'
+                  }`}
                   style={{ 
                     borderColor: getThemeStatusColor(overallStatus) + '60',
                     boxShadow: `0 4px 12px ${getThemeStatusColor(overallStatus)}08`
                   }}
+                  title="Sugestão de Tema - Arraste para mover de data"
                 >
                   <div className="flex items-center justify-between">
                     <span className="text-[8px] font-extrabold uppercase tracking-widest text-gray-400">Sugestão de Tema</span>
@@ -1784,7 +1877,11 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack, ini
                               <div
                                 key={theme.id || idx}
                                 onClick={() => handleOpenThemeModal(theme)}
-                                className="p-5 rounded-2xl border border-black/[0.03] flex flex-col md:flex-row gap-4 cursor-pointer hover:shadow-md hover:border-black/[0.08] transition-all bg-white relative group animate-in fade-in duration-300"
+                                draggable={userRole === 'admin'}
+                                onDragStart={(e) => handleDragStart(e, `theme-${theme.id}`)}
+                                className={`p-5 rounded-2xl border border-black/[0.03] flex flex-col md:flex-row gap-4 hover:shadow-md hover:border-black/[0.08] transition-all bg-white relative group animate-in fade-in duration-300 ${
+                                  userRole === 'admin' ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer'
+                                }`}
                               >
                                 {/* Esquerda: Data do Tema */}
                                 <div className="flex md:flex-col items-center md:items-start gap-3 md:gap-0 md:w-24 flex-shrink-0">
@@ -1919,7 +2016,7 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack, ini
                   Calendário Editorial
                 </span>
                 <h3 className="text-lg font-extrabold tracking-tight mt-1">
-                  Sugestão de Temas — Dia {selectedThemeDay} de {monthName}
+                  Sugestão de Temas — {selectedThemeDate ? dayjs(selectedThemeDate).format('DD [de] MMMM [de] YYYY') : `Dia ${selectedThemeDay} de ${monthName}`}
                 </h3>
               </div>
               <button 
@@ -1932,19 +2029,45 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack, ini
 
             {/* Scrollable Content */}
             <div className="p-8 overflow-y-auto custom-scrollbar flex-grow space-y-6">
-              {/* HISTÓRICO DE REVISÃO GERAL (Para auditoria simples de quem atualizou por último) */}
-              {selectedTheme && selectedTheme.reviewed_at && (
-                <div className="p-4 rounded-2xl border border-gray-100 bg-gray-50/50 flex flex-col gap-1">
-                  <div className="flex items-center gap-2">
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-gray-500">
-                      Última Avaliação Geral
-                    </span>
+              {/* HISTÓRICO DE REVISÃO GERAL */}
+              {selectedTheme && selectedTheme.reviewed_at && (() => {
+                const overallStatus = getOverallDayStatus(selectedTheme);
+                let statusLabel = 'Avaliado';
+                let textColor = 'text-gray-600';
+                let icon = '💡';
+                let bgColor = 'bg-gray-50/50 border-gray-100';
+
+                if (overallStatus === 'approved') {
+                  statusLabel = 'Tema aprovado';
+                  textColor = 'text-emerald-800';
+                  icon = '✅';
+                  bgColor = 'bg-emerald-50/40 border-emerald-100';
+                } else if (overallStatus === 'rejected') {
+                  statusLabel = 'Tema reprovado';
+                  textColor = 'text-rose-800';
+                  icon = '❌';
+                  bgColor = 'bg-rose-50/40 border-rose-100';
+                } else if (overallStatus === 'revision') {
+                  statusLabel = 'Alterações solicitadas';
+                  textColor = 'text-blue-800';
+                  icon = '⚠️';
+                  bgColor = 'bg-blue-50/40 border-blue-100';
+                }
+
+                return (
+                  <div className={`p-4 rounded-2xl border ${bgColor} flex items-center gap-3 shadow-sm animate-in fade-in duration-300`}>
+                    <span className="text-xl shrink-0">{icon}</span>
+                    <div className="flex-grow">
+                      <span className={`text-[10px] font-black uppercase tracking-wider ${textColor}`}>
+                        {statusLabel}
+                      </span>
+                      <p className="text-[11px] font-semibold text-gray-700 mt-0.5">
+                        Por <span className="font-extrabold text-gray-900">{selectedTheme.reviewed_by}</span> em {new Date(selectedTheme.reviewed_at).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                      </p>
+                    </div>
                   </div>
-                  <p className="text-[11px] font-semibold text-gray-600">
-                    Processado por <span className="font-bold text-gray-900">{selectedTheme.reviewed_by}</span> em {new Date(selectedTheme.reviewed_at).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
-                  </p>
-                </div>
-              )}
+                );
+              })()}
 
               {/* DUPLA APROVAÇÃO: EXIGIR ESCOLHA DE QUAL TEMA PUBLICAR */}
               {userRole !== 'admin' && themeStatusState.status_1 === 'approved' && themeStatusState.status_2 === 'approved' && !themeStatusState.chosen_theme && (
@@ -1985,102 +2108,201 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack, ini
 
               {/* MODO AGÊNCIA: EDIÇÃO OU CRIAÇÃO */}
               {userRole === 'admin' ? (
-                <div className="space-y-6">
-                  {/* Seletor de Dia do Mês (apenas na criação) */}
-                  {!selectedTheme && (
+                isEditingTheme ? (
+                  <div className="space-y-6">
+                    {/* Seletor de Data de Publicação (com Calendário completo) */}
                     <div className="p-5 rounded-2xl border border-gray-100 bg-gray-50/30 space-y-3">
-                      <label className="block text-[10px] font-black uppercase tracking-[0.15em] text-gray-400">
-                        Dia de Publicação ({monthName})
+                      <label className="block text-[10px] font-black uppercase tracking-[0.15em] text-gray-400 flex items-center gap-1.5">
+                        <CalendarIcon size={12} className="text-gray-400" /> Data de Publicação (Mês/Ano editáveis)
                       </label>
-                      <select
-                        value={selectedThemeDay}
-                        onChange={(e) => setSelectedThemeDay(parseInt(e.target.value))}
-                        className="w-full bg-white border border-gray-200 rounded-xl px-4 py-2.5 text-xs text-gray-900 focus:outline-none focus:border-brand-dark focus:ring-1 focus:ring-brand-dark transition-all font-semibold"
+                      <CustomDatePicker 
+                        value={selectedThemeDate} 
+                        onChange={(newDate) => {
+                          setSelectedThemeDate(newDate);
+                          const dVal = dayjs(newDate).date();
+                          setSelectedThemeDay(dVal);
+                        }} 
+                      />
+                    </div>
+
+                    {selectedTheme && getOverallDayStatus(selectedTheme) === 'revision' && selectedTheme.client_comment && (
+                      <div className="p-5 bg-blue-50/70 border border-blue-200 rounded-2xl space-y-2 animate-in fade-in duration-300">
+                        <div className="flex items-center gap-2 text-blue-800">
+                          <span className="text-base shrink-0">⚠️</span>
+                          <h4 className="font-extrabold text-xs uppercase tracking-wider">Pedido de Alteração do Cliente:</h4>
+                        </div>
+                        <p className="text-xs text-blue-700 italic font-semibold leading-relaxed bg-white/60 p-3.5 rounded-xl border border-blue-100">
+                          "{selectedTheme.client_comment}"
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Tema 1 */}
+                    <div className="p-5 rounded-2xl border border-gray-100 bg-gray-50/30 space-y-4">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-black uppercase tracking-[0.15em] text-gray-400">Sugestão de Tema 1</span>
+                        <span className="text-[10px] font-bold text-brand-dark bg-brand-dark/5 px-2 py-0.5 rounded-md">Obrigatório</span>
+                      </div>
+                      <div className="space-y-3">
+                        <div>
+                          <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5">Ideia de Tema</label>
+                          <textarea
+                            value={theme1}
+                            onChange={(e) => setTheme1(e.target.value)}
+                            placeholder="Digite o título ou ideia do tema"
+                            className="w-full bg-white border border-gray-200 rounded-xl px-4 py-2.5 text-xs text-gray-900 focus:outline-none focus:border-brand-dark focus:ring-1 focus:ring-brand-dark transition-all resize-none min-h-[60px]"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5">Formato</label>
+                          <select
+                            value={format1}
+                            onChange={(e) => setFormat1(e.target.value)}
+                            className="w-full bg-white border border-gray-200 rounded-xl px-4 py-2.5 text-xs text-gray-900 focus:outline-none focus:border-brand-dark focus:ring-1 focus:ring-brand-dark transition-all font-semibold"
+                          >
+                            <option value="Reels">Reels</option>
+                            <option value="Carrossel">Carrossel</option>
+                            <option value="Imagem Estática">Imagem Estática</option>
+                          </select>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Tema 2 (Exibido dinamicamente ou adicionado via botão) */}
+                    {showSecondThemeForm ? (
+                      <div className="p-5 rounded-2xl border border-gray-100 bg-gray-50/30 space-y-4 relative animate-in fade-in zoom-in-95 duration-200">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setTheme2('');
+                            setFormat2('Reels');
+                            setShowSecondThemeForm(false);
+                          }}
+                          className="absolute top-4 right-4 text-[9px] font-black uppercase tracking-wider text-rose-500 hover:text-rose-600 transition-colors flex items-center gap-1 bg-rose-50 px-2 py-1 rounded"
+                        >
+                          <X size={10} /> Remover
+                        </button>
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] font-black uppercase tracking-[0.15em] text-gray-400">Sugestão de Tema 2</span>
+                          <span className="text-[10px] font-bold text-gray-400 bg-gray-100 px-2 py-0.5 rounded-md">Opcional</span>
+                        </div>
+                        <div className="space-y-3">
+                          <div>
+                            <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5">Ideia de Tema</label>
+                            <textarea
+                              value={theme2}
+                              onChange={(e) => setTheme2(e.target.value)}
+                              placeholder="Digite o título ou ideia do tema (opcional)"
+                              className="w-full bg-white border border-gray-200 rounded-xl px-4 py-2.5 text-xs text-gray-900 focus:outline-none focus:border-brand-dark focus:ring-1 focus:ring-brand-dark transition-all resize-none min-h-[60px]"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5">Formato</label>
+                            <select
+                              value={format2}
+                              onChange={(e) => setFormat2(e.target.value)}
+                              className="w-full bg-white border border-gray-200 rounded-xl px-4 py-2.5 text-xs text-gray-900 focus:outline-none focus:border-brand-dark focus:ring-1 focus:ring-brand-dark transition-all font-semibold"
+                            >
+                              <option value="Reels">Reels</option>
+                              <option value="Carrossel">Carrossel</option>
+                              <option value="Imagem Estática">Imagem Estática</option>
+                            </select>
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => setShowSecondThemeForm(true)}
+                        className="w-full py-4 rounded-2xl border-2 border-dashed border-gray-200 hover:border-brand-dark hover:bg-gray-50/30 text-gray-500 hover:text-brand-dark transition-all flex items-center justify-center gap-2 text-[10px] font-black uppercase tracking-wider bg-white/50"
                       >
-                        {Array.from({ length: new Date(year, monthIndex + 1, 0).getDate() }, (_, i) => i + 1).map(day => (
-                          <option key={day} value={day}>
-                            Dia {day}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  )}
-
-                  {selectedTheme && getOverallDayStatus(selectedTheme) === 'revision' && selectedTheme.client_comment && (
-                    <div className="p-5 bg-blue-50/70 border border-blue-200 rounded-2xl space-y-2 animate-in fade-in duration-300">
-                      <div className="flex items-center gap-2 text-blue-800">
-                        <span className="text-base shrink-0">⚠️</span>
-                        <h4 className="font-extrabold text-xs uppercase tracking-wider">Pedido de Alteração do Cliente:</h4>
-                      </div>
-                      <p className="text-xs text-blue-700 italic font-semibold leading-relaxed bg-white/60 p-3.5 rounded-xl border border-blue-100">
-                        "{selectedTheme.client_comment}"
-                      </p>
-                    </div>
-                  )}
-
-                  {/* Tema 1 */}
-                  <div className="p-5 rounded-2xl border border-gray-100 bg-gray-50/30 space-y-4">
-                    <div className="flex items-center justify-between">
-                      <span className="text-[10px] font-black uppercase tracking-[0.15em] text-gray-400">Sugestão de Tema 1</span>
-                      <span className="text-[10px] font-bold text-brand-dark bg-brand-dark/5 px-2 py-0.5 rounded-md">Obrigatório</span>
-                    </div>
-                    <div className="space-y-3">
-                      <div>
-                        <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5">Ideia de Tema</label>
-                        <textarea
-                          value={theme1}
-                          onChange={(e) => setTheme1(e.target.value)}
-                          placeholder="Digite o título ou ideia do tema"
-                          className="w-full bg-white border border-gray-200 rounded-xl px-4 py-2.5 text-xs text-gray-900 focus:outline-none focus:border-brand-dark focus:ring-1 focus:ring-brand-dark transition-all resize-none min-h-[60px]"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5">Formato</label>
-                        <select
-                          value={format1}
-                          onChange={(e) => setFormat1(e.target.value)}
-                          className="w-full bg-white border border-gray-200 rounded-xl px-4 py-2.5 text-xs text-gray-900 focus:outline-none focus:border-brand-dark focus:ring-1 focus:ring-brand-dark transition-all font-semibold"
-                        >
-                          <option value="Reels">Reels</option>
-                          <option value="Carrossel">Carrossel</option>
-                          <option value="Imagem Estática">Imagem Estática</option>
-                        </select>
-                      </div>
-                    </div>
+                        <Plus size={14} /> Adicionar mais um tema
+                      </button>
+                    )}
                   </div>
+                ) : (
+                  /* MODO LEITURA / VISUALIZAÇÃO DO ADMINISTRADOR */
+                  <div className="space-y-6">
+                    {/* Data de Publicação (Leitura) */}
+                    <div className="p-4 rounded-2xl border border-gray-150 bg-gray-50/50 flex items-center justify-between">
+                      <div className="flex items-center gap-2 text-gray-500">
+                        <CalendarIcon size={14} />
+                        <span className="text-[10px] font-bold uppercase tracking-wider">Data de Publicação</span>
+                      </div>
+                      <span className="text-xs font-extrabold text-brand-dark">
+                        {selectedThemeDate ? dayjs(selectedThemeDate).format('DD/MM/YYYY') : '-'}
+                      </span>
+                    </div>
 
-                  {/* Tema 2 */}
-                  <div className="p-5 rounded-2xl border border-gray-100 bg-gray-50/30 space-y-4">
-                    <div className="flex items-center justify-between">
-                      <span className="text-[10px] font-black uppercase tracking-[0.15em] text-gray-400">Sugestão de Tema 2</span>
-                      <span className="text-[10px] font-bold text-gray-400 bg-gray-100 px-2 py-0.5 rounded-md">Opcional</span>
-                    </div>
-                    <div className="space-y-3">
-                      <div>
-                        <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5">Ideia de Tema</label>
-                        <textarea
-                          value={theme2}
-                          onChange={(e) => setTheme2(e.target.value)}
-                          placeholder="Digite o título ou ideia do tema (opcional)"
-                          className="w-full bg-white border border-gray-200 rounded-xl px-4 py-2.5 text-xs text-gray-900 focus:outline-none focus:border-brand-dark focus:ring-1 focus:ring-brand-dark transition-all resize-none min-h-[60px]"
-                        />
+                    {selectedTheme && getOverallDayStatus(selectedTheme) === 'revision' && selectedTheme.client_comment && (
+                      <div className="p-5 bg-blue-50/70 border border-blue-200 rounded-2xl space-y-2">
+                        <div className="flex items-center gap-2 text-blue-800">
+                          <span className="text-base shrink-0">⚠️</span>
+                          <h4 className="font-extrabold text-xs uppercase tracking-wider">Pedido de Alteração do Cliente:</h4>
+                        </div>
+                        <p className="text-xs text-blue-700 italic font-semibold leading-relaxed bg-white/60 p-3.5 rounded-xl border border-blue-100">
+                          "{selectedTheme.client_comment}"
+                        </p>
                       </div>
-                      <div>
-                        <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5">Formato</label>
-                        <select
-                          value={format2}
-                          onChange={(e) => setFormat2(e.target.value)}
-                          disabled={!theme2.trim()}
-                          className="w-full bg-white border border-gray-200 rounded-xl px-4 py-2.5 text-xs text-gray-900 focus:outline-none focus:border-brand-dark focus:ring-1 focus:ring-brand-dark transition-all font-semibold disabled:opacity-50"
-                        >
-                          <option value="Reels">Reels</option>
-                          <option value="Carrossel">Carrossel</option>
-                          <option value="Imagem Estática">Imagem Estática</option>
-                        </select>
+                    )}
+
+                    {/* Tema 1 (Leitura) */}
+                    <div className="p-5 rounded-2xl border border-gray-150 bg-white shadow-sm space-y-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[9px] font-black uppercase tracking-widest text-gray-400">Sugestão 1</span>
+                        <span className={`px-2.5 py-1 text-[8px] font-black uppercase tracking-wider rounded-md text-white ${
+                          themeStatusState.status_1 === 'approved' ? 'bg-emerald-500' :
+                          themeStatusState.status_1 === 'rejected' ? 'bg-rose-500' :
+                          themeStatusState.status_1 === 'revision' ? 'bg-blue-500' :
+                          'bg-yellow-500'
+                        }`}>
+                          {themeStatusState.status_1 === 'approved' && themeStatusState.chosen_theme === 1 ? 'Aprovado (Que Segue)' :
+                           themeStatusState.status_1 === 'approved' ? 'Aprovado (Aguardando Escolha)' :
+                           getThemeStatusLabel(themeStatusState.status_1)}
+                        </span>
                       </div>
+                      <h4 className="text-sm font-extrabold text-gray-950">💡 {theme1}</h4>
+                      <span className="inline-block text-[9px] font-extrabold text-gray-500 bg-gray-50 border border-gray-150 px-2.5 py-1 rounded-md shadow-sm">
+                        {format1}
+                      </span>
+                      {themeStatusState.status_1 !== 'pending' && themeStatusState.comment_1 && (
+                        <div className="mt-2.5 p-3 rounded-xl bg-gray-50 border border-gray-100 text-xs text-gray-600 italic">
+                          <span className="font-bold text-[9px] uppercase text-gray-400 tracking-wider block mb-1">Feedback do Cliente:</span>
+                          "{themeStatusState.comment_1}"
+                        </div>
+                      )}
                     </div>
+
+                    {/* Tema 2 (Leitura) - Exibido apenas se preenchido */}
+                    {theme2.trim() && (
+                      <div className="p-5 rounded-2xl border border-gray-150 bg-white shadow-sm space-y-3 animate-in fade-in duration-300">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[9px] font-black uppercase tracking-widest text-gray-400">Sugestão 2</span>
+                          <span className={`px-2.5 py-1 text-[8px] font-black uppercase tracking-wider rounded-md text-white ${
+                            themeStatusState.status_2 === 'approved' ? 'bg-emerald-500' :
+                            themeStatusState.status_2 === 'rejected' ? 'bg-rose-500' :
+                            themeStatusState.status_2 === 'revision' ? 'bg-blue-500' :
+                            'bg-yellow-500'
+                          }`}>
+                            {themeStatusState.status_2 === 'approved' && themeStatusState.chosen_theme === 2 ? 'Aprovado (Que Segue)' :
+                             themeStatusState.status_2 === 'approved' ? 'Aprovado (Aguardando Escolha)' :
+                             getThemeStatusLabel(themeStatusState.status_2 || 'pending')}
+                          </span>
+                        </div>
+                        <h4 className="text-sm font-extrabold text-gray-950">💡 {theme2}</h4>
+                        <span className="inline-block text-[9px] font-extrabold text-gray-500 bg-gray-50 border border-gray-150 px-2.5 py-1 rounded-md shadow-sm">
+                          {format2}
+                        </span>
+                        {themeStatusState.status_2 !== 'pending' && themeStatusState.comment_2 && (
+                          <div className="mt-2.5 p-3 rounded-xl bg-gray-50 border border-gray-100 text-xs text-gray-600 italic">
+                            <span className="font-bold text-[9px] uppercase text-gray-400 tracking-wider block mb-1">Feedback do Cliente:</span>
+                            "{themeStatusState.comment_2}"
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
-                </div>
+                )
               ) : (
                 /* MODO CLIENTE: LEITURA E AVALIAÇÃO INDEPENDENTE */
                 <div className="space-y-6">
@@ -2499,20 +2721,58 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack, ini
                       </button>
                     )
                   )}
-                  <button
-                    onClick={() => setIsThemeModalOpen(false)}
-                    className="flex items-center gap-2 px-5 py-2.5 rounded-xl hover:bg-gray-100 text-gray-500 transition-all text-[10px] font-black uppercase tracking-widest"
-                  >
-                    Cancelar
-                  </button>
-                  <button
-                    onClick={handleSaveThemeSuggestion}
-                    disabled={isSavingTheme || !theme1.trim()}
-                    className="flex items-center gap-2 px-7 py-2.5 rounded-xl bg-brand-dark text-white hover:bg-opacity-90 transition-all text-[10px] font-black uppercase tracking-widest disabled:opacity-50 shadow-lg"
-                  >
-                    {isSavingTheme ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />}
-                    {selectedTheme ? 'Atualizar' : 'Salvar Sugestão'}
-                  </button>
+
+                  {isEditingTheme ? (
+                    <>
+                      <button
+                        onClick={() => {
+                          if (selectedTheme) {
+                            // Se já existe, volta para o modo leitura
+                            setIsEditingTheme(false);
+                            // Reseta os campos para o valor original
+                            setTheme1(selectedTheme.theme_1 || '');
+                            setFormat1(selectedTheme.format_1 || 'Reels');
+                            setTheme2(selectedTheme.theme_2 || '');
+                            setFormat2(selectedTheme.format_2 || 'Reels');
+                            setShowSecondThemeForm(!!selectedTheme.theme_2);
+                          } else {
+                            // Se for novo, fecha o modal
+                            setIsThemeModalOpen(false);
+                          }
+                        }}
+                        className="flex items-center gap-2 px-5 py-2.5 rounded-xl hover:bg-gray-100 text-gray-500 transition-all text-[10px] font-black uppercase tracking-widest"
+                      >
+                        Cancelar
+                      </button>
+                      <button
+                        onClick={async () => {
+                          await handleSaveThemeSuggestion();
+                          // Após salvar com sucesso, volta para o modo de leitura
+                          setIsEditingTheme(false);
+                        }}
+                        disabled={isSavingTheme || !theme1.trim()}
+                        className="flex items-center gap-2 px-7 py-2.5 rounded-xl bg-brand-dark text-white hover:bg-opacity-90 transition-all text-[10px] font-black uppercase tracking-widest disabled:opacity-50 shadow-lg"
+                      >
+                        {isSavingTheme ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />}
+                        {selectedTheme ? 'Atualizar' : 'Salvar Sugestão'}
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <button
+                        onClick={() => setIsThemeModalOpen(false)}
+                        className="flex items-center gap-2 px-5 py-2.5 rounded-xl hover:bg-gray-100 text-gray-500 transition-all text-[10px] font-black uppercase tracking-widest"
+                      >
+                        Fechar
+                      </button>
+                      <button
+                        onClick={() => setIsEditingTheme(true)}
+                        className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-brand-dark text-white hover:bg-opacity-90 transition-all text-[10px] font-black uppercase tracking-widest shadow-lg"
+                      >
+                        <Edit2 size={12} /> Editar
+                      </button>
+                    </>
+                  )}
                 </>
               ) : (
                 /* FOOTER CLIENTE */
