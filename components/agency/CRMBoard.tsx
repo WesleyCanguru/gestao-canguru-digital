@@ -166,17 +166,34 @@ export const CRMBoard: React.FC<CRMBoardProps> = ({ crm }) => {
     if (lead) setActiveLead(lead);
   };
 
+  const isNegotiationOrProposalStage = (stageName: string) => {
+    if (!stageName) return false;
+    const lower = stageName.toLowerCase();
+    if (lower === 'fechado' || lower === 'perdido' || lower.includes('assinado') || lower.includes('concluido') || lower.includes('concluído')) {
+      return false;
+    }
+    const stageObj = crm.kanban_stages.find(s => s.name === stageName);
+    if (stageObj && (stageObj.id === 'proposta_enviada' || stageObj.id === 'em_negociacao')) {
+      return true;
+    }
+    return (
+      lower.includes('proposta') ||
+      lower.includes('negocia') ||
+      lower.includes('negociação') ||
+      lower.includes('contrato enviado')
+    );
+  };
+
   const handleMoveStageRequest = (lead: AgencyLead, targetStageName: string) => {
     const isPerdido = targetStageName.toLowerCase() === 'perdido' || 
                       crm.kanban_stages.find(s => s.name === targetStageName)?.id === 'perdido';
-    const isPropostaEnviada = targetStageName.toLowerCase() === 'proposta enviada' || 
-                              crm.kanban_stages.find(s => s.name === targetStageName)?.id === 'proposta_enviada';
+    const isPropostaOuNegociacao = isNegotiationOrProposalStage(targetStageName);
 
     if (isPerdido) {
       setLossReasonModal({ isOpen: true, lead, newStage: targetStageName });
       setSelectedLossReason('');
       setCustomLossReason('');
-    } else if (isPropostaEnviada) {
+    } else if (isPropostaOuNegociacao) {
       const currentVal = lead.form_data?.deal_value || lead.deal_value || '';
       setProposalValue(currentVal ? String(currentVal) : '');
       setProposalValueModal({ isOpen: true, lead, newStage: targetStageName });
@@ -341,9 +358,8 @@ export const CRMBoard: React.FC<CRMBoardProps> = ({ crm }) => {
       return acc;
     }, {} as Record<string, number>);
 
-    const propostaEnviadaStage = crm.kanban_stages.find(s => s.id === 'proposta_enviada' || s.name.toLowerCase() === 'proposta enviada');
-    const propostaEnviadaLeads = filteredLeads.filter(l => l.stage === propostaEnviadaStage?.name);
-    const emMesa = propostaEnviadaLeads.reduce((sum, l) => sum + (Number(l.form_data?.deal_value) || Number(l.deal_value) || 0), 0);
+    const emNegociacaoLeads = filteredLeads.filter(l => isNegotiationOrProposalStage(l.stage));
+    const emMesa = emNegociacaoLeads.reduce((sum, l) => sum + (Number(l.form_data?.deal_value) || Number(l.deal_value) || 0), 0);
 
     const perdidoStage = crm.kanban_stages.find(s => s.id === 'perdido' || s.name.toLowerCase() === 'perdido');
     const perdidosLeads = filteredLeads.filter(l => l.stage === perdidoStage?.name);
@@ -352,8 +368,8 @@ export const CRMBoard: React.FC<CRMBoardProps> = ({ crm }) => {
     const fechadosLeads = filteredLeads.filter(l => l.stage === fechadoStage?.name);
 
     const coldStages = crm.kanban_stages.filter(s => 
-      s.id !== 'proposta_enviada' && s.id !== 'perdido' && s.id !== 'fechado' &&
-      s.name.toLowerCase() !== 'proposta enviada' && s.name.toLowerCase() !== 'perdido' && s.name.toLowerCase() !== 'fechado'
+      !isNegotiationOrProposalStage(s.name) && s.id !== 'perdido' && s.id !== 'fechado' &&
+      s.name.toLowerCase() !== 'perdido' && s.name.toLowerCase() !== 'fechado'
     );
 
     const lossReasonsCounts = (() => {
@@ -370,7 +386,7 @@ export const CRMBoard: React.FC<CRMBoardProps> = ({ crm }) => {
     return {
       counts,
       emMesa,
-      propostaEnviadaCount: propostaEnviadaLeads.length,
+      propostaEnviadaCount: emNegociacaoLeads.length,
       perdidoCount: perdidosLeads.length,
       fechadoCount: fechadosLeads.length,
       coldStages,
@@ -508,11 +524,11 @@ export const CRMBoard: React.FC<CRMBoardProps> = ({ crm }) => {
                 </div>
               </div>
 
-              {/* Bloco 2: Propostas Enviadas */}
+              {/* Bloco 2: Dinheiro em Negociação */}
               <div className="flex-1 lg:pl-8 lg:pr-8 py-6 lg:py-0 border-orange-500 border-l-0 lg:border-l-2 pl-0">
                 <div className="space-y-1.5">
                   <div className="flex items-center gap-1.5 text-amber-850 font-bold text-[10px] uppercase tracking-wider">
-                    <span>📄</span> Propostas Enviadas
+                    <span>📄</span> Dinheiro em Negociação
                   </div>
                   <div className="text-3xl font-black text-amber-700">
                     {dashboardStats.emMesa.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
@@ -521,7 +537,7 @@ export const CRMBoard: React.FC<CRMBoardProps> = ({ crm }) => {
                     <span>💼</span> Dinheiro na Mesa
                   </div>
                   <div className="text-[11px] text-gray-400 font-medium">
-                    {dashboardStats.propostaEnviadaCount} propostas enviadas este mês
+                    {dashboardStats.propostaEnviadaCount} {dashboardStats.propostaEnviadaCount === 1 ? 'lead em negociação' : 'leads em negociação'} este mês
                   </div>
                 </div>
               </div>
@@ -1194,12 +1210,12 @@ export const CRMBoard: React.FC<CRMBoardProps> = ({ crm }) => {
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md flex flex-col overflow-hidden">
             <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between bg-purple-50">
               <h2 className="text-lg font-bold text-purple-900 flex items-center gap-2">
-                <span>💜</span> Proposta Enviada
+                <span>💜</span> Valor em Negociação / Proposta
               </h2>
             </div>
             <div className="p-6 space-y-4">
               <p className="text-sm text-gray-600">
-                Qual o valor estimado para esta proposta? (Opcional)
+                Qual o valor estimado para esta proposta ou negociação? (Opcional)
               </p>
               <div className="relative">
                 <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 text-sm font-bold">R$</span>

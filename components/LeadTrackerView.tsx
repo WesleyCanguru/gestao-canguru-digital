@@ -109,7 +109,9 @@ export const isContractSentStage = (stageName?: string) => {
     lower.includes('proposta enviada') || 
     lower.includes('enviado') ||
     lower.includes('contrato') || 
-    lower.includes('proposta')
+    lower.includes('proposta') ||
+    lower.includes('negocia') ||
+    lower.includes('negociação')
   );
 };
 
@@ -1276,7 +1278,7 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
                 <div className="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center text-amber-600">
                   <FileText size={20} />
                 </div>
-                <span className="premium-label font-bold text-amber-800">Propostas Enviadas</span>
+                <span className="premium-label font-bold text-amber-800">Dinheiro em Negociação</span>
               </div>
               <div className="text-2xl font-black tracking-tight text-amber-700">
                 {stats.contractSentRevenue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
@@ -1285,7 +1287,7 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
                 <div className="text-amber-600 font-bold flex items-center gap-1 mb-1">
                   <span>💼 Dinheiro na Mesa</span>
                 </div>
-                <div>{stats.contractSentCount} proposta{stats.contractSentCount === 1 ? '' : 's'} enviada{stats.contractSentCount === 1 ? '' : 's'} este mês</div>
+                <div>{stats.contractSentCount} {stats.contractSentCount === 1 ? 'lead em negociação' : 'leads em negociação'} este mês</div>
               </div>
             </div>
 

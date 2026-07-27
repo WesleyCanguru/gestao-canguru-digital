@@ -208,9 +208,17 @@ export const CRMLeadModal: React.FC<CRMLeadModalProps> = ({ crm, lead, isOpen, o
             </div>
 
             {/* Conditional inputs based on selected stage */}
-            {(stage === 'Proposta Enviada' || crm.kanban_stages.find(s => s.name === stage)?.id === 'proposta_enviada') && (
+            {(
+              stage === 'Proposta Enviada' || 
+              stage === 'Em Negociação' ||
+              crm.kanban_stages.find(s => s.name === stage)?.id === 'proposta_enviada' ||
+              crm.kanban_stages.find(s => s.name === stage)?.id === 'em_negociacao' ||
+              stage.toLowerCase().includes('proposta') ||
+              stage.toLowerCase().includes('negocia') ||
+              formData.deal_value != null
+            ) && (
               <div className="bg-purple-50/50 border border-purple-100 p-4 rounded-xl space-y-3">
-                <label className="block text-sm font-bold text-purple-900">💜 Valor da Proposta (R$)</label>
+                <label className="block text-sm font-bold text-purple-900">💜 Valor da Proposta / Negociação (R$)</label>
                 <input
                   type="number"
                   value={formData.deal_value || ''}

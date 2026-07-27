@@ -31,7 +31,11 @@ export const CRMLeadCard: React.FC<CRMLeadCardProps> = ({ lead, crm, onClick, on
   const primaryValue = primaryField ? lead.form_data[primaryField.key] : null;
 
   const isPropostaEnviadaStage = lead.stage === 'Proposta Enviada' || 
-                                crm.kanban_stages.find(s => s.name === lead.stage)?.id === 'proposta_enviada';
+                                lead.stage === 'Em Negociação' ||
+                                crm.kanban_stages.find(s => s.name === lead.stage)?.id === 'proposta_enviada' ||
+                                crm.kanban_stages.find(s => s.name === lead.stage)?.id === 'em_negociacao' ||
+                                lead.stage.toLowerCase().includes('proposta') ||
+                                lead.stage.toLowerCase().includes('negocia');
   
   const stageEnteredDate = lead.stage_entered_at ? new Date(lead.stage_entered_at) : new Date(lead.created_at);
   const diffHours = (new Date().getTime() - stageEnteredDate.getTime()) / (1000 * 60 * 60);
