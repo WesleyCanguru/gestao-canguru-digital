@@ -3,7 +3,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { DailyContent, PostData, PostComment, PostStatus } from '../types';
 import { useAuth, supabase, parseImageUrl, stringifyImageUrl } from '../lib/supabase';
-import { shouldAutoPublish } from '../lib/scheduledPostsUtils';
+import { shouldAutoPublish, shouldAutoPublishGroup } from '../lib/scheduledPostsUtils';
 import { X, Send, Image as ImageIcon, CheckCircle2, AlertTriangle, Save, UploadCloud, Trash2, Edit3, RefreshCw, Link, Check, Calendar, Instagram, Linkedin, ChevronDown, Layers, Copy, LayoutTemplate, Eye, FileText, XCircle, Building2 } from 'lucide-react';
 import { InstagramView, LinkedInView, TikTokView } from './PlatformViews';
 import { ConfirmModal } from './ConfirmModal';
@@ -214,6 +214,8 @@ export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, group
          const capsMap: { meta: string; linkedin: string; tiktok: string } = { meta: '', linkedin: '', tiktok: '' };
          const timesMap: { meta: string; linkedin: string; tiktok: string } = { meta: '', linkedin: '', tiktok: '' };
 
+         let fetchedGroupPostRecords: any[] = [];
+
          if (groupKeys && groupKeys.length > 0) {
              const { data: groupPosts } = await supabase
                  .from('posts')
@@ -224,6 +226,7 @@ export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, group
                  .neq('status', 'deleted');
                  
              if (groupPosts) {
+                 fetchedGroupPostRecords = groupPosts;
                  foundKeys = groupPosts.map(p => p.date_key);
                  groupPosts.forEach(p => {
                      const plat = p.date_key.includes('linkedin') ? 'linkedin' : (p.date_key.includes('tiktok') ? 'tiktok' : 'meta');
@@ -241,6 +244,10 @@ export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, group
              const parts = dateKey.split('-');
              const suffix = parts.length > 4 ? parts.slice(4).join('-') : '';
              
+             if (mainPostData) {
+                 fetchedGroupPostRecords.push(mainPostData);
+             }
+
              for (const otherPlat of otherPlats) {
                  const otherKey = suffix ? `${baseKey}-${otherPlat}-${suffix}` : `${baseKey}-${otherPlat}`;
                  const { data: fetchedOther } = await supabase
@@ -252,6 +259,7 @@ export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, group
                      .maybeSingle();
 
                  if (fetchedOther && fetchedOther.status !== 'deleted') {
+                     fetchedGroupPostRecords.push(fetchedOther);
                      if (!platformsFound.includes(otherPlat)) {
                          platformsFound.push(otherPlat);
                      }
@@ -273,9 +281,10 @@ export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, group
          };
 
          // Check Auto-Publish for scheduled post past its target date/time
-         if (primaryData.status === 'scheduled' && shouldAutoPublish(primaryData)) {
+         const allRecordsToCheck = fetchedGroupPostRecords.length > 0 ? fetchedGroupPostRecords : [primaryData];
+         if (primaryData.status === 'scheduled' && shouldAutoPublishGroup(allRecordsToCheck)) {
              primaryData.status = 'published';
-             supabase.from('posts').update({ status: 'published', last_updated: new Date().toISOString() }).eq('date_key', dateKey);
+             supabase.from('posts').update({ status: 'published', last_updated: new Date().toISOString() }).in('date_key', foundKeys);
          }
 
          setPost(primaryData as PostData);
