@@ -3,6 +3,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { DailyContent, PostData, PostComment, PostStatus } from '../types';
 import { useAuth, supabase, parseImageUrl, stringifyImageUrl } from '../lib/supabase';
+import { shouldAutoPublish } from '../lib/scheduledPostsUtils';
 import { X, Send, Image as ImageIcon, CheckCircle2, AlertTriangle, Save, UploadCloud, Trash2, Edit3, RefreshCw, Link, Check, Calendar, Instagram, Linkedin, ChevronDown, Layers, Copy, LayoutTemplate, Eye, FileText, XCircle, Building2 } from 'lucide-react';
 import { InstagramView, LinkedInView, TikTokView } from './PlatformViews';
 import { ConfirmModal } from './ConfirmModal';
@@ -104,6 +105,11 @@ export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, group
   const [useDifferentCaptions, setUseDifferentCaptions] = useState(false);
   const [captionMeta, setCaptionMeta] = useState('');
   const [captionLinkedin, setCaptionLinkedin] = useState('');
+  const [captionTiktok, setCaptionTiktok] = useState('');
+
+  // Per-platform scheduling state
+  const [useDifferentTimes, setUseDifferentTimes] = useState(false);
+  const [customTimes, setCustomTimes] = useState<{ meta?: string; linkedin?: string; tiktok?: string }>({});
   
   // Content States (Shared)
   const [imageUrl, setImageUrl] = useState<string | string[]>(dayContent.initialImageUrl || '');
@@ -147,16 +153,37 @@ export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, group
     const init = async () => {
       setLoading(true);
       
+      // Helper for default client platforms
+      const getClientDefaultPlatforms = (): ('meta' | 'linkedin' | 'tiktok')[] => {
+        const nets = activeClient?.social_networks || [];
+        const platforms: ('meta' | 'linkedin' | 'tiktok')[] = [];
+        if (nets.includes('Instagram') || nets.includes('Facebook')) platforms.push('meta');
+        if (nets.includes('LinkedIn')) platforms.push('linkedin');
+        if (nets.includes('TikTok')) platforms.push('tiktok');
+        if (platforms.length === 0) {
+          if (dayContent?.platform) platforms.push(dayContent.platform);
+          else platforms.push('meta', 'linkedin');
+        }
+        return platforms;
+      };
+
       // 1. Setup Base Date
       let currentY = '', currentM = '', currentD = '';
 
       if (isNew) {
          setPostDate(defaultDate);
-         setSelectedPlatforms([dayContent.platform]);
-         setPreviewPlatform(dayContent.platform);
+         const defaultPlats = getClientDefaultPlatforms();
+         setSelectedPlatforms(defaultPlats);
+         setPreviewPlatform(defaultPlats[0] || 'meta');
          setIsEditing(true);
          setManualStatus('draft');
          setOriginalKeys([]); // Novo post não tem chaves antigas
+         setUseDifferentCaptions(false);
+         setCaptionMeta('');
+         setCaptionLinkedin('');
+         setCaptionTiktok('');
+         setUseDifferentTimes(false);
+         setCustomTimes({});
          
          // Dummy post for new
          setPost({ date_key: 'temp', status: 'draft', last_updated: new Date().toISOString() } as PostData);
@@ -181,11 +208,11 @@ export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, group
             .maybeSingle();
 
          const currentPlat = dateKey.includes('linkedin') ? 'linkedin' : (dateKey.includes('tiktok') ? 'tiktok' : 'meta');
-         let otherPostData = null;
          let foundKeys = [dateKey];
          let platformsFound: ('meta' | 'linkedin' | 'tiktok')[] = [currentPlat as any];
-         let metaCap = '';
-         let linkedCap = '';
+         
+         const capsMap: { meta: string; linkedin: string; tiktok: string } = { meta: '', linkedin: '', tiktok: '' };
+         const timesMap: { meta: string; linkedin: string; tiktok: string } = { meta: '', linkedin: '', tiktok: '' };
 
          if (groupKeys && groupKeys.length > 0) {
              const { data: groupPosts } = await supabase
@@ -201,29 +228,19 @@ export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, group
                  groupPosts.forEach(p => {
                      const plat = p.date_key.includes('linkedin') ? 'linkedin' : (p.date_key.includes('tiktok') ? 'tiktok' : 'meta');
                      if (!platformsFound.includes(plat as any)) platformsFound.push(plat as any);
-                     if (plat === 'meta' || plat === 'tiktok') metaCap = p.caption || '';
-                     else linkedCap = p.caption || '';
-                     
-                     if (p.date_key !== dateKey) {
-                         otherPostData = p;
-                     }
+                     capsMap[plat] = p.caption || '';
+                     timesMap[plat] = p.scheduled_time || '';
                  });
              }
          } else {
-             // Fallback to old logic if groupKeys not provided
-             const otherPlat = currentPlat === 'linkedin' ? 'meta' : (currentPlat === 'tiktok' ? 'meta' : 'linkedin');
+             // Fallback to sibling key search
              const baseKey = `${currentD}-${currentM}-${currentY}`;
              const siblingPlatforms: ('meta' | 'linkedin' | 'tiktok')[] = ['meta', 'linkedin', 'tiktok'];
              const otherPlats = siblingPlatforms.filter(p => p !== currentPlat);
              
-             // Extract suffix if present (e.g. timestamp or client_id)
              const parts = dateKey.split('-');
              const suffix = parts.length > 4 ? parts.slice(4).join('-') : '';
              
-             const otherKey = ''; // No longer used directly
-
-             const fetchedOther = null; // Resolved dynamically in next step
-                
              for (const otherPlat of otherPlats) {
                  const otherKey = suffix ? `${baseKey}-${otherPlat}-${suffix}` : `${baseKey}-${otherPlat}`;
                  const { data: fetchedOther } = await supabase
@@ -238,36 +255,28 @@ export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, group
                      if (!platformsFound.includes(otherPlat)) {
                          platformsFound.push(otherPlat);
                      }
-                     if (otherPlat === 'meta' || otherPlat === 'tiktok') {
-                         metaCap = fetchedOther.caption || metaCap || '';
-                     } else {
-                         linkedCap = fetchedOther.caption || linkedCap || '';
-                     }
+                     capsMap[otherPlat] = fetchedOther.caption || '';
+                     timesMap[otherPlat] = fetchedOther.scheduled_time || '';
                      if (!foundKeys.includes(fetchedOther.date_key)) {
                          foundKeys.push(fetchedOther.date_key);
                      }
                  }
              }
-             otherPostData = null;
              
-             if (currentPlat === 'meta') {
-                 metaCap = mainPostData?.caption || '';
-             } else {
-                 linkedCap = mainPostData?.caption || '';
-             }
-
-             if (otherPostData && otherPostData.status !== 'deleted') {
-                 platformsFound.push(otherPlat);
-                 if (otherPlat === 'meta') metaCap = otherPostData.caption || '';
-                 else linkedCap = otherPostData.caption || '';
-                 foundKeys.push(otherPostData.date_key);
-             }
+             capsMap[currentPlat] = mainPostData?.caption || '';
+             timesMap[currentPlat] = mainPostData?.scheduled_time || '';
          }
 
          // Populate State
          const primaryData = mainPostData || { 
              date_key: dateKey, status: 'draft', image_url: dayContent.initialImageUrl, theme: dayContent.theme, type: dayContent.type, bullets: dayContent.bullets 
          };
+
+         // Check Auto-Publish for scheduled post past its target date/time
+         if (primaryData.status === 'scheduled' && shouldAutoPublish(primaryData)) {
+             primaryData.status = 'published';
+             supabase.from('posts').update({ status: 'published', last_updated: new Date().toISOString() }).eq('date_key', dateKey);
+         }
 
          setPost(primaryData as PostData);
          setManualStatus(primaryData.status);
@@ -283,19 +292,33 @@ export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, group
          
          setRequireThemeApproval(['theme_pending', 'theme_approved_with_notes', 'theme_approved', 'theme_rejected'].includes(primaryData.status));
 
-         setOriginalKeys(foundKeys); // Armazena chaves originais
+         setOriginalKeys(foundKeys);
          setSelectedPlatforms(platformsFound);
-         setCaptionMeta(metaCap);
-         setCaptionLinkedin(linkedCap);
+         
+         setCaptionMeta(capsMap.meta || capsMap.linkedin || capsMap.tiktok || '');
+         setCaptionLinkedin(capsMap.linkedin || '');
+         setCaptionTiktok(capsMap.tiktok || '');
+
+         setCustomTimes(timesMap);
+
          setPreviewPlatform(currentPlat);
 
-         // Check if captions are different
-         if (platformsFound.length > 1 && metaCap !== linkedCap && (metaCap || linkedCap)) {
+         // Check if captions are genuinely different
+         const nonNullCaps = Object.entries(capsMap).filter(([plat, c]) => platformsFound.includes(plat as any) && c && c.trim() !== '');
+         const uniqueCaps = new Set(nonNullCaps.map(([, c]) => c));
+         if (platformsFound.length > 1 && uniqueCaps.size > 1 && nonNullCaps.length > 1) {
              setUseDifferentCaptions(true);
          } else {
-             // Se forem iguais, coloca no input do Meta e usa ele como "Geral"
-             setCaptionMeta(metaCap || linkedCap);
              setUseDifferentCaptions(false);
+         }
+
+         // Check if times are genuinely different
+         const nonNullTimes = Object.entries(timesMap).filter(([plat, t]) => platformsFound.includes(plat as any) && t && t.trim() !== '');
+         const uniqueTimes = new Set(nonNullTimes.map(([, t]) => t));
+         if (platformsFound.length > 1 && uniqueTimes.size > 1 && nonNullTimes.length > 1) {
+             setUseDifferentTimes(true);
+         } else {
+             setUseDifferentTimes(false);
          }
 
          // Fetch Comments
@@ -517,7 +540,15 @@ export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, group
           // Determine Caption
           let finalCaption = captionMeta;
           if (useDifferentCaptions) {
-              finalCaption = plat === 'linkedin' ? captionLinkedin : captionMeta;
+              if (plat === 'linkedin') finalCaption = captionLinkedin;
+              else if (plat === 'tiktok') finalCaption = captionTiktok;
+              else finalCaption = captionMeta;
+          }
+
+          // Determine Time
+          let finalScheduledTime = postTime || null;
+          if (useDifferentTimes) {
+              finalScheduledTime = customTimes[plat] || postTime || null;
           }
 
           const payload = {
@@ -531,7 +562,7 @@ export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, group
             theme: editedTheme,
             type: editedType,
             bullets: editedBullets.split('\n').filter(l => l.trim() !== ''),
-            scheduled_time: postTime || null,
+            scheduled_time: finalScheduledTime,
             last_updated: new Date().toISOString()
           };
 
@@ -625,9 +656,16 @@ export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, group
           const plat = k.includes('linkedin') ? 'linkedin' : (k.includes('tiktok') ? 'tiktok' : 'meta');
           let finalCaption = captionMeta;
           if (useDifferentCaptions) {
-              finalCaption = plat === 'linkedin' ? captionLinkedin : captionMeta;
+              if (plat === 'linkedin') finalCaption = captionLinkedin;
+              else if (plat === 'tiktok') finalCaption = captionTiktok;
+              else finalCaption = captionMeta;
           }
           
+          let finalScheduledTime = postTime || null;
+          if (useDifferentTimes) {
+              finalScheduledTime = customTimes[plat] || postTime || null;
+          }
+
           await supabase.from('posts').upsert({
               date_key: k,
               client_id: activeClient?.id,
@@ -639,7 +677,7 @@ export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, group
               theme: editedTheme || dayContent.theme,
               type: editedType || dayContent.type,
               bullets: editedBullets ? editedBullets.split('\n').filter(l => l.trim() !== '') : dayContent.bullets,
-              scheduled_time: postTime || null,
+              scheduled_time: finalScheduledTime,
               last_updated: new Date().toISOString(),
               ...extraFields
           }, { onConflict: 'date_key' });
@@ -812,7 +850,12 @@ export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, group
   
   // Determine which caption to show in Preview
   const activePreviewPlatform = selectedPlatforms.length === 1 ? selectedPlatforms[0] : previewPlatform;
-  const previewCaption = (activePreviewPlatform === 'meta' || activePreviewPlatform === 'tiktok' || !useDifferentCaptions) ? captionMeta : captionLinkedin;
+  let previewCaption = captionMeta;
+  if (useDifferentCaptions) {
+    if (activePreviewPlatform === 'linkedin') previewCaption = captionLinkedin || captionMeta;
+    else if (activePreviewPlatform === 'tiktok') previewCaption = captionTiktok || captionMeta;
+    else previewCaption = captionMeta;
+  }
 
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-2 sm:p-4">
@@ -1060,41 +1103,114 @@ export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, group
 
                     {/* 2. Agendamento & Plataformas */}
                     <div className="bg-white p-5 rounded-2xl border border-black/[0.05] shadow-sm mb-5">
-                        <h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-[0.2em] mb-4 flex items-center gap-2"><Calendar size={14} className="text-brand-dark" /> Agendamento</h3>
+                        <div className="flex items-center justify-between mb-4">
+                            <h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-[0.2em] flex items-center gap-2">
+                                <Calendar size={14} className="text-brand-dark" /> Agendamento
+                            </h3>
+                            {selectedPlatforms.length > 1 && (
+                                <div className="flex items-center gap-2">
+                                    <span className={`text-[9px] font-bold uppercase tracking-widest ${useDifferentTimes ? 'text-brand-dark' : 'text-gray-400'}`}>
+                                        Horários por Plataforma
+                                    </span>
+                                    <button 
+                                        type="button"
+                                        onClick={() => {
+                                            const nextState = !useDifferentTimes;
+                                            setUseDifferentTimes(nextState);
+                                            if (nextState) {
+                                                setCustomTimes({
+                                                    meta: customTimes.meta || postTime,
+                                                    linkedin: customTimes.linkedin || postTime,
+                                                    tiktok: customTimes.tiktok || postTime
+                                                });
+                                            }
+                                        }}
+                                        className={`w-9 h-5 rounded-full p-1 transition-all ${useDifferentTimes ? 'bg-brand-dark' : 'bg-gray-200'}`}
+                                    >
+                                        <div className={`w-3 h-3 bg-white rounded-full shadow-sm transform transition-transform ${useDifferentTimes ? 'translate-x-4' : 'translate-x-0'}`}></div>
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+                        
                         <div className="flex flex-col gap-5">
-                            <div className="grid grid-cols-2 gap-4">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 <div className="z-20">
                                     <label className="text-[9px] font-bold text-gray-400 uppercase tracking-widest block mb-2">Data da Publicação</label>
                                     <CustomDatePicker value={postDate} onChange={setPostDate} />
                                 </div>
-                                <div className="z-10">
-                                    <label className="text-[9px] font-bold text-gray-400 uppercase tracking-widest block mb-2">Horário</label>
-                                    <CustomTimePicker value={postTime} onChange={setPostTime} />
-                                </div>
+
+                                {!useDifferentTimes ? (
+                                    <div className="z-10">
+                                        <label className="text-[9px] font-bold text-gray-400 uppercase tracking-widest block mb-2">Horário</label>
+                                        <CustomTimePicker value={postTime} onChange={setPostTime} />
+                                    </div>
+                                ) : (
+                                    <div className="col-span-1 sm:col-span-2 space-y-3 p-3 bg-gray-50 rounded-xl border border-black/[0.05]">
+                                        <label className="text-[9px] font-bold text-gray-400 uppercase tracking-widest block">Horários Específicos por Plataforma</label>
+                                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                            {selectedPlatforms.includes('meta') && (
+                                                <div>
+                                                    <label className="text-[9px] font-bold text-purple-600 uppercase tracking-widest flex items-center gap-1 mb-1">
+                                                        <Instagram size={12}/> Instagram
+                                                    </label>
+                                                    <CustomTimePicker 
+                                                        value={customTimes.meta || postTime} 
+                                                        onChange={t => setCustomTimes(prev => ({ ...prev, meta: t }))} 
+                                                    />
+                                                </div>
+                                            )}
+                                            {selectedPlatforms.includes('linkedin') && (
+                                                <div>
+                                                    <label className="text-[9px] font-bold text-[#0077B5] uppercase tracking-widest flex items-center gap-1 mb-1">
+                                                        <Linkedin size={12}/> LinkedIn
+                                                    </label>
+                                                    <CustomTimePicker 
+                                                        value={customTimes.linkedin || postTime} 
+                                                        onChange={t => setCustomTimes(prev => ({ ...prev, linkedin: t }))} 
+                                                    />
+                                                </div>
+                                            )}
+                                            {selectedPlatforms.includes('tiktok') && (
+                                                <div>
+                                                    <label className="text-[9px] font-bold text-black uppercase tracking-widest flex items-center gap-1 mb-1">
+                                                        <span className="font-bold text-xs">♪</span> TikTok
+                                                    </label>
+                                                    <CustomTimePicker 
+                                                        value={customTimes.tiktok || postTime} 
+                                                        onChange={t => setCustomTimes(prev => ({ ...prev, tiktok: t }))} 
+                                                    />
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                )}
                             </div>
+
                             <div>
                                 <label className="text-[9px] font-bold text-gray-400 uppercase tracking-widest block mb-2">Plataformas</label>
                                 <div className="flex gap-3">
                                     <button 
+                                        type="button"
                                         onClick={() => togglePlatform('meta')} 
                                         className={`flex-1 flex items-center justify-center gap-2 p-3 rounded-xl border transition-all text-[10px] font-bold uppercase tracking-widest ${selectedPlatforms.includes('meta') ? 'bg-brand-dark text-white border-brand-dark shadow-lg shadow-brand-dark/20' : 'bg-white text-gray-500 border-black/[0.08] hover:bg-gray-50'}`}
                                     >
                                         <Instagram size={16} /> Instagram
                                     </button>
                                     <button 
+                                        type="button"
                                         onClick={() => togglePlatform('linkedin')} 
                                         className={`flex-1 flex items-center justify-center gap-2 p-3 rounded-xl border transition-all text-[10px] font-bold uppercase tracking-widest ${selectedPlatforms.includes('linkedin') ? 'bg-brand-dark text-white border-brand-dark shadow-lg shadow-brand-dark/20' : 'bg-white text-gray-500 border-black/[0.08] hover:bg-gray-50'}`}
                                     >
                                         <Linkedin size={16} /> LinkedIn
                                     </button>
-                                    {activeClient?.social_networks?.includes('TikTok') && (
-                                        <button 
-                                            onClick={() => togglePlatform('tiktok')} 
-                                            className={`flex-1 flex items-center justify-center gap-2 p-3 rounded-xl border transition-all text-[10px] font-bold uppercase tracking-widest ${selectedPlatforms.includes('tiktok') ? 'bg-brand-dark text-white border-brand-dark shadow-lg shadow-brand-dark/20' : 'bg-white text-gray-500 border-black/[0.08] hover:bg-gray-50'}`}
-                                        >
-                                            <span className="font-bold text-base leading-none">♪</span> TikTok
-                                        </button>
-                                    )}
+                                    <button 
+                                        type="button"
+                                        onClick={() => togglePlatform('tiktok')} 
+                                        className={`flex-1 flex items-center justify-center gap-2 p-3 rounded-xl border transition-all text-[10px] font-bold uppercase tracking-widest ${selectedPlatforms.includes('tiktok') ? 'bg-brand-dark text-white border-brand-dark shadow-lg shadow-brand-dark/20' : 'bg-white text-gray-500 border-black/[0.08] hover:bg-gray-50'}`}
+                                    >
+                                        <span className="font-bold text-base leading-none">♪</span> TikTok
+                                    </button>
                                 </div>
                             </div>
                         </div>
@@ -1228,7 +1344,15 @@ export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, group
                              <div className="flex items-center gap-3">
                                 <span className={`text-[9px] font-bold uppercase tracking-widest ${useDifferentCaptions ? 'text-brand-dark' : 'text-gray-400'}`}>Legendas Customizadas</span>
                                 <button 
-                                    onClick={() => setUseDifferentCaptions(!useDifferentCaptions)}
+                                    type="button"
+                                    onClick={() => {
+                                        const nextState = !useDifferentCaptions;
+                                        setUseDifferentCaptions(nextState);
+                                        if (nextState) {
+                                            if (!captionLinkedin) setCaptionLinkedin(captionMeta);
+                                            if (!captionTiktok) setCaptionTiktok(captionMeta);
+                                        }
+                                    }}
                                     className={`w-9 h-5 rounded-full p-1 transition-all ${useDifferentCaptions ? 'bg-brand-dark' : 'bg-gray-200'}`}
                                 >
                                     <div className={`w-3 h-3 bg-white rounded-full shadow-sm transform transition-transform ${useDifferentCaptions ? 'translate-x-4' : 'translate-x-0'}`}></div>
@@ -1248,24 +1372,39 @@ export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, group
                             </div>
                         ) : (
                             <div className="space-y-5">
-                                <div className="relative">
-                                    <div className="flex items-center gap-2 mb-2 text-[9px] font-bold uppercase tracking-widest text-purple-600"><Instagram size={12}/> Instagram</div>
-                                    <textarea 
-                                        placeholder="Legenda exclusiva para Instagram..." 
-                                        value={captionMeta} 
-                                        onChange={e => setCaptionMeta(e.target.value)} 
-                                        className="w-full h-40 px-4 py-3 border border-purple-100 bg-purple-50/10 rounded-2xl text-xs focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 outline-none resize-none leading-relaxed transition-all" 
-                                    />
-                                </div>
-                                <div className="relative">
-                                    <div className="flex items-center gap-2 mb-2 text-[9px] font-bold uppercase tracking-widest text-[#0077B5]"><Linkedin size={12}/> LinkedIn</div>
-                                    <textarea 
-                                        placeholder="Legenda exclusiva para LinkedIn..." 
-                                        value={captionLinkedin} 
-                                        onChange={e => setCaptionLinkedin(e.target.value)} 
-                                        className="w-full h-40 px-4 py-3 border border-blue-100 bg-blue-50/10 rounded-2xl text-xs focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none resize-none leading-relaxed transition-all" 
-                                    />
-                                </div>
+                                {selectedPlatforms.includes('meta') && (
+                                    <div className="relative">
+                                        <div className="flex items-center gap-2 mb-2 text-[9px] font-bold uppercase tracking-widest text-purple-600"><Instagram size={12}/> Instagram</div>
+                                        <textarea 
+                                            placeholder="Legenda exclusiva para Instagram..." 
+                                            value={captionMeta} 
+                                            onChange={e => setCaptionMeta(e.target.value)} 
+                                            className="w-full h-40 px-4 py-3 border border-purple-100 bg-purple-50/10 rounded-2xl text-xs focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 outline-none resize-none leading-relaxed transition-all" 
+                                        />
+                                    </div>
+                                )}
+                                {selectedPlatforms.includes('linkedin') && (
+                                    <div className="relative">
+                                        <div className="flex items-center gap-2 mb-2 text-[9px] font-bold uppercase tracking-widest text-[#0077B5]"><Linkedin size={12}/> LinkedIn</div>
+                                        <textarea 
+                                            placeholder="Legenda exclusiva para LinkedIn..." 
+                                            value={captionLinkedin} 
+                                            onChange={e => setCaptionLinkedin(e.target.value)} 
+                                            className="w-full h-40 px-4 py-3 border border-blue-100 bg-blue-50/10 rounded-2xl text-xs focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none resize-none leading-relaxed transition-all" 
+                                        />
+                                    </div>
+                                )}
+                                {selectedPlatforms.includes('tiktok') && (
+                                    <div className="relative">
+                                        <div className="flex items-center gap-2 mb-2 text-[9px] font-bold uppercase tracking-widest text-black"><span className="font-bold text-xs">♪</span> TikTok</div>
+                                        <textarea 
+                                            placeholder="Legenda exclusiva para TikTok..." 
+                                            value={captionTiktok} 
+                                            onChange={e => setCaptionTiktok(e.target.value)} 
+                                            className="w-full h-40 px-4 py-3 border border-gray-200 bg-gray-50/50 rounded-2xl text-xs focus:ring-2 focus:ring-black/20 focus:border-black outline-none resize-none leading-relaxed transition-all" 
+                                        />
+                                    </div>
+                                )}
                             </div>
                         )}
                     </div>

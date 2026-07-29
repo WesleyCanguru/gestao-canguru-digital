@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { supabase, useAuth } from '../../lib/supabase';
+import { autoPublishPastScheduledPosts } from '../../lib/scheduledPostsUtils';
 import { STATUS_CONFIG } from '../../constants';
 import { PostStatus, DailyContent } from '../../types';
 import { PostModal } from '../PostModal';
@@ -38,6 +39,7 @@ interface GroupedPost {
   type: string;
   status: PostStatus;
   scheduled_time?: string | null;
+  platformTimes?: { platform: 'meta' | 'linkedin' | 'tiktok'; time: string }[];
   day: number;
   rawPosts: any[];
 }
@@ -107,7 +109,8 @@ export const MasterEditorialMap: React.FC<MasterEditorialMapProps> = ({ onBackTo
         
       if (error) throw error;
       if (data) {
-        setPosts(data);
+        const processed = await autoPublishPastScheduledPosts(data);
+        setPosts(processed);
       }
     } catch (e) {
       console.error("Erro ao carregar posts no Mapa Master:", e);
@@ -252,6 +255,27 @@ export const MasterEditorialMap: React.FC<MasterEditorialMapProps> = ({ onBackTo
       }
     });
 
+    Object.values(groups).forEach(group => {
+      const timesMap: Record<string, string> = {};
+      group.rawPosts.forEach(p => {
+        const plat = p.date_key.includes('linkedin') ? 'linkedin' : (p.date_key.includes('tiktok') ? 'tiktok' : 'meta');
+        if (p.scheduled_time) {
+          timesMap[plat] = p.scheduled_time;
+        }
+      });
+      if (group.scheduled_time) {
+        group.platforms.forEach(p => {
+          if (!timesMap[p]) {
+            timesMap[p] = group.scheduled_time!;
+          }
+        });
+      }
+      group.platformTimes = Object.entries(timesMap).map(([platform, time]) => ({
+        platform: platform as 'meta' | 'linkedin' | 'tiktok',
+        time
+      }));
+    });
+
     return Object.values(groups);
   };
 
@@ -394,16 +418,48 @@ export const MasterEditorialMap: React.FC<MasterEditorialMapProps> = ({ onBackTo
                   </p>
 
                   {/* Informações Extras (Horário e Status) */}
-                  <div className="flex items-center justify-between gap-1 mt-1 font-mono text-[7px] font-bold uppercase tracking-wider text-gray-500">
-                    <span className="truncate max-w-[50px]">
-                      {getStatusLabel(group.status)}
-                    </span>
-                    {group.scheduled_time && (
-                      <span className="flex items-center gap-0.5 font-medium shrink-0 text-gray-400">
-                        <Clock size={8} />
-                        {group.scheduled_time}
+                  <div className="flex flex-col gap-1 mt-1">
+                    <div className="flex items-center justify-between gap-1 font-mono text-[7px] font-bold uppercase tracking-wider text-gray-500">
+                      <span className="truncate max-w-[50px]">
+                        {getStatusLabel(group.status)}
                       </span>
-                    )}
+                      {(() => {
+                        const pts = group.platformTimes || [];
+                        const timesSet = new Set(pts.map(p => p.time));
+                        const hasDifferentTimes = pts.length > 1 && timesSet.size > 1;
+                        if (!hasDifferentTimes) {
+                          const displayTime = group.scheduled_time || (pts.length > 0 ? pts[0].time : null);
+                          if (!displayTime) return null;
+                          return (
+                            <span className="flex items-center gap-0.5 font-medium shrink-0 text-gray-400">
+                              <Clock size={8} />
+                              {displayTime}
+                            </span>
+                          );
+                        }
+                        return null;
+                      })()}
+                    </div>
+                    {(() => {
+                      const pts = group.platformTimes || [];
+                      const timesSet = new Set(pts.map(p => p.time));
+                      const hasDifferentTimes = pts.length > 1 && timesSet.size > 1;
+                      if (hasDifferentTimes) {
+                        return (
+                          <div className="flex flex-wrap items-center gap-1 text-[8px] font-medium bg-gray-50 p-1 rounded border border-black/[0.04] mt-0.5">
+                            {pts.map(({ platform, time }) => (
+                              <div key={platform} className="flex items-center gap-0.5 text-gray-700">
+                                {platform === 'meta' && <Instagram size={8} className="text-[#E1306C] shrink-0" />}
+                                {platform === 'linkedin' && <Linkedin size={8} className="text-[#0077B5] shrink-0" />}
+                                {platform === 'tiktok' && <span className="text-[8px] font-bold text-black leading-none shrink-0">♪</span>}
+                                <span className="font-bold text-[8px]">{time}</span>
+                              </div>
+                            ))}
+                          </div>
+                        );
+                      }
+                      return null;
+                    })()}
                   </div>
                 </div>
               );

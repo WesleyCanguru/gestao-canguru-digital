@@ -1,12 +1,13 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { MonthlyDetailedPlan, DailyContent, PostStatus, PostData, PostTheme } from '../types';
-import { Instagram, Linkedin, CalendarDays, Target, BarChart3, Repeat, FileCheck, CheckCircle2, ArrowLeft, MessageCircle, List, Calendar as CalendarIcon, Plus, Loader2, Check, Edit2, Edit3, RefreshCw, Save, X, Trash, Sparkles, FileText } from 'lucide-react';
+import { Instagram, Linkedin, CalendarDays, Target, BarChart3, Repeat, FileCheck, CheckCircle2, ArrowLeft, MessageCircle, List, Calendar as CalendarIcon, Plus, Loader2, Check, Edit2, Edit3, RefreshCw, Save, X, Trash, Sparkles, FileText, Clock } from 'lucide-react';
 import { PostModal } from './PostModal';
 import { PostIdeasModal } from './PostIdeasModal';
 import { ImportPdfModal } from './ImportPdfModal';
 import { ThemeBankAdmin } from './agency/ThemeBankAdmin';
 import { useAuth, supabase } from '../lib/supabase';
+import { autoPublishPastScheduledPosts } from '../lib/scheduledPostsUtils';
 import { StatusLegend } from './StatusLegend';
 import { ConfirmModal } from './ConfirmModal';
 import { useEditorialData, MONTH_NAMES, DAY_NAMES } from '../hooks/useEditorialData';
@@ -33,6 +34,7 @@ interface GroupedPost {
     type: string;
     bullets: string[];
     scheduled_time?: string | null;
+    platformTimes?: { platform: 'meta' | 'linkedin' | 'tiktok'; time: string }[];
 }
 
 export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack, initialViewMode }) => {
@@ -598,9 +600,11 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack, ini
       
       .eq('client_id', activeClient?.id);
 
+    const processedData = data ? await autoPublishPastScheduledPosts(data) : [];
+
     const postsMap: Record<string, PostData> = {};
-    if (data) {
-      data.forEach((post: PostData) => {
+    if (processedData) {
+      processedData.forEach((post: PostData) => {
         postsMap[post.date_key] = post;
       });
     }
@@ -764,6 +768,29 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack, ini
             }
         }
         groups.push(group);
+    });
+
+    // Populate platformTimes for each group based on dbPosts
+    groups.forEach(group => {
+        const timesMap: Record<string, string> = {};
+        group.keys.forEach(k => {
+            const dbP = dbPosts[k];
+            const plat = k.includes('linkedin') ? 'linkedin' : (k.includes('tiktok') ? 'tiktok' : 'meta');
+            if (dbP?.scheduled_time) {
+                timesMap[plat] = dbP.scheduled_time;
+            }
+        });
+        if (group.scheduled_time) {
+            group.platforms.forEach(p => {
+                if (!timesMap[p]) {
+                    timesMap[p] = group.scheduled_time!;
+                }
+            });
+        }
+        group.platformTimes = Object.entries(timesMap).map(([platform, time]) => ({
+            platform: platform as 'meta' | 'linkedin' | 'tiktok',
+            time
+        }));
     });
 
     setGroupedPosts(groups);
@@ -1366,12 +1393,36 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack, ini
                   <p className="text-[11px] font-bold text-brand-dark leading-tight line-clamp-2 mb-2" title={group.theme}>
                     {group.theme}
                   </p>
-                  {group.scheduled_time && (
+                  {(() => {
+                    const pts = group.platformTimes || [];
+                    const timesSet = new Set(pts.map(p => p.time));
+                    const hasDifferentTimes = pts.length > 1 && timesSet.size > 1;
+
+                    if (hasDifferentTimes) {
+                      return (
+                        <div className="flex flex-wrap items-center gap-1.5 text-[9px] font-medium mb-2 bg-gray-50/90 p-1 rounded-md border border-black/[0.04]">
+                          {pts.map(({ platform, time }) => (
+                            <div key={platform} className="flex items-center gap-1 text-gray-700" title={`${platform === 'meta' ? 'Instagram' : platform === 'linkedin' ? 'LinkedIn' : 'TikTok'}: ${time}`}>
+                              {platform === 'meta' && <Instagram size={10} className="text-[#E1306C] shrink-0" />}
+                              {platform === 'linkedin' && <Linkedin size={10} className="text-[#0077B5] shrink-0" />}
+                              {platform === 'tiktok' && <span className="text-[9px] font-bold text-black leading-none shrink-0">♪</span>}
+                              <span className="font-bold text-[9px]">{time}</span>
+                            </div>
+                          ))}
+                        </div>
+                      );
+                    }
+
+                    const displayTime = group.scheduled_time || (pts.length > 0 ? pts[0].time : null);
+                    if (!displayTime) return null;
+
+                    return (
                       <div className="flex items-center gap-1.5 text-[9px] text-gray-500 font-medium mb-2">
-                          <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
-                          {group.scheduled_time}
+                        <Clock size={10} />
+                        {displayTime}
                       </div>
-                  )}
+                    );
+                  })()}
                   <div className="flex items-center justify-between mt-2 h-6">
                       <span className="text-[7px] font-bold uppercase tracking-widest text-gray-500 border border-black/[0.05] px-1.5 py-0.5 rounded-md bg-white/50 backdrop-blur-sm">
                          {getStatusLabel(group.status)}
@@ -1806,6 +1857,36 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack, ini
                          </div>
                          <div className="flex-grow">
                             <span className="text-xs font-bold px-2 py-0.5 rounded border bg-white/50 border-black/10 text-gray-800 mb-2 inline-block">📌 {group.type}</span>
+                            {(() => {
+                               const pts = group.platformTimes || [];
+                               const timesSet = new Set(pts.map(p => p.time));
+                               const hasDifferentTimes = pts.length > 1 && timesSet.size > 1;
+
+                               if (hasDifferentTimes) {
+                                  return (
+                                     <div className="flex flex-wrap items-center gap-1.5 mb-2 text-[10px] font-medium text-gray-700">
+                                        {pts.map(({ platform, time }) => (
+                                           <div key={platform} className="flex items-center gap-1 bg-white px-2 py-0.5 rounded border border-black/10 shadow-2xs">
+                                              {platform === 'meta' && <Instagram size={10} className="text-[#E1306C]" />}
+                                              {platform === 'linkedin' && <Linkedin size={10} className="text-[#0077B5]" />}
+                                              {platform === 'tiktok' && <span className="text-[9px] font-bold">♪</span>}
+                                              <span className="font-bold text-[9px]">{time}</span>
+                                           </div>
+                                        ))}
+                                     </div>
+                                  );
+                               }
+
+                               const displayTime = group.scheduled_time || (pts.length > 0 ? pts[0].time : null);
+                               if (!displayTime) return null;
+
+                               return (
+                                  <div className="flex items-center gap-1 text-[10px] text-gray-500 font-medium mb-2">
+                                     <Clock size={11} />
+                                     <span>{displayTime}</span>
+                                  </div>
+                               );
+                            })()}
                             <h4 className="font-bold text-gray-900 mb-1">{group.theme}</h4>
                             {group.bullets && group.bullets.length > 0 && <p className="text-xs text-gray-600 line-clamp-2">{group.bullets.join(' • ')}</p>}
                          </div>
