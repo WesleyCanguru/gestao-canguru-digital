@@ -301,7 +301,7 @@ const SortableTemplateItem: React.FC<{ item: any, onAddChild: () => void, onEdit
     <div ref={setNodeRef} style={style} className="bg-white rounded-2xl border border-gray-100 hover:border-brand-dark/30 p-4 flex items-center gap-4 group">
       <div {...attributes} {...listeners} className="text-gray-300 hover:text-brand-dark cursor-grab active:cursor-grabbing p-1"><GripVertical size={20} /></div>
       <div className="flex-1 min-w-0">
-        <p className="font-bold text-gray-900 truncate">{item.title}</p>
+        <p className="font-bold text-gray-900 break-words leading-snug">{item.title}</p>
         <span className="text-[10px] text-gray-400 font-bold uppercase">{item.responsible}</span>
       </div>
       <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">

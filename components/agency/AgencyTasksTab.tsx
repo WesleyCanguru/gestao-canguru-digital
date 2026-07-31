@@ -702,19 +702,50 @@ const HojeTasks: React.FC<{ clients: any[], onEditTask: (t: AgencyTask) => void,
       {/* Bloco 1: Rotina do Dia */}
       {rotinaDia.length > 0 && (
          <div>
-            <h3 className="text-lg font-black text-brand-dark tracking-tight mb-4 flex items-center gap-2">
+            <h3 className="text-lg font-black text-brand-dark tracking-tight mb-3 flex items-center gap-2">
                ☀️ Rotina do Dia
             </h3>
-            <div className="bg-brand-dark/5 border border-brand-dark/10 rounded-3xl p-5 md:p-6 mb-8">
-               {pendingRotinaDia.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center py-6 text-center">
-                     <div className="w-14 h-14 bg-green-100 text-green-500 rounded-full flex items-center justify-center mb-3">
-                        <CheckCircle2 size={28} />
+            {pendingRotinaDia.length === 0 ? (
+               <div className="bg-green-50/80 border border-green-200/80 rounded-2xl p-3 sm:p-4 mb-6">
+                  <div className="flex items-center justify-between gap-2">
+                     <div className="flex items-center gap-2 text-green-900 font-bold text-xs sm:text-sm min-w-0">
+                        <div className="w-5 h-5 bg-green-500 text-white rounded-full flex items-center justify-center shrink-0">
+                           <CheckCircle2 size={13} />
+                        </div>
+                        <span className="truncate">Rotina do dia concluída ✓</span>
+                        <span className="text-green-700 text-xs font-normal hidden md:inline truncate">— Você finalizou todas as tarefas diárias.</span>
                      </div>
-                     <h4 className="font-bold text-gray-900 text-lg">Rotina do dia concluída ✓</h4>
-                     <p className="text-gray-500 text-sm font-medium">Você finalizou todas as tarefas diárias.</p>
+                     {completedRotinaDia.length > 0 && (
+                        <button
+                           onClick={() => setIsRotinaDiaExpanded(!isRotinaDiaExpanded)}
+                           className="text-[10px] font-extrabold text-green-800 hover:text-green-950 uppercase tracking-wider transition-colors shrink-0"
+                        >
+                           {isRotinaDiaExpanded 
+                              ? `Ocultar ${completedRotinaDia.length} tarefas ▴`
+                              : `Ver ${completedRotinaDia.length} concluídas ▾`
+                           }
+                        </button>
+                     )}
                   </div>
-               ) : (
+                  {completedRotinaDia.length > 0 && (
+                     <AnimatePresence>
+                        {isRotinaDiaExpanded && (
+                           <motion.div
+                              initial={{ height: 0, opacity: 0 }}
+                              animate={{ height: 'auto', opacity: 1 }}
+                              exit={{ height: 0, opacity: 0 }}
+                              className="overflow-hidden space-y-2 mt-3 pt-3 border-t border-green-200/60 opacity-80"
+                           >
+                              {sortedCompletedRotinaDia.map(task => (
+                                 <TaskListItem key={task.id} task={task} onToggle={() => toggleStatus(task)} onEdit={() => onEditTask(task)} isTodayView />
+                              ))}
+                           </motion.div>
+                        )}
+                     </AnimatePresence>
+                  )}
+               </div>
+            ) : (
+               <div className="bg-brand-dark/5 border border-brand-dark/10 rounded-3xl p-5 md:p-6 mb-8">
                   <DndContext 
                     sensors={sensors}
                     collisionDetection={closestCenter}
@@ -731,57 +762,88 @@ const HojeTasks: React.FC<{ clients: any[], onEditTask: (t: AgencyTask) => void,
                       </div>
                     </SortableContext>
                   </DndContext>
-               )}
 
-               {completedRotinaDia.length > 0 && (
-                  <div className="pt-4 border-t border-gray-200/40 mt-4">
-                     <button
-                        onClick={() => setIsRotinaDiaExpanded(!isRotinaDiaExpanded)}
-                        className="flex items-center gap-2 text-[10px] font-extrabold text-gray-500 hover:text-brand-dark uppercase tracking-widest transition-colors mx-auto"
-                     >
-                        <span>
-                           {isRotinaDiaExpanded 
-                              ? `Ocultar ${completedRotinaDia.length} tarefas concluídas ▴`
-                              : `Ver ${completedRotinaDia.length} tarefas concluídas ▾`
-                           }
-                        </span>
-                     </button>
-                     <AnimatePresence>
-                        {isRotinaDiaExpanded && (
-                           <motion.div
-                              initial={{ height: 0, opacity: 0 }}
-                              animate={{ height: 'auto', opacity: 1 }}
-                              exit={{ height: 0, opacity: 0 }}
-                              className="overflow-hidden space-y-2 mt-4 opacity-70 grayscale-[0.2]"
-                           >
-                              {sortedCompletedRotinaDia.map(task => (
-                                 <TaskListItem key={task.id} task={task} onToggle={() => toggleStatus(task)} onEdit={() => onEditTask(task)} isTodayView />
-                              ))}
-                           </motion.div>
-                        )}
-                     </AnimatePresence>
-                  </div>
-               )}
-            </div>
+                  {completedRotinaDia.length > 0 && (
+                     <div className="pt-4 border-t border-gray-200/40 mt-4">
+                        <button
+                           onClick={() => setIsRotinaDiaExpanded(!isRotinaDiaExpanded)}
+                           className="flex items-center gap-2 text-[10px] font-extrabold text-gray-500 hover:text-brand-dark uppercase tracking-widest transition-colors mx-auto"
+                        >
+                           <span>
+                              {isRotinaDiaExpanded 
+                                 ? `Ocultar ${completedRotinaDia.length} tarefas concluídas ▴`
+                                 : `Ver ${completedRotinaDia.length} tarefas concluídas ▾`
+                              }
+                           </span>
+                        </button>
+                        <AnimatePresence>
+                           {isRotinaDiaExpanded && (
+                              <motion.div
+                                 initial={{ height: 0, opacity: 0 }}
+                                 animate={{ height: 'auto', opacity: 1 }}
+                                 exit={{ height: 0, opacity: 0 }}
+                                 className="overflow-hidden space-y-2 mt-4 opacity-70 grayscale-[0.2]"
+                              >
+                                 {sortedCompletedRotinaDia.map(task => (
+                                    <TaskListItem key={task.id} task={task} onToggle={() => toggleStatus(task)} onEdit={() => onEditTask(task)} isTodayView />
+                                 ))}
+                              </motion.div>
+                           )}
+                        </AnimatePresence>
+                     </div>
+                  )}
+               </div>
+            )}
          </div>
       )}
 
       {/* Bloco: Rotina da Semana */}
       {rotinaSemana.length > 0 && (
          <div>
-            <h3 className="text-lg font-black text-brand-dark tracking-tight mb-4 flex items-center gap-2">
+            <h3 className="text-lg font-black text-brand-dark tracking-tight mb-3 flex items-center gap-2">
                🔄 Rotina da Semana
             </h3>
-            <div className="bg-brand-dark/5 border border-brand-dark/10 rounded-3xl p-5 md:p-6 mb-8">
-               {pendingRotinaSemana.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center py-6 text-center">
-                     <div className="w-14 h-14 bg-green-100 text-green-500 rounded-full flex items-center justify-center mb-3">
-                        <CheckCircle2 size={28} />
+            {pendingRotinaSemana.length === 0 ? (
+               <div className="bg-green-50/80 border border-green-200/80 rounded-2xl p-3 sm:p-4 mb-6">
+                  <div className="flex items-center justify-between gap-2">
+                     <div className="flex items-center gap-2 text-green-900 font-bold text-xs sm:text-sm min-w-0">
+                        <div className="w-5 h-5 bg-green-500 text-white rounded-full flex items-center justify-center shrink-0">
+                           <CheckCircle2 size={13} />
+                        </div>
+                        <span className="truncate">Rotina da semana concluída ✓</span>
+                        <span className="text-green-700 text-xs font-normal hidden md:inline truncate">— Você finalizou todas as tarefas semanais.</span>
                      </div>
-                     <h4 className="font-bold text-gray-900 text-lg">Rotina da semana concluída ✓</h4>
-                     <p className="text-gray-500 text-sm font-medium">Você finalizou todas as tarefas semanais.</p>
+                     {completedRotinaSemana.length > 0 && (
+                        <button
+                           onClick={() => setIsRotinaSemanaExpanded(!isRotinaSemanaExpanded)}
+                           className="text-[10px] font-extrabold text-green-800 hover:text-green-950 uppercase tracking-wider transition-colors shrink-0"
+                        >
+                           {isRotinaSemanaExpanded 
+                              ? `Ocultar ${completedRotinaSemana.length} tarefas ▴`
+                              : `Ver ${completedRotinaSemana.length} concluídas ▾`
+                           }
+                        </button>
+                     )}
                   </div>
-               ) : (
+                  {completedRotinaSemana.length > 0 && (
+                     <AnimatePresence>
+                        {isRotinaSemanaExpanded && (
+                           <motion.div
+                              initial={{ height: 0, opacity: 0 }}
+                              animate={{ height: 'auto', opacity: 1 }}
+                              exit={{ height: 0, opacity: 0 }}
+                              className="overflow-hidden space-y-2 mt-3 pt-3 border-t border-green-200/60 opacity-80"
+                           >
+                              {sortedCompletedRotinaSemana.map(task => (
+                                 <TaskListItem key={task.id} task={task} onToggle={() => toggleStatus(task)} onEdit={() => onEditTask(task)} isTodayView />
+                              ))}
+                           </motion.div>
+                        )}
+                     </AnimatePresence>
+                  )}
+               </div>
+            ) : (
+               <div className="bg-brand-dark/5 border border-brand-dark/10 rounded-3xl p-5 md:p-6 mb-8">
                   <DndContext 
                     sensors={sensors}
                     collisionDetection={closestCenter}
@@ -798,57 +860,88 @@ const HojeTasks: React.FC<{ clients: any[], onEditTask: (t: AgencyTask) => void,
                       </div>
                     </SortableContext>
                   </DndContext>
-               )}
 
-               {completedRotinaSemana.length > 0 && (
-                  <div className="pt-4 border-t border-gray-200/40 mt-4">
-                     <button
-                        onClick={() => setIsRotinaSemanaExpanded(!isRotinaSemanaExpanded)}
-                        className="flex items-center gap-2 text-[10px] font-extrabold text-gray-500 hover:text-brand-dark uppercase tracking-widest transition-colors mx-auto"
-                     >
-                        <span>
-                           {isRotinaSemanaExpanded 
-                              ? `Ocultar ${completedRotinaSemana.length} tarefas concluídas ▴`
-                              : `Ver ${completedRotinaSemana.length} tarefas concluídas ▾`
-                           }
-                        </span>
-                     </button>
-                     <AnimatePresence>
-                        {isRotinaSemanaExpanded && (
-                           <motion.div
-                              initial={{ height: 0, opacity: 0 }}
-                              animate={{ height: 'auto', opacity: 1 }}
-                              exit={{ height: 0, opacity: 0 }}
-                              className="overflow-hidden space-y-2 mt-4 opacity-70 grayscale-[0.2]"
-                           >
-                              {sortedCompletedRotinaSemana.map(task => (
-                                 <TaskListItem key={task.id} task={task} onToggle={() => toggleStatus(task)} onEdit={() => onEditTask(task)} isTodayView />
-                              ))}
-                           </motion.div>
-                        )}
-                     </AnimatePresence>
-                  </div>
-               )}
-            </div>
+                  {completedRotinaSemana.length > 0 && (
+                     <div className="pt-4 border-t border-gray-200/40 mt-4">
+                        <button
+                           onClick={() => setIsRotinaSemanaExpanded(!isRotinaSemanaExpanded)}
+                           className="flex items-center gap-2 text-[10px] font-extrabold text-gray-500 hover:text-brand-dark uppercase tracking-widest transition-colors mx-auto"
+                        >
+                           <span>
+                              {isRotinaSemanaExpanded 
+                                 ? `Ocultar ${completedRotinaSemana.length} tarefas concluídas ▴`
+                                 : `Ver ${completedRotinaSemana.length} tarefas concluídas ▾`
+                              }
+                           </span>
+                        </button>
+                        <AnimatePresence>
+                           {isRotinaSemanaExpanded && (
+                              <motion.div
+                                 initial={{ height: 0, opacity: 0 }}
+                                 animate={{ height: 'auto', opacity: 1 }}
+                                 exit={{ height: 0, opacity: 0 }}
+                                 className="overflow-hidden space-y-2 mt-4 opacity-70 grayscale-[0.2]"
+                              >
+                                 {sortedCompletedRotinaSemana.map(task => (
+                                    <TaskListItem key={task.id} task={task} onToggle={() => toggleStatus(task)} onEdit={() => onEditTask(task)} isTodayView />
+                                 ))}
+                              </motion.div>
+                           )}
+                        </AnimatePresence>
+                     </div>
+                  )}
+               </div>
+            )}
          </div>
       )}
 
       {/* Bloco: Rotina do Mês */}
       {rotinaMes.length > 0 && (
          <div>
-            <h3 className="text-lg font-black text-brand-dark tracking-tight mb-4 flex items-center gap-2">
+            <h3 className="text-lg font-black text-brand-dark tracking-tight mb-3 flex items-center gap-2">
                📅 Rotina do Mês
             </h3>
-            <div className="bg-brand-dark/5 border border-brand-dark/10 rounded-3xl p-5 md:p-6 mb-8">
-               {pendingRotinaMes.length === 0 && notStartedRotinaMes.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center py-6 text-center">
-                     <div className="w-14 h-14 bg-green-100 text-green-500 rounded-full flex items-center justify-center mb-3">
-                        <CheckCircle2 size={28} />
+            {pendingRotinaMes.length === 0 && notStartedRotinaMes.length === 0 ? (
+               <div className="bg-green-50/80 border border-green-200/80 rounded-2xl p-3 sm:p-4 mb-6">
+                  <div className="flex items-center justify-between gap-2">
+                     <div className="flex items-center gap-2 text-green-900 font-bold text-xs sm:text-sm min-w-0">
+                        <div className="w-5 h-5 bg-green-500 text-white rounded-full flex items-center justify-center shrink-0">
+                           <CheckCircle2 size={13} />
+                        </div>
+                        <span className="truncate">Rotina do mês concluída ✓</span>
+                        <span className="text-green-700 text-xs font-normal hidden md:inline truncate">— Você finalizou todas as tarefas mensais deste ciclo.</span>
                      </div>
-                     <h4 className="font-bold text-gray-900 text-lg">Rotina do mês concluída ✓</h4>
-                     <p className="text-gray-500 text-sm font-medium">Você finalizou todas as tarefas mensais deste ciclo.</p>
+                     {completedRotinaMes.length > 0 && (
+                        <button
+                           onClick={() => setIsRotinaMesExpanded(!isRotinaMesExpanded)}
+                           className="text-[10px] font-extrabold text-green-800 hover:text-green-950 uppercase tracking-wider transition-colors shrink-0"
+                        >
+                           {isRotinaMesExpanded 
+                              ? `Ocultar ${completedRotinaMes.length} tarefas ▴`
+                              : `Ver ${completedRotinaMes.length} concluídas ▾`
+                           }
+                        </button>
+                     )}
                   </div>
-               ) : (
+                  {completedRotinaMes.length > 0 && (
+                     <AnimatePresence>
+                        {isRotinaMesExpanded && (
+                           <motion.div
+                              initial={{ height: 0, opacity: 0 }}
+                              animate={{ height: 'auto', opacity: 1 }}
+                              exit={{ height: 0, opacity: 0 }}
+                              className="overflow-hidden space-y-2 mt-3 pt-3 border-t border-green-200/60 opacity-80"
+                           >
+                              {sortedCompletedRotinaMes.map(task => (
+                                 <TaskListItem key={task.id} task={task} onToggle={() => toggleStatus(task)} onEdit={() => onEditTask(task)} isTodayView />
+                              ))}
+                           </motion.div>
+                        )}
+                     </AnimatePresence>
+                  )}
+               </div>
+            ) : (
+               <div className="bg-brand-dark/5 border border-brand-dark/10 rounded-3xl p-5 md:p-6 mb-8">
                   <div className="space-y-4">
                      {/* Tarefas Abertas / Pendentes no Ciclo Atual */}
                      {pendingRotinaMes.length > 0 && (
@@ -880,38 +973,38 @@ const HojeTasks: React.FC<{ clients: any[], onEditTask: (t: AgencyTask) => void,
                         </div>
                      )}
                   </div>
-               )}
 
-               {completedRotinaMes.length > 0 && (
-                  <div className="pt-4 border-t border-gray-200/40 mt-4">
-                     <button
-                        onClick={() => setIsRotinaMesExpanded(!isRotinaMesExpanded)}
-                        className="flex items-center gap-2 text-[10px] font-extrabold text-gray-500 hover:text-brand-dark uppercase tracking-widest transition-colors mx-auto"
-                     >
-                        <span>
-                           {isRotinaMesExpanded 
-                              ? `Ocultar ${completedRotinaMes.length} tarefas concluídas ▴`
-                              : `Ver ${completedRotinaMes.length} tarefas concluídas ▾`
-                           }
-                        </span>
-                     </button>
-                     <AnimatePresence>
-                        {isRotinaMesExpanded && (
-                           <motion.div
-                              initial={{ height: 0, opacity: 0 }}
-                              animate={{ height: 'auto', opacity: 1 }}
-                              exit={{ height: 0, opacity: 0 }}
-                              className="overflow-hidden space-y-2 mt-4 opacity-70 grayscale-[0.2]"
-                           >
-                              {sortedCompletedRotinaMes.map(task => (
-                                 <TaskListItem key={task.id} task={task} onToggle={() => toggleStatus(task)} onEdit={() => onEditTask(task)} isTodayView />
-                              ))}
-                           </motion.div>
-                        )}
-                     </AnimatePresence>
-                  </div>
-               )}
-            </div>
+                  {completedRotinaMes.length > 0 && (
+                     <div className="pt-4 border-t border-gray-200/40 mt-4">
+                        <button
+                           onClick={() => setIsRotinaMesExpanded(!isRotinaMesExpanded)}
+                           className="flex items-center gap-2 text-[10px] font-extrabold text-gray-500 hover:text-brand-dark uppercase tracking-widest transition-colors mx-auto"
+                        >
+                           <span>
+                              {isRotinaMesExpanded 
+                                 ? `Ocultar ${completedRotinaMes.length} tarefas concluídas ▴`
+                                 : `Ver ${completedRotinaMes.length} tarefas concluídas ▾`
+                              }
+                           </span>
+                        </button>
+                        <AnimatePresence>
+                           {isRotinaMesExpanded && (
+                              <motion.div
+                                 initial={{ height: 0, opacity: 0 }}
+                                 animate={{ height: 'auto', opacity: 1 }}
+                                 exit={{ height: 0, opacity: 0 }}
+                                 className="overflow-hidden space-y-2 mt-4 opacity-70 grayscale-[0.2]"
+                              >
+                                 {sortedCompletedRotinaMes.map(task => (
+                                    <TaskListItem key={task.id} task={task} onToggle={() => toggleStatus(task)} onEdit={() => onEditTask(task)} isTodayView />
+                                 ))}
+                              </motion.div>
+                           )}
+                        </AnimatePresence>
+                     </div>
+                  )}
+               </div>
+            )}
          </div>
       )}
 
@@ -1727,9 +1820,9 @@ const TaskListItem: React.FC<{ task: AgencyTask, onToggle: () => void, onEdit: (
   const isMonthlyNotStarted = task.recurrence_type === 'monthly' && getMonthlyTaskState(task) === 'not_started';
 
   return (
-    <div className={`group flex items-center gap-4 p-4 bg-white rounded-2xl border border-gray-100 hover:border-brand-dark/20 hover:shadow-sm transition-all ${isDone ? 'opacity-60 bg-gray-50 pointer-events-auto' : ''} ${isDragging ? 'shadow-lg border-brand-dark/30 scale-[1.01]' : ''}`}>
+    <div className={`group flex items-start sm:items-center gap-3 sm:gap-4 p-4 bg-white rounded-2xl border border-gray-100 hover:border-brand-dark/20 hover:shadow-sm transition-all ${isDone ? 'opacity-60 bg-gray-50 pointer-events-auto' : ''} ${isDragging ? 'shadow-lg border-brand-dark/30 scale-[1.01]' : ''}`}>
       {!isDone && !isMonthlyNotStarted && (
-        <div className="text-gray-300 group-hover:text-gray-400 cursor-grab active:cursor-grabbing flex-shrink-0">
+        <div className="text-gray-300 group-hover:text-gray-400 cursor-grab active:cursor-grabbing flex-shrink-0 pt-0.5 sm:pt-0">
           <GripVertical size={16} />
         </div>
       )}
@@ -1737,14 +1830,14 @@ const TaskListItem: React.FC<{ task: AgencyTask, onToggle: () => void, onEdit: (
       <button 
         disabled={isMonthlyNotStarted}
         onClick={onToggle} 
-        className={`flex-shrink-0 text-gray-300 hover:text-brand-dark transition-colors ${isDone ? 'text-green-500 hover:text-green-600' : ''} ${isMonthlyNotStarted ? 'text-gray-200 cursor-not-allowed' : ''}`}
+        className={`flex-shrink-0 text-gray-300 hover:text-brand-dark transition-colors pt-0.5 sm:pt-0 ${isDone ? 'text-green-500 hover:text-green-600' : ''} ${isMonthlyNotStarted ? 'text-gray-200 cursor-not-allowed' : ''}`}
       >
         {isDone ? <CheckCircle2 size={24} /> : <Circle size={24} />}
       </button>
       
       <div className="flex-1 min-w-0 flex flex-col md:flex-row md:items-center gap-2 md:gap-4">
-        <div className="flex-1 truncate">
-          <span className={`font-bold text-sm ${isDone ? 'line-through text-gray-500' : 'text-gray-800'} ${isMonthlyNotStarted ? 'text-gray-400 font-medium' : ''}`}>
+        <div className="flex-1 min-w-0">
+          <span className={`font-bold text-sm leading-snug break-words block ${isDone ? 'line-through text-gray-500' : 'text-gray-800'} ${isMonthlyNotStarted ? 'text-gray-400 font-medium' : ''}`}>
             {task.title}
           </span>
         </div>

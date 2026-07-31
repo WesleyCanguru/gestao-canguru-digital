@@ -389,7 +389,7 @@ const SortableTemplateItem: React.FC<{ item: OnboardingTemplate, onAddChild: () 
       </div>
 
       <div className="flex-1 min-w-0">
-        <p className="font-bold text-gray-900 truncate">{item.title}</p>
+        <p className="font-bold text-gray-900 break-words leading-snug">{item.title}</p>
         <div className="flex gap-2 mt-1 flex-wrap">
           {item.required_services && item.required_services.length > 0 ? (
             item.required_services.map(srv => {

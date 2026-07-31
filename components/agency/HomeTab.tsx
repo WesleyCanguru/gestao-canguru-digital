@@ -499,7 +499,7 @@ export const HomeTab: React.FC<{ onNavigateToClients: (client: Client) => void }
               return (
                 <div key={task.id} className="p-4 rounded-2xl border border-gray-100 flex items-center justify-between bg-gray-50/50">
                   <div className="flex flex-col gap-1 min-w-0 pr-4">
-                    <p className="text-sm font-bold truncate">{task.title}</p>
+                    <p className="text-sm font-bold break-words leading-snug">{task.title}</p>
                     {task.client?.name && (
                       <p className="text-[10px] text-gray-500 truncate">{task.client.name}</p>
                     )}
