@@ -4,16 +4,12 @@ import {
   DollarSign, 
   TrendingUp, 
   TrendingDown, 
-  Settings, 
   Calendar, 
-  AlertCircle, 
   CheckCircle2, 
   BarChart3,
   Clock,
   Building2,
   ListTodo,
-  Plus,
-  Trash2,
   Eye,
   EyeOff,
   Briefcase
@@ -51,12 +47,6 @@ export const HomeTab: React.FC<{ onNavigateToClients: (client: Client) => void }
   });
   const [urgentTasks, setUrgentTasks] = useState<AgencyTask[]>([]);
   const [crmOverviews, setCrmOverviews] = useState<CRMOverview[]>([]);
-  const [reporteiDashboards, setReporteiDashboards] = useState<{ id: string; name: string; url: string }[]>([]);
-  const [reporteiEnabled, setReporteiEnabled] = useState(false);
-  const [showSettingsURL, setShowSettingsURL] = useState(false);
-  const [tempReporteiEnabled, setTempReporteiEnabled] = useState(false);
-  const [tempDashboards, setTempDashboards] = useState<{ id: string; name: string; url: string }[]>([]);
-  const [isSavingSettings, setIsSavingSettings] = useState(false);
   const [showFinancials, setShowFinancials] = useState(() => {
     const stored = localStorage.getItem('canguru_show_financials');
     return stored ? JSON.parse(stored) : true;
@@ -82,7 +72,6 @@ export const HomeTab: React.FC<{ onNavigateToClients: (client: Client) => void }
         { data: tempTasks },
         { data: tempCrms },
         { data: tempLeads },
-        { data: tempSettings },
         { data: tempClients }
       ] = await Promise.all([
         supabase.from('agency_billing')
@@ -108,10 +97,6 @@ export const HomeTab: React.FC<{ onNavigateToClients: (client: Client) => void }
           .select('*')
           .eq('agency_id', agencyId)
           .neq('stage', 'Perdido'),
-        supabase.from('agency_settings')
-          .select('*')
-          .eq('agency_id', agencyId)
-          .in('key', ['home_reportei_dashboards', 'home_reportei_enabled']),
         supabase.from('clients')
           .select('id, base_value, created_at, updated_at, client_status, service_end_date, client_type')
           .eq('agency_id', agencyId)
@@ -221,29 +206,6 @@ export const HomeTab: React.FC<{ onNavigateToClients: (client: Client) => void }
       
       setCrmOverviews(crmOvs);
 
-      // Reportei Settings
-      const settingsMap: Record<string, string> = {};
-      if (tempSettings) {
-        tempSettings.forEach(s => {
-          settingsMap[s.key] = s.value;
-        });
-      }
-      const isRepEnabled = settingsMap['home_reportei_enabled'] === 'true';
-      
-      let parsedDashboards: { id: string; name: string; url: string }[] = [];
-      try {
-        if (settingsMap['home_reportei_dashboards']) {
-          parsedDashboards = JSON.parse(settingsMap['home_reportei_dashboards']);
-        }
-      } catch (e) {
-        console.error('Error parsing reportei dashboards JSON', e);
-      }
-      
-      setReporteiEnabled(isRepEnabled);
-      setReporteiDashboards(parsedDashboards);
-      setTempReporteiEnabled(isRepEnabled);
-      setTempDashboards(parsedDashboards);
-
     } catch (err) {
       console.error(err);
     } finally {
@@ -276,52 +238,6 @@ export const HomeTab: React.FC<{ onNavigateToClients: (client: Client) => void }
       supabase.removeChannel(channel);
     };
   }, [agencyId, agencyName]);
-
-  const handleAddDashboard = () => {
-    setTempDashboards(prev => [...prev, { id: Date.now().toString() + Math.random().toString(36).slice(2), name: '', url: '' }]);
-  };
-
-  const handleUpdateDashboard = (id: string, field: 'name' | 'url', value: string) => {
-    setTempDashboards(prev => prev.map(d => d.id === id ? { ...d, [field]: value } : d));
-  };
-
-  const handleRemoveDashboard = (id: string) => {
-    setTempDashboards(prev => prev.filter(d => d.id !== id));
-  };
-
-  const handleSaveSettings = async () => {
-    setIsSavingSettings(true);
-    try {
-      const updates = [
-        { key: 'home_reportei_dashboards', value: JSON.stringify(tempDashboards) },
-        { key: 'home_reportei_enabled', value: tempReporteiEnabled ? 'true' : 'false' }
-      ];
-      
-      for (const update of updates) {
-        const { error } = await supabase.from('agency_settings').upsert({
-          key: update.key,
-          value: update.value,
-          agency_id: agencyId
-        }, { onConflict: 'key,agency_id' });
-        
-        if (error) {
-          console.error('Supabase Upsert Error:', error);
-          alert('Erro ao salvar configuração (' + update.key + '): ' + error.message);
-          setIsSavingSettings(false);
-          return;
-        }
-      }
-      
-      setReporteiDashboards(tempDashboards);
-      setReporteiEnabled(tempReporteiEnabled);
-      setShowSettingsURL(false);
-    } catch(err: any) {
-      console.error(err);
-      alert('Houve um erro inesperado: ' + err?.message);
-    } finally {
-      setIsSavingSettings(false);
-    }
-  };
 
   if (loading) {
     return (
@@ -564,161 +480,6 @@ export const HomeTab: React.FC<{ onNavigateToClients: (client: Client) => void }
           )}
         </div>
       </div>
-      </div>
-
-      {/* BLOCO 5 - REPORTEI */}
-      <div className="bg-white p-8 rounded-[2.5rem] border border-black/[0.03] shadow-sm flex flex-col gap-6 relative overflow-hidden">
-        <div className="flex items-center justify-between z-10">
-          <h3 className="text-lg font-bold flex items-center gap-2">
-            📊 Reportei Dashboard
-          </h3>
-          <button 
-            onClick={() => setShowSettingsURL(!showSettingsURL)}
-            className="p-2 rounded-xl bg-gray-50 text-gray-400 hover:text-brand-dark hover:bg-gray-100 transition-colors"
-          >
-            <Settings size={18} />
-          </button>
-        </div>
-
-        <AnimatePresence>
-          {showSettingsURL && (
-            <motion.div 
-              initial={{ height: 0, opacity: 0 }}
-              animate={{ height: 'auto', opacity: 1 }}
-              exit={{ height: 0, opacity: 0 }}
-              className="bg-gray-50 p-5 rounded-2xl border border-gray-100 overflow-hidden"
-            >
-              <div className="flex flex-col gap-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <label className="text-xs font-bold text-gray-500 uppercase tracking-widest">Status do Reportei</label>
-                    <p className="text-[10px] text-gray-400">Ativar exibição de dashboards na home</p>
-                  </div>
-                  <button 
-                    onClick={() => setTempReporteiEnabled(!tempReporteiEnabled)}
-                    className={`w-12 h-6 rounded-full p-1 transition-colors ${tempReporteiEnabled ? 'bg-green-500' : 'bg-gray-300'}`}
-                  >
-                    <div className={`w-4 h-4 bg-white rounded-full transition-transform ${tempReporteiEnabled ? 'translate-x-6' : 'translate-x-0'}`} />
-                  </button>
-                </div>
-                
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <label className="text-xs font-bold text-gray-500 uppercase tracking-widest">Dashboards Configurados</label>
-                    <button 
-                      onClick={handleAddDashboard}
-                      className="flex items-center gap-1 px-3 py-1.5 bg-white border border-gray-200 rounded-xl text-xs font-bold text-brand-dark hover:border-brand-dark transition-colors"
-                    >
-                      <Plus size={14} /> Adicionar
-                    </button>
-                  </div>
-                  
-                  {tempDashboards.length === 0 && (
-                    <div className="text-center py-4 bg-white border border-gray-100 rounded-xl text-xs text-gray-400">
-                      Nenhum dashboard configurado. Clique em Adicionar.
-                    </div>
-                  )}
-
-                  {tempDashboards.map((dash, index) => (
-                    <div key={dash.id} className="flex flex-col sm:flex-row gap-3 bg-white p-3 rounded-xl border border-gray-200 relative group">
-                      <div className="flex-1 w-full sm:w-1/3">
-                         <input 
-                          type="text"
-                          value={dash.name}
-                          onChange={e => handleUpdateDashboard(dash.id, 'name', e.target.value)}
-                          placeholder="Nome do Cliente/Projeto"
-                          className="w-full bg-gray-50 border-none px-3 py-2 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-brand-dark"
-                        />
-                      </div>
-                      <div className="flex-[2] w-full sm:w-2/3 flex items-center gap-2">
-                        <input 
-                          type="url"
-                          value={dash.url}
-                          onChange={e => handleUpdateDashboard(dash.id, 'url', e.target.value)}
-                          placeholder="https://app.reportei.com/dashboards/..."
-                          className="w-full bg-gray-50 border-none px-3 py-2 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-brand-dark"
-                        />
-                        <button 
-                          onClick={() => handleRemoveDashboard(dash.id)}
-                          className="p-2 text-gray-400 hover:text-red-500 transition-colors shrink-0"
-                          title="Remover Dashboard"
-                        >
-                          <Trash2 size={16} />
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-
-                <div className="flex justify-end pt-2 border-t border-gray-200">
-                  <button 
-                    onClick={handleSaveSettings}
-                    disabled={isSavingSettings}
-                    className="px-6 py-2 bg-brand-dark text-white rounded-xl text-xs font-bold uppercase tracking-widest hover:shadow-lg disabled:opacity-50 transition-all"
-                  >
-                    {isSavingSettings ? 'Salvando...' : 'Salvar Alterações'}
-                  </button>
-                </div>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        <div className="w-full relative">
-          {!reporteiEnabled ? (
-            <div className="w-full bg-gray-50 rounded-2xl min-h-[300px] flex items-center justify-center">
-              <div className="flex flex-col items-center gap-3 text-gray-400">
-                <AlertCircle size={40} className="opacity-20" />
-                <p className="font-medium text-sm">Dashboards do Reportei desativados.</p>
-                <button 
-                  onClick={() => setShowSettingsURL(true)}
-                  className="text-xs font-bold uppercase tracking-widest text-brand-dark mt-2 hover:underline"
-                >
-                  Configurar
-                </button>
-              </div>
-            </div>
-          ) : reporteiDashboards.length === 0 ? (
-            <div className="w-full bg-gray-50 rounded-2xl min-h-[300px] flex items-center justify-center">
-              <div className="flex flex-col items-center gap-3 text-gray-400">
-                <AlertCircle size={40} className="opacity-20" />
-                <p className="font-medium text-sm">Nenhum dashboard cadastrado.</p>
-                <button 
-                  onClick={() => setShowSettingsURL(true)}
-                  className="text-xs font-bold uppercase tracking-widest text-brand-dark mt-2 hover:underline"
-                >
-                  Adicionar Dashboards
-                </button>
-              </div>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 gap-8">
-              {reporteiDashboards.map(dash => (
-                <div key={dash.id} className="flex flex-col gap-2">
-                  {dash.name && (
-                    <div className="flex items-center gap-2">
-                      <div className="w-2 h-2 rounded-full bg-brand-dark opacity-50" />
-                      <h4 className="text-sm font-bold text-gray-700">{dash.name}</h4>
-                    </div>
-                  )}
-                  <div className="w-full h-[700px] overflow-hidden rounded-2xl border border-gray-100 bg-gray-50">
-                    <iframe
-                      src={dash.url}
-                      frameBorder="0"
-                      allowFullScreen
-                      style={{
-                        width: '111.11%',
-                        height: '777.77px',
-                        transform: 'scale(0.9)',
-                        transformOrigin: '0 0'
-                      }}
-                    />
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
       </div>
 
     </div>
