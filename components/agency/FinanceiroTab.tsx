@@ -24,7 +24,22 @@ import dayjs from 'dayjs';
 
 export const FinanceiroTab: React.FC = () => {
   const [currentMonthYear, setCurrentMonthYear] = useState(dayjs().format('YYYY-MM'));
-  const { billings, expenses, ticketMedio, faturamentoAcumulado, loading, updateBilling, deleteBilling, addExpense, updateExpense, deleteExpense } = useAgencyFinanceiro(currentMonthYear);
+  const { 
+    billings, 
+    expenses, 
+    ticketMedio, 
+    faturamentoAcumulado, 
+    loading, 
+    updateBilling, 
+    deleteBilling, 
+    addExpense, 
+    updateExpense,
+    overrideExpenseForMonth,
+    updateMotherExpenseAllMonths,
+    deleteExpenseForMonth,
+    deleteExpensePermanently
+  } = useAgencyFinanceiro(currentMonthYear);
+
   const monthNames = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
   const labelPeriodo = `Jan–${monthNames[dayjs().month()]} de ${dayjs().year()}`;
   const [showExpenseModal, setShowExpenseModal] = useState(false);
@@ -48,6 +63,8 @@ export const FinanceiroTab: React.FC = () => {
   const [payingExpense, setPayingExpense] = useState<any>(null);
   const [editingExpense, setEditingExpense] = useState<any>(null);
   const [deletingExpense, setDeletingExpense] = useState<any>(null);
+  const [pendingEditExpense, setPendingEditExpense] = useState<any>(null);
+  const [showEditScopeModal, setShowEditScopeModal] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
 
   const stats = useMemo(() => {
@@ -109,15 +126,35 @@ export const FinanceiroTab: React.FC = () => {
   };
 
   const handleMarkExpensePaid = async (expense: any, paidAt?: string) => {
-    if (expense.category === 'variable' && !paidAt) {
+    const isFixed = expense.is_fixed || expense.category === 'fixed';
+    if (expense.category === 'variable' && !paidAt && !expense.parent_id) {
       setPayingExpense(expense);
       return;
     }
 
-    await updateExpense(expense.id, {
-      paid: true,
-      paid_at: paidAt || new Date().toISOString()
-    });
+    const dateToSet = paidAt || new Date().toISOString();
+
+    if (isFixed && !expense.parent_id) {
+      await overrideExpenseForMonth(
+        expense,
+        {
+          description: expense.description,
+          amount: expense.amount,
+          category: expense.category,
+          expense_type: expense.expense_type,
+          due_date: expense.due_date,
+          notes: expense.notes,
+          paid: true,
+          paid_at: dateToSet
+        },
+        currentMonthYear
+      );
+    } else {
+      await updateExpense(expense.id, {
+        paid: true,
+        paid_at: dateToSet
+      });
+    }
     setPayingExpense(null);
   };
 
@@ -163,32 +200,97 @@ export const FinanceiroTab: React.FC = () => {
 
   const handleUpdateExpense = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (editingExpense && !isUpdating) {
+    if (!editingExpense || isUpdating) return;
+
+    const isFixed = editingExpense.is_fixed || editingExpense.category === 'fixed' || Boolean(editingExpense.parent_id);
+
+    let due_date = editingExpense.due_date;
+    if (editingExpense.category === 'fixed' && editingExpense.due_day) {
+      due_date = dayjs(currentMonthYear).date(editingExpense.due_day).format('YYYY-MM-DD');
+    } else if (editingExpense.category === 'variable') {
+      due_date = null;
+    }
+
+    const payload = {
+      description: editingExpense.description,
+      category: editingExpense.category,
+      expense_type: editingExpense.expense_type,
+      amount: editingExpense.amount,
+      due_date,
+      notes: editingExpense.notes,
+      paid: editingExpense.paid,
+      paid_at: editingExpense.paid ? (editingExpense.paid_at || new Date().toISOString()) : null
+    };
+
+    if (isFixed) {
+      setPendingEditExpense({ original: editingExpense, payload });
+      setShowEditScopeModal(true);
+    } else {
       setIsUpdating(true);
       try {
-        let due_date = editingExpense.due_date;
-        if (editingExpense.category === 'fixed' && editingExpense.due_day) {
-          due_date = dayjs(currentMonthYear).date(editingExpense.due_day).format('YYYY-MM-DD');
-        } else if (editingExpense.category === 'variable') {
-          due_date = null;
-        }
-
-        await updateExpense(editingExpense.id, {
-          description: editingExpense.description,
-          category: editingExpense.category,
-          expense_type: editingExpense.expense_type,
-          amount: editingExpense.amount,
-          due_date,
-          notes: editingExpense.notes,
-          paid: editingExpense.paid,
-          paid_at: editingExpense.paid ? (editingExpense.paid_at || new Date().toISOString()) : null
-        });
+        await updateExpense(editingExpense.id, payload);
         setEditingExpense(null);
       } catch (error) {
         console.error('Failed to update expense:', error);
       } finally {
         setIsUpdating(false);
       }
+    }
+  };
+
+  const confirmEditOnlyThisMonth = async () => {
+    if (!pendingEditExpense || isUpdating) return;
+    setIsUpdating(true);
+    try {
+      await overrideExpenseForMonth(pendingEditExpense.original, pendingEditExpense.payload, currentMonthYear);
+      setShowEditScopeModal(false);
+      setPendingEditExpense(null);
+      setEditingExpense(null);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
+  const confirmEditAllMonths = async () => {
+    if (!pendingEditExpense || isUpdating) return;
+    setIsUpdating(true);
+    try {
+      await updateMotherExpenseAllMonths(pendingEditExpense.original, pendingEditExpense.payload);
+      setShowEditScopeModal(false);
+      setPendingEditExpense(null);
+      setEditingExpense(null);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
+  const confirmDeleteOnlyThisMonth = async () => {
+    if (!deletingExpense || isUpdating) return;
+    setIsUpdating(true);
+    try {
+      await deleteExpenseForMonth(deletingExpense, currentMonthYear);
+      setDeletingExpense(null);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
+  const confirmDeleteAllMonths = async () => {
+    if (!deletingExpense || isUpdating) return;
+    setIsUpdating(true);
+    try {
+      await deleteExpensePermanently(deletingExpense);
+      setDeletingExpense(null);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsUpdating(false);
     }
   };
 
@@ -1207,46 +1309,156 @@ export const FinanceiroTab: React.FC = () => {
           </motion.div>
         </div>
       )}
-      {/* Delete Expense Modal */}
+      {/* Edit Scope Confirmation Modal (Nossa Finança) */}
+      {showEditScopeModal && pendingEditExpense && (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-brand-dark/30 backdrop-blur-sm">
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.95, y: 20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            className="bg-white w-full max-w-md rounded-3xl p-8 shadow-2xl border border-black/[0.03]"
+          >
+            <div className="flex justify-between items-center mb-6">
+              <h3 className="text-xl font-bold text-brand-dark">Alterar Despesa Recorrente</h3>
+              <button 
+                type="button"
+                onClick={() => { setShowEditScopeModal(false); setPendingEditExpense(null); }} 
+                className="p-2 hover:bg-gray-50 rounded-xl transition-colors"
+              >
+                <X size={20} className="text-gray-400" />
+              </button>
+            </div>
+
+            <p className="text-sm text-gray-600 mb-6 leading-relaxed">
+              Esta despesa é <strong>Fixa / Recorrente</strong>. Como você deseja aplicar as alterações feitas em <strong>"{pendingEditExpense.original.description}"</strong>?
+            </p>
+
+            <div className="space-y-3 mb-6">
+              <button
+                type="button"
+                onClick={confirmEditOnlyThisMonth}
+                disabled={isUpdating}
+                className="w-full text-left p-4 rounded-2xl border border-gray-100 bg-gray-50/50 hover:bg-blue-50/50 hover:border-blue-200 transition-all group disabled:opacity-50"
+              >
+                <span className="font-bold text-sm text-brand-dark block group-hover:text-blue-600 mb-1">
+                  Editar apenas neste mês ({currentMonthYear})
+                </span>
+                <span className="text-xs text-gray-500 block leading-relaxed">
+                  Cria uma exceção exclusiva para o mês atual. Os outros meses continuarão com os valores originais da conta fixa.
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={confirmEditAllMonths}
+                disabled={isUpdating}
+                className="w-full text-left p-4 rounded-2xl border border-gray-100 bg-gray-50/50 hover:bg-blue-50/50 hover:border-blue-200 transition-all group disabled:opacity-50"
+              >
+                <span className="font-bold text-sm text-brand-dark block group-hover:text-blue-600 mb-1">
+                  Editar para todos os meses
+                </span>
+                <span className="text-xs text-gray-500 block leading-relaxed">
+                  Atualiza a conta fixa principal. As mudanças serão refletidas imediatamente no mês atual e em todos os outros meses.
+                </span>
+              </button>
+            </div>
+
+            <div className="flex justify-end">
+              <button
+                type="button"
+                onClick={() => { setShowEditScopeModal(false); setPendingEditExpense(null); }}
+                className="px-6 py-3 border border-gray-100 text-gray-400 rounded-2xl font-bold text-xs uppercase tracking-widest hover:bg-gray-50 transition-all"
+              >
+                Cancelar
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
+
+      {/* Delete Expense Modal (Nossa Finança) */}
       {deletingExpense && (
         <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-brand-dark/20 backdrop-blur-sm">
           <motion.div 
             initial={{ opacity: 0, scale: 0.95, y: 20 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
-            className="bg-white w-full max-w-sm rounded-3xl p-8 shadow-2xl border border-black/[0.03] text-center"
+            className="bg-white w-full max-w-md rounded-3xl p-8 shadow-2xl border border-black/[0.03]"
           >
-            <div className="w-16 h-16 bg-rose-50 text-rose-600 rounded-full flex items-center justify-center mx-auto mb-6">
-              <AlertCircle size={32} />
+            <div className="w-14 h-14 bg-rose-50 text-rose-600 rounded-2xl flex items-center justify-center mb-6">
+              <AlertCircle size={28} />
             </div>
-            <h3 className="text-xl font-bold text-brand-dark mb-2">Excluir Despesa?</h3>
-            <p className="text-sm text-gray-500 mb-8">
-              {deletingExpense.category === 'fixed' ? (
-                <>
-                  Tem certeza que deseja excluir a despesa fixa <strong>{deletingExpense.description}</strong>? Como ela é uma despesa <strong>Fixa</strong>, ela será removida deste mês em diante, mas o histórico dos meses passados será preservado.
-                </>
-              ) : (
-                <>
-                  Tem certeza que deseja excluir a despesa <strong>{deletingExpense.description}</strong>? Esta ação não pode ser desfeita.
-                </>
-              )}
-            </p>
-            <div className="flex gap-3">
-              <button 
-                onClick={() => setDeletingExpense(null)}
-                className="flex-1 px-6 py-3 border border-gray-100 text-gray-400 rounded-2xl font-bold text-xs uppercase tracking-widest hover:bg-gray-50 transition-all"
-              >
-                Cancelar
-              </button>
-              <button 
-                onClick={async () => {
-                  await deleteExpense(deletingExpense.id);
-                  setDeletingExpense(null);
-                }}
-                className="flex-1 px-6 py-3 bg-rose-600 text-white rounded-2xl font-bold text-xs uppercase tracking-widest hover:bg-rose-700 transition-all shadow-lg shadow-rose-600/10"
-              >
-                Excluir
-              </button>
-            </div>
+
+            {(deletingExpense.is_fixed || deletingExpense.category === 'fixed' || deletingExpense.parent_id) ? (
+              <>
+                <h3 className="text-xl font-bold text-brand-dark mb-2">Excluir Despesa Fixa</h3>
+                <p className="text-sm text-gray-500 mb-6 leading-relaxed">
+                  Você está prestes a excluir a despesa fixa <strong>"{deletingExpense.description}"</strong>. Escolha a opção de alcance:
+                </p>
+
+                <div className="space-y-3 mb-6">
+                  <button
+                    type="button"
+                    onClick={confirmDeleteOnlyThisMonth}
+                    disabled={isUpdating}
+                    className="w-full text-left p-4 rounded-2xl border border-gray-100 bg-gray-50 hover:bg-rose-50/50 hover:border-rose-200 transition-all group disabled:opacity-50"
+                  >
+                    <span className="font-bold text-sm text-brand-dark block group-hover:text-rose-600 mb-1">
+                      Excluir apenas neste mês ({currentMonthYear})
+                    </span>
+                    <span className="text-xs text-gray-500 block leading-relaxed">
+                      A conta será oculta apenas no mês visualizado, continuando visível nos meses anteriores e futuros.
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={confirmDeleteAllMonths}
+                    disabled={isUpdating}
+                    className="w-full text-left p-4 rounded-2xl border border-rose-100 bg-rose-50/30 hover:bg-rose-100/50 transition-all group disabled:opacity-50"
+                  >
+                    <span className="font-bold text-sm text-rose-700 block mb-1">
+                      Excluir de todos os meses (Definitivo)
+                    </span>
+                    <span className="text-xs text-rose-600/80 block leading-relaxed">
+                      A conta fixa principal e suas alterações serão removidas permanentemente do sistema.
+                    </span>
+                  </button>
+                </div>
+
+                <div className="flex justify-end">
+                  <button
+                    type="button"
+                    onClick={() => setDeletingExpense(null)}
+                    className="px-6 py-3 border border-gray-100 text-gray-400 rounded-2xl font-bold text-xs uppercase tracking-widest hover:bg-gray-50 transition-all"
+                  >
+                    Cancelar
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <h3 className="text-xl font-bold text-brand-dark mb-2">Excluir Despesa Pontual</h3>
+                <p className="text-sm text-gray-500 mb-8 leading-relaxed">
+                  Tem certeza que deseja excluir a despesa <strong>"{deletingExpense.description}"</strong>? Esta ação removerá a conta do mês atual.
+                </p>
+                <div className="flex gap-3">
+                  <button 
+                    type="button"
+                    onClick={() => setDeletingExpense(null)}
+                    className="flex-1 px-6 py-3 border border-gray-100 text-gray-400 rounded-2xl font-bold text-xs uppercase tracking-widest hover:bg-gray-50 transition-all"
+                  >
+                    Cancelar
+                  </button>
+                  <button 
+                    type="button"
+                    onClick={confirmDeleteOnlyThisMonth}
+                    disabled={isUpdating}
+                    className="flex-1 px-6 py-3 bg-rose-600 text-white rounded-2xl font-bold text-xs uppercase tracking-widest hover:bg-rose-700 transition-all shadow-lg shadow-rose-600/10 disabled:opacity-50"
+                  >
+                    Excluir
+                  </button>
+                </div>
+              </>
+            )}
           </motion.div>
         </div>
       )}

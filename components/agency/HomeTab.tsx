@@ -17,6 +17,7 @@ import {
 import dayjs from 'dayjs';
 import { motion, AnimatePresence } from 'motion/react';
 import { Client, AgencyTask, AgencyCRM, AgencyLead } from '../../types';
+import { parseExpenseRow, filterExpensesForMonth } from '../../lib/expenses';
 import { ActiveClientsSummary } from './ActiveClientsSummary';
 import { Logo } from '../Logo';
 import { AgencyLogo } from '../AgencyLogo';
@@ -80,9 +81,8 @@ export const HomeTab: React.FC<{ onNavigateToClients: (client: Client) => void }
           .eq('status', 'paid')
           .eq('month_year', currentMonthYear),
         supabase.from('agency_expenses')
-          .select('amount')
+          .select('*')
           .eq('agency_id', agencyId)
-          .eq('month_year', currentMonthYear)
           .not('is_deleted', 'is', true),
         supabase.from('agency_tasks')
           .select('*, client:clients(id, name, color, initials)')
@@ -111,7 +111,9 @@ export const HomeTab: React.FC<{ onNavigateToClients: (client: Client) => void }
         totalReceitas = tempRevenue.reduce((sum, r) => sum + (Number(r.total_value) || 0), 0);
       }
       if (tempExpenses) {
-        totalDespesas = tempExpenses.reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
+        const parsedExpenses = tempExpenses.map(parseExpenseRow);
+        const activeMonthExpenses = filterExpensesForMonth(parsedExpenses, currentMonthYear);
+        totalDespesas = activeMonthExpenses.reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
       }
 
       // Calculate Ticket Médio (only active and recurring clients)

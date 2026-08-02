@@ -297,6 +297,10 @@ export interface AgencyExpense {
   id: string;
   description: string;
   category: 'fixed' | 'variable';
+  is_fixed?: boolean;
+  parent_id?: string | null;
+  exclude_months?: string[];
+  raw_notes?: string | null;
   expense_type?: 'tools' | 'freelancers' | 'extras';
   agency_id: number;
   amount: number;
@@ -306,6 +310,7 @@ export interface AgencyExpense {
   paid_at: string | null; // TIMESTAMPTZ
   notes?: string | null;
   created_at: string;
+  is_deleted?: boolean;
 }
 
 export type LeadStage = 'lead' | 'first_message' | 'in_conversation' | 'followup_1' | 'followup_2' | 'farewell' | 'converted' | 'lost';

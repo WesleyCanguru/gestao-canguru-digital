@@ -1,14 +1,15 @@
 
 import { useState, useEffect } from 'react';
 import { supabase, useAuth } from '../lib/supabase';
-import { AgencyBilling, AgencyExpense, Client } from '../types';
-
+import { AgencyBilling, AgencyExpense } from '../types';
+import { parseExpenseRow, filterExpensesForMonth, encodeNotesAndMeta } from '../lib/expenses';
 import dayjs from 'dayjs';
 
 export function useAgencyFinanceiro(monthYear: string) {
   const { agencyId } = useAuth();
   const [billings, setBillings] = useState<AgencyBilling[]>([]);
   const [expenses, setExpenses] = useState<AgencyExpense[]>([]);
+  const [rawExpenses, setRawExpenses] = useState<AgencyExpense[]>([]);
   const [ticketMedio, setTicketMedio] = useState(0);
   const [faturamentoAcumulado, setFaturamentoAcumulado] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -67,7 +68,8 @@ export function useAgencyFinanceiro(monthYear: string) {
 
       setTicketMedio(computedTicketMedio);
       setFaturamentoAcumulado(computedFaturamentoAcumulado);
-      // Fetch Clients to ensure we have all clients even if no billing record exists yet
+      
+      // Fetch Clients
       const { data: clientsData } = await supabase
         .from('clients')
         .select('*, contract:contract_forms(contract_start_date)')
@@ -99,15 +101,11 @@ export function useAgencyFinanceiro(monthYear: string) {
         return true;
       });
 
-      // If a client doesn't have a billing record for this month, we should ideally create one or show it as pending
-      // For now, let's just merge them in memory for the UI
       const existingClientIds = new Set(currentBillings.filter(b => !b.is_sporadic).map(b => b.client_id));
       
       const missingClients = clients.filter(c => {
         if (existingClientIds.has(c.id)) return false;
         
-        // Determine the start date of the client
-        // Prefer contract_start_date if available (it is an array because of 1:M relationship, we take the first)
         let startDate = c.created_at;
         if (c.contract && c.contract.length > 0 && c.contract[0].contract_start_date) {
             startDate = c.contract[0].contract_start_date;
@@ -138,72 +136,19 @@ export function useAgencyFinanceiro(monthYear: string) {
 
       setBillings([...currentBillings, ...placeholderBillings]);
 
-      // Fetch Expenses
-      const { data: expensesData } = await supabase
+      // Fetch all non-deleted Expenses for agency
+      const { data: rawExpensesData } = await supabase
         .from('agency_expenses')
         .select('*')
         .eq('agency_id', agencyId)
-        .eq('month_year', monthYear)
         .not('is_deleted', 'is', true)
         .order('created_at', { ascending: false });
 
-      // Fetch all current month expenses (including deleted ones) to perform correct replication checks
-      const { data: allCurrentMonthExpenses } = await supabase
-        .from('agency_expenses')
-        .select('*')
-        .eq('agency_id', agencyId)
-        .eq('month_year', monthYear);
+      const parsedAll = (rawExpensesData || []).map(parseExpenseRow);
+      setRawExpenses(parsedAll);
 
-      let currentExpenses = (expensesData || []) as AgencyExpense[];
-      const existingAll = allCurrentMonthExpenses || [];
-
-      // Check fixed expenses from previous month that are NOT in the current month (matching by description)
-      const prevMonth = dayjs(monthYear + '-01').subtract(1, 'month').format('YYYY-MM');
-      const { data: prevExpenses } = await supabase
-        .from('agency_expenses')
-        .select('*')
-        .eq('agency_id', agencyId)
-        .eq('month_year', prevMonth)
-        .eq('category', 'fixed')
-        .not('is_deleted', 'is', true);
-
-      if (prevExpenses && prevExpenses.length > 0) {
-        // Filter out those that already have a matching description in the current month's expenses
-        const newExpensesToInsert = prevExpenses
-          .filter(prevExp => {
-            const hasMatch = existingAll.some(currExp => 
-              currExp.category === 'fixed' && 
-              currExp.description.toLowerCase().trim() === prevExp.description.toLowerCase().trim()
-            );
-            return !hasMatch;
-          })
-          .map(e => ({
-            description: e.description,
-            category: e.category,
-            expense_type: e.expense_type,
-            amount: e.amount,
-            month_year: monthYear,
-            due_date: e.due_date ? dayjs(monthYear + '-01').date(dayjs(e.due_date).date()).format('YYYY-MM-DD') : null,
-            paid: false,
-            paid_at: null,
-            notes: e.notes,
-            agency_id: agencyId,
-            is_deleted: false
-          }));
-
-        if (newExpensesToInsert.length > 0) {
-          const { data: insertedExpenses } = await supabase
-            .from('agency_expenses')
-            .insert(newExpensesToInsert)
-            .select();
-
-          if (insertedExpenses) {
-            currentExpenses = [...currentExpenses, ...(insertedExpenses.filter(e => !e.is_deleted))];
-          }
-        }
-      }
-
-      setExpenses(currentExpenses);
+      const monthExpenses = filterExpensesForMonth(parsedAll, monthYear);
+      setExpenses(monthExpenses);
     } catch (error) {
       console.error('Error fetching financeiro data:', error);
     } finally {
@@ -227,7 +172,6 @@ export function useAgencyFinanceiro(monthYear: string) {
       const extra = billing.extra_value !== undefined ? billing.extra_value : (existing?.extra_value || 0);
       const total = base + extra;
 
-      // Define exactly what we want to save to the DB to avoid sending extra fields
       const dbData = {
         client_id: billing.client_id || existing?.client_id || null,
         month_year: billing.month_year || existing?.month_year || monthYear,
@@ -273,9 +217,7 @@ export function useAgencyFinanceiro(monthYear: string) {
         }
       }
 
-      // Update client base_value and due_day so it carries over to next months
       if (dbData.client_id && !dbData.is_sporadic && billing.update_global_contract !== false) {
-        // Fetch current client features_settings first to preserve other settings
         const { data: clientData } = await supabase
           .from('clients')
           .select('features_settings')
@@ -285,7 +227,7 @@ export function useAgencyFinanceiro(monthYear: string) {
         const currentFeatures = clientData?.features_settings || {};
         const clientHistory = currentFeatures.value_history || [];
         
-        const monthYearToUpdate = dbData.month_year; // Format e.g. "2026-07"
+        const monthYearToUpdate = dbData.month_year;
         const existingClientEntryIndex = clientHistory.findIndex((h: any) => h.date === monthYearToUpdate);
         
         if (existingClientEntryIndex > -1) {
@@ -310,7 +252,6 @@ export function useAgencyFinanceiro(monthYear: string) {
           .eq('agency_id', agencyId)
           .eq('id', dbData.client_id);
 
-        // Sync with contract_forms value_history
         const { data: contractData } = await supabase
           .from('contract_forms')
           .select('*')
@@ -331,7 +272,6 @@ export function useAgencyFinanceiro(monthYear: string) {
             history.push({ date: monthYearToUpdate, value: dbData.base_value });
           }
           
-          // Sort history by date
           history.sort((a: any, b: any) => a.date.localeCompare(b.date));
           
           await supabase
@@ -351,14 +291,34 @@ export function useAgencyFinanceiro(monthYear: string) {
 
   const addExpense = async (expense: Omit<AgencyExpense, 'id' | 'created_at'>) => {
     try {
+      const isFixed = expense.category === 'fixed' || expense.is_fixed === true;
+      const rawNotes = encodeNotesAndMeta(expense.notes, {
+        is_fixed: isFixed,
+        exclude_months: expense.exclude_months || [],
+        parent_id: expense.parent_id || null
+      });
+
       const { data, error } = await supabase
         .from('agency_expenses')
-        .insert([{ ...expense, agency_id: agencyId }])
+        .insert([{
+          description: expense.description,
+          category: isFixed ? 'fixed' : 'variable',
+          expense_type: expense.expense_type || 'tools',
+          amount: expense.amount,
+          month_year: expense.month_year || monthYear,
+          due_date: expense.due_date || null,
+          paid: expense.paid || false,
+          paid_at: expense.paid_at || null,
+          notes: rawNotes,
+          agency_id: agencyId,
+          is_deleted: false
+        }])
         .select()
         .single();
 
       if (error) throw error;
-      setExpenses(prev => [data, ...prev]);
+      await fetchData();
+      return data;
     } catch (error) {
       console.error('Error adding expense:', error);
       throw error;
@@ -367,59 +327,222 @@ export function useAgencyFinanceiro(monthYear: string) {
 
   const updateExpense = async (id: string, updates: Partial<AgencyExpense>) => {
     try {
-      const { data, error } = await supabase
+      const existing = rawExpenses.find(e => e.id === id);
+      const isFixed = updates.is_fixed !== undefined ? updates.is_fixed : (existing?.is_fixed ?? (updates.category === 'fixed' || existing?.category === 'fixed'));
+      const rawNotes = encodeNotesAndMeta(
+        updates.notes !== undefined ? updates.notes : existing?.notes,
+        {
+          is_fixed: isFixed,
+          exclude_months: updates.exclude_months || existing?.exclude_months || [],
+          parent_id: updates.parent_id !== undefined ? updates.parent_id : (existing?.parent_id || null)
+        }
+      );
+
+      const dbUpdates: Record<string, any> = {
+        notes: rawNotes
+      };
+      if (updates.description !== undefined) dbUpdates.description = updates.description;
+      if (updates.category !== undefined) dbUpdates.category = updates.category;
+      if (updates.expense_type !== undefined) dbUpdates.expense_type = updates.expense_type;
+      if (updates.amount !== undefined) dbUpdates.amount = updates.amount;
+      if (updates.due_date !== undefined) dbUpdates.due_date = updates.due_date;
+      if (updates.paid !== undefined) dbUpdates.paid = updates.paid;
+      if (updates.paid_at !== undefined) dbUpdates.paid_at = updates.paid_at;
+
+      const { error } = await supabase
         .from('agency_expenses')
-        .update(updates)
+        .update(dbUpdates)
         .eq('agency_id', agencyId)
-        .eq('id', id)
-        .select()
-        .single();
+        .eq('id', id);
 
       if (error) throw error;
-      setExpenses(prev => prev.map(e => e.id === id ? data : e));
+      await fetchData();
     } catch (error) {
       console.error('Error updating expense:', error);
       throw error;
     }
   };
 
-  const deleteExpense = async (id: string) => {
+  const overrideExpenseForMonth = async (
+    targetExpense: AgencyExpense,
+    editedData: {
+      description: string;
+      amount: number;
+      category: 'fixed' | 'variable';
+      expense_type?: 'tools' | 'freelancers' | 'extras';
+      due_date?: string | null;
+      notes?: string | null;
+      paid?: boolean;
+      paid_at?: string | null;
+    },
+    targetMonthYear: string = monthYear
+  ) => {
     try {
-      // Fetch target expense first to verify its properties
-      const { data: targetExpense, error: fetchError } = await supabase
-        .from('agency_expenses')
-        .select('*')
-        .eq('agency_id', agencyId)
-        .eq('id', id)
-        .single();
+      if (!agencyId) return;
 
-      if (fetchError) throw fetchError;
-
-      if (targetExpense.category === 'fixed') {
-        // Soft delete from this month onwards for matching fixed descriptions
-        const { error: updateError } = await supabase
-          .from('agency_expenses')
-          .update({ is_deleted: true })
-          .eq('agency_id', agencyId)
-          .eq('category', 'fixed')
-          .ilike('description', targetExpense.description)
-          .gte('month_year', targetExpense.month_year);
-
-        if (updateError) throw updateError;
-        setExpenses(prev => prev.filter(e => e.id !== id));
-      } else {
-        // Variable expense: soft delete only this specific one
-        const { error: updateError } = await supabase
-          .from('agency_expenses')
-          .update({ is_deleted: true })
-          .eq('agency_id', agencyId)
-          .eq('id', id);
-
-        if (updateError) throw updateError;
-        setExpenses(prev => prev.filter(e => e.id !== id));
+      if (targetExpense.parent_id) {
+        // Already a child override
+        await updateExpense(targetExpense.id, {
+          description: editedData.description,
+          amount: editedData.amount,
+          expense_type: editedData.expense_type,
+          due_date: editedData.due_date,
+          notes: editedData.notes,
+          paid: editedData.paid,
+          paid_at: editedData.paid_at
+        });
+        return;
       }
+
+      // Add targetMonthYear to mother exclude_months
+      const updatedExcludeMonths = Array.from(new Set([...(targetExpense.exclude_months || []), targetMonthYear]));
+      const motherRawNotes = encodeNotesAndMeta(targetExpense.notes, {
+        exclude_months: updatedExcludeMonths,
+        is_fixed: true
+      });
+
+      const { error: motherErr } = await supabase
+        .from('agency_expenses')
+        .update({ notes: motherRawNotes })
+        .eq('agency_id', agencyId)
+        .eq('id', targetExpense.id);
+
+      if (motherErr) throw motherErr;
+
+      // Insert child override
+      const childRawNotes = encodeNotesAndMeta(editedData.notes, {
+        parent_id: targetExpense.id,
+        is_fixed: false
+      });
+
+      const { error: childErr } = await supabase
+        .from('agency_expenses')
+        .insert([{
+          agency_id: agencyId,
+          description: editedData.description,
+          amount: editedData.amount,
+          category: 'variable',
+          expense_type: editedData.expense_type || 'tools',
+          month_year: targetMonthYear,
+          due_date: editedData.due_date || null,
+          paid: editedData.paid ?? false,
+          paid_at: editedData.paid_at ?? null,
+          notes: childRawNotes,
+          is_deleted: false
+        }]);
+
+      if (childErr) throw childErr;
+      await fetchData();
     } catch (error) {
-      console.error('Error deleting expense:', error);
+      console.error('Error overriding expense:', error);
+      throw error;
+    }
+  };
+
+  const updateMotherExpenseAllMonths = async (
+    targetExpense: AgencyExpense,
+    editedData: {
+      description: string;
+      amount: number;
+      category: 'fixed' | 'variable';
+      expense_type?: 'tools' | 'freelancers' | 'extras';
+      due_date?: string | null;
+      notes?: string | null;
+      paid?: boolean;
+      paid_at?: string | null;
+    }
+  ) => {
+    try {
+      if (!agencyId) return;
+      const motherId = targetExpense.parent_id || targetExpense.id;
+
+      const motherExp = rawExpenses.find(e => e.id === motherId) || targetExpense;
+      const rawNotes = encodeNotesAndMeta(editedData.notes ?? motherExp.notes, {
+        exclude_months: motherExp.exclude_months || [],
+        is_fixed: true
+      });
+
+      const { error } = await supabase
+        .from('agency_expenses')
+        .update({
+          description: editedData.description,
+          amount: editedData.amount,
+          category: 'fixed',
+          expense_type: editedData.expense_type,
+          due_date: editedData.due_date,
+          paid: editedData.paid,
+          paid_at: editedData.paid_at,
+          notes: rawNotes
+        })
+        .eq('agency_id', agencyId)
+        .eq('id', motherId);
+
+      if (error) throw error;
+      await fetchData();
+    } catch (error) {
+      console.error('Error updating mother expense:', error);
+      throw error;
+    }
+  };
+
+  const deleteExpenseForMonth = async (targetExpense: AgencyExpense, targetMonthYear: string = monthYear) => {
+    try {
+      if (!agencyId) return;
+      const motherId = targetExpense.parent_id || targetExpense.id;
+
+      const motherExp = rawExpenses.find(e => e.id === motherId) || targetExpense;
+      const updatedExcludeMonths = Array.from(new Set([...(motherExp.exclude_months || []), targetMonthYear]));
+      const motherRawNotes = encodeNotesAndMeta(motherExp.notes, {
+        exclude_months: updatedExcludeMonths,
+        is_fixed: true
+      });
+
+      await supabase
+        .from('agency_expenses')
+        .update({ notes: motherRawNotes })
+        .eq('agency_id', agencyId)
+        .eq('id', motherId);
+
+      if (targetExpense.parent_id) {
+        await supabase
+          .from('agency_expenses')
+          .update({ is_deleted: true })
+          .eq('agency_id', agencyId)
+          .eq('id', targetExpense.id);
+      }
+
+      await fetchData();
+    } catch (error) {
+      console.error('Error deleting expense for month:', error);
+      throw error;
+    }
+  };
+
+  const deleteExpensePermanently = async (targetExpense: AgencyExpense) => {
+    try {
+      if (!agencyId) return;
+      const motherId = targetExpense.parent_id || targetExpense.id;
+
+      await supabase
+        .from('agency_expenses')
+        .update({ is_deleted: true })
+        .eq('agency_id', agencyId)
+        .eq('id', motherId);
+
+      const childIdsToDelete = rawExpenses
+        .filter(e => e.parent_id === motherId)
+        .map(e => e.id);
+
+      if (childIdsToDelete.length > 0) {
+        await supabase
+          .from('agency_expenses')
+          .update({ is_deleted: true })
+          .in('id', childIdsToDelete);
+      }
+
+      await fetchData();
+    } catch (error) {
+      console.error('Error deleting expense permanently:', error);
       throw error;
     }
   };
@@ -443,6 +566,7 @@ export function useAgencyFinanceiro(monthYear: string) {
   return {
     billings,
     expenses,
+    rawExpenses,
     ticketMedio,
     faturamentoAcumulado,
     loading,
@@ -450,7 +574,11 @@ export function useAgencyFinanceiro(monthYear: string) {
     deleteBilling,
     addExpense,
     updateExpense,
-    deleteExpense,
+    overrideExpenseForMonth,
+    updateMotherExpenseAllMonths,
+    deleteExpenseForMonth,
+    deleteExpensePermanently,
     refresh: fetchData
   };
 }
+
