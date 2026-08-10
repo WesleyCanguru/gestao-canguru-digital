@@ -117,6 +117,9 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack, ini
     status_2: 'pending' | 'approved' | 'rejected' | 'revision' | null;
     comment_2: string;
     chosen_theme?: 1 | 2 | null;
+    converted_to_post?: boolean;
+    converted_at?: string;
+    converted_theme_title?: string;
   }
 
   const [themeStatusState, setThemeStatusState] = useState<ThemeStatusState>({
@@ -148,6 +151,9 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack, ini
           status_2: parsed.status_2 !== undefined ? parsed.status_2 : (theme.theme_2 ? 'pending' : null),
           comment_2: parsed.comment_2 || '',
           chosen_theme: parsed.chosen_theme || null,
+          converted_to_post: parsed.converted_to_post || false,
+          converted_at: parsed.converted_at || undefined,
+          converted_theme_title: parsed.converted_theme_title || undefined,
         };
       }
     } catch (e) {
@@ -161,6 +167,7 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack, ini
       status_2: theme.theme_2 ? 'pending' : null,
       comment_2: '',
       chosen_theme: legacyStatus === 'approved' ? 1 : null,
+      converted_to_post: false,
     };
   };
 
@@ -580,6 +587,102 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack, ini
     }
     
     await handleSaveClientReviewState(updated);
+  };
+
+  const handleConvertThemeToPost = async (themeToConvert: PostTheme, specificIndex?: 1 | 2) => {
+    if (userRole !== 'admin') return;
+
+    try {
+      setIsSavingTheme(true);
+      const themeStatus: ThemeStatusState = getThemeStatusObject(themeToConvert);
+
+      // Determine target theme and format
+      let targetTheme = '';
+      let targetFormat = 'Reels';
+
+      if (specificIndex === 1) {
+        targetTheme = themeToConvert.theme_1;
+        targetFormat = themeToConvert.format_1 || 'Reels';
+      } else if (specificIndex === 2 && themeToConvert.theme_2) {
+        targetTheme = themeToConvert.theme_2;
+        targetFormat = themeToConvert.format_2 || 'Reels';
+      } else if (themeStatus.chosen_theme === 2 && themeToConvert.theme_2) {
+        targetTheme = themeToConvert.theme_2;
+        targetFormat = themeToConvert.format_2 || 'Reels';
+      } else if (themeStatus.chosen_theme === 1) {
+        targetTheme = themeToConvert.theme_1;
+        targetFormat = themeToConvert.format_1 || 'Reels';
+      } else if (themeStatus.status_1 === 'approved') {
+        targetTheme = themeToConvert.theme_1;
+        targetFormat = themeToConvert.format_1 || 'Reels';
+      } else if (themeStatus.status_2 === 'approved' && themeToConvert.theme_2) {
+        targetTheme = themeToConvert.theme_2;
+        targetFormat = themeToConvert.format_2 || 'Reels';
+      } else {
+        targetTheme = themeToConvert.theme_1;
+        targetFormat = themeToConvert.format_1 || 'Reels';
+      }
+
+      if (!targetTheme || !targetTheme.trim()) {
+        alert('Nenhum tema aprovado encontrado para transformar em publicação.');
+        return;
+      }
+
+      // Parse date components from themeToConvert.date (YYYY-MM-DD)
+      const dateParts = themeToConvert.date.split('-');
+      const y = dateParts[0];
+      const m = dateParts[1];
+      const d = dateParts[2];
+
+      const targetKey = `${d}-${m}-${y}-meta-${activeClient?.id}-${Date.now()}`;
+
+      const payload = {
+        date_key: targetKey,
+        client_id: activeClient?.id,
+        agency_id: agencyId,
+        theme: targetTheme,
+        type: targetFormat,
+        status: 'draft',
+        bullets: [],
+        last_updated: new Date().toISOString()
+      };
+
+      const { error: postErr } = await supabase.from('posts').insert(payload);
+      if (postErr) throw postErr;
+
+      // Update ThemeStatusState in post_themes JSON
+      const updatedStatusState: ThemeStatusState = {
+        ...themeStatus,
+        converted_to_post: true,
+        converted_at: new Date().toISOString(),
+        converted_theme_title: targetTheme
+      };
+
+      await supabase
+        .from('post_themes')
+        .update({
+          status: JSON.stringify(updatedStatusState)
+        })
+        .eq('id', themeToConvert.id);
+
+      await fetchThemes();
+      await fetchMonthPosts();
+
+      if (selectedTheme && selectedTheme.id === themeToConvert.id) {
+        setSelectedTheme({
+          ...selectedTheme,
+          status: JSON.stringify(updatedStatusState)
+        });
+        setThemeStatusState(updatedStatusState);
+      }
+
+      alert(`🎉 Publicação criada com sucesso no dia ${d}/${m}/${y}!\nTema: "${targetTheme}"\nFormato: ${targetFormat}`);
+    } catch (err) {
+      console.error('Erro ao transformar tema em publicação:', err);
+      alert('Erro ao criar publicação a partir do tema.');
+    } finally {
+      setIsSavingTheme(false);
+    }
   };
 
 
@@ -1460,12 +1563,19 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack, ini
                 >
                   <div className="flex items-center justify-between">
                     <span className="text-[8px] font-extrabold uppercase tracking-widest text-gray-400">Sugestão de Tema</span>
-                    <span 
-                      className="px-1.5 py-0.5 text-[7px] font-bold uppercase tracking-wider rounded-md text-white"
-                      style={{ backgroundColor: getThemeStatusColor(overallStatus) }}
-                    >
-                      {getThemeStatusLabel(overallStatus)}
-                    </span>
+                    <div className="flex items-center gap-1">
+                      {statusObj.converted_to_post && (
+                        <span className="px-1 py-0.5 text-[7px] font-extrabold uppercase bg-emerald-100 text-emerald-800 rounded flex items-center gap-0.5">
+                          <Sparkles size={8} /> Post
+                        </span>
+                      )}
+                      <span 
+                        className="px-1.5 py-0.5 text-[7px] font-bold uppercase tracking-wider rounded-md text-white"
+                        style={{ backgroundColor: getThemeStatusColor(overallStatus) }}
+                      >
+                        {getThemeStatusLabel(overallStatus)}
+                      </span>
+                    </div>
                   </div>
                   {overallStatus === 'revision' && dayTheme.client_comment && (
                     <div className="text-[9px] text-blue-600 bg-blue-50/70 border border-blue-100/50 p-1.5 rounded-lg font-semibold leading-normal italic">
@@ -1504,6 +1614,21 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack, ini
                       </>
                     )}
                   </div>
+
+                  {userRole === 'admin' && (overallStatus === 'approved' || statusObj.status_1 === 'approved' || statusObj.status_2 === 'approved') && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleConvertThemeToPost(dayTheme);
+                      }}
+                      disabled={isSavingTheme}
+                      className="mt-1 w-full py-1.5 px-2 bg-brand-dark hover:bg-black text-white text-[8px] font-black uppercase tracking-wider rounded-lg transition-all flex items-center justify-center gap-1 shadow-xs active:scale-95"
+                      title="Transformar este tema aprovado em uma publicação no calendário"
+                    >
+                      <Sparkles size={10} className="text-brand-green" />
+                      {statusObj.converted_to_post ? 'Gerar Post Novamente' : 'Transformar em Publicação'}
+                    </button>
+                  )}
                 </div>
               );
             })()}
@@ -1951,8 +2076,10 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack, ini
                           .map((theme, idx) => {
                             const overallStatus = getOverallDayStatus(theme);
                             const info = getThemeOverallStatusInfo(overallStatus);
+                            const statusObj = getThemeStatusObject(theme);
                             const dayDetails = getThemeDayDetails(theme.date);
                             const hasTheme2 = !!theme.theme_2;
+                            const isApproved = overallStatus === 'approved' || statusObj.status_1 === 'approved' || statusObj.status_2 === 'approved';
 
                             return (
                               <div
@@ -1982,6 +2109,11 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack, ini
                                     <span className={`px-2.5 py-1 rounded-full text-[8px] font-black uppercase tracking-wider ${info.badge}`}>
                                       {info.label}
                                     </span>
+                                    {statusObj.converted_to_post && (
+                                      <span className="px-2.5 py-1 rounded-full text-[8px] font-black uppercase tracking-wider bg-emerald-100 text-emerald-800 border border-emerald-200 flex items-center gap-1 shadow-2xs">
+                                        <Sparkles size={10} className="text-emerald-600" /> Publicação Criada
+                                      </span>
+                                    )}
                                     {hasTheme2 && (
                                       <span className="text-[9px] font-bold text-brand-dark bg-brand-dark/5 px-2 py-0.5 rounded-full border border-brand-dark/10">
                                         Duas Sugestões
@@ -2028,8 +2160,22 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack, ini
                                   </div>
                                 </div>
 
-                                {/* Direita: Botão Avaliar */}
-                                <div className="flex md:flex-col items-stretch md:items-end gap-2 w-full md:w-auto mt-2 md:mt-0 flex-shrink-0 justify-center">
+                                {/* Direita: Botões */}
+                                <div className="flex flex-col sm:flex-row md:flex-col items-stretch md:items-end gap-2 w-full md:w-auto mt-2 md:mt-0 flex-shrink-0 justify-center">
+                                  {userRole === 'admin' && isApproved && (
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleConvertThemeToPost(theme);
+                                      }}
+                                      disabled={isSavingTheme}
+                                      className="flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-brand-dark hover:bg-black text-white transition-all text-[10px] font-black uppercase tracking-widest w-full md:w-auto shadow-sm active:scale-95"
+                                      title="Transformar este tema aprovado em uma publicação no calendário"
+                                    >
+                                      <Sparkles size={12} className="text-brand-green" />
+                                      <span>{statusObj.converted_to_post ? 'Transformar Novamente' : 'Transformar em Publicação'}</span>
+                                    </button>
+                                  )}
                                   <button
                                     onClick={(e) => {
                                       e.stopPropagation();
@@ -2315,6 +2461,32 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack, ini
                       </span>
                     </div>
 
+                    {selectedTheme && (getOverallDayStatus(selectedTheme) === 'approved' || themeStatusState.status_1 === 'approved' || themeStatusState.status_2 === 'approved') && (
+                      <div className="p-5 rounded-2xl bg-emerald-50/80 border border-emerald-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-sm animate-in fade-in duration-300">
+                        <div className="space-y-0.5">
+                          <div className="flex items-center gap-2 text-emerald-800">
+                            <Sparkles size={16} className="text-emerald-600 shrink-0" />
+                            <h4 className="font-extrabold text-xs uppercase tracking-wider">
+                              {themeStatusState.converted_to_post ? 'Tema Já Transformado em Publicação' : 'Tema Aprovado! Pronto para virar post'}
+                            </h4>
+                          </div>
+                          <p className="text-xs text-emerald-700 font-medium leading-relaxed">
+                            {themeStatusState.converted_to_post 
+                              ? 'Uma publicação foi gerada no calendário com este tema. A sugestão continua salva aqui como Aprovada.' 
+                              : 'Clique para criar automaticamente a publicação no calendário mantendo o tema e o formato aprovados.'}
+                          </p>
+                        </div>
+                        <button
+                          onClick={() => handleConvertThemeToPost(selectedTheme)}
+                          disabled={isSavingTheme}
+                          className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-black uppercase tracking-widest py-3 px-5 rounded-xl transition-all shadow-md flex items-center justify-center gap-2 shrink-0 active:scale-95"
+                        >
+                          <Sparkles size={14} />
+                          <span>{themeStatusState.converted_to_post ? 'Gerar Outra Publicação' : 'Transformar em Publicação'}</span>
+                        </button>
+                      </div>
+                    )}
+
                     {selectedTheme && getOverallDayStatus(selectedTheme) === 'revision' && selectedTheme.client_comment && (
                       <div className="p-5 bg-blue-50/70 border border-blue-200 rounded-2xl space-y-2">
                         <div className="flex items-center gap-2 text-blue-800">
@@ -2346,6 +2518,16 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack, ini
                       <span className="inline-block text-[9px] font-extrabold text-gray-500 bg-gray-50 border border-gray-150 px-2.5 py-1 rounded-md shadow-sm">
                         {format1}
                       </span>
+                      {themeStatusState.status_1 === 'approved' && selectedTheme && (
+                        <button
+                          onClick={() => handleConvertThemeToPost(selectedTheme, 1)}
+                          disabled={isSavingTheme}
+                          className="mt-3 px-3.5 py-2 bg-brand-dark hover:bg-black text-white rounded-xl text-[9px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5 shadow-sm"
+                        >
+                          <Sparkles size={12} className="text-brand-green" />
+                          Transformar Tema 1 em Publicação
+                        </button>
+                      )}
                       {themeStatusState.status_1 !== 'pending' && themeStatusState.comment_1 && (
                         <div className="mt-2.5 p-3 rounded-xl bg-gray-50 border border-gray-100 text-xs text-gray-600 italic">
                           <span className="font-bold text-[9px] uppercase text-gray-400 tracking-wider block mb-1">Feedback do Cliente:</span>
@@ -2374,6 +2556,16 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack, ini
                         <span className="inline-block text-[9px] font-extrabold text-gray-500 bg-gray-50 border border-gray-150 px-2.5 py-1 rounded-md shadow-sm">
                           {format2}
                         </span>
+                        {themeStatusState.status_2 === 'approved' && selectedTheme && (
+                          <button
+                            onClick={() => handleConvertThemeToPost(selectedTheme, 2)}
+                            disabled={isSavingTheme}
+                            className="mt-3 px-3.5 py-2 bg-brand-dark hover:bg-black text-white rounded-xl text-[9px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5 shadow-sm"
+                          >
+                            <Sparkles size={12} className="text-brand-green" />
+                            Transformar Tema 2 em Publicação
+                          </button>
+                        )}
                         {themeStatusState.status_2 !== 'pending' && themeStatusState.comment_2 && (
                           <div className="mt-2.5 p-3 rounded-xl bg-gray-50 border border-gray-100 text-xs text-gray-600 italic">
                             <span className="font-bold text-[9px] uppercase text-gray-400 tracking-wider block mb-1">Feedback do Cliente:</span>
@@ -2846,6 +3038,16 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack, ini
                       >
                         Fechar
                       </button>
+                      {selectedTheme && (getOverallDayStatus(selectedTheme) === 'approved' || themeStatusState.status_1 === 'approved' || themeStatusState.status_2 === 'approved') && (
+                        <button
+                          onClick={() => handleConvertThemeToPost(selectedTheme)}
+                          disabled={isSavingTheme}
+                          className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white transition-all text-[10px] font-black uppercase tracking-widest shadow-lg disabled:opacity-50"
+                        >
+                          <Sparkles size={12} />
+                          {themeStatusState.converted_to_post ? 'Transformar Novamente' : 'Transformar em Publicação'}
+                        </button>
+                      )}
                       <button
                         onClick={() => setIsEditingTheme(true)}
                         className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-brand-dark text-white hover:bg-opacity-90 transition-all text-[10px] font-black uppercase tracking-widest shadow-lg"

@@ -415,7 +415,7 @@ export const HomeTab: React.FC<{ onNavigateToClients: (client: Client) => void }
             {urgentTasks.map(task => {
               const isOverdue = task.due_date && dayjs(task.due_date).isBefore(dayjs(), 'day');
               return (
-                <div key={task.id} className="p-4 rounded-2xl border border-gray-100 flex items-center justify-between bg-gray-50/50">
+                <div key={task.id} className={`p-4 rounded-2xl border flex items-center justify-between ${isOverdue ? 'bg-red-50/70 border-red-200' : 'bg-gray-50/50 border-gray-100'}`}>
                   <div className="flex flex-col gap-1 min-w-0 pr-4">
                     <p className="text-sm font-bold break-words leading-snug">{task.title}</p>
                     {task.client?.name && (

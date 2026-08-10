@@ -23,7 +23,8 @@ import {
   Clock,
   Briefcase,
   Repeat,
-  GripVertical
+  GripVertical,
+  FileText
 } from 'lucide-react';
 import { supabase, useAuth } from '../../lib/supabase';
 import { AgencyTask, AgencyTaskPriority, AgencyTaskRecurrenceType, ProcessInstance, ProcessChecklist } from '../../types';
@@ -1802,6 +1803,7 @@ const SortableTaskListItem: React.FC<{
 };
 
 const TaskListItem: React.FC<{ task: AgencyTask, onToggle: () => void, onEdit: () => void, isTodayView?: boolean, isDragging?: boolean }> = ({ task, onToggle, onEdit, isTodayView, isDragging }) => {
+  const [showDetailModal, setShowDetailModal] = useState(false);
   const isDone = !isTaskPendingInCurrentCycle(task);
   const isOverdue = (task.recurrence_type === 'weekly' && isWeeklyTaskOverdue(task)) || 
     ((task.recurrence_type === 'none' || !task.recurrence_type) && !isDone && task.due_date && dayjs(task.due_date).isBefore(dayjs(), 'day'));
@@ -1819,87 +1821,244 @@ const TaskListItem: React.FC<{ task: AgencyTask, onToggle: () => void, onEdit: (
   const dateObj = task.due_date ? dayjs(task.due_date) : null;
   const isMonthlyNotStarted = task.recurrence_type === 'monthly' && getMonthlyTaskState(task) === 'not_started';
 
-  return (
-    <div className={`group flex items-start sm:items-center gap-3 sm:gap-4 p-4 bg-white rounded-2xl border border-gray-100 hover:border-brand-dark/20 hover:shadow-sm transition-all ${isDone ? 'opacity-60 bg-gray-50 pointer-events-auto' : ''} ${isDragging ? 'shadow-lg border-brand-dark/30 scale-[1.01]' : ''}`}>
-      {!isDone && !isMonthlyNotStarted && (
-        <div className="text-gray-300 group-hover:text-gray-400 cursor-grab active:cursor-grabbing flex-shrink-0 pt-0.5 sm:pt-0">
-          <GripVertical size={16} />
-        </div>
-      )}
+  const cardBgClass = isDone 
+    ? 'opacity-60 bg-gray-50 border-gray-100' 
+    : isOverdue 
+      ? 'bg-red-50/60 border-red-200/80 hover:border-red-300' 
+      : 'bg-white border-gray-100 hover:border-brand-dark/20';
 
-      <button 
-        disabled={isMonthlyNotStarted}
-        onClick={onToggle} 
-        className={`flex-shrink-0 text-gray-300 hover:text-brand-dark transition-colors pt-0.5 sm:pt-0 ${isDone ? 'text-green-500 hover:text-green-600' : ''} ${isMonthlyNotStarted ? 'text-gray-200 cursor-not-allowed' : ''}`}
+  return (
+    <>
+      <div 
+        onClick={() => setShowDetailModal(true)}
+        className={`group flex items-start sm:items-center gap-3 sm:gap-4 p-4 rounded-2xl border shadow-sm transition-all cursor-pointer ${cardBgClass} ${isDragging ? 'shadow-lg border-brand-dark/30 scale-[1.01]' : ''}`}
       >
-        {isDone ? <CheckCircle2 size={24} /> : <Circle size={24} />}
-      </button>
-      
-      <div className="flex-1 min-w-0 flex flex-col md:flex-row md:items-center gap-2 md:gap-4">
-        <div className="flex-1 min-w-0">
-          <span className={`font-bold text-sm leading-snug break-words block ${isDone ? 'line-through text-gray-500' : 'text-gray-800'} ${isMonthlyNotStarted ? 'text-gray-400 font-medium' : ''}`}>
-            {task.title}
-          </span>
+        {!isDone && !isMonthlyNotStarted && (
+          <div 
+            onClick={(e) => e.stopPropagation()} 
+            className="text-gray-300 group-hover:text-gray-400 cursor-grab active:cursor-grabbing flex-shrink-0 pt-0.5 sm:pt-0"
+          >
+            <GripVertical size={16} />
+          </div>
+        )}
+
+        <button 
+          disabled={isMonthlyNotStarted}
+          onClick={(e) => {
+            e.stopPropagation();
+            onToggle();
+          }} 
+          className={`flex-shrink-0 text-gray-300 hover:text-brand-dark transition-colors pt-0.5 sm:pt-0 ${isDone ? 'text-green-500 hover:text-green-600' : ''} ${isMonthlyNotStarted ? 'text-gray-200 cursor-not-allowed' : ''}`}
+        >
+          {isDone ? <CheckCircle2 size={24} /> : <Circle size={24} />}
+        </button>
+        
+        <div className="flex-1 min-w-0 flex flex-col gap-1.5">
+          <div className="flex flex-col md:flex-row md:items-center gap-2 md:gap-4">
+            <div className="flex-1 min-w-0">
+              <span className={`font-bold text-sm leading-snug break-words block ${isDone ? 'line-through text-gray-500' : 'text-gray-800'} ${isMonthlyNotStarted ? 'text-gray-400 font-medium' : ''}`}>
+                {task.title}
+              </span>
+            </div>
+            
+            <div className="flex items-center gap-2 flex-wrap flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+              {task.client ? (
+                <span className="px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider text-black whitespace-nowrap" style={{ backgroundColor: task.client.color }}>
+                  {task.client.name}
+                </span>
+              ) : (
+                <span className="px-2 py-0.5 rounded-md bg-gray-200 text-black text-[10px] font-black uppercase tracking-wider whitespace-nowrap">
+                  Interno
+                </span>
+              )}
+              
+              <span className={`px-2 py-0.5 rounded-md border text-[9px] font-bold uppercase tracking-wider whitespace-nowrap ${getPriorityColor(task.priority)}`}>
+                {task.priority || 'Normal'}
+              </span>
+
+              {task.recurrence_type && task.recurrence_type !== 'none' && (
+                <span title={`Recorrência: ${task.recurrence_type === 'daily' ? 'Diária' : task.recurrence_type === 'weekly' ? 'Semanal' : 'Mensal'}`} className={`flex items-center gap-1 px-2 py-0.5 rounded-md border text-[9px] font-bold uppercase tracking-wider whitespace-nowrap bg-purple-50 text-purple-600 border-purple-100`}>
+                  <Repeat size={10} />
+                  {task.recurrence_type === 'daily' ? 'Diária 🔄' : task.recurrence_type === 'weekly' ? getWeeklyDaysLabel(task.recurrence_days || []) : `Mensal (Dia ${task.recurrence_days?.[0] || '1'}) 📅`}
+                </span>
+              )}
+              
+              {isOverdue && (
+                <span className="flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider whitespace-nowrap text-red-600 bg-red-100/80 border border-red-200">
+                  Atrasada
+                </span>
+              )}
+
+              {isMonthlyNotStarted && (
+                <span className="flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider whitespace-nowrap text-purple-600 bg-purple-50 border border-purple-100">
+                  Abre dia {task.recurrence_days?.[0] || '1'}
+                </span>
+              )}
+
+              {dateObj && (
+                <span className={`flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider whitespace-nowrap ${isOverdue ? 'text-red-600 bg-red-100/80 border border-red-200' : 'text-gray-500 bg-gray-50 border border-gray-100'}`}>
+                  <Calendar size={12} />
+                  {dateObj.format('DD/MM')}
+                </span>
+              )}
+
+              {isDone && task.completed_at && (
+                <span className="flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider whitespace-nowrap text-green-600 bg-green-50 border border-green-100">
+                  <Clock size={12} />
+                  Concluída em {dayjs(task.completed_at).format('DD/MM/YYYY [às] HH:mm')}
+                </span>
+              )}
+            </div>
+          </div>
+
+          {/* Descrição Visível */}
+          {task.description && (
+            <p className={`text-xs mt-0.5 leading-relaxed break-words line-clamp-2 ${isDone ? 'text-gray-400' : 'text-gray-600'}`}>
+              {task.description}
+            </p>
+          )}
         </div>
         
-        <div className="flex items-center gap-2 flex-wrap flex-shrink-0">
-          {task.client ? (
-             <span className="px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider text-white whitespace-nowrap" style={{ backgroundColor: task.client.color }}>
-               {task.client.name}
-             </span>
-          ) : (
-             <span className="px-2 py-0.5 rounded-md bg-brand-dark/10 text-brand-dark text-[10px] font-black uppercase tracking-wider whitespace-nowrap">
-               Interno
-             </span>
-          )}
-          
-          <span className={`px-2 py-0.5 rounded-md border text-[9px] font-bold uppercase tracking-wider whitespace-nowrap ${getPriorityColor(task.priority)}`}>
-            {task.priority || 'Normal'}
-          </span>
-
-          {task.recurrence_type && task.recurrence_type !== 'none' && (
-            <span title={`Recorrência: ${task.recurrence_type === 'daily' ? 'Diária' : task.recurrence_type === 'weekly' ? 'Semanal' : 'Mensal'}`} className={`flex items-center gap-1 px-2 py-0.5 rounded-md border text-[9px] font-bold uppercase tracking-wider whitespace-nowrap bg-purple-50 text-purple-600 border-purple-100`}>
-              <Repeat size={10} />
-              {task.recurrence_type === 'daily' ? 'Diária 🔄' : task.recurrence_type === 'weekly' ? getWeeklyDaysLabel(task.recurrence_days || []) : `Mensal (Dia ${task.recurrence_days?.[0] || '1'}) 📅`}
-            </span>
-          )}
-          
-          {isOverdue && (
-            <span className="flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider whitespace-nowrap text-red-500 bg-red-50 border border-red-100">
-              Atrasada
-            </span>
-          )}
-
-          {isMonthlyNotStarted && (
-            <span className="flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider whitespace-nowrap text-purple-600 bg-purple-50 border border-purple-100">
-              Abre dia {task.recurrence_days?.[0] || '1'}
-            </span>
-          )}
-
-          {dateObj && (
-            <span className={`flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider whitespace-nowrap ${isOverdue ? 'text-red-500 bg-red-50 border border-red-100' : 'text-gray-500 bg-gray-50 border border-gray-100'}`}>
-              <Calendar size={12} />
-              {dateObj.format('DD/MM')}
-            </span>
-          )}
-
-          {isDone && task.completed_at && (
-            <span className="flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider whitespace-nowrap text-green-600 bg-green-50 border border-green-100">
-              <Clock size={12} />
-              Concluída em {dayjs(task.completed_at).format('DD/MM/YYYY [às] HH:mm')}
-            </span>
-          )}
+        <div className="flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" onClick={(e) => e.stopPropagation()}>
+          <button onClick={onEdit} className="p-2 text-gray-400 hover:text-blue-500 hover:bg-blue-50 rounded-xl transition-all" title="Editar tarefa">
+            <Edit2 size={16} />
+          </button>
         </div>
       </div>
-      
-      <div className="flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
-        <button onClick={onEdit} className="p-2 text-gray-400 hover:text-blue-500 hover:bg-blue-50 rounded-xl transition-all">
-          <Edit2 size={16} />
-        </button>
-      </div>
-    </div>
+
+      {/* Modal / Card Simples de Detalhes da Tarefa ao Clicar */}
+      <AnimatePresence>
+        {showDetailModal && (
+          <div className="fixed inset-0 bg-brand-dark/40 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setShowDetailModal(false)}>
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-white rounded-3xl p-6 sm:p-8 max-w-lg w-full shadow-2xl border border-gray-100 flex flex-col gap-6 relative overflow-hidden"
+            >
+              {/* Header */}
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex items-center gap-2 flex-wrap">
+                  {task.client ? (
+                    <span className="px-2.5 py-1 rounded-md text-xs font-black uppercase tracking-wider text-black" style={{ backgroundColor: task.client.color }}>
+                      {task.client.name}
+                    </span>
+                  ) : (
+                    <span className="px-2.5 py-1 rounded-md bg-gray-200 text-black text-xs font-black uppercase tracking-wider">
+                      Interno (Canguru Digital)
+                    </span>
+                  )}
+
+                  <span className={`px-2.5 py-1 rounded-md border text-xs font-bold uppercase tracking-wider ${getPriorityColor(task.priority)}`}>
+                    {task.priority || 'Normal'}
+                  </span>
+
+                  {task.recurrence_type && task.recurrence_type !== 'none' && (
+                    <span className="flex items-center gap-1 px-2.5 py-1 rounded-md border text-xs font-bold uppercase tracking-wider bg-purple-50 text-purple-600 border-purple-100">
+                      <Repeat size={12} />
+                      {task.recurrence_type === 'daily' ? 'Diária 🔄' : task.recurrence_type === 'weekly' ? `Semanal (${getWeeklyDaysLabel(task.recurrence_days || [])})` : `Mensal (Dia ${task.recurrence_days?.[0] || '1'})`}
+                    </span>
+                  )}
+
+                  {isOverdue && (
+                    <span className="px-2.5 py-1 rounded-md text-xs font-bold uppercase tracking-wider text-red-600 bg-red-100 border border-red-200">
+                      Atrasada
+                    </span>
+                  )}
+                </div>
+
+                <button 
+                  onClick={() => setShowDetailModal(false)}
+                  className="p-2 hover:bg-gray-100 rounded-full text-gray-400 hover:text-gray-700 transition-colors"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+
+              {/* Título */}
+              <div>
+                <h3 className={`text-xl font-black text-gray-800 leading-snug ${isDone ? 'line-through text-gray-400' : ''}`}>
+                  {task.title}
+                </h3>
+              </div>
+
+              {/* Descrição */}
+              {task.description ? (
+                <div className="bg-gray-50 p-4 rounded-2xl border border-gray-100 space-y-1.5">
+                  <div className="flex items-center gap-1.5 text-xs font-bold text-gray-400 uppercase tracking-wider">
+                    <FileText size={14} />
+                    <span>Descrição / Observações</span>
+                  </div>
+                  <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">
+                    {task.description}
+                  </p>
+                </div>
+              ) : (
+                <div className="bg-gray-50/50 p-4 rounded-2xl border border-dashed border-gray-200 text-xs text-gray-400 italic">
+                  Sem descrição informada nesta tarefa.
+                </div>
+              )}
+
+              {/* Informações adicionais de data */}
+              <div className="grid grid-cols-2 gap-3 pt-2 text-xs">
+                <div className="bg-gray-50/80 p-3 rounded-xl border border-gray-100 flex flex-col gap-1">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Vencimento / Data</span>
+                  <span className="font-bold text-gray-700 flex items-center gap-1.5">
+                    <Calendar size={14} className="text-brand-dark" />
+                    {dateObj ? dateObj.format('DD/MM/YYYY') : 'Sem data definida'}
+                  </span>
+                </div>
+
+                <div className="bg-gray-50/80 p-3 rounded-xl border border-gray-100 flex flex-col gap-1">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Status</span>
+                  <span className={`font-bold flex items-center gap-1.5 ${isDone ? 'text-green-600' : isOverdue ? 'text-red-600' : 'text-blue-600'}`}>
+                    {isDone ? (
+                      <>
+                        <CheckCircle2 size={14} />
+                        Concluída
+                      </>
+                    ) : (
+                      <>
+                        <Circle size={14} />
+                        {isOverdue ? 'Atrasada' : 'Pendente'}
+                      </>
+                    )}
+                  </span>
+                </div>
+              </div>
+
+              {/* Footer Ações */}
+              <div className="flex items-center justify-between gap-3 pt-4 border-t border-gray-100">
+                <button
+                  onClick={() => {
+                    onToggle();
+                    setShowDetailModal(false);
+                  }}
+                  className={`px-5 py-2.5 rounded-xl font-bold text-xs uppercase tracking-wider transition-all flex items-center gap-2 ${isDone ? 'bg-gray-100 text-gray-700 hover:bg-gray-200' : 'bg-green-500 text-white hover:bg-green-600 shadow-sm'}`}
+                >
+                  <CheckCircle2 size={16} />
+                  {isDone ? 'Marcar como Pendente' : 'Concluir Tarefa'}
+                </button>
+
+                <button
+                  onClick={() => {
+                    setShowDetailModal(false);
+                    onEdit();
+                  }}
+                  className="px-5 py-2.5 bg-brand-dark/5 hover:bg-brand-dark/10 text-brand-dark rounded-xl font-bold text-xs uppercase tracking-wider transition-all flex items-center gap-2"
+                >
+                  <Edit2 size={16} />
+                  Editar
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+    </>
   );
-}
+};
 
 // ==========================================
 // DRAWER: NOVA TAREFA
