@@ -1349,6 +1349,7 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
                     { id: 'website', label: 'Aprovação Website' },
                     { id: 'ai_photos', label: 'Fotos com IA' },
                     { id: 'roteiros', label: 'Roteiros' },
+                    { id: 'password_vault', label: 'Cofre de Senhas' },
                   ].map(feature => {
                     const isChecked = feature.id === 'crm' 
                       ? (form.features_settings?.crm ?? form.is_lead_tracking_enabled ?? true)

@@ -198,6 +198,8 @@ export const ClientHome: React.FC<ClientHomeProps> = ({
   const showWebsite = getFeature('website', hasService('Website'));
   const showDocuments = getFeature('drive', true);
   const showTutorials = getFeature('tutorials', true);
+  const showRoteiros = getFeature('roteiros', true);
+  const showPasswordVault = getFeature('password_vault', true);
 
   const isActuallyOnboardingCompleted = activeClient?.onboarding_completed || isOnboardingCompleted;
 
@@ -249,7 +251,7 @@ export const ClientHome: React.FC<ClientHomeProps> = ({
     },
     {
       id: 'roteiros',
-      visible: true,
+      visible: showRoteiros,
       render: () => (
         <motion.div 
           key="roteiros"
@@ -394,7 +396,7 @@ export const ClientHome: React.FC<ClientHomeProps> = ({
     },
     {
       id: 'lockbox',
-      visible: true,
+      visible: showPasswordVault,
       render: () => (
         <motion.div 
           key="lockbox"
