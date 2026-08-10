@@ -59,7 +59,7 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 
-const SortableItem: React.FC<{ id: string, onRemove: () => void }> = ({ id, onRemove }) => {
+const SortableItem: React.FC<{ id: string, label?: string, onRemove?: () => void, showRemove?: boolean }> = ({ id, label, onRemove, showRemove = true }) => {
   const {
     attributes,
     listeners,
@@ -77,16 +77,18 @@ const SortableItem: React.FC<{ id: string, onRemove: () => void }> = ({ id, onRe
     <div
       ref={setNodeRef}
       style={style}
-      className="flex items-center gap-1 bg-white px-3 py-1.5 rounded-xl border border-black/[0.05] text-sm font-medium text-gray-700 cursor-grab active:cursor-grabbing group"
+      className="flex items-center gap-1.5 bg-white px-3 py-1.5 rounded-xl border border-black/[0.05] text-xs font-semibold text-gray-700 cursor-grab active:cursor-grabbing group shadow-sm hover:border-brand-dark/20 transition-all"
     >
-      <GripVertical size={12} className="text-gray-300 group-hover:text-gray-500" {...attributes} {...listeners} />
-      {id}
-      <button 
-        onClick={(e) => { e.stopPropagation(); onRemove(); }}
-        className="text-gray-400 hover:text-red-500 ml-1"
-      >
-        <X size={14} />
-      </button>
+      <GripVertical size={13} className="text-gray-300 group-hover:text-gray-500 shrink-0" {...attributes} {...listeners} />
+      <span>{label || id}</span>
+      {showRemove && onRemove && (
+        <button 
+          onClick={(e) => { e.stopPropagation(); onRemove(); }}
+          className="text-gray-300 hover:text-red-500 ml-1 p-0.5 rounded transition-colors"
+        >
+          <X size={12} />
+        </button>
+      )}
     </div>
   );
 };
@@ -111,9 +113,7 @@ const REORDERABLE_MODULES = [
   { id: 'month-detail', label: 'Mapa Editorial' },
   { id: 'briefings', label: 'Briefing de Conteúdo' },
   { id: 'strategic-briefings', label: 'Briefing Estratégico' },
-  { id: 'paid-traffic', label: 'Tráfego Pago' },
-  { id: 'reportei_paid', label: 'Dashboard Pago (Reportei)' },
-  { id: 'reportei_organic', label: 'Dashboard Orgânico (Reportei)' },
+  { id: 'trafico_pago', label: 'Tráfego Pago' },
   { id: 'website', label: 'Website' },
   { id: 'ai-photos', label: 'Fotos IA' },
   { id: 'password-vault', label: 'Senhas' },
@@ -196,9 +196,6 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
     instagram: '',
     linkedin: '',
     tiktok: '',
-    reportei_url: '',
-    organic_reportei_url: '',
-    paid_reportei_url: '',
     drive_link: '',
     color: '#1e40af',
     initials: '',
@@ -300,8 +297,6 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
         instagram: form.instagram.trim() || null,
         linkedin: form.linkedin.trim() || null,
         tiktok: form.tiktok.trim() || null,
-        organic_reportei_url: form.organic_reportei_url.trim() || null,
-        paid_reportei_url: form.paid_reportei_url.trim() || null,
         drive_link: form.drive_link.trim() || null,
         color: form.color,
         initials: form.initials.trim().toUpperCase().slice(0, 2),
@@ -562,9 +557,6 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
       instagram: '', 
       linkedin: '',
       tiktok: '',
-      reportei_url: '',
-      organic_reportei_url: '',
-      paid_reportei_url: '',
       drive_link: '',
       color: '#1e40af', 
       initials: '', 
@@ -620,9 +612,6 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
       instagram: client.instagram || '',
       linkedin: linkedinHandle,
       tiktok: client.tiktok || '',
-      reportei_url: client.reportei_url || '',
-      organic_reportei_url: client.organic_reportei_url || '',
-      paid_reportei_url: client.paid_reportei_url || '',
       drive_link: (client as any).drive_link || '',
       color: client.color,
       initials: client.initials,
@@ -991,26 +980,6 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
               </div>
 
               <div className="sm:col-span-2">
-                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">URL Tráfego Orgânico (Reportei)</label>
-                <div className="relative">
-                  <Globe className="absolute left-3 top-3 text-gray-400" size={16} />
-                  <input type="text" value={form.organic_reportei_url} onChange={e => setForm(f => ({...f, organic_reportei_url: e.target.value}))}
-                    placeholder="https://app.reportei.com/report/..."
-                    className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                </div>
-              </div>
-
-              <div className="sm:col-span-2">
-                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">URL Tráfego Pago (Reportei)</label>
-                <div className="relative">
-                  <Globe className="absolute left-3 top-3 text-gray-400" size={16} />
-                  <input type="text" value={form.paid_reportei_url} onChange={e => setForm(f => ({...f, paid_reportei_url: e.target.value}))}
-                    placeholder="https://app.reportei.com/report/..."
-                    className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                </div>
-              </div>
-
-              <div className="sm:col-span-2">
                 <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">URL Google Drive (Documentos)</label>
                 <div className="relative">
                   <FolderOpen className="absolute left-3 top-3 text-gray-400" size={16} />
@@ -1095,11 +1064,9 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
                             setForm(f => {
                               const newFeatures = { ...(f.features_settings || {}) };
                               if (service === 'Social Media') {
-                                newFeatures.reportei_organic = true;
                                 newFeatures.mapa = true;
                                 newFeatures.briefings = true;
                               } else if (service === 'Tráfego Pago') {
-                                newFeatures.reportei_paid = true;
                                 newFeatures.briefings = true;
                               } else if (service === 'Website') {
                                 newFeatures.website = true;
@@ -1206,129 +1173,7 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
                 </div>
               )}
 
-              {/* Seção de Acesso */}
-              <div className="sm:col-span-2 mt-4 pt-6 border-t border-gray-100">
-                <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-4">
-                  Acompanhamento de Leads
-                </h3>
-                <div className="flex items-center gap-3 mb-6">
-                  <button
-                    onClick={() => setForm(f => ({ ...f, is_lead_tracking_enabled: !f.is_lead_tracking_enabled }))}
-                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${
-                      form.is_lead_tracking_enabled ? 'bg-brand-dark' : 'bg-gray-200'
-                    }`}
-                  >
-                    <span
-                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                        form.is_lead_tracking_enabled ? 'translate-x-6' : 'translate-x-1'
-                      }`}
-                    />
-                  </button>
-                  <span className="text-sm font-medium text-gray-700">Ativar Acompanhamento de Leads</span>
-                </div>
-
-                {form.is_lead_tracking_enabled && (
-                  <div className="space-y-6 bg-gray-50 p-6 rounded-2xl border border-black/[0.05]">
-                    {/* Kanban Stages */}
-                    <div>
-                      <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
-                        Estágios do Kanban
-                      </label>
-                      <p className="text-[10px] text-gray-400 mb-3">
-                        Arraste para reordenar. Pressione Enter para adicionar um novo estágio. O estágio "Perdido" é automático.
-                      </p>
-                      <DndContext 
-                        sensors={sensors}
-                        collisionDetection={closestCenter}
-                        onDragEnd={handleDragEndStages}
-                      >
-                        <SortableContext 
-                          items={(form as any).kanban_stages || []}
-                          strategy={horizontalListSortingStrategy}
-                        >
-                          <div className="flex flex-wrap gap-2 mb-3">
-                            {(form as any).kanban_stages?.map((stage: string, index: number) => (
-                              <SortableItem 
-                                key={stage} 
-                                id={stage} 
-                                onRemove={() => {
-                                  const newStages = [...((form as any).kanban_stages || [])];
-                                  newStages.splice(index, 1);
-                                  setForm(f => ({ ...f, kanban_stages: newStages }));
-                                }}
-                              />
-                            ))}
-                            <input 
-                              type="text"
-                              placeholder="Adicionar estágio..."
-                              className="bg-transparent border-none text-sm focus:ring-0 w-40 p-0"
-                              onKeyDown={(e) => {
-                                if (e.key === 'Enter') {
-                                  e.preventDefault();
-                                  const val = e.currentTarget.value.trim();
-                                  if (val && !((form as any).kanban_stages || []).includes(val)) {
-                                    setForm(f => ({ ...f, kanban_stages: [...((f as any).kanban_stages || []), val] }));
-                                    e.currentTarget.value = '';
-                                  }
-                                }
-                              }}
-                            />
-                          </div>
-                        </SortableContext>
-                      </DndContext>
-                    </div>
-
-                    {/* Specialties */}
-                    <div>
-                      <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
-                        Especialidades (Tags)
-                      </label>
-                      <p className="text-[10px] text-gray-400 mb-3">
-                        Arraste para reordenar. Pressione Enter para adicionar uma nova especialidade.
-                      </p>
-                      <DndContext 
-                        sensors={sensors}
-                        collisionDetection={closestCenter}
-                        onDragEnd={handleDragEndSpecs}
-                      >
-                        <SortableContext 
-                          items={(form as any).specialty_options || []}
-                          strategy={horizontalListSortingStrategy}
-                        >
-                          <div className="flex flex-wrap gap-2 mb-3">
-                            {(form as any).specialty_options?.map((spec: string, index: number) => (
-                              <SortableItem 
-                                key={spec} 
-                                id={spec} 
-                                onRemove={() => {
-                                  const newSpecs = [...((form as any).specialty_options || [])];
-                                  newSpecs.splice(index, 1);
-                                  setForm(f => ({ ...f, specialty_options: newSpecs }));
-                                }}
-                              />
-                            ))}
-                            <input 
-                              type="text"
-                              placeholder="Adicionar especialidade..."
-                              className="bg-transparent border-none text-sm focus:ring-0 w-48 p-0"
-                              onKeyDown={(e) => {
-                                if (e.key === 'Enter') {
-                                  e.preventDefault();
-                                  const val = e.currentTarget.value.trim();
-                                  if (val && !((form as any).specialty_options || []).includes(val)) {
-                                    setForm(f => ({ ...f, specialty_options: [...((f as any).specialty_options || []), val] }));
-                                    e.currentTarget.value = '';
-                                  }
-                                }
-                              }}
-                            />
-                          </div>
-                        </SortableContext>
-                      </DndContext>
-                    </div>
-                  </div>
-                )}
-              </div>
+              {/* Fim da Seção de Serviços e Financeiro */}
               </>
               )}
 
@@ -1488,128 +1333,310 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
                 </div>
               )}
 
-              {/* Controle de Exibição */}
-              {editingClientId && (
-                <div className="sm:col-span-2 mt-4 pt-6 border-t border-gray-100">
-                  <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-2 flex items-center gap-2">
-                    <LayoutDashboard size={16} className="text-brand-dark" /> Controle de Exibição (Página do Cliente)
-                  </h3>
-                  <p className="text-xs text-gray-500 mb-6">Escolha quais módulos o cliente pode visualizar no seu painel. Se desmarcado, ficará oculto (mesmo se o serviço estiver pago).</p>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-                    {[
-                      { id: 'reportei_paid', label: 'Reportei Pago' },
-                      { id: 'reportei_organic', label: 'Reportei Orgânico' },
-                      { id: 'drive', label: 'Arquivos/Drive' },
-                      { id: 'tutorials', label: 'Central de Tutoriais' },
-                      { id: 'briefings', label: 'Briefings Estratégicos' },
-                      { id: 'mapa', label: 'Mapa de Conteúdo' },
-                      { id: 'website', label: 'Aprovação Website' },
-                      { id: 'ai_photos', label: 'Fotos com IA' },
-                      { id: 'roteiros', label: 'Roteiros' },
-                    ].map(feature => {
-                      const isChecked = form.features_settings?.[feature.id] ?? true;
-                      return (
-                        <label key={feature.id} className={`flex items-center gap-3 p-4 border rounded-xl cursor-pointer transition-all duration-200 ${isChecked ? 'border-brand-dark bg-brand-dark/5' : 'border-gray-200 bg-white hover:bg-gray-50'}`}>
-                          <input 
-                            type="checkbox"
-                            checked={isChecked}
-                            onChange={(e) => {
-                              setForm(f => ({
-                                ...f,
-                                features_settings: {
-                                  ...f.features_settings,
-                                  [feature.id]: e.target.checked
-                                }
-                              }));
-                            }}
-                            className="w-4 h-4 text-brand-dark rounded border-gray-300 focus:ring-brand-dark"
-                          />
-                          <span className={`text-sm font-bold ${isChecked ? 'text-brand-dark' : 'text-gray-500'}`}>{feature.label}</span>
-                        </label>
-                      );
-                    })}
-                  </div>
+              {/* Controle de Exibição (Página do Cliente) */}
+              <div className="sm:col-span-2 mt-4 pt-6 border-t border-gray-100">
+                <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-2 flex items-center gap-2">
+                  <LayoutDashboard size={16} className="text-brand-dark" /> Controle de Exibição (Página do Cliente)
+                </h3>
+                <p className="text-xs text-gray-500 mb-6">Escolha quais módulos o cliente pode visualizar no seu painel. Se desmarcado, ficará oculto para o cliente.</p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                  {[
+                    { id: 'crm', label: 'CRM / Funil de Leads' },
+                    { id: 'drive', label: 'Arquivos/Drive' },
+                    { id: 'tutorials', label: 'Central de Tutoriais' },
+                    { id: 'briefings', label: 'Briefings Estratégicos' },
+                    { id: 'mapa', label: 'Mapa de Conteúdo' },
+                    { id: 'website', label: 'Aprovação Website' },
+                    { id: 'ai_photos', label: 'Fotos com IA' },
+                    { id: 'roteiros', label: 'Roteiros' },
+                  ].map(feature => {
+                    const isChecked = feature.id === 'crm' 
+                      ? (form.features_settings?.crm ?? form.is_lead_tracking_enabled ?? true)
+                      : (form.features_settings?.[feature.id] ?? true);
+
+                    return (
+                      <label key={feature.id} className={`flex items-center gap-3 p-4 border rounded-xl cursor-pointer transition-all duration-200 ${isChecked ? 'border-brand-dark bg-brand-dark/5' : 'border-gray-200 bg-white hover:bg-gray-50'}`}>
+                        <input 
+                          type="checkbox"
+                          checked={isChecked}
+                          onChange={(e) => {
+                            const val = e.target.checked;
+                            setForm(f => ({
+                              ...f,
+                              ...(feature.id === 'crm' ? { is_lead_tracking_enabled: val } : {}),
+                              features_settings: {
+                                ...f.features_settings,
+                                [feature.id]: val
+                              }
+                            }));
+                          }}
+                          className="w-4 h-4 text-brand-dark rounded border-gray-300 focus:ring-brand-dark"
+                        />
+                        <span className={`text-sm font-bold ${isChecked ? 'text-brand-dark' : 'text-gray-500'}`}>{feature.label}</span>
+                      </label>
+                    );
+                  })}
                 </div>
-              )}
+
+                {/* Configurações Avançadas do CRM (se CRM estiver ativado) */}
+                {(form.features_settings?.crm ?? form.is_lead_tracking_enabled ?? true) && (
+                  <div className="mt-6 p-6 bg-purple-50/50 border border-purple-100 rounded-2xl space-y-6">
+                    <div>
+                      <label className="block text-xs font-bold text-purple-900 uppercase tracking-wider mb-1">
+                        Especialidade Jurídica (Template de Advogado)
+                      </label>
+                      <p className="text-xs text-purple-700 mb-3">
+                        Selecione a área de atuação jurídica para aplicar o funil e campos padrão de advocacia.
+                      </p>
+                      <select
+                        value={form.features_settings?.crm_specialty || (form as any).crm_specialty || ''}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setForm(f => ({
+                            ...f,
+                            features_settings: {
+                              ...f.features_settings,
+                              crm: true,
+                              crm_specialty: val
+                            },
+                            crm_specialty: val,
+                            ...(val ? {
+                              kanban_stages: ['Novo Contato', 'Em Atendimento', 'Proposta Enviada', 'Em Negociação', 'Cliente Fechado', 'Perdido'],
+                              specialty_options: [val]
+                            } : {})
+                          }));
+                        }}
+                        className="w-full max-w-md px-4 py-2.5 bg-white border border-purple-200 rounded-xl text-sm font-semibold text-gray-800 focus:outline-none focus:ring-2 focus:ring-purple-400 cursor-pointer"
+                      >
+                        <option value="">Nenhum (Usar funil padrão)</option>
+                        <option value="Trabalhista">Trabalhista</option>
+                        <option value="Família">Família</option>
+                        <option value="Criminal">Criminal</option>
+                        <option value="Cível">Cível</option>
+                        <option value="Empresarial">Empresarial</option>
+                        <option value="Previdenciário">Previdenciário</option>
+                        <option value="Outro">Outro</option>
+                      </select>
+                    </div>
+
+                    {/* Estágios do Kanban */}
+                    <div>
+                      <label className="block text-xs font-bold text-purple-900 uppercase tracking-wider mb-1">
+                        Estágios do Funil CRM (Kanban)
+                      </label>
+                      <p className="text-xs text-purple-700 mb-3">
+                        Arraste para reordenar. Pressione Enter para adicionar um novo estágio. O estágio "Perdido" é automático.
+                      </p>
+                      <DndContext 
+                        sensors={sensors}
+                        collisionDetection={closestCenter}
+                        onDragEnd={handleDragEndStages}
+                      >
+                        <SortableContext 
+                          items={(form as any).kanban_stages || []}
+                          strategy={horizontalListSortingStrategy}
+                        >
+                          <div className="flex flex-wrap gap-2 mb-3">
+                            {(form as any).kanban_stages?.map((stage: string, index: number) => (
+                              <SortableItem 
+                                key={stage} 
+                                id={stage} 
+                                onRemove={() => {
+                                  const newStages = [...((form as any).kanban_stages || [])];
+                                  newStages.splice(index, 1);
+                                  setForm(f => ({ ...f, kanban_stages: newStages }));
+                                }}
+                              />
+                            ))}
+                            <input 
+                              type="text"
+                              placeholder="Adicionar estágio..."
+                              className="bg-white border border-purple-200 rounded-xl text-sm focus:ring-2 focus:ring-purple-400 px-3 py-1.5 w-40"
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                  e.preventDefault();
+                                  const val = e.currentTarget.value.trim();
+                                  if (val && !((form as any).kanban_stages || []).includes(val)) {
+                                    setForm(f => ({ ...f, kanban_stages: [...((f as any).kanban_stages || []), val] }));
+                                    e.currentTarget.value = '';
+                                  }
+                                }
+                              }}
+                            />
+                          </div>
+                        </SortableContext>
+                      </DndContext>
+                    </div>
+
+                    {/* Tags / Especialidades */}
+                    <div>
+                      <label className="block text-xs font-bold text-purple-900 uppercase tracking-wider mb-1">
+                        Tags de Especialidades
+                      </label>
+                      <p className="text-xs text-purple-700 mb-3">
+                        Tags para categorizar os leads no CRM. Pressione Enter para adicionar.
+                      </p>
+                      <DndContext 
+                        sensors={sensors}
+                        collisionDetection={closestCenter}
+                        onDragEnd={handleDragEndSpecs}
+                      >
+                        <SortableContext 
+                          items={(form as any).specialty_options || []}
+                          strategy={horizontalListSortingStrategy}
+                        >
+                          <div className="flex flex-wrap gap-2 mb-3">
+                            {(form as any).specialty_options?.map((spec: string, index: number) => (
+                              <SortableItem 
+                                key={spec} 
+                                id={spec} 
+                                onRemove={() => {
+                                  const newSpecs = [...((form as any).specialty_options || [])];
+                                  newSpecs.splice(index, 1);
+                                  setForm(f => ({ ...f, specialty_options: newSpecs }));
+                                }}
+                              />
+                            ))}
+                            <input 
+                              type="text"
+                              placeholder="Adicionar tag..."
+                              className="bg-white border border-purple-200 rounded-xl text-sm focus:ring-2 focus:ring-purple-400 px-3 py-1.5 w-48"
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                  e.preventDefault();
+                                  const val = e.currentTarget.value.trim();
+                                  if (val && !((form as any).specialty_options || []).includes(val)) {
+                                    setForm(f => ({ ...f, specialty_options: [...((f as any).specialty_options || []), val] }));
+                                    e.currentTarget.value = '';
+                                  }
+                                }
+                              }}
+                            />
+                          </div>
+                        </SortableContext>
+                      </DndContext>
+                    </div>
+                  </div>
+                )}
+              </div>
 
               {/* Ordem do Menu */}
-              {editingClientId && (
-                <div className="sm:col-span-2 mt-4 pt-6 border-t border-gray-100">
-                  <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-2 flex items-center gap-2">
-                    <GripVertical size={16} className="text-brand-dark" /> Ordem do Menu Personalizada
-                  </h3>
-                  <p className="text-xs text-gray-500 mb-6">Arraste os módulos para definir a ordem de exibição no menu do cliente. Novos módulos aparecerão ao final.</p>
-                  
-                  <DndContext 
-                    sensors={sensors}
-                    collisionDetection={closestCenter}
-                    onDragEnd={handleDragEndMenu}
+              <div className="sm:col-span-2 mt-4 pt-6 border-t border-gray-100">
+                <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-2 flex items-center gap-2">
+                  <GripVertical size={16} className="text-brand-dark" /> Ordem do Menu Personalizada
+                </h3>
+                <p className="text-xs text-gray-500 mb-6">Arraste os módulos para definir a ordem de exibição no menu do cliente. Novos módulos aparecerão ao final.</p>
+                
+                <DndContext 
+                  sensors={sensors}
+                  collisionDetection={closestCenter}
+                  onDragEnd={handleDragEndMenu}
+                >
+                  <SortableContext 
+                    items={form.features_settings?.menu_order || REORDERABLE_MODULES.map(m => m.id)}
+                    strategy={horizontalListSortingStrategy}
                   >
-                    <SortableContext 
-                      items={form.features_settings?.menu_order || REORDERABLE_MODULES.map(m => m.id)}
-                      strategy={horizontalListSortingStrategy}
-                    >
-                      <div className="flex flex-wrap gap-2 p-4 bg-gray-50 rounded-2xl border border-black/[0.02]">
-                        {(form.features_settings?.menu_order || REORDERABLE_MODULES.map(m => m.id)).map((id: string) => {
-                          const module = REORDERABLE_MODULES.find(m => m.id === id);
-                          if (!module) return null;
-                          return (
-                            <SortableItem 
-                              key={id} 
-                              id={id} 
-                              onRemove={() => {}} // Won't show remove for mandatory modules, or we can just hide it
-                            />
-                          );
-                        })}
-                      </div>
-                    </SortableContext>
-                  </DndContext>
-                  <p className="text-[10px] text-gray-400 mt-2">* Módulos desativados na seção acima continuarão ocultos para o cliente.</p>
-                </div>
-              )}
+                    <div className="flex flex-wrap gap-2 p-4 bg-gray-50 rounded-2xl border border-black/[0.02]">
+                      {(form.features_settings?.menu_order || REORDERABLE_MODULES.map(m => m.id)).map((id: string) => {
+                        const module = REORDERABLE_MODULES.find(m => m.id === id);
+                        if (!module) return null;
+                        return (
+                          <SortableItem 
+                            key={id} 
+                            id={id} 
+                            label={module.label}
+                            showRemove={false}
+                          />
+                        );
+                      })}
+                    </div>
+                  </SortableContext>
+                </DndContext>
+                <p className="text-[10px] text-gray-400 mt-2">* Módulos desativados na seção acima continuarão ocultos para o cliente.</p>
+              </div>
 
               {/* Seleção de Briefings */}
-              {editingClientId && (
-                <div className="sm:col-span-2 mt-4 pt-6 border-t border-gray-100">
-                  <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-2 flex items-center gap-2">
+              <div className="sm:col-span-2 mt-4 pt-6 border-t border-gray-100">
+                <div className="flex items-center justify-between mb-2">
+                  <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider flex items-center gap-2">
                     <Target size={16} className="text-brand-dark" /> Formulários de Briefing Ativos
                   </h3>
-                  <p className="text-xs text-gray-500 mb-6">Selecione quais formulários estratégicos este cliente deve preencher. Se nenhum for selecionado, o sistema usará a detecção automática por serviços.</p>
-                  <div className="flex flex-wrap gap-2">
-                    {Array.from(new Set([...Object.keys(BRIEFING_QUESTIONS), ...Object.keys(customTemplates)])).map(typeKey => {
-                      const label = BRIEFING_QUESTIONS[typeKey]?.title || customTemplates[typeKey]?.title || typeKey;
-                      const type = { id: typeKey, label };
-                      let activeBriefings = form.features_settings?.active_briefing_types;
-                      
-                      if (!activeBriefings || activeBriefings.length === 0) {
-                        activeBriefings = [];
-                        const formServices = form.services || [];
-                        const SERVICE_TO_BRIEFINGS: Record<string, string[]> = {
-                          'Social Media': ['persona', 'publico_alvo', 'tom_voz', 'posicionamento', 'conteudo_bastidores'],
-                          'Tráfego Pago': ['trafego_pago'],
-                          'Website': ['site'],
-                          'Identidade Visual': ['persona', 'posicionamento'],
-                          'E-mail Marketing': ['publico_alvo', 'tom_voz'],
-                          'Fotos com IA': ['persona', 'publico_alvo']
-                        };
-                        for (const service of formServices) {
-                          const autoTypes = SERVICE_TO_BRIEFINGS[service] || [];
-                          autoTypes.forEach(t => {
-                            if (!activeBriefings.includes(t)) activeBriefings.push(t);
-                          });
-                        }
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const allKeys = Array.from(new Set([...Object.keys(BRIEFING_QUESTIONS), ...Object.keys(customTemplates)]));
+                        setForm(f => ({
+                          ...f,
+                          features_settings: {
+                            ...f.features_settings,
+                            active_briefing_types: allKeys
+                          }
+                        }));
+                      }}
+                      className="text-[10px] font-bold text-brand-dark hover:underline uppercase tracking-wider"
+                    >
+                      Selecionar Todos
+                    </button>
+                    <span className="text-gray-300">|</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setForm(f => ({
+                          ...f,
+                          features_settings: {
+                            ...f.features_settings,
+                            active_briefing_types: []
+                          }
+                        }));
+                      }}
+                      className="text-[10px] font-bold text-red-500 hover:underline uppercase tracking-wider"
+                    >
+                      Nenhum (Desmarcar Todos)
+                    </button>
+                  </div>
+                </div>
+                <p className="text-xs text-gray-500 mb-6">
+                  Selecione quais formulários estratégicos este cliente deve preencher. Caso clique em <strong>Nenhum</strong>, não haverá exigência de preenchimento de briefing.
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {(() => {
+                    const allKeys = Array.from(new Set([...Object.keys(BRIEFING_QUESTIONS), ...Object.keys(customTemplates)]));
+                    const rawActive = form.features_settings?.active_briefing_types;
+                    const isExplicit = Array.isArray(rawActive);
+
+                    const currentActiveList: string[] = isExplicit ? rawActive : (() => {
+                      const defaults: string[] = [];
+                      const formServices = form.services || [];
+                      const SERVICE_TO_BRIEFINGS: Record<string, string[]> = {
+                        'Social Media': ['persona', 'publico_alvo', 'tom_voz', 'posicionamento', 'conteudo_bastidores'],
+                        'Tráfego Pago': ['trafego_pago'],
+                        'Website': ['site'],
+                        'Identidade Visual': ['persona', 'posicionamento'],
+                        'E-mail Marketing': ['publico_alvo', 'tom_voz'],
+                        'Fotos com IA': ['persona', 'publico_alvo']
+                      };
+                      for (const service of formServices) {
+                        const autoTypes = SERVICE_TO_BRIEFINGS[service] || [];
+                        autoTypes.forEach(t => {
+                          if (!defaults.includes(t)) defaults.push(t);
+                        });
                       }
-                      
-                      const isActive = activeBriefings.includes(type.id);
-                      
+                      return defaults;
+                    })();
+
+                    return allKeys.map(typeKey => {
+                      const label = BRIEFING_QUESTIONS[typeKey]?.title || customTemplates[typeKey]?.title || typeKey;
+                      const isActive = currentActiveList.includes(typeKey);
+
                       return (
                         <button
-                          key={type.id}
+                          key={typeKey}
                           type="button"
                           onClick={() => {
-                            const newBriefings = isActive 
-                              ? activeBriefings.filter((t: string) => t !== type.id)
-                              : [...activeBriefings, type.id];
+                            const newBriefings = isActive
+                              ? currentActiveList.filter((t: string) => t !== typeKey)
+                              : [...currentActiveList, typeKey];
                             
                             setForm(f => ({
                               ...f,
@@ -1622,16 +1649,16 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
                           className={`px-4 py-2 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all ${
                             isActive 
                               ? 'bg-brand-dark text-white shadow-md' 
-                              : 'bg-white text-gray-400 border border-gray-100 hover:border-brand-dark/20'
+                              : 'bg-white text-gray-400 border border-gray-200 hover:border-brand-dark/20'
                           }`}
                         >
-                          {type.label}
+                          {label}
                         </button>
                       );
-                    })}
-                  </div>
+                    });
+                  })()}
                 </div>
-              )}
+              </div>
               </>
               )}
             </div>

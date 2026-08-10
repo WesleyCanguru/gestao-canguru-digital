@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Plus, Search, LayoutGrid, List, Download, TrendingUp, CheckSquare, DollarSign, AlertCircle, Calendar, Users, Percent, FileText, Filter, Clock, ArrowRight } from 'lucide-react';
+import { Plus, Search, LayoutGrid, List, Download, TrendingUp, CheckSquare, DollarSign, AlertCircle, Calendar, Users, Percent, FileText, Filter, Clock, ArrowRight, ChevronDown, ChevronRight } from 'lucide-react';
 
 const getLeadPhone = (lead: AgencyLead) => {
   if (!lead.form_data) return 'Não informado';
@@ -128,6 +128,26 @@ export const CRMBoard: React.FC<CRMBoardProps> = ({ crm }) => {
     if (saved === 'kanban' || saved === 'list') return saved;
     return typeof window !== 'undefined' && window.innerWidth < 768 ? 'list' : 'kanban';
   });
+
+  const [collapsedStages, setCollapsedStages] = useState<Record<string, boolean>>(() => {
+    const initial: Record<string, boolean> = {};
+    if (crm && crm.kanban_stages) {
+      crm.kanban_stages.forEach(stage => {
+        const lowerName = stage.name.toLowerCase();
+        const lowerId = (stage.id || '').toLowerCase();
+        const isLostOrClosed = lowerName.includes('perdido') || lowerName.includes('lost') || lowerName.includes('fechado') || lowerName.includes('closed') || lowerId.includes('perdido') || lowerId.includes('fechado');
+        initial[stage.name] = isLostOrClosed;
+      });
+    }
+    return initial;
+  });
+
+  const toggleStageCollapse = (stageName: string) => {
+    setCollapsedStages(prev => ({
+      ...prev,
+      [stageName]: !prev[stageName]
+    }));
+  };
 
   useEffect(() => {
     localStorage.setItem('agency_crm_view_mode_v2', viewMode);
@@ -786,96 +806,156 @@ export const CRMBoard: React.FC<CRMBoardProps> = ({ crm }) => {
                 </DragOverlay>
               </DndContext>
             ) : (
-              <div className="max-w-4xl mx-auto space-y-4 pb-20">
+              <div className="max-w-5xl mx-auto space-y-4 pb-20">
                 {filteredLeads.length === 0 ? (
-                   <div className="p-8 text-center bg-white rounded-2xl border border-gray-200/60 shadow-sm">
-                      <p className="text-gray-500 font-medium">Nenhum lead encontrado.</p>
-                   </div>
-                ) : null}
-                {[...filteredLeads].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()).map(lead => {
-                  const primaryField = crm.form_fields.find(f => lead.form_data[f.key]);
-                  const primaryValue = primaryField ? lead.form_data[primaryField.key] : null;
-                  
-                  const isOverdue = lead.next_stage_at && new Date(lead.next_stage_at).getTime() < new Date().getTime();
+                  <div className="p-8 text-center bg-white rounded-2xl border border-gray-200/60 shadow-sm">
+                    <p className="text-gray-500 font-medium">Nenhum lead encontrado.</p>
+                  </div>
+                ) : (
+                  crm.kanban_stages.map(stage => {
+                    const stageKey = stage.id || stage.name;
+                    const isCollapsed = !!collapsedStages[stage.name];
+                    const stageLeads = filteredLeads.filter(l => l.stage === stage.name);
 
-                  return (
-                    <div 
-                      key={lead.id}
-                      onClick={() => {
-                        setSelectedLead(lead);
-                        setIsModalOpen(true);
-                      }} 
-                      className="bg-white p-4 sm:p-5 rounded-xl shadow-sm border border-gray-200 hover:border-neutral-900/30 hover:shadow-md transition-all cursor-pointer group flex flex-col sm:flex-row sm:items-center gap-4"
-                    >
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-1">
-                          <h4 className="font-bold text-gray-900 text-base">{lead.name}</h4>
-                        </div>
-                        {primaryValue && (
-                          <div className="text-sm text-gray-500 line-clamp-1">
-                            <span className="font-medium text-gray-600">{primaryField?.label}:</span> {String(primaryValue)}
-                          </div>
-                        )}
-                        {/* Links Rápidos (Instagram / WhatsApp) */}
-                        {lead.form_data && (lead.form_data.instagram || lead.form_data.whatsapp) && (
-                          <div className="flex flex-wrap items-center gap-2 mt-2">
-                            {lead.form_data.instagram && (
-                              <a
-                                href={formatInstagramUrl(lead.form_data.instagram)}
-                                target="_blank"
-                                rel="noreferrer"
-                                onClick={(e) => e.stopPropagation()}
-                                className="inline-flex items-center gap-1 text-[10px] font-semibold text-pink-600 bg-pink-50 hover:bg-pink-100 border border-pink-200/50 px-2 py-0.5 rounded-md transition-all"
-                                title={`Ir para o Instagram de ${lead.name}`}
-                              >
-                                <span>📸</span>
-                                <span>@{lead.form_data.instagram.trim().replace(/^@/, '')}</span>
-                              </a>
-                            )}
-                            {lead.form_data.whatsapp && (
-                              <a
-                                href={formatWhatsAppUrl(lead.form_data.whatsapp)}
-                                target="_blank"
-                                rel="noreferrer"
-                                onClick={(e) => e.stopPropagation()}
-                                className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-600 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200/50 px-2 py-0.5 rounded-md transition-all"
-                                title={`Conversar no WhatsApp de ${lead.name}`}
-                              >
-                                <span>💬</span>
-                                <span>WhatsApp</span>
-                              </a>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                      
-                      <div className="flex flex-wrap items-center gap-3 sm:w-auto" onClick={(e) => e.stopPropagation()}>
-                        <select
-                          value={lead.stage}
-                          onChange={(e) => {
-                            const targetStage = e.target.value;
-                            handleMoveStageRequest(lead, targetStage);
-                          }}
-                          className="text-xs font-semibold text-gray-600 bg-gray-100 hover:bg-gray-200 border border-gray-200 rounded-md px-2.5 py-1 outline-none transition-all cursor-pointer"
+                    const totalDealValue = stageLeads.reduce((acc, lead) => {
+                      const val = lead.form_data?.deal_value || lead.deal_value || 0;
+                      return acc + (typeof val === 'number' ? val : parseFloat(val) || 0);
+                    }, 0);
+
+                    return (
+                      <div key={stageKey} className="bg-white rounded-2xl border border-gray-200/80 shadow-sm overflow-hidden transition-all">
+                        {/* Header do Grupo / Etapa */}
+                        <div 
+                          onClick={() => toggleStageCollapse(stage.name)}
+                          className="w-full px-5 py-3 bg-gray-50/90 hover:bg-gray-100/80 transition-colors flex items-center justify-between cursor-pointer select-none border-b border-gray-100"
                         >
-                          {crm.kanban_stages.map(s => (
-                            <option key={s.id} value={s.name}>{s.name}</option>
-                          ))}
-                        </select>
-                        
-                        {lead.next_stage_at && !lead.auto_advance_paused && (
-                          <div className={`text-[10px] font-bold px-2.5 py-1 rounded-md border ${isOverdue ? 'text-red-700 bg-red-50 border-red-100' : 'text-blue-700 bg-blue-50 border-blue-100'}`}>
-                            {isOverdue ? 'Atrasado' : 'No prazo'}
+                          <div className="flex items-center gap-3">
+                            <span className="text-gray-400 hover:text-gray-700 transition-transform">
+                              {isCollapsed ? <ChevronRight size={18} /> : <ChevronDown size={18} />}
+                            </span>
+                            <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: stage.color || '#3b82f6' }} />
+                            <span className="font-bold text-gray-900 text-sm tracking-tight">{stage.name}</span>
+                            <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-gray-200/70 text-gray-700">
+                              {stageLeads.length}
+                            </span>
+                          </div>
+
+                          {totalDealValue > 0 && (
+                            <div className="text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-100 px-2.5 py-1 rounded-lg">
+                              Total: R$ {totalDealValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Conteúdo do Grupo */}
+                        {!isCollapsed && (
+                          <div className="divide-y divide-gray-100">
+                            {stageLeads.length === 0 ? (
+                              <div className="p-4 text-center text-xs text-gray-400 font-medium italic">
+                                Nenhum lead nesta etapa
+                              </div>
+                            ) : (
+                              stageLeads.map(lead => {
+                                const phone = getLeadPhone(lead);
+                                const instagram = lead.form_data?.instagram;
+                                const whatsapp = lead.form_data?.whatsapp || (phone !== 'Não informado' ? phone : null);
+                                const dealValue = lead.form_data?.deal_value || lead.deal_value;
+                                const isOverdue = lead.next_stage_at && new Date(lead.next_stage_at).getTime() < new Date().getTime();
+
+                                return (
+                                  <div 
+                                    key={lead.id}
+                                    onClick={() => {
+                                      setSelectedLead(lead);
+                                      setIsModalOpen(true);
+                                    }}
+                                    className="p-4 sm:px-5 sm:py-3.5 hover:bg-gray-50/80 transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-3 cursor-pointer group"
+                                  >
+                                    <div className="flex-1 min-w-0">
+                                      <div className="flex items-center gap-2 mb-1">
+                                        <span className="font-bold text-gray-900 text-sm group-hover:text-brand-dark transition-colors">
+                                          {lead.name}
+                                        </span>
+                                        {lead.loss_reason && (
+                                          <span className="text-[10px] font-semibold text-red-600 bg-red-50 border border-red-100 px-2 py-0.5 rounded">
+                                            Motivo: {lead.loss_reason}
+                                          </span>
+                                        )}
+                                      </div>
+
+                                      {/* Links e Informações Rápidas */}
+                                      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-500">
+                                        {instagram && (
+                                          <a
+                                            href={formatInstagramUrl(instagram)}
+                                            target="_blank"
+                                            rel="noreferrer"
+                                            onClick={e => e.stopPropagation()}
+                                            className="text-pink-600 hover:underline flex items-center gap-1 font-medium text-[11px]"
+                                          >
+                                            <span>📸</span> @{instagram.trim().replace(/^@/, '')}
+                                          </a>
+                                        )}
+                                        {whatsapp && (
+                                          <a
+                                            href={formatWhatsAppUrl(whatsapp)}
+                                            target="_blank"
+                                            rel="noreferrer"
+                                            onClick={e => e.stopPropagation()}
+                                            className="text-emerald-600 hover:underline flex items-center gap-1 font-medium text-[11px]"
+                                          >
+                                            <span>💬</span> {whatsapp}
+                                          </a>
+                                        )}
+                                        {lead.form_data?.specialty && (
+                                          <span className="text-purple-700 bg-purple-50 px-2 py-0.5 rounded font-semibold text-[10px]">
+                                            {lead.form_data.specialty}
+                                          </span>
+                                        )}
+                                        {lead.form_data?.origin && (
+                                          <span className="text-gray-500 text-[11px]">
+                                            Origem: {lead.form_data.origin}
+                                          </span>
+                                        )}
+                                      </div>
+                                    </div>
+
+                                    {/* Valor, Seletor de Etapa, Status e Data */}
+                                    <div className="flex items-center gap-3 shrink-0" onClick={e => e.stopPropagation()}>
+                                      <div className="text-xs font-bold text-gray-700 bg-gray-100 px-2.5 py-1 rounded-lg">
+                                        {dealValue ? `R$ ${Number(dealValue).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : 'R$ —'}
+                                      </div>
+
+                                      <select
+                                        value={lead.stage}
+                                        onChange={e => handleMoveStageRequest(lead, e.target.value)}
+                                        className="text-xs font-semibold text-gray-700 bg-gray-50 hover:bg-gray-100 border border-gray-200 rounded-lg px-2.5 py-1.5 outline-none transition-all cursor-pointer"
+                                      >
+                                        {crm.kanban_stages.map(s => (
+                                          <option key={s.id} value={s.name}>{s.name}</option>
+                                        ))}
+                                      </select>
+
+                                      {lead.next_stage_at && !lead.auto_advance_paused && (
+                                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded border ${isOverdue ? 'text-red-700 bg-red-50 border-red-100' : 'text-blue-700 bg-blue-50 border-blue-100'}`}>
+                                          {isOverdue ? 'Atrasado' : 'No prazo'}
+                                        </span>
+                                      )}
+
+                                      <span className="text-[11px] text-gray-400 font-medium">
+                                        {new Date(lead.created_at).toLocaleDateString('pt-BR')}
+                                      </span>
+                                    </div>
+                                  </div>
+                                );
+                              })
+                            )}
                           </div>
                         )}
-                        
-                        <div className="text-[11px] text-gray-400 font-medium">
-                          {new Date(lead.created_at).toLocaleDateString('pt-BR')}
-                        </div>
                       </div>
-                    </div>
-                  );
-                })}
+                    );
+                  })
+                )}
               </div>
             )}
           </div>

@@ -16,7 +16,8 @@ import {
   Camera,
   ArrowLeft,
   Link,
-  BarChart3
+  BarChart3,
+  Kanban
 } from 'lucide-react';
 import { motion } from 'motion/react';
 import dayjs from 'dayjs';
@@ -186,19 +187,16 @@ export const ClientHome: React.FC<ClientHomeProps> = ({
   };
 
   const services = activeClient?.services || [];
-  const hasService = (s: string) => services.length === 0 || services.includes(s);
+  const hasService = (s: string) => services.includes(s);
   const getFeature = (feature: string, defaultVal: boolean) => activeClient?.features_settings?.[feature] ?? defaultVal;
 
   const showMapa = getFeature('mapa', hasService('Social Media'));
-  const showPaidTraffic = getFeature('reportei_paid', hasService('Tráfego Pago'));
-  // Esconder o card de estratégia para Next Safety (ID: 75b00b27-61ee-4b23-8721-70748ccb0789)
-  const showPaidTrafficCard = showPaidTraffic && activeClient?.id !== '75b00b27-61ee-4b23-8721-70748ccb0789';
+  const showPaidTrafficCard = (activeClient?.services?.includes('Tráfego Pago') ?? false) && activeClient?.id !== '75b00b27-61ee-4b23-8721-70748ccb0789';
+  const showCrm = activeClient?.features_settings?.crm ?? activeClient?.features_settings?.is_lead_tracking_enabled ?? (activeClient as any)?.is_lead_tracking_enabled ?? true;
   const showAiPhotos = getFeature('ai_photos', hasService('Fotos com IA'));
-  const showOrganicTraffic = getFeature('reportei_organic', hasService('Social Media'));
   const showBriefings = getFeature('briefings', hasService('Social Media') || hasService('Tráfego Pago'));
   const showWebsite = getFeature('website', hasService('Website'));
   const showDocuments = getFeature('drive', true);
-  const showLeadConfig = getFeature('tracking', true);
   const showTutorials = getFeature('tutorials', true);
 
   const isActuallyOnboardingCompleted = activeClient?.onboarding_completed || isOnboardingCompleted;
@@ -273,155 +271,34 @@ export const ClientHome: React.FC<ClientHomeProps> = ({
       )
     },
     {
-      id: 'trafego_pago',
-      visible: showPaidTrafficCard,
-      render: () => (
-        <motion.div 
-          key="trafego_pago"
-          variants={itemVariants}
-          onClick={onNavigateToPaidTraffic}
-          className="group bg-white rounded-[2.5rem] p-10 shadow-[0_4px_25px_rgba(0,0,0,0.02)] border border-black/[0.02] hover:shadow-[0_15px_45px_rgba(0,0,0,0.05)] hover:border-brand-dark/10 transition-all duration-500 cursor-pointer flex flex-col relative"
-        >
-          <div className="flex justify-between items-start mb-8">
-            <div className="w-16 h-16 bg-blue-50/50 rounded-[20px] flex items-center justify-center text-blue-600 group-hover:bg-blue-600 group-hover:text-white transition-all duration-500 shadow-sm">
-              <Zap size={32} />
-            </div>
-            <ArrowRight size={22} className="text-gray-200 group-hover:text-brand-dark transform group-hover:-rotate-45 transition-all duration-500" />
-          </div>
-          <h3 className="text-2xl font-bold text-brand-dark mb-3 tracking-tight">Tráfego Pago</h3>
-          <p className="text-gray-500 text-sm leading-relaxed font-medium">
-            Estratégias, performance de anúncios e campanhas ativas.
-          </p>
-        </motion.div>
-      )
-    },
-    {
-      id: 'reportei_paid',
-      visible: showPaidTraffic,
-      render: () => (
-        activeClient?.paid_reportei_url ? (
-          <motion.a 
-            key="reportei_paid"
-            href={activeClient.paid_reportei_url}
-            target="_blank"
-            rel="noopener noreferrer"
-            variants={itemVariants}
-            className="group bg-white rounded-[2.5rem] p-10 shadow-[0_4px_25px_rgba(0,0,0,0.02)] border border-black/[0.02] hover:shadow-[0_15px_45px_rgba(0,0,0,0.05)] hover:border-brand-dark/10 transition-all duration-300 flex flex-col relative h-full"
-          >
-            {isAdmin && (
-              <button 
-                onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleSetUrl('paid'); }}
-                className="absolute top-10 right-20 p-2 bg-gray-50 rounded-full opacity-0 group-hover:opacity-100 transition-opacity hover:bg-gray-100"
-              >
-                <Globe size={18} className="text-gray-400" />
-              </button>
-            )}
-            <div className="flex justify-between items-start mb-8">
-              <div className="w-16 h-16 bg-blue-50/50 rounded-[20px] flex items-center justify-center text-blue-600 group-hover:bg-blue-600 group-hover:text-white transition-all duration-300 shadow-sm">
-                <BarChart3 size={32} />
-              </div>
-              <ArrowRight size={22} className="text-gray-200 group-hover:text-brand-dark transform group-hover:-rotate-45 transition-all duration-300" />
-            </div>
-            <h3 className="text-2xl font-bold text-brand-dark mb-3 tracking-tight">Dashboard Pago</h3>
-            <p className="text-gray-500 text-sm leading-relaxed font-medium">Acompanhe seus resultados via Reportei.</p>
-          </motion.a>
-        ) : (
-          <motion.div 
-            key="reportei_paid"
-            variants={itemVariants}
-            onClick={() => isAdmin && handleSetUrl('paid')}
-            className={`group bg-white rounded-[2.5rem] p-10 shadow-[0_4px_25px_rgba(0,0,0,0.02)] border border-black/[0.02] ${isAdmin ? 'cursor-pointer hover:border-brand-dark/10 hover:shadow-md' : 'opacity-60 cursor-default'} transition-all duration-300 flex flex-col relative h-full`}
-          >
-            <div className="flex justify-between items-start mb-8">
-              <div className="w-16 h-16 bg-blue-50/50 rounded-[20px] flex items-center justify-center text-blue-600 shadow-sm">
-                <BarChart3 size={32} />
-              </div>
-              <div className="flex flex-col items-end gap-1">
-                <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-gray-400">Em breve</span>
-                {isAdmin && <span className="text-[8px] text-brand-dark font-bold uppercase tracking-widest opacity-40 group-hover:opacity-100 transition-opacity">Configurar Link</span>}
-              </div>
-            </div>
-            <h3 className="text-2xl font-bold text-brand-dark mb-3 tracking-tight">Dashboard Pago</h3>
-            <p className="text-gray-500 text-sm leading-relaxed font-medium">Acompanhe seus resultados via Reportei.</p>
-          </motion.div>
-        )
-      )
-    },
-    {
-      id: 'reportei_organic',
-      visible: showOrganicTraffic,
-      render: () => (
-        activeClient?.organic_reportei_url ? (
-          <motion.a 
-            key="reportei_organic"
-            href={activeClient.organic_reportei_url}
-            target="_blank"
-            rel="noopener noreferrer"
-            variants={itemVariants}
-            className="group bg-white rounded-[2.5rem] p-10 shadow-[0_4px_25px_rgba(0,0,0,0.02)] border border-black/[0.02] hover:shadow-[0_15px_45px_rgba(0,0,0,0.05)] hover:border-brand-dark/10 transition-all duration-300 flex flex-col relative h-full"
-          >
-            {isAdmin && (
-              <button 
-                onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleSetUrl('organic'); }}
-                className="absolute top-10 right-20 p-2 bg-gray-50 rounded-full opacity-0 group-hover:opacity-100 transition-opacity hover:bg-gray-100"
-              >
-                <Globe size={18} className="text-gray-400" />
-              </button>
-            )}
-            <div className="flex justify-between items-start mb-8">
-              <div className="w-16 h-16 bg-purple-50/50 rounded-[20px] flex items-center justify-center text-purple-600 group-hover:bg-purple-600 group-hover:text-white transition-all duration-300 shadow-sm">
-                <TrendingUp size={32} />
-              </div>
-              <ArrowRight size={22} className="text-gray-200 group-hover:text-brand-dark transform group-hover:-rotate-45 transition-all duration-300" />
-            </div>
-            <h3 className="text-2xl font-bold text-brand-dark mb-3 tracking-tight">Dashboard Orgânico</h3>
-            <p className="text-gray-500 text-sm leading-relaxed font-medium">Acessar métricas do Reportei.</p>
-          </motion.a>
-        ) : (
-          <motion.div 
-            key="reportei_organic"
-            variants={itemVariants}
-            onClick={() => isAdmin && handleSetUrl('organic')}
-            className={`group bg-white rounded-[2.5rem] p-10 shadow-[0_4px_25px_rgba(0,0,0,0.02)] border border-black/[0.02] ${isAdmin ? 'cursor-pointer hover:border-brand-dark/10 hover:shadow-md' : 'opacity-60 cursor-default'} transition-all duration-300 flex flex-col relative h-full`}
-          >
-            <div className="flex justify-between items-start mb-8">
-              <div className="w-16 h-16 bg-purple-50/50 rounded-[20px] flex items-center justify-center text-purple-600 shadow-sm">
-                <TrendingUp size={32} />
-              </div>
-              <div className="flex flex-col items-end gap-1">
-                <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-gray-400">Em breve</span>
-                {isAdmin && <span className="text-[8px] text-brand-dark font-bold uppercase tracking-widest opacity-40 group-hover:opacity-100 transition-opacity">Configurar Link</span>}
-              </div>
-            </div>
-            <h3 className="text-2xl font-bold text-brand-dark mb-3 tracking-tight">Dashboard Orgânico</h3>
-            <p className="text-gray-500 text-sm leading-relaxed font-medium">Acessar métricas do Reportei.</p>
-          </motion.div>
-        )
-      )
-    },
-    {
       id: 'crm',
-      visible: leadConfig?.is_enabled && showLeadConfig,
+      visible: showCrm,
       render: () => (
         <motion.div
           key="crm"
           variants={itemVariants}
-          whileHover={{ y: -4, boxShadow: '0 20px 40px rgba(0,0,0,0.08)' }}
           onClick={() => setActiveView('leads')}
-          className="bg-white p-10 rounded-[2.5rem] border border-black/[0.03] shadow-[0_10px_30px_rgba(0,0,0,0.02)] cursor-pointer group transition-all h-full"
+          className="group bg-white rounded-[2.5rem] p-10 shadow-[0_4px_25px_rgba(0,0,0,0.02)] border border-black/[0.02] hover:shadow-[0_15px_45px_rgba(0,0,0,0.05)] hover:border-brand-dark/10 transition-all duration-500 cursor-pointer flex flex-col justify-between h-full relative"
         >
-          <div className="flex items-center justify-between mb-8">
-            <div className="w-16 h-16 rounded-[20px] bg-orange-50 flex items-center justify-center text-orange-600 group-hover:bg-orange-600 group-hover:text-white transition-all">
-              <Target size={32} />
-            </div>
-            <div className="text-right">
-              <div className="text-3xl font-bold tracking-tighter text-brand-dark">{monthLeadsCount}</div>
-              <div className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Leads no Mês</div>
-            </div>
-          </div>
           <div>
-            <h3 className="text-2xl font-bold text-brand-dark mb-3 tracking-tight">CRM / Leads</h3>
-            <p className="text-gray-500 text-sm leading-relaxed font-medium">Gestão e conversão de leads e oportunidades.</p>
+            <div className="flex justify-between items-start mb-8">
+              <div className="w-16 h-16 bg-blue-50/80 text-blue-600 rounded-[20px] flex items-center justify-center group-hover:bg-blue-600 group-hover:text-white transition-all duration-500 shadow-sm">
+                <Kanban size={32} />
+              </div>
+              <div className="flex items-center gap-2">
+                {monthLeadsCount > 0 && (
+                  <div className="text-right">
+                    <div className="text-2xl font-bold tracking-tighter text-brand-dark">{monthLeadsCount}</div>
+                    <div className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Leads mês</div>
+                  </div>
+                )}
+                <ArrowRight size={22} className="text-gray-200 group-hover:text-brand-dark transform group-hover:-rotate-45 transition-all duration-500" />
+              </div>
+            </div>
+            <h3 className="text-2xl font-bold text-brand-dark mb-3 tracking-tight">CRM</h3>
+            <p className="text-gray-500 text-sm leading-relaxed font-medium">
+              Gerencie seus leads e oportunidades de vendas em tempo real.
+            </p>
           </div>
           {isAdmin && (
             <button
@@ -435,12 +312,37 @@ export const ClientHome: React.FC<ClientHomeProps> = ({
                   alert('Link direto do CRM copiado!');
                 }
               }}
-              className="mt-6 w-full py-3 bg-gray-50 text-gray-500 hover:text-brand-dark hover:bg-gray-100 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2"
+              className="mt-6 w-full py-2.5 bg-gray-50 text-gray-500 hover:text-brand-dark hover:bg-gray-100 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2"
             >
               <Link size={14} />
               Copiar Link Direto
             </button>
           )}
+        </motion.div>
+      )
+    },
+    {
+      id: 'trafego_pago',
+      visible: showPaidTrafficCard,
+      render: () => (
+        <motion.div 
+          key="trafego_pago"
+          variants={itemVariants}
+          onClick={onNavigateToPaidTraffic}
+          className="group bg-white rounded-[2.5rem] p-10 shadow-[0_4px_25px_rgba(0,0,0,0.02)] border border-black/[0.02] hover:shadow-[0_15px_45px_rgba(0,0,0,0.05)] hover:border-brand-dark/10 transition-all duration-500 cursor-pointer flex flex-col justify-between h-full relative"
+        >
+          <div>
+            <div className="flex justify-between items-start mb-8">
+              <div className="w-16 h-16 bg-emerald-50 text-emerald-600 rounded-[20px] flex items-center justify-center group-hover:bg-emerald-600 group-hover:text-white transition-all duration-500 shadow-sm">
+                <Zap size={32} />
+              </div>
+              <ArrowRight size={22} className="text-gray-200 group-hover:text-brand-dark transform group-hover:-rotate-45 transition-all duration-500" />
+            </div>
+            <h3 className="text-2xl font-bold text-brand-dark mb-3 tracking-tight">Tráfego Pago</h3>
+            <p className="text-gray-500 text-sm leading-relaxed font-medium">
+              Estratégias, performance de anúncios e acompanhamento de campanhas ativas.
+            </p>
+          </div>
         </motion.div>
       )
     },
@@ -617,15 +519,9 @@ export const ClientHome: React.FC<ClientHomeProps> = ({
     }
   ];
 
-  const quickAccessItems = allCards.filter(c => ['reportei_paid', 'reportei_organic', 'crm'].includes(c.id) && c.visible).sort((a, b) => {
-    // Optional: respect menu_order if desired, or keep fixed order: Paid, Organic, CRM
-    const order = ['reportei_paid', 'reportei_organic', 'crm'];
-    return order.indexOf(a.id) - order.indexOf(b.id);
-  });
-
   const menuOrder = activeClient?.features_settings?.menu_order;
   const sortedCards = allCards
-    .filter(c => c.visible && !['reportei_paid', 'reportei_organic', 'crm'].includes(c.id))
+    .filter(c => c.visible)
     .sort((a, b) => {
       if (!menuOrder) return 0;
       let idxA = menuOrder.indexOf(a.id);
@@ -636,18 +532,23 @@ export const ClientHome: React.FC<ClientHomeProps> = ({
     });
 
   if (activeView === 'leads' && activeClient) {
-    if (!leadConfig && !isAdmin) {
-      return (
-        <div className="min-h-screen bg-[#FDFDFD] flex flex-col items-center justify-center p-8 text-center">
-          <Target size={48} className="text-gray-300 mb-4" />
-          <h2 className="text-2xl font-bold text-brand-dark mb-2">CRM Indisponível</h2>
-          <p className="text-gray-500 mb-6">Este módulo ainda não foi configurado para sua conta.</p>
-          <button onClick={() => setActiveView('dashboard')} className="px-8 py-3 bg-brand-dark text-white rounded-2xl font-bold text-sm uppercase tracking-widest">
-            Voltar ao Dashboard
-          </button>
-        </div>
-      );
-    }
+    const isLawyer = !!activeClient.features_settings?.crm_specialty;
+    const defaultConfig: ClientLeadConfig = {
+      id: 'default',
+      client_id: activeClient.id,
+      is_enabled: true,
+      location_options: ['Google Ads', 'Instagram', 'Indicação', 'Site orgânico', 'Outro'],
+      kanban_stages: isLawyer
+        ? ['Novo Contato', 'Em Atendimento', 'Proposta Enviada', 'Em Negociação', 'Cliente Fechado', 'Perdido']
+        : ['Novo Lead', 'Em Contato', 'Reunião Agendada', 'Proposta Enviada', 'Fechado'],
+      specialty_options: isLawyer
+        ? [activeClient.features_settings?.crm_specialty]
+        : ['Trabalhista', 'Família', 'Criminal', 'Cível', 'Empresarial', 'Previdenciário', 'Outro'],
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    };
+
+    const effectiveConfig = leadConfig || defaultConfig;
 
     return (
       <div className="min-h-screen bg-[#FDFDFD]">
@@ -661,7 +562,7 @@ export const ClientHome: React.FC<ClientHomeProps> = ({
           </button>
           <LeadTrackerView 
             clientId={activeClient.id} 
-            config={(leadConfig || { is_enabled: true, client_id: activeClient.id }) as any} 
+            config={effectiveConfig} 
             onBack={() => {
               setActiveView('dashboard');
               checkStatus();
@@ -754,85 +655,10 @@ export const ClientHome: React.FC<ClientHomeProps> = ({
           </motion.div>
         )}
 
-        {/* Quick Access Section */}
-        {quickAccessItems.length > 0 && (
-          <motion.div 
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.1 }}
-            className="mb-10 px-4 sm:px-0"
-          >
-            <h2 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-4 ml-1">Acesso Rápido</h2>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {quickAccessItems.map(item => {
-                if (item.id === 'reportei_paid') {
-                  return activeClient?.paid_reportei_url ? (
-                    <a key="quick_reportei_paid" href={activeClient.paid_reportei_url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-4 bg-white p-4 rounded-2xl shadow-sm border border-black/[0.03] hover:shadow-md hover:border-blue-100 transition-all group">
-                      <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center shrink-0 group-hover:bg-blue-600 group-hover:text-white transition-colors">
-                        <BarChart3 size={20} />
-                      </div>
-                      <div className="flex-1 text-left">
-                        <h4 className="font-bold text-brand-dark text-sm">Dashboard Pago</h4>
-                        <p className="text-xs text-gray-500 line-clamp-1">Resultados de tráfego pago</p>
-                      </div>
-                      <ArrowRight size={16} className="text-gray-300 group-hover:text-current transform group-hover:translate-x-1 transition-all" />
-                    </a>
-                  ) : (
-                    <div key="quick_reportei_paid" onClick={() => isAdmin && handleSetUrl('paid')} className={`flex items-center gap-4 bg-white p-4 rounded-2xl shadow-sm border border-black/[0.03] transition-all group ${isAdmin ? 'cursor-pointer hover:shadow-md' : 'opacity-60'}`}>
-                      <div className="w-12 h-12 bg-gray-50 text-gray-400 rounded-xl flex items-center justify-center shrink-0">
-                        <BarChart3 size={20} />
-                      </div>
-                      <div className="flex-1 text-left">
-                        <h4 className="font-bold text-gray-700 text-sm">Dashboard Pago</h4>
-                        <p className="text-xs text-gray-400 line-clamp-1">Em breve</p>
-                      </div>
-                    </div>
-                  );
-                }
-                if (item.id === 'reportei_organic') {
-                  return activeClient?.organic_reportei_url ? (
-                    <a key="quick_reportei_organic" href={activeClient.organic_reportei_url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-4 bg-white p-4 rounded-2xl shadow-sm border border-black/[0.03] hover:shadow-md hover:border-green-100 transition-all group">
-                      <div className="w-12 h-12 bg-green-50 text-green-600 rounded-xl flex items-center justify-center shrink-0 group-hover:bg-green-600 group-hover:text-white transition-colors">
-                        <TrendingUp size={20} />
-                      </div>
-                      <div className="flex-1 text-left">
-                        <h4 className="font-bold text-brand-dark text-sm">Dashboard Orgânico</h4>
-                        <p className="text-xs text-gray-500 line-clamp-1">Crescimento das redes sociais</p>
-                      </div>
-                      <ArrowRight size={16} className="text-gray-300 group-hover:text-current transform group-hover:translate-x-1 transition-all" />
-                    </a>
-                  ) : (
-                    <div key="quick_reportei_organic" onClick={() => isAdmin && handleSetUrl('organic')} className={`flex items-center gap-4 bg-white p-4 rounded-2xl shadow-sm border border-black/[0.03] transition-all group ${isAdmin ? 'cursor-pointer hover:shadow-md' : 'opacity-60'}`}>
-                      <div className="w-12 h-12 bg-gray-50 text-gray-400 rounded-xl flex items-center justify-center shrink-0">
-                        <TrendingUp size={20} />
-                      </div>
-                      <div className="flex-1 text-left">
-                        <h4 className="font-bold text-gray-700 text-sm">Dashboard Orgânico</h4>
-                        <p className="text-xs text-gray-400 line-clamp-1">Em breve</p>
-                      </div>
-                    </div>
-                  );
-                }
-                if (item.id === 'crm') {
-                  return (
-                    <button key="quick_crm" onClick={() => setActiveView('leads')} className="flex items-center gap-4 bg-white p-4 rounded-2xl shadow-sm border border-black/[0.03] hover:shadow-md hover:border-orange-100 transition-all group w-full text-left">
-                      <div className="w-12 h-12 bg-orange-50 text-orange-600 rounded-xl flex items-center justify-center shrink-0 group-hover:bg-orange-600 group-hover:text-white transition-colors">
-                        <Target size={20} />
-                      </div>
-                      <div className="flex-1">
-                        <h4 className="font-bold text-brand-dark text-sm">CRM / Leads</h4>
-                        <p className="text-xs text-orange-600 font-bold bg-orange-50 inline-block px-1.5 py-0.5 rounded mt-0.5">{monthLeadsCount} {monthLeadsCount === 1 ? 'lead' : 'leads'} no mês</p>
-                      </div>
-                      <ArrowRight size={16} className="text-gray-300 group-hover:text-current transform group-hover:translate-x-1 transition-all" />
-                    </button>
-                  );
-                }
-                return null;
-              })}
-            </div>
-          </motion.div>
-        )}
-
+        {/* Seus Módulos Section */}
+        <div className="mb-6 px-4 sm:px-0 flex items-center justify-between">
+          <h2 className="text-xs font-bold text-gray-400 uppercase tracking-widest ml-1">Seus Módulos</h2>
+        </div>
         <motion.div 
           variants={containerVariants}
           initial="hidden"

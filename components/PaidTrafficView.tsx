@@ -208,17 +208,6 @@ export const PaidTrafficView: React.FC<{ onBack?: () => void }> = ({ onBack }) =
               </div>
             )}
 
-            {activeClient?.paid_reportei_url && (
-              <a 
-                href={activeClient.paid_reportei_url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center justify-center gap-2 bg-brand-dark text-white px-5 py-2.5 rounded-xl hover:bg-brand-dark/90 transition-colors font-medium text-sm shadow-sm"
-              >
-                Acompanhe o Dashboard
-                <ArrowRight className="w-4 h-4" />
-              </a>
-            )}
           </div>
         </div>
         {uploadError && (
@@ -237,6 +226,57 @@ export const PaidTrafficView: React.FC<{ onBack?: () => void }> = ({ onBack }) =
         initial="hidden"
         animate="visible"
       >
+        {/* Metric Placeholders & Live Sync Banner */}
+        <motion.div variants={itemVariants} className="bg-white rounded-3xl p-8 border border-gray-200 shadow-sm space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-gray-100 pb-5">
+            <div>
+              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block">Dashboard de Desempenho</span>
+              <h2 className="text-xl font-bold text-gray-900 mt-1">Métricas de Campanhas (Google & Meta Ads)</h2>
+            </div>
+            <span className="inline-flex items-center gap-2 px-3 py-1.5 bg-blue-50 text-blue-700 rounded-full text-xs font-semibold self-start sm:self-auto">
+              <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></span>
+              Sincronização em breve
+            </span>
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
+            <div className="bg-gray-50/80 rounded-2xl p-4 border border-gray-100">
+              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-1">Investimento</span>
+              <p className="text-lg font-bold text-gray-800">R$ 0,00</p>
+              <span className="text-[10px] text-gray-400 font-medium">Acumulado mês</span>
+            </div>
+
+            <div className="bg-gray-50/80 rounded-2xl p-4 border border-gray-100">
+              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-1">Impressões</span>
+              <p className="text-lg font-bold text-gray-800">--</p>
+              <span className="text-[10px] text-gray-400 font-medium">Alcance total</span>
+            </div>
+
+            <div className="bg-gray-50/80 rounded-2xl p-4 border border-gray-100">
+              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-1">Cliques</span>
+              <p className="text-lg font-bold text-gray-800">--</p>
+              <span className="text-[10px] text-gray-400 font-medium">Tráfego gerado</span>
+            </div>
+
+            <div className="bg-gray-50/80 rounded-2xl p-4 border border-gray-100">
+              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-1">Conversões</span>
+              <p className="text-lg font-bold text-gray-800">--</p>
+              <span className="text-[10px] text-gray-400 font-medium">Leads e contatos</span>
+            </div>
+
+            <div className="bg-gray-50/80 rounded-2xl p-4 border border-gray-100">
+              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-1">CPC Médio</span>
+              <p className="text-lg font-bold text-gray-800">R$ --</p>
+              <span className="text-[10px] text-gray-400 font-medium">Custo p/ clique</span>
+            </div>
+
+            <div className="bg-gray-50/80 rounded-2xl p-4 border border-gray-100">
+              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-1">CPL Médio</span>
+              <p className="text-lg font-bold text-gray-800">R$ --</p>
+              <span className="text-[10px] text-gray-400 font-medium">Custo p/ lead</span>
+            </div>
+          </div>
+        </motion.div>
         {!strategyData ? (
           <div className="flex flex-col items-center justify-center py-20 text-center">
             <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mb-6">

@@ -98,24 +98,63 @@ export const BRIEFING_QUESTIONS: Record<string, { title: string, questions: any[
     title: 'Persona',
     questions: [
       { key: 'nome_ficticio', label: 'Nome fictício da Persona', type: 'text', help: 'Dê um nome para facilitar a visualização (Ex: João Empreendedor)' },
-      { key: 'idade', label: 'Idade', type: 'text', help: 'Ex: 35 anos' },
+      { 
+        key: 'faixa_etaria', 
+        label: 'Faixa Etária do Público-Alvo', 
+        type: 'multiselect', 
+        options: ['18 a 24 anos', '25 a 34 anos', '35 a 44 anos', '45 a 54 anos', '55 a 64 anos', '65+ anos'],
+        help: 'Selecione uma ou mais faixas etárias principais.' 
+      },
+      { 
+        key: 'genero', 
+        label: 'Gênero do Público-Alvo', 
+        type: 'multiselect', 
+        options: ['Masculino', 'Feminino', 'Todos os gêneros'],
+        help: 'Selecione a segmentação por gênero.' 
+      },
+      { 
+        key: 'renda_mensal', 
+        label: 'Renda Mensal do Público-Alvo', 
+        type: 'multiselect', 
+        options: ['Até R$ 2.500', 'R$ 2.500 a R$ 5.000', 'R$ 5.000 a R$ 10.000', 'R$ 10.000 a R$ 15.000', 'R$ 15.000 a R$ 20.000', 'R$ 20.000 a R$ 30.000', 'Acima de R$ 30.000'],
+        help: 'Selecione o poder aquisitivo estimado.' 
+      },
       { key: 'dia_tipico', label: 'Como é o dia típico dessa pessoa?', type: 'textarea', help: 'Desde que acorda até dormir. O que ela lê? Com quem fala? Onde trabalha?' },
       { key: 'como_chegou', label: 'Como ela chegou até o seu produto/serviço?', type: 'textarea', help: 'Qual caminho ela percorreu até decidir que precisava da sua solução?' },
       { key: 'frase_resumo', label: 'Uma frase que resume o problema/necessidade dela', type: 'text', help: 'Ex: "Preciso de mais tempo livre para focar na estratégia da minha empresa."' },
-      { key: 'impede_comprar', label: 'O que a impede de comprar? (objeções)', type: 'array', help: 'Ex: Falta de dinheiro, tempo, desconfiança, não entende o produto...' }
+      { 
+        key: 'impede_comprar', 
+        label: 'O que a impede de comprar? (objeções)', 
+        type: 'multiselect', 
+        options: ['Falta de orçamento', 'Falta de tempo', 'Desconfiança / Insegurança', 'Não entende o produto/serviço', 'Já usou concorrente e teve experiência ruim', 'Preço elevado'],
+        help: 'Selecione as principais objeções enfrentadas.' 
+      }
     ]
   },
   'posicionamento': {
     title: 'Posicionamento',
     questions: [
       { key: 'uma_palavra', label: 'Sua marca em uma palavra', type: 'text', help: 'Ex: Inovação, Confiança, Velocidade, Elegância...' },
+      {
+        key: 'maturidade_digital',
+        label: 'Maturidade Digital do Negócio',
+        type: 'select',
+        options: ['Estou começando do zero', 'Já tenho presença mas quero crescer', 'Já invisto em marketing e quero escalar'],
+        help: 'Qual é o momento atual da sua empresa no digital?'
+      },
       { key: 'descricao_empresa', label: 'Descrição da empresa (Pitch 30s)', type: 'textarea', help: 'Como você explicaria sua empresa para alguém em 30 segundos?' },
       { key: 'transformacao_concreta', label: 'A transformação concreta que o seu produto gera', type: 'textarea', help: 'Ex: Aumentamos o faturamento em 30%, Reduzimos o tempo de entrega pela metade...' },
       { key: 'diferenciais', label: 'Quais os principais diferenciais?', type: 'textarea', help: 'O que só você faz? Por que escolher você e não o concorrente?' },
       { key: 'concorrentes', label: 'Principais concorrentes', type: 'textarea', help: 'Liste nomes e/ou links dos principais concorrentes diretos.' },
       { key: 'erro_concorrente', label: 'Qual o maior erro dos seus concorrentes?', type: 'textarea', help: 'Onde eles falham que você pode aproveitar como oportunidade?' },
       { key: 'pessoa_famosa', label: 'Se a sua marca fosse uma pessoa famosa, quem seria?', type: 'text', help: 'Isso nos ajuda a entender a personalidade e os arquétipos da marca.' },
-      { key: 'objetivo_redes', label: 'Objetivo principal nas redes sociais', type: 'textarea', help: 'Ex: Vender mais, educar o mercado, construir autoridade, atrair parceiros?' },
+      { 
+        key: 'objetivo_redes', 
+        label: 'Objetivo principal nas redes sociais', 
+        type: 'select', 
+        options: ['Gerar leads qualificados', 'Aumentar vendas diretas', 'Reconhecimento de marca', 'Tráfego para o site', 'Engajamento nas redes sociais', 'Agendamentos / consultas', 'Construir autoridade'],
+        help: 'Selecione a meta prioritária da sua presença digital.' 
+      },
       { key: 'percebido_1_ano', label: 'Como deseja ser percebido daqui a 1 ano?', type: 'textarea', help: 'Qual a imagem e reputação que você quer construir para o seu negócio no futuro?' },
       { key: 'presenca_anterior', label: 'O que funcionou ou não funcionou na sua presença anterior?', type: 'textarea', help: 'Ex: Fizemos posts diários mas não gerou vendas, fizemos anúncios de vídeo e deram muito certo...' }
     ]
@@ -123,12 +162,48 @@ export const BRIEFING_QUESTIONS: Record<string, { title: string, questions: any[
   'publico_alvo': {
     title: 'Público-Alvo',
     questions: [
-      { key: 'genero', label: 'Gênero(s)', type: 'text', help: 'Ex: Masculino, Feminino, Ambos etc.' },
-      { key: 'faixa_etaria', label: 'Faixa Etária', type: 'text', help: 'Ex: 25 a 45 anos, adolescentes de 14 a 18 anos...' },
-      { key: 'renda_mensal', label: 'Renda Mensal', type: 'text', help: 'Qual o poder aquisitivo estimado? (Ex: R$ 5.000+, Classe B/C)' },
-      { key: 'localizacao', label: 'Localização (Região/Cidades)', type: 'text', help: 'Ex: Atuação local num bairro, focada em um estado específico, ou atendimento a nível nacional?' },
-      { key: 'rede_social', label: 'Redes Sociais mais utilizadas', type: 'array', help: 'Ex: Instagram, LinkedIn, TikTok, Facebook, Pinterest...' },
-      { key: 'escolaridade', label: 'Escolaridade', type: 'text', help: 'Ex: Ensino médio, Nível Superior, Pós-graduados, etc.' },
+      { 
+        key: 'genero', 
+        label: 'Gênero do Público-Alvo', 
+        type: 'multiselect', 
+        options: ['Masculino', 'Feminino', 'Todos os gêneros'],
+        help: 'Selecione os gêneros do seu público.' 
+      },
+      { 
+        key: 'faixa_etaria', 
+        label: 'Faixa Etária do Público-Alvo', 
+        type: 'multiselect', 
+        options: ['18 a 24 anos', '25 a 34 anos', '35 a 44 anos', '45 a 54 anos', '55 a 64 anos', '65+ anos'],
+        help: 'Marque uma ou mais faixas de idade.' 
+      },
+      { 
+        key: 'renda_mensal', 
+        label: 'Renda Mensal do Público-Alvo', 
+        type: 'multiselect', 
+        options: ['Até R$ 2.500', 'R$ 2.500 a R$ 5.000', 'R$ 5.000 a R$ 10.000', 'R$ 10.000 a R$ 15.000', 'R$ 15.000 a R$ 20.000', 'R$ 20.000 a R$ 30.000', 'Acima de R$ 30.000'],
+        help: 'Qual o poder aquisitivo estimado?' 
+      },
+      { 
+        key: 'localizacao', 
+        label: 'Localização / Abrangência Geográfica', 
+        type: 'select', 
+        options: ['Local (bairro/cidade)', 'Regional (cidades da região)', 'Estadual', 'Nacional', 'Internacional'],
+        help: 'Qual o alcance geográfico da sua empresa?' 
+      },
+      { 
+        key: 'rede_social', 
+        label: 'Redes Sociais mais utilizadas', 
+        type: 'multiselect', 
+        options: ['Instagram', 'Facebook', 'LinkedIn', 'TikTok', 'YouTube', 'Pinterest', 'X (Twitter)', 'WhatsApp'],
+        help: 'Selecione onde seu público mais passa tempo.' 
+      },
+      { 
+        key: 'escolaridade', 
+        label: 'Escolaridade do Público', 
+        type: 'multiselect', 
+        options: ['Ensino Fundamental', 'Ensino Médio', 'Nível Superior', 'Pós-graduação / Mestrado / Doutorado'],
+        help: 'Selecione o nível acadêmico predominate.' 
+      },
       { key: 'conteudos', label: 'Que conteúdos eles consomem?', type: 'textarea', help: 'Quais assuntos eles mais leem ou assistem nas horas vagas ou de trabalho? (Ex: Notícias de negócios, vídeos de humor, tutoriais de maquiagem...)' },
       { key: 'como_abordado', label: 'Como gostam de ser abordados?', type: 'textarea', help: 'Preferem uma abordagem formal? Gostam de informalidade e conversa rápida por WhatsApp? Precisam de e-mails bem detalhados?' },
       { key: 'sonhos_ambicoes', label: 'Sonhos e Ambições', type: 'textarea', help: 'O que eles mais querem conquistar na vida pessoal ou profissional com a ajuda da sua solução?' }
@@ -137,12 +212,36 @@ export const BRIEFING_QUESTIONS: Record<string, { title: string, questions: any[
   'tom_voz': {
     title: 'Tom de Voz',
     questions: [
-      { key: 'adjetivos', label: 'Adjetivos que descrevem a marca', type: 'array', help: 'Ex: Moderno, Elegante, Acessível, Direto, Acolhedor...' },
+      { 
+        key: 'adjetivos', 
+        label: 'Tom de Voz / Personalidade da Marca', 
+        type: 'multiselect', 
+        options: ['Profissional e formal', 'Próximo e informal', 'Divertido e descontraído', 'Educativo e informativo', 'Inspiracional e motivacional', 'Luxo e exclusividade', 'Moderno e Inovador', 'Acolhedor e Humano'],
+        help: 'Escolha os adjetivos que representam o tom da sua marca.' 
+      },
       { key: 'dimensoes', label: 'Dimensões da Marca', type: 'object', objectKeys: ['Linguagem', 'Seriedade', 'Formalidade'], help: 'Defina a intensidade. Ex: Linguagem (Técnica ou Simples), Seriedade (Muito Séria ou Descontraída), Formalidade (Formal ou Informal)' },
-      { key: 'emocao_principal', label: 'Emoção Principal ao falar com o público', type: 'text', help: 'Ex: Empatia, Motivação, Segurança, Urgência, Alegria...' },
+      { 
+        key: 'emocao_principal', 
+        label: 'Emoção Principal ao falar com o público', 
+        type: 'select', 
+        options: ['Empatia e Acolhimento', 'Motivação e Inspiração', 'Segurança e Confiança', 'Urgência e Ação', 'Alegria e Entusiasmo', 'Exclusividade e Status'],
+        help: 'Qual sentimento deve prevalecer na sua comunicação?' 
+      },
       { key: 'pilar_principal', label: 'Pilar principal da comunicação', type: 'text', help: 'Qual a mensagem central e mais importante que a sua marca sempre deve transmitir nos conteúdos?' },
-      { key: 'uso_emojis', label: 'Como é o uso de Emojis?', type: 'text', help: 'Ex: Não usamos, exageramos nos emojis divertidos, usamos apenas emojis neutros (✅, 📊, 🚀)...' },
-      { key: 'utiliza_humor', label: 'Utiliza Humor?', type: 'text', help: 'Ex: Sim (memes, piadas leves), Não (somos estritamente profissionais)...' },
+      { 
+        key: 'uso_emojis', 
+        label: 'Como é o uso de Emojis?', 
+        type: 'select', 
+        options: ['Não usamos emojis', 'Usamos com frequência (divertidos e expressivos)', 'Apenas emojis neutros/profissionais (✅, 📊, 🚀)', 'Uso moderado / pontual'],
+        help: 'Como os emojis devem ser aplicados nos textos?' 
+      },
+      { 
+        key: 'utiliza_humor', 
+        label: 'Utiliza Humor?', 
+        type: 'select', 
+        options: ['Não (somos estritamente profissionais)', 'Sim (memes, piadas leves e cotidianas)', 'Esporadicamente / Moderado'],
+        help: 'Podemos utilizar humor ou memes nas publicações?' 
+      },
       { key: 'diferencial_tom', label: 'Diferencial do Tom', type: 'textarea', help: 'O que faz sua forma de falar ou escrever ser totalmente única e diferente das outras marcas?' },
       { key: 'marcas_admiradas', label: 'Marcas Admiradas pelo tom de voz', type: 'textarea', help: 'Cite outras empresas (mesmo de outros setores) que comunicam de um jeito que você adora e quer usar como referência.' },
       { key: 'girias_expressoes', label: 'Gírias ou expressões usadas', type: 'textarea', help: 'Existem palavras específicas ou bordões que sua marca fala constantemente?' },
@@ -152,15 +251,51 @@ export const BRIEFING_QUESTIONS: Record<string, { title: string, questions: any[
   'site': {
     title: 'Website',
     questions: [
-      { key: 'tem_website', label: 'Já tem website?', type: 'text', help: 'Se sim, coloque a URL atual. Se não, informe se será criado um site do zero.' },
-      { key: 'paginas_essenciais', label: 'Páginas essenciais', type: 'array', help: 'Ex: Home, Sobre a empresa, Nossos Serviços, Contato, Blog...' },
-      { key: 'objetivo_site', label: 'Objetivo do Site', type: 'array', help: 'Ex: Geração de leads, venda online (e-commerce), vitrine profissional (institucional), etc.' },
-      { key: 'formas_contato', label: 'Formas de Contato', type: 'array', help: 'Ex: Botão de WhatsApp, Formulário de Orçamento, Telefone Fixo, E-mail...' },
-      { key: 'estilo_design', label: 'Estilo de Design preferido', type: 'text', help: 'Ex: Clean e Minimalista, Colorido e Divertido, Corporativo e Tecnológico, Elegante e Premium...' },
+      { 
+        key: 'tem_website', 
+        label: 'Já tem website?', 
+        type: 'select', 
+        options: ['Não (será criado um site do zero)', 'Sim (necessita de reformulação total)', 'Sim (apenas ajustes e melhorias)'],
+        help: 'Informe a situação atual do seu website.' 
+      },
+      { 
+        key: 'paginas_essenciais', 
+        label: 'Páginas essenciais', 
+        type: 'multiselect', 
+        options: ['Home', 'Sobre a empresa', 'Nossos Serviços / Produtos', 'Contato / Localização', 'Blog / Artigos', 'Depoimentos / Cases', 'Landing Page de Vendas'],
+        help: 'Quais seções ou páginas o site precisa ter?' 
+      },
+      { 
+        key: 'objetivo_site', 
+        label: 'Objetivo do Site', 
+        type: 'multiselect', 
+        options: ['Gerar leads (contatos)', 'Venda online (E-commerce)', 'Vitrine institucional (autoridade)', 'Agendamento de consultas/serviços', 'Suporte ao cliente / FAQ'],
+        help: 'Quais os propósitos principais da plataforma?' 
+      },
+      { 
+        key: 'formas_contato', 
+        label: 'Formas de Contato', 
+        type: 'multiselect', 
+        options: ['Botão de WhatsApp', 'Formulário de Orçamento/Contato', 'Telefone Fixo / Celular', 'E-mail', 'Chat ao vivo / Bot'],
+        help: 'Como os visitantes do site poderão entrar em contato?' 
+      },
+      { 
+        key: 'estilo_design', 
+        label: 'Estilo de Design preferido', 
+        type: 'multiselect', 
+        options: ['Clean e Minimalista', 'Colorido e Divertido', 'Corporativo e Tecnológico', 'Elegante e Premium', 'Moderno e Arrojado'],
+        help: 'Selecione os estilos visuais que agradam a marca.' 
+      },
       { key: 'sites_admira', label: 'Sites que admira (Referências)', type: 'textarea', help: 'Cole os links de sites e Landing Pages que possuem visuais ou funcionalidades que você gostaria de ter como referência.' },
       { key: 'imagens_midias', label: 'Imagens e Mídias (Possui material?)', type: 'textarea', help: 'Você já possui fotos da equipe, vídeos da empresa ou será necessário usar bancos de imagens/produzir esse novo material fotográfico?' },
       { key: 'sobre_conteudo', label: 'Sobre o conteúdo (Textos)', type: 'textarea', help: 'Os textos das páginas já existem num documento ou iremos criar tudo do zero com Copywriting baseado neste briefing?' },
-      { key: 'dominio_hospedagem', label: 'Domínio e Hospedagem', type: 'text', help: 'O domínio ("suaempresa.com.br") já está registrado? Em qual provedor? O site já tem hospedagem?' },
+      { 
+        key: 'dominio_hospedagem', 
+        label: 'Domínio e Hospedagem', 
+        type: 'select', 
+        options: ['Já possuo domínio e hospedagem', 'Possuo apenas o domínio', 'Ainda não possuo domínio nem hospedagem', 'Preciso de ajuda para contratar'],
+        help: 'Qual a situação técnica de endereço e hospedagem?' 
+      },
       { key: 'integracoes', label: 'Integrações', type: 'object', objectKeys: ['CRM', 'Analytics', 'E-commerce', 'Agendamento', 'Pixels'], help: 'Existem plataformas que devem estar conectadas ao site? Ex: RD Station, Pipedrive, Calendly, Meta Pixel, Google Tag Manager...' },
       { key: 'funciona_melhorar', label: 'O que funciona e o que deve melhorar no site atual?', type: 'textarea', help: 'Caso já possua um site, explique os principais pontos de insatisfação que motivam a reformulação e o que pode ser mantido.' }
     ]
@@ -168,18 +303,92 @@ export const BRIEFING_QUESTIONS: Record<string, { title: string, questions: any[
   'trafego_pago': {
     title: 'Tráfego Pago',
     questions: [
-      { key: 'genero', label: 'Gênero', type: 'text', help: 'Para quem os anúncios devem ser segmentados? Predominante Mulheres, Homens, Mães, ou Ambos?' },
-      { key: 'faixa_etaria', label: 'Faixa Etária', type: 'text', help: 'Ex: 25-34 anos, +45 anos...' },
-      { key: 'renda_mensal', label: 'Renda Mensal', type: 'text', help: 'Importante para refinar campanhas. Qual é, aproximadamente, o poder aquisitivo de quem compra a oferta anunciada?' },
-      { key: 'localizacao', label: 'Localização/Região', type: 'text', help: 'Onde rodaremos os anúncios? Ex: Apenas na cidade X com raio de 20km, Todo o estado de SP, Nível Nacional...' },
-      { key: 'profissao_cargo', label: 'Profissão / Cargo', type: 'text', help: 'Ex: Vamos atingir Médicos. Ou vamos focar em Diretores de empresas.' },
-      { key: 'onde_passa_tempo', label: 'Onde passa o tempo online?', type: 'array', help: 'Ex: Assistindo YouTube, no TikTok a noite, lendo blogs e pesquisando no Google durante o trabalho...' },
-      { key: 'ticket_medio', label: 'Ticket Médio', type: 'text', help: 'Qual é o valor financeiro do produto/serviço que vamos anunciar?' },
-      { key: 'ciclo_vendas', label: 'Ciclo de Vendas', type: 'text', help: 'A venda acontece no mesmo dia ou demora 3 meses de negociação para fechar negócio depois da captação do lead?' },
+      { 
+        key: 'genero', 
+        label: 'Gênero do Público-Alvo', 
+        type: 'multiselect', 
+        options: ['Masculino', 'Feminino', 'Todos os gêneros'],
+        help: 'Para quem os anúncios devem ser segmentados?' 
+      },
+      { 
+        key: 'faixa_etaria', 
+        label: 'Faixa Etária do Público-Alvo', 
+        type: 'multiselect', 
+        options: ['18 a 24 anos', '25 a 34 anos', '35 a 44 anos', '45 a 54 anos', '55 a 64 anos', '65+ anos'],
+        help: 'Selecione as faixas etárias dos anúncios.' 
+      },
+      { 
+        key: 'renda_mensal', 
+        label: 'Renda Mensal do Público-Alvo', 
+        type: 'multiselect', 
+        options: ['Até R$ 2.500', 'R$ 2.500 a R$ 5.000', 'R$ 5.000 a R$ 10.000', 'R$ 10.000 a R$ 15.000', 'R$ 15.000 a R$ 20.000', 'R$ 20.000 a R$ 30.000', 'Acima de R$ 30.000'],
+        help: 'Qual é o poder aquisitivo estimado de quem compra a oferta?' 
+      },
+      { 
+        key: 'localizacao', 
+        label: 'Localização / Abrangência Geográfica', 
+        type: 'select', 
+        options: ['Local (bairro/cidade)', 'Regional (cidades da região)', 'Estadual', 'Nacional', 'Internacional'],
+        help: 'Onde rodaremos os anúncios?' 
+      },
+      { 
+        key: 'plataformas', 
+        label: 'Plataformas de Anúncios', 
+        type: 'multiselect', 
+        options: ['Google Search', 'Google Display', 'YouTube', 'Meta Ads (Facebook / Instagram)', 'TikTok Ads', 'LinkedIn Ads'],
+        help: 'Em quais canais pagos pretendemos anunciar?' 
+      },
+      { key: 'profissao_cargo', label: 'Profissão / Cargo do Público', type: 'text', help: 'Ex: Vamos atingir Médicos. Ou vamos focar em Diretores de empresas.' },
+      { 
+        key: 'onde_passa_tempo', 
+        label: 'Onde passa o tempo online?', 
+        type: 'multiselect', 
+        options: ['Instagram / Facebook', 'YouTube', 'TikTok', 'Google / Blogs de Pesquisa', 'LinkedIn', 'Portais de Notícias'],
+        help: 'Onde o público navega frequentemente?' 
+      },
+      { 
+        key: 'ticket_medio', 
+        label: 'Ticket Médio do Produto/Serviço', 
+        type: 'select', 
+        options: ['Até R$ 100', 'R$ 100 a R$ 500', 'R$ 500 a R$ 2.000', 'R$ 2.000 a R$ 10.000', 'Acima de R$ 10.000'],
+        help: 'Qual o preço médio da solução anunciada?' 
+      },
+      { 
+        key: 'orcamento_midia', 
+        label: 'Orçamento Mensal em Mídia Paga', 
+        type: 'select', 
+        options: ['Até R$ 1.000', 'R$ 1.000 a R$ 3.000', 'R$ 3.000 a R$ 5.000', 'R$ 5.000 a R$ 10.000', 'Acima de R$ 10.000'],
+        help: 'Qual o valor estimado para investimento direto em anúncios?' 
+      },
+      { 
+        key: 'ciclo_vendas', 
+        label: 'Ciclo de Vendas', 
+        type: 'select', 
+        options: ['Imediato (mesmo dia)', 'Até 7 dias', '15 a 30 dias', '1 a 3 meses', 'Mais de 3 meses'],
+        help: 'Quanto tempo leva entre o 1º contato e o fechamento?' 
+      },
       { key: 'maior_problema', label: 'Maior Problema do Cliente', type: 'textarea', help: 'Qual é a maior urgência ou "dor de cabeça" constante do cliente e que é resolvida pelo seu serviço?' },
-      { key: 'motivou_buscar', label: 'O que o motivou a buscar você?', type: 'array', help: 'O que faz a pessoa pesquisar a sua solução? Ex: Um problema de saúde recente (urgência), desejo de viajar (oportunidade/sonho)...' },
-      { key: 'meta_principal', label: 'Meta principal das campanhas', type: 'textarea', help: 'O que definirá o projeto como um Sucesso Absoluto? Ex: Queremos captar R$10.000 de vendas online ou obter 80 leads qualificados por semana.' },
-      { key: 'gatilho_agir', label: 'Gatilho para agir', type: 'array', help: 'Qual é o gatilho, oferta ou isca que fará o usuário clicar no seu anúncio agora mesmo? Ex: Bônus VIP, Desconto na 1ª Consulta, Escassez (Últimas Vagas), Autoridade...' }
+      { 
+        key: 'motivou_buscar', 
+        label: 'O que o motivou a buscar você?', 
+        type: 'multiselect', 
+        options: ['Urgência / Necessidade imediata', 'Desejo de crescimento / Oportunidade', 'Insatisfação com concorrente atual', 'Recomendação de terceiros', 'Preço / Oferta especial'],
+        help: 'Quais os motivos que levam à busca pela sua oferta?' 
+      },
+      { 
+        key: 'meta_principal', 
+        label: 'Objetivo Principal / Meta da Campanha', 
+        type: 'select', 
+        options: ['Gerar leads qualificados', 'Aumentar vendas diretas', 'Reconhecimento de marca', 'Tráfego para o site', 'Agendamentos / consultas'],
+        help: 'O que definirá o projeto como um Sucesso Absoluto?' 
+      },
+      { 
+        key: 'gatilho_agir', 
+        label: 'Gatilho para agir', 
+        type: 'multiselect', 
+        options: ['Bônus VIP', 'Desconto na 1ª Consulta / Compra', 'Escassez (Últimas Vagas / Estoque)', 'Autoridade / Prova Social', 'Garantia Incondicional'],
+        help: 'Qual oferta ou isca fará o usuário clicar no seu anúncio agora?' 
+      }
     ]
   },
   'conteudo_bastidores': {
@@ -273,9 +482,8 @@ export const BriefingOnboarding: React.FC<{ isDashboardView?: boolean }> = ({ is
         services = ['Social Media']; // Default
       }
       
-      const customTypes = freshClientData?.features_settings?.active_briefing_types || activeClient?.features_settings?.active_briefing_types || [];
+      const customTypes = freshClientData?.features_settings?.active_briefing_types ?? activeClient?.features_settings?.active_briefing_types;
 
-      
       const { data: existingBriefings } = await supabase
         .from('client_briefings')
         .select('*')
@@ -285,9 +493,12 @@ export const BriefingOnboarding: React.FC<{ isDashboardView?: boolean }> = ({ is
       let currentBriefings = existingBriefings || [];
       
       // Determine required briefing types based on services + custom types
-      const requiredTypes = new Set<string>(customTypes);
-      if (customTypes.length === 0) {
-        // Only use automatic detection if no custom list is defined
+      const requiredTypes = new Set<string>();
+      if (Array.isArray(customTypes)) {
+        // Explicitly set by admin (if [], requiredTypes remains empty => 0 briefings)
+        customTypes.forEach((t: string) => requiredTypes.add(t));
+      } else {
+        // Not set yet (undefined/null), use automatic detection based on services
         for (const service of services) {
           const types = SERVICE_TO_BRIEFINGS[service] || [];
           types.forEach(t => requiredTypes.add(t));
@@ -426,7 +637,7 @@ export const BriefingOnboarding: React.FC<{ isDashboardView?: boolean }> = ({ is
     
     let currentTypes = activeClient.features_settings?.active_briefing_types;
     
-    if (!currentTypes || currentTypes.length === 0) {
+    if (!Array.isArray(currentTypes)) {
       currentTypes = [];
       const services = activeClient.services || [];
       for (const service of services) {
@@ -520,58 +731,140 @@ export const BriefingOnboarding: React.FC<{ isDashboardView?: boolean }> = ({ is
             <p className="text-gray-500 font-medium mb-10">Preencha as informações detalhadas para este módulo.</p>
 
             <div className="space-y-8 flex-1">
-              {questions.map((q) => (
-                <div key={q.key}>
-                  <label className="block text-sm font-bold text-gray-800 mb-2">{q.label}</label>
-                  {q.help && <p className="text-[11px] text-gray-500 mb-3 leading-relaxed">{q.help}</p>}
-                  
-                  {q.type === 'object' && q.objectKeys ? (
-                    <div className="space-y-3 p-4 bg-gray-50/50 rounded-2xl border border-gray-200">
-                      {q.objectKeys.map((objKey: string) => (
-                        <div key={objKey} className="flex flex-col sm:flex-row sm:items-center gap-2">
-                           <label className="text-xs font-bold text-gray-500 uppercase w-32 shrink-0">{objKey}</label>
-                           <input
-                              type="text"
-                              value={(formData[q.key] && formData[q.key][objKey]) || ''}
-                              onChange={(e) => setFormData({ 
-                                ...formData, 
-                                [q.key]: { ...(formData[q.key] || {}), [objKey]: e.target.value } 
-                              })}
-                              className="w-full border border-gray-200 rounded-xl px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-dark shadow-sm transition-all bg-white"
-                           />
-                        </div>
-                      ))}
-                    </div>
-                  ) : q.type === 'array' ? (
-                    <div>
-                      <p className="text-[10px] text-gray-400 mb-2 italic">Separe os itens por vírgula</p>
+              {questions.map((q) => {
+                const options: string[] = q.options || [];
+
+                return (
+                  <div key={q.key} className="bg-gray-50/40 p-5 sm:p-6 rounded-2xl border border-black/[0.03]">
+                    <label className="block text-sm font-bold text-gray-800 mb-1">{q.label}</label>
+                    {q.help && <p className="text-[11px] text-gray-500 mb-3 leading-relaxed">{q.help}</p>}
+                    
+                    {q.type === 'multiselect' ? (
+                      (() => {
+                        const rawVal = formData[q.key];
+                        let selectedArray: string[] = [];
+                        if (Array.isArray(rawVal)) {
+                          selectedArray = rawVal;
+                        } else if (typeof rawVal === 'string' && rawVal.trim()) {
+                          selectedArray = rawVal.includes(',') 
+                            ? rawVal.split(',').map((s: string) => s.trim()).filter(Boolean)
+                            : [rawVal.trim()];
+                        }
+
+                        const toggleOpt = (opt: string) => {
+                          let next: string[];
+                          if (selectedArray.includes(opt)) {
+                            next = selectedArray.filter(item => item !== opt);
+                          } else {
+                            next = [...selectedArray, opt];
+                          }
+                          setFormData({ ...formData, [q.key]: next });
+                        };
+
+                        return (
+                          <div className="flex flex-wrap gap-2.5 my-1">
+                            {options.map((opt: string) => {
+                              const isSelected = selectedArray.includes(opt);
+                              return (
+                                <button
+                                  key={opt}
+                                  type="button"
+                                  onClick={() => toggleOpt(opt)}
+                                  className={`px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all border flex items-center gap-2 cursor-pointer text-left ${
+                                    isSelected
+                                      ? 'bg-brand-dark text-white border-brand-dark shadow-sm ring-2 ring-brand-dark/10'
+                                      : 'bg-white text-gray-700 border-gray-200 hover:border-brand-dark/30 hover:bg-gray-50'
+                                  }`}
+                                >
+                                  {isSelected ? (
+                                    <CheckCircle size={15} className="text-white shrink-0" />
+                                  ) : (
+                                    <div className="w-3.5 h-3.5 rounded-md border border-gray-300 bg-gray-50 shrink-0" />
+                                  )}
+                                  <span>{opt}</span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        );
+                      })()
+                    ) : q.type === 'select' ? (
+                      (() => {
+                        const currentVal = formData[q.key] || '';
+                        
+                        return (
+                          <div className="flex flex-wrap gap-2.5 my-1">
+                            {options.map((opt: string) => {
+                              const isSelected = currentVal === opt;
+                              return (
+                                <button
+                                  key={opt}
+                                  type="button"
+                                  onClick={() => setFormData({ ...formData, [q.key]: opt })}
+                                  className={`px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all border flex items-center gap-2 cursor-pointer text-left ${
+                                    isSelected
+                                      ? 'bg-brand-dark text-white border-brand-dark shadow-sm ring-2 ring-brand-dark/10'
+                                      : 'bg-white text-gray-700 border-gray-200 hover:border-brand-dark/30 hover:bg-gray-50'
+                                  }`}
+                                >
+                                  <div className={`w-3.5 h-3.5 rounded-full border flex items-center justify-center shrink-0 ${isSelected ? 'border-white bg-white' : 'border-gray-300 bg-gray-50'}`}>
+                                    {isSelected && <div className="w-1.5 h-1.5 rounded-full bg-brand-dark" />}
+                                  </div>
+                                  <span>{opt}</span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        );
+                      })()
+                    ) : q.type === 'object' && q.objectKeys ? (
+                      <div className="space-y-3 p-4 bg-gray-50/50 rounded-2xl border border-gray-200">
+                        {q.objectKeys.map((objKey: string) => (
+                          <div key={objKey} className="flex flex-col sm:flex-row sm:items-center gap-2">
+                             <label className="text-xs font-bold text-gray-500 uppercase w-32 shrink-0">{objKey}</label>
+                             <input
+                                type="text"
+                                value={(formData[q.key] && formData[q.key][objKey]) || ''}
+                                onChange={(e) => setFormData({ 
+                                  ...formData, 
+                                  [q.key]: { ...(formData[q.key] || {}), [objKey]: e.target.value } 
+                                })}
+                                className="w-full border border-gray-200 rounded-xl px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-dark shadow-sm transition-all bg-white"
+                             />
+                          </div>
+                        ))}
+                      </div>
+                    ) : q.type === 'array' ? (
+                      <div>
+                        <p className="text-[10px] text-gray-400 mb-2 italic">Separe os itens por vírgula</p>
+                        <textarea
+                          value={Array.isArray(formData[q.key]) ? formData[q.key].join(', ') : (formData[q.key] || '')}
+                          onChange={(e) => setFormData({ ...formData, [q.key]: e.target.value })}
+                          placeholder="Item 1, Item 2, Item 3..."
+                          className="w-full border border-gray-200 rounded-2xl px-5 py-4 text-sm focus:outline-none focus:ring-2 focus:ring-brand-dark resize-none shadow-sm transition-all bg-white"
+                          rows={3}
+                        />
+                      </div>
+                    ) : q.type === 'textarea' ? (
                       <textarea
-                        value={Array.isArray(formData[q.key]) ? formData[q.key].join(', ') : (formData[q.key] || '')}
+                        value={formData[q.key] || ''}
                         onChange={(e) => setFormData({ ...formData, [q.key]: e.target.value })}
-                        placeholder="Item 1, Item 2, Item 3..."
-                        className="w-full border border-gray-200 rounded-2xl px-5 py-4 text-sm focus:outline-none focus:ring-2 focus:ring-brand-dark resize-none shadow-sm transition-all bg-gray-50/50"
-                        rows={3}
+                        placeholder={q.placeholder}
+                        className="w-full border border-gray-200 rounded-2xl px-5 py-4 text-sm focus:outline-none focus:ring-2 focus:ring-brand-dark resize-none shadow-sm transition-all bg-white"
+                        rows={4}
                       />
-                    </div>
-                  ) : q.type === 'textarea' ? (
-                    <textarea
-                      value={formData[q.key] || ''}
-                      onChange={(e) => setFormData({ ...formData, [q.key]: e.target.value })}
-                      placeholder={q.placeholder}
-                      className="w-full border border-gray-200 rounded-2xl px-5 py-4 text-sm focus:outline-none focus:ring-2 focus:ring-brand-dark resize-none shadow-sm transition-all bg-gray-50/50"
-                      rows={4}
-                    />
-                  ) : (
-                    <input
-                      type="text"
-                      value={formData[q.key] || ''}
-                      onChange={(e) => setFormData({ ...formData, [q.key]: e.target.value })}
-                      placeholder={q.placeholder}
-                      className="w-full border border-gray-200 rounded-2xl px-5 py-4 text-sm focus:outline-none focus:ring-2 focus:ring-brand-dark shadow-sm transition-all bg-gray-50/50"
-                    />
-                  )}
-                </div>
-              ))}
+                    ) : (
+                      <input
+                        type="text"
+                        value={formData[q.key] || ''}
+                        onChange={(e) => setFormData({ ...formData, [q.key]: e.target.value })}
+                        placeholder={q.placeholder}
+                        className="w-full border border-gray-200 rounded-2xl px-5 py-4 text-sm focus:outline-none focus:ring-2 focus:ring-brand-dark shadow-sm transition-all bg-white"
+                      />
+                    )}
+                  </div>
+                );
+              })}
             </div>
 
             <div className="mt-12 flex flex-col sm:flex-row gap-4 pt-8 border-t border-gray-100 pb-10 relative">

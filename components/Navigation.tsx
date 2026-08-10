@@ -97,14 +97,20 @@ export const Navigation: React.FC<SidebarProps> = ({
     if (!activeClient) return [];
     
     const services = activeClient.services || [];
-    const hasService = (s: string) => services.length === 0 || services.includes(s);
-    const getFeature = (feature: string, defaultVal: boolean) => activeClient.features_settings?.[feature] ?? defaultVal;
+    const hasService = (s: string) => services.includes(s);
+    const getFeature = (feature: string, defaultVal: boolean) => {
+      if (feature === 'crm') {
+        return activeClient.features_settings?.crm ?? activeClient.features_settings?.is_lead_tracking_enabled ?? (activeClient as any).is_lead_tracking_enabled ?? defaultVal;
+      }
+      return activeClient.features_settings?.[feature] ?? defaultVal;
+    };
 
     const allModules = [
       { id: 'dashboard', label: 'Início', icon: Home, featureKey: null, defaultVisible: true },
+      { id: 'crm', label: 'CRM', icon: Kanban, featureKey: 'crm', defaultVisible: false },
       { id: 'month-detail', label: 'Mapa Editorial', icon: Calendar, featureKey: 'mapa', defaultVisible: hasService('Social Media') },
       { id: 'strategic-briefings', label: 'Briefings', icon: Target, featureKey: 'briefings', defaultVisible: hasService('Social Media') || hasService('Tráfego Pago') },
-      { id: 'paid-traffic', label: 'Tráfego Pago', icon: Zap, featureKey: 'reportei_paid', defaultVisible: hasService('Tráfego Pago') },
+      { id: 'paid-traffic', label: 'Tráfego Pago', icon: Zap, featureKey: null, defaultVisible: services.includes('Tráfego Pago') },
       { id: 'website', label: 'Website', icon: Globe, featureKey: 'website', defaultVisible: hasService('Tráfego Pago') },
       { id: 'ai-photos', label: 'Fotos IA', icon: Camera, featureKey: 'ai_photos', defaultVisible: hasService('Fotos com IA') },
       { id: 'roteiros', label: 'Roteiros', icon: FileText, featureKey: 'roteiros', defaultVisible: true },

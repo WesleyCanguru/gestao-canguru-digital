@@ -221,7 +221,9 @@ export function BriefingTemplatesModal({ onClose }: Props) {
                                <select value={q.type} onChange={e => updateQuestion(idx, 'type', e.target.value)} className="w-full text-sm px-3 py-2 bg-gray-50 border border-gray-100 rounded-lg focus:bg-white outline-none focus:ring-2 focus:ring-brand-dark/20 cursor-pointer">
                                  <option value="text">Texto Curto</option>
                                  <option value="textarea">Texto Longo</option>
-                                 <option value="array">Múltiplos Itens (Vírgula)</option>
+                                 <option value="select">Seleção Única (Opções)</option>
+                                  <option value="multiselect">Múltipla Escolha (Opções)</option>
+                                  <option value="array">Múltiplos Itens (Vírgula)</option>
                                </select>
                              </div>
                              <div>

@@ -62,8 +62,7 @@ const MainApp: React.FC<MainAppProps> = ({ initialView, onExitAgencyDashboard, o
     if (viewParam === 'briefing' || viewParam === 'strategic-briefings') {
       setView('strategic-briefings');
     } else if (viewParam === 'crm') {
-      setView('dashboard'); // ClientHome handles crm state internally if needed, but we can set it via props if we add them. 
-      // Actually, ClientHome has internally 'dashboard' or 'leads'.
+      setView('crm');
     } else if (viewParam === 'tutorial') {
       setView('tutorials');
       if (tutorialId) {
@@ -459,6 +458,7 @@ const MainApp: React.FC<MainAppProps> = ({ initialView, onExitAgencyDashboard, o
                   </div>
                 ) : view === 'dashboard' ? (
                   <ClientHome
+                    initialActiveView="dashboard"
                     onNavigateToOnboarding={() => setView('onboarding')}
                     onNavigateToMapa={() => {
                       const currentMonthName = MONTH_NAMES[dayjs().month()];

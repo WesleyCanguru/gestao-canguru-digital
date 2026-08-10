@@ -44,9 +44,11 @@ export const OnboardingTab: React.FC<{ onNavigateToClients: (client: Client) => 
   const startManaging = () => {
     if (!viewingBriefingsClient) return;
     setIsManagingBriefings(true);
-    const currentTypes = viewingBriefingsClient.features_settings?.active_briefing_types || [];
-    let types = [...currentTypes];
-    if (types.length === 0) {
+    const currentTypes = viewingBriefingsClient.features_settings?.active_briefing_types;
+    let types: string[] = [];
+    if (Array.isArray(currentTypes)) {
+      types = [...currentTypes];
+    } else {
       (viewingBriefingsClient.services || []).forEach(service => {
         const autoTypes = SERVICE_TO_BRIEFINGS[service] || [];
         autoTypes.forEach(t => {
@@ -287,9 +289,11 @@ export const OnboardingTab: React.FC<{ onNavigateToClients: (client: Client) => 
           {clients.map((client) => {
             const contractStatus = client.contract?.status || 'none';
             
-            const customTypes = client.features_settings?.active_briefing_types || [];
-            const requiredTypes = new Set<string>(customTypes);
-            if (customTypes.length === 0) {
+            const customTypes = client.features_settings?.active_briefing_types;
+            const requiredTypes = new Set<string>();
+            if (Array.isArray(customTypes)) {
+              customTypes.forEach((t: string) => requiredTypes.add(t));
+            } else {
               (client.services || []).forEach(service => {
                 const types = SERVICE_TO_BRIEFINGS[service] || [];
                 types.forEach(t => requiredTypes.add(t));
@@ -416,9 +420,11 @@ export const OnboardingTab: React.FC<{ onNavigateToClients: (client: Client) => 
               {clients.map((client) => {
                 const contractStatus = client.contract?.status || 'none';
                 
-                const customTypes = client.features_settings?.active_briefing_types || [];
-                const requiredTypes = new Set<string>(customTypes);
-                if (customTypes.length === 0) {
+                const customTypes = client.features_settings?.active_briefing_types;
+                const requiredTypes = new Set<string>();
+                if (Array.isArray(customTypes)) {
+                  customTypes.forEach((t: string) => requiredTypes.add(t));
+                } else {
                   (client.services || []).forEach(service => {
                     const types = SERVICE_TO_BRIEFINGS[service] || [];
                     types.forEach(t => requiredTypes.add(t));
@@ -638,9 +644,11 @@ export const OnboardingTab: React.FC<{ onNavigateToClients: (client: Client) => 
               )}
 
               {(() => {
-                const customTypesModal = viewingBriefingsClient.features_settings?.active_briefing_types || [];
-                const requiredTypesModal = new Set<string>(customTypesModal);
-                if (customTypesModal.length === 0) {
+                const customTypesModal = viewingBriefingsClient.features_settings?.active_briefing_types;
+                const requiredTypesModal = new Set<string>();
+                if (Array.isArray(customTypesModal)) {
+                  customTypesModal.forEach((t: string) => requiredTypesModal.add(t));
+                } else {
                   (viewingBriefingsClient.services || []).forEach(service => {
                     const types = SERVICE_TO_BRIEFINGS[service] || [];
                     types.forEach(t => requiredTypesModal.add(t));
