@@ -2,6 +2,18 @@ import React, { useState, useEffect } from 'react';
 import { supabase, useAuth } from '../lib/supabase';
 import { processTrafficStrategyPdf } from '../src/services/geminiService';
 import { TrafficStrategyData } from '../types';
+import dayjs from 'dayjs';
+import {
+  ResponsiveContainer,
+  LineChart,
+  Line,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip
+} from 'recharts';
 import {
   ChevronLeft,
   Target,
@@ -9,13 +21,16 @@ import {
   Users,
   Search,
   MessageCircle,
-  ArrowRight,
   AlertTriangle,
   Zap,
   Globe,
   Upload,
   Loader2,
-  FileText
+  FileText,
+  MousePointer,
+  Eye,
+  BarChart3,
+  TrendingUp
 } from 'lucide-react';
 import { motion } from 'motion/react';
 
@@ -89,15 +104,156 @@ const CALABRES_STRATEGY: TrafficStrategyData = {
   }
 };
 
+const formatCurrency = (val: number) => {
+  return val.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+};
+
+const formatNumber = (val: number) => {
+  return val.toLocaleString('pt-BR');
+};
+
+const formatRoas = (val: number) => {
+  return val.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + 'x';
+};
+
+const getPeriodDates = (period: 'yesterday' | '7d' | '14d' | 'month') => {
+  const today = dayjs();
+  if (period === 'yesterday') {
+    const y = today.subtract(1, 'day').format('YYYY-MM-DD');
+    return { startDate: y, endDate: y };
+  }
+  if (period === '7d') {
+    return {
+      startDate: today.subtract(6, 'day').format('YYYY-MM-DD'),
+      endDate: today.format('YYYY-MM-DD')
+    };
+  }
+  if (period === '14d') {
+    return {
+      startDate: today.subtract(13, 'day').format('YYYY-MM-DD'),
+      endDate: today.format('YYYY-MM-DD')
+    };
+  }
+  return {
+    startDate: today.startOf('month').format('YYYY-MM-DD'),
+    endDate: today.format('YYYY-MM-DD')
+  };
+};
+
+const buildChartData = (rawData: any[], startDateStr: string, endDateStr: string) => {
+  const map = new Map<string, any>();
+  rawData.forEach(item => {
+    map.set(item.report_date, item);
+  });
+
+  const chartData = [];
+  let current = dayjs(startDateStr);
+  const end = dayjs(endDateStr);
+
+  while (current.isBefore(end) || current.isSame(end, 'day')) {
+    const dateKey = current.format('YYYY-MM-DD');
+    const displayDate = current.format('DD/MM');
+    const fullDate = current.format('DD/MM/YYYY');
+    const item = map.get(dateKey);
+
+    chartData.push({
+      dateStr: dateKey,
+      displayDate,
+      fullDate,
+      clicks: item ? Number(item.clicks || 0) : 0,
+      investment: item ? Number(item.investment || 0) : 0,
+      impressions: item ? Number(item.impressions || 0) : 0,
+      conversions: item ? Number(item.conversions || 0) : 0,
+    });
+
+    current = current.add(1, 'day');
+  }
+
+  return chartData;
+};
+
+const CustomClicksTooltip = ({ active, payload }: any) => {
+  if (active && payload && payload.length) {
+    const data = payload[0].payload;
+    return (
+      <div className="bg-gray-900 text-white p-3 rounded-xl shadow-xl text-xs space-y-1 border border-gray-800">
+        <p className="font-bold border-b border-gray-700 pb-1 text-gray-200">{data.fullDate}</p>
+        <p className="flex justify-between gap-4 pt-1">
+          <span className="text-gray-400">Cliques:</span>
+          <span className="font-semibold text-white">{formatNumber(data.clicks)}</span>
+        </p>
+        <p className="flex justify-between gap-4">
+          <span className="text-gray-400">Investimento:</span>
+          <span className="font-semibold text-white">{formatCurrency(data.investment)}</span>
+        </p>
+      </div>
+    );
+  }
+  return null;
+};
+
+const CustomInvestmentTooltip = ({ active, payload }: any) => {
+  if (active && payload && payload.length) {
+    const data = payload[0].payload;
+    return (
+      <div className="bg-gray-900 text-white p-3 rounded-xl shadow-xl text-xs space-y-1 border border-gray-800">
+        <p className="font-bold border-b border-gray-700 pb-1 text-gray-200">{data.fullDate}</p>
+        <p className="flex justify-between gap-4 pt-1">
+          <span className="text-gray-400">Investimento:</span>
+          <span className="font-semibold text-white">{formatCurrency(data.investment)}</span>
+        </p>
+        <p className="flex justify-between gap-4">
+          <span className="text-gray-400">Cliques:</span>
+          <span className="font-semibold text-white">{formatNumber(data.clicks)}</span>
+        </p>
+      </div>
+    );
+  }
+  return null;
+};
+
 export const PaidTrafficView: React.FC<{ onBack?: () => void }> = ({ onBack }) => {
   const { activeClient, userRole, refreshActiveClient } = useAuth();
   const [isUploading, setIsUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
 
+  // Dashboard Filters & State
+  const [selectedPeriod, setSelectedPeriod] = useState<'yesterday' | '7d' | '14d' | 'month'>('14d');
+  const [selectedPlatform, setSelectedPlatform] = useState<'google' | 'meta'>('google');
+  const [dailyData, setDailyData] = useState<any[]>([]);
+  const [isLoadingData, setIsLoadingData] = useState<boolean>(true);
+
   const isCalabres = activeClient?.id === 'e817fbf9-0985-4453-b710-34623af870d6' || activeClient?.name?.includes('Calabres');
-  const isNextSafety = activeClient?.id === '75b00b27-61ee-4b23-8721-70748ccb0789' || activeClient?.name?.includes('Next Safety');
 
   const strategyData = activeClient?.traffic_strategy_data || (isCalabres ? CALABRES_STRATEGY : null);
+
+  useEffect(() => {
+    if (!activeClient?.id) return;
+
+    const fetchDailyData = async () => {
+      setIsLoadingData(true);
+      const { startDate, endDate } = getPeriodDates(selectedPeriod);
+
+      const { data, error } = await supabase
+        .from('paid_traffic_daily')
+        .select('*')
+        .eq('client_id', activeClient.id)
+        .eq('platform', selectedPlatform)
+        .gte('report_date', startDate)
+        .lte('report_date', endDate)
+        .order('report_date', { ascending: true });
+
+      if (error) {
+        console.error('Erro ao buscar dados diários de tráfego pago:', error);
+        setDailyData([]);
+      } else {
+        setDailyData(data || []);
+      }
+      setIsLoadingData(false);
+    };
+
+    fetchDailyData();
+  }, [activeClient?.id, selectedPeriod, selectedPlatform]);
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -154,6 +310,25 @@ export const PaidTrafficView: React.FC<{ onBack?: () => void }> = ({ onBack }) =
     visible: { opacity: 1, y: 0 }
   };
 
+  // Metrics Calculations
+  const totalInvestment = dailyData.reduce((acc, row) => acc + (Number(row.investment) || 0), 0);
+  const totalClicks = dailyData.reduce((acc, row) => acc + (Number(row.clicks) || 0), 0);
+  const totalImpressions = dailyData.reduce((acc, row) => acc + (Number(row.impressions) || 0), 0);
+  const totalConversions = dailyData.reduce((acc, row) => acc + (Number(row.conversions) || 0), 0);
+
+  // CPC Médio = totalInvestment / totalClicks
+  const avgCpc = totalClicks > 0 ? totalInvestment / totalClicks : 0;
+
+  // ROAS Médio = Média do período
+  const roasRows = dailyData.filter(row => row.roas !== null && row.roas !== undefined);
+  const avgRoas = roasRows.length > 0
+    ? roasRows.reduce((acc, row) => acc + Number(row.roas), 0) / roasRows.length
+    : 0;
+
+  const { startDate, endDate } = getPeriodDates(selectedPeriod);
+  const chartData = buildChartData(dailyData, startDate, endDate);
+  const themeColor = selectedPlatform === 'google' ? '#1A73E8' : '#7C3AED';
+
   return (
     <div className="min-h-screen bg-[#F8F9FA] pb-20">
       {/* Header */}
@@ -169,8 +344,8 @@ export const PaidTrafficView: React.FC<{ onBack?: () => void }> = ({ onBack }) =
               </button>
             )}
             <div>
-              <h1 className="text-2xl font-bold text-gray-900">Estratégia de Tráfego Pago</h1>
-              <p className="text-sm text-gray-500 mt-1">Google Ads • {activeClient?.name || 'Cliente'}</p>
+              <h1 className="text-2xl font-bold text-gray-900">Tráfego Pago</h1>
+              <p className="text-sm text-gray-500 mt-1">Dashboard & Estratégia • {activeClient?.name || 'Cliente'}</p>
             </div>
           </div>
           
@@ -207,7 +382,6 @@ export const PaidTrafficView: React.FC<{ onBack?: () => void }> = ({ onBack }) =
                 </label>
               </div>
             )}
-
           </div>
         </div>
         {uploadError && (
@@ -226,57 +400,209 @@ export const PaidTrafficView: React.FC<{ onBack?: () => void }> = ({ onBack }) =
         initial="hidden"
         animate="visible"
       >
-        {/* Metric Placeholders & Live Sync Banner */}
-        <motion.div variants={itemVariants} className="bg-white rounded-3xl p-8 border border-gray-200 shadow-sm space-y-6">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-gray-100 pb-5">
+        {/* Performance Dashboard Section */}
+        <motion.div variants={itemVariants} className="bg-white rounded-3xl p-6 sm:p-8 border border-gray-200 shadow-sm space-y-6">
+          {/* Dashboard Header: Title + Platform Tabs + Period Controls */}
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-gray-100 pb-6">
             <div>
               <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block">Dashboard de Desempenho</span>
-              <h2 className="text-xl font-bold text-gray-900 mt-1">Métricas de Campanhas (Google & Meta Ads)</h2>
+              <h2 className="text-xl font-bold text-gray-900 mt-1">Métricas de Campanhas</h2>
             </div>
-            <span className="inline-flex items-center gap-2 px-3 py-1.5 bg-blue-50 text-blue-700 rounded-full text-xs font-semibold self-start sm:self-auto">
-              <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></span>
-              Sincronização em breve
-            </span>
+
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+              {/* Platform Tabs */}
+              <div className="bg-gray-100 p-1 rounded-2xl flex items-center gap-1">
+                <button
+                  onClick={() => setSelectedPlatform('google')}
+                  className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+                    selectedPlatform === 'google'
+                      ? 'bg-blue-600 text-white shadow-sm'
+                      : 'text-gray-600 hover:text-gray-900'
+                  }`}
+                >
+                  <span className="w-2 h-2 rounded-full bg-blue-300"></span>
+                  Google Ads
+                </button>
+                <button
+                  onClick={() => setSelectedPlatform('meta')}
+                  className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+                    selectedPlatform === 'meta'
+                      ? 'bg-purple-600 text-white shadow-sm'
+                      : 'text-gray-600 hover:text-gray-900'
+                  }`}
+                >
+                  <span className="w-2 h-2 rounded-full bg-purple-300"></span>
+                  Meta Ads
+                </button>
+              </div>
+
+              {/* Period Filters */}
+              <div className="bg-gray-100 p-1 rounded-2xl flex items-center gap-1 overflow-x-auto">
+                {[
+                  { id: 'yesterday', label: 'Ontem' },
+                  { id: '7d', label: '7 dias' },
+                  { id: '14d', label: '14 dias' },
+                  { id: 'month', label: 'Mês atual' },
+                ].map((period) => (
+                  <button
+                    key={period.id}
+                    onClick={() => setSelectedPeriod(period.id as any)}
+                    className={`px-3 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${
+                      selectedPeriod === period.id
+                        ? 'bg-gray-900 text-white shadow-xs'
+                        : 'text-gray-600 hover:text-gray-900 hover:bg-gray-200/60'
+                    }`}
+                  >
+                    {period.label}
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
-            <div className="bg-gray-50/80 rounded-2xl p-4 border border-gray-100">
-              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-1">Investimento</span>
-              <p className="text-lg font-bold text-gray-800">R$ 0,00</p>
-              <span className="text-[10px] text-gray-400 font-medium">Acumulado mês</span>
+          {/* Dashboard Body */}
+          {isLoadingData ? (
+            /* Loading Skeleton */
+            <div className="space-y-6 animate-pulse py-2">
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
+                {[...Array(6)].map((_, i) => (
+                  <div key={i} className="h-24 bg-gray-100 rounded-2xl"></div>
+                ))}
+              </div>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 pt-2">
+                <div className="h-64 bg-gray-100 rounded-2xl"></div>
+                <div className="h-64 bg-gray-100 rounded-2xl"></div>
+              </div>
             </div>
+          ) : dailyData.length === 0 ? (
+            /* Empty State */
+            <div className="bg-gray-50/80 rounded-2xl p-10 border border-gray-100 text-center flex flex-col items-center justify-center my-4">
+              <div className="w-14 h-14 bg-white rounded-2xl flex items-center justify-center text-2xl shadow-sm mb-3">
+                📊
+              </div>
+              <h3 className="text-base font-bold text-gray-900 mb-1">
+                Nenhum dado encontrado para este período.
+              </h3>
+              <p className="text-xs text-gray-500 max-w-sm">
+                Os dados de campanha são atualizados diariamente.
+              </p>
+            </div>
+          ) : (
+            /* Cards & Charts */
+            <div className="space-y-8">
+              {/* 6 Metric Cards */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
+                <div className="bg-gray-50/80 rounded-2xl p-4 border border-gray-100">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Investimento</span>
+                    <div className={`p-1.5 rounded-lg ${selectedPlatform === 'google' ? 'bg-blue-100 text-blue-600' : 'bg-purple-100 text-purple-600'}`}>
+                      <DollarSign className="w-3.5 h-3.5" />
+                    </div>
+                  </div>
+                  <p className="text-lg font-bold text-gray-900">{formatCurrency(totalInvestment)}</p>
+                  <span className="text-[10px] text-gray-400 font-medium">Soma do período</span>
+                </div>
 
-            <div className="bg-gray-50/80 rounded-2xl p-4 border border-gray-100">
-              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-1">Impressões</span>
-              <p className="text-lg font-bold text-gray-800">--</p>
-              <span className="text-[10px] text-gray-400 font-medium">Alcance total</span>
-            </div>
+                <div className="bg-gray-50/80 rounded-2xl p-4 border border-gray-100">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Cliques</span>
+                    <div className={`p-1.5 rounded-lg ${selectedPlatform === 'google' ? 'bg-blue-100 text-blue-600' : 'bg-purple-100 text-purple-600'}`}>
+                      <MousePointer className="w-3.5 h-3.5" />
+                    </div>
+                  </div>
+                  <p className="text-lg font-bold text-gray-900">{formatNumber(totalClicks)}</p>
+                  <span className="text-[10px] text-gray-400 font-medium">Tráfego total</span>
+                </div>
 
-            <div className="bg-gray-50/80 rounded-2xl p-4 border border-gray-100">
-              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-1">Cliques</span>
-              <p className="text-lg font-bold text-gray-800">--</p>
-              <span className="text-[10px] text-gray-400 font-medium">Tráfego gerado</span>
-            </div>
+                <div className="bg-gray-50/80 rounded-2xl p-4 border border-gray-100">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Impressões</span>
+                    <div className={`p-1.5 rounded-lg ${selectedPlatform === 'google' ? 'bg-blue-100 text-blue-600' : 'bg-purple-100 text-purple-600'}`}>
+                      <Eye className="w-3.5 h-3.5" />
+                    </div>
+                  </div>
+                  <p className="text-lg font-bold text-gray-900">{formatNumber(totalImpressions)}</p>
+                  <span className="text-[10px] text-gray-400 font-medium">Alcance total</span>
+                </div>
 
-            <div className="bg-gray-50/80 rounded-2xl p-4 border border-gray-100">
-              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-1">Conversões</span>
-              <p className="text-lg font-bold text-gray-800">--</p>
-              <span className="text-[10px] text-gray-400 font-medium">Leads e contatos</span>
-            </div>
+                <div className="bg-gray-50/80 rounded-2xl p-4 border border-gray-100">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Conversões</span>
+                    <div className={`p-1.5 rounded-lg ${selectedPlatform === 'google' ? 'bg-blue-100 text-blue-600' : 'bg-purple-100 text-purple-600'}`}>
+                      <Target className="w-3.5 h-3.5" />
+                    </div>
+                  </div>
+                  <p className="text-lg font-bold text-gray-900">{formatNumber(totalConversions)}</p>
+                  <span className="text-[10px] text-gray-400 font-medium">Leads e contatos</span>
+                </div>
 
-            <div className="bg-gray-50/80 rounded-2xl p-4 border border-gray-100">
-              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-1">CPC Médio</span>
-              <p className="text-lg font-bold text-gray-800">R$ --</p>
-              <span className="text-[10px] text-gray-400 font-medium">Custo p/ clique</span>
-            </div>
+                <div className="bg-gray-50/80 rounded-2xl p-4 border border-gray-100">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">CPC Médio</span>
+                    <div className={`p-1.5 rounded-lg ${selectedPlatform === 'google' ? 'bg-blue-100 text-blue-600' : 'bg-purple-100 text-purple-600'}`}>
+                      <BarChart3 className="w-3.5 h-3.5" />
+                    </div>
+                  </div>
+                  <p className="text-lg font-bold text-gray-900">{formatCurrency(avgCpc)}</p>
+                  <span className="text-[10px] text-gray-400 font-medium">Custo p/ clique</span>
+                </div>
 
-            <div className="bg-gray-50/80 rounded-2xl p-4 border border-gray-100">
-              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-1">CPL Médio</span>
-              <p className="text-lg font-bold text-gray-800">R$ --</p>
-              <span className="text-[10px] text-gray-400 font-medium">Custo p/ lead</span>
+                <div className="bg-gray-50/80 rounded-2xl p-4 border border-gray-100">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">ROAS Médio</span>
+                    <div className={`p-1.5 rounded-lg ${selectedPlatform === 'google' ? 'bg-blue-100 text-blue-600' : 'bg-purple-100 text-purple-600'}`}>
+                      <TrendingUp className="w-3.5 h-3.5" />
+                    </div>
+                  </div>
+                  <p className="text-lg font-bold text-gray-900">{formatRoas(avgRoas)}</p>
+                  <span className="text-[10px] text-gray-400 font-medium">Média do período</span>
+                </div>
+              </div>
+
+              {/* Charts Grid */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* Chart 1: Cliques por Dia */}
+                <div className="bg-gray-50/50 rounded-2xl p-5 border border-gray-100">
+                  <div className="mb-4">
+                    <h3 className="text-sm font-bold text-gray-900">Cliques por Dia</h3>
+                    <p className="text-xs text-gray-400">Evolução do tráfego diário</p>
+                  </div>
+                  <div className="h-64 w-full">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
+                        <XAxis dataKey="displayDate" tick={{ fontSize: 11, fill: '#6B7280' }} tickLine={false} axisLine={{ stroke: '#E5E7EB' }} />
+                        <YAxis tick={{ fontSize: 11, fill: '#6B7280' }} tickLine={false} axisLine={false} />
+                        <Tooltip content={<CustomClicksTooltip />} />
+                        <Line type="monotone" dataKey="clicks" stroke={themeColor} strokeWidth={3} dot={{ r: 3, fill: themeColor }} activeDot={{ r: 6 }} />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+
+                {/* Chart 2: Investimento por Dia */}
+                <div className="bg-gray-50/50 rounded-2xl p-5 border border-gray-100">
+                  <div className="mb-4">
+                    <h3 className="text-sm font-bold text-gray-900">Investimento por Dia</h3>
+                    <p className="text-xs text-gray-400">Valor aplicado diariamente</p>
+                  </div>
+                  <div className="h-64 w-full">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
+                        <XAxis dataKey="displayDate" tick={{ fontSize: 11, fill: '#6B7280' }} tickLine={false} axisLine={{ stroke: '#E5E7EB' }} />
+                        <YAxis tick={{ fontSize: 11, fill: '#6B7280' }} tickLine={false} axisLine={false} tickFormatter={(v) => `R$${v}`} />
+                        <Tooltip content={<CustomInvestmentTooltip />} />
+                        <Bar dataKey="investment" fill={themeColor} radius={[6, 6, 0, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+              </div>
             </div>
-          </div>
+          )}
         </motion.div>
+
         {!strategyData ? (
           <div className="flex flex-col items-center justify-center py-20 text-center">
             <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mb-6">
@@ -441,3 +767,4 @@ export const PaidTrafficView: React.FC<{ onBack?: () => void }> = ({ onBack }) =
     </div>
   );
 };
+
