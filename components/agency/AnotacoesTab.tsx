@@ -59,6 +59,15 @@ export function AnotacoesTab() {
     }
   };
 
+  const handleMoveNote = async (noteId: string, targetNotebookId: string) => {
+    if (!targetNotebookId || targetNotebookId === selectedNotebookId) return;
+    const success = await updateNote(noteId, { notebook_id: targetNotebookId });
+    if (success !== false) {
+      setSelectedNotebookId(targetNotebookId);
+      setSelectedNoteId(noteId);
+    }
+  };
+
   return (
     <div className="flex-1 bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden flex flex-col md:flex-row absolute inset-0">
       
@@ -109,10 +118,12 @@ export function AnotacoesTab() {
       <div className={`h-full ${mobileView === 'notes' ? 'block w-full md:w-80' : 'hidden md:block'} shrink-0`}>
         <NoteList 
           notebook={selectedNotebook}
+          notebooks={notebooks}
           notes={notes}
           selectedId={selectedNoteId}
           onSelect={handleSelectNote}
           onCreate={handleCreateNote}
+          onMoveNote={handleMoveNote}
           onDeleteNote={async (id) => {
             await deleteNote(id);
             if (selectedNoteId === id) {
@@ -125,7 +136,9 @@ export function AnotacoesTab() {
       <div className={`h-full flex-1 flex flex-col min-w-0 ${mobileView === 'editor' ? 'flex w-full md:w-auto md:flex-1' : 'hidden md:block'}`}>
         <NoteEditor 
           note={selectedNote}
+          notebooks={notebooks}
           onUpdate={updateNote}
+          onMoveNote={handleMoveNote}
         />
       </div>
       

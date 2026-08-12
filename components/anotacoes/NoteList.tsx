@@ -1,20 +1,23 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Note } from '../../hooks/useNotes';
 import { Notebook } from '../../hooks/useNotebooks';
-import { Plus, Pin, Trash2 } from 'lucide-react';
+import { Plus, Pin, Trash2, FolderInput } from 'lucide-react';
 import dayjs from 'dayjs';
 
 interface NoteListProps {
   notebook: Notebook | null;
+  notebooks?: Notebook[];
   notes: Note[];
   selectedId: string | null;
   onSelect: (id: string) => void;
   onCreate: () => void;
   onDeleteNote?: (id: string) => void;
+  onMoveNote?: (noteId: string, targetNotebookId: string) => void;
 }
 
-export function NoteList({ notebook, notes, selectedId, onSelect, onCreate, onDeleteNote }: NoteListProps) {
-  
+export function NoteList({ notebook, notebooks = [], notes, selectedId, onSelect, onCreate, onDeleteNote, onMoveNote }: NoteListProps) {
+  const [movingNoteId, setMovingNoteId] = useState<string | null>(null);
+
   const extractPreview = (htmlStr: string) => {
     if (!htmlStr) return 'Sem conteúdo adicional';
     const tmp = document.createElement('div');
@@ -24,7 +27,7 @@ export function NoteList({ notebook, notes, selectedId, onSelect, onCreate, onDe
   };
 
   return (
-    <div className="w-full md:w-80 bg-white border-r border-gray-100 flex flex-col h-full shrink-0 overflow-hidden">
+    <div className="w-full md:w-80 bg-white border-r border-gray-100 flex flex-col h-full shrink-0 overflow-hidden" onClick={() => setMovingNoteId(null)}>
       <div className="p-6 border-b border-gray-100 shrink-0">
         <div className="flex items-center gap-3 mb-4">
           {notebook ? (
@@ -56,18 +59,32 @@ export function NoteList({ notebook, notes, selectedId, onSelect, onCreate, onDe
         ) : (
           <div className="divide-y divide-gray-50 w-full">
             {notes.map(note => (
-              <button
+              <div
                 key={note.id}
                 onClick={() => onSelect(note.id)}
-                className={`w-full text-left p-5 transition-colors block relative group/note ${selectedId === note.id ? 'bg-blue-50/50' : 'hover:bg-gray-50'}`}
+                className={`w-full text-left p-5 transition-colors block relative group/note cursor-pointer ${selectedId === note.id ? 'bg-blue-50/50' : 'hover:bg-gray-50'}`}
                 style={{ textAlign: 'left' }}
               >
                 <div className="flex items-start justify-between gap-1 mb-1.5 w-full">
                   <h3 className="font-bold text-brand-dark text-sm truncate flex-1 min-w-0" style={{ textAlign: 'left' }}>
                     {note.title || 'Sem título'}
                   </h3>
-                  <div className="flex items-center gap-1.5 shrink-0">
+                  <div className="flex items-center gap-1 shrink-0">
                     {note.is_pinned && <Pin size={13} className="text-brand-dark mt-0.5 shrink-0" />}
+                    
+                    {notebooks.length > 1 && onMoveNote && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setMovingNoteId(movingNoteId === note.id ? null : note.id);
+                        }}
+                        className="p-1 hover:bg-gray-200 rounded text-gray-400 hover:text-blue-600 transition-colors"
+                        title="Mover para outro caderno"
+                      >
+                        <FolderInput size={14} />
+                      </button>
+                    )}
+
                     {onDeleteNote && (
                       <button
                         onClick={(e) => {
@@ -85,13 +102,46 @@ export function NoteList({ notebook, notes, selectedId, onSelect, onCreate, onDe
                     )}
                   </div>
                 </div>
+
+                {/* Dropdown Mover para Caderno */}
+                {movingNoteId === note.id && (
+                  <div 
+                    className="absolute right-4 top-10 z-30 w-56 bg-white rounded-2xl shadow-xl border border-gray-100 p-2 space-y-1 text-left"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <div className="text-[10px] font-bold text-gray-400 uppercase tracking-wider px-2 py-1 border-b border-gray-50 mb-1">
+                      Mover nota para:
+                    </div>
+                    {notebooks.map(nb => (
+                      <button
+                        key={nb.id}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (onMoveNote) onMoveNote(note.id, nb.id);
+                          setMovingNoteId(null);
+                        }}
+                        disabled={nb.id === note.notebook_id}
+                        className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold transition-colors ${
+                          nb.id === note.notebook_id 
+                            ? 'bg-gray-50 text-gray-400 cursor-default' 
+                            : 'hover:bg-blue-50 text-gray-700 hover:text-blue-600'
+                        }`}
+                      >
+                        <span className="text-base">{nb.emoji || '📔'}</span>
+                        <span className="truncate flex-1 text-left">{nb.title}</span>
+                        {nb.id === note.notebook_id && <span className="text-[9px] font-bold text-gray-400 uppercase">(Atual)</span>}
+                      </button>
+                    ))}
+                  </div>
+                )}
+
                 <p className="text-xs text-gray-500 line-clamp-2 mb-2 leading-relaxed text-left w-full overflow-hidden text-ellipsis" style={{ textAlign: 'left' }}>
                   {extractPreview(note.content)}
                 </p>
                 <span className="text-[10px] text-gray-400 font-bold uppercase tracking-widest block text-left" style={{ textAlign: 'left' }}>
                   {dayjs(note.updated_at).format('DD MMM YYYY')}
                 </span>
-              </button>
+              </div>
             ))}
           </div>
         )}

@@ -72,7 +72,12 @@ export function useNotes(notebookId: string | null) {
 
   const updateNote = async (id: string, updates: Partial<Note>) => {
     try {
-      setNotes(current => current.map(n => n.id === id ? { ...n, ...updates, updated_at: new Date().toISOString() } : n));
+      setNotes(current => {
+        if (updates.notebook_id && updates.notebook_id !== notebookId) {
+          return current.filter(n => n.id !== id);
+        }
+        return current.map(n => n.id === id ? { ...n, ...updates, updated_at: new Date().toISOString() } : n);
+      });
       const { error } = await supabase
         .from('notes')
         .update({ ...updates, updated_at: new Date().toISOString() })
@@ -80,8 +85,10 @@ export function useNotes(notebookId: string | null) {
         .eq('agency_id', agencyId);
       
       if (error) throw error;
+      return true;
     } catch (err) {
       console.error('Error updating note', err);
+      return false;
     }
   };
   

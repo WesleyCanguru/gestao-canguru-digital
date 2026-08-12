@@ -13,15 +13,16 @@ import TaskList from '@tiptap/extension-task-list';
 import TaskItem from '@tiptap/extension-task-item';
 import { Extension } from '@tiptap/core';
 import { Note } from '../../hooks/useNotes';
+import { Notebook } from '../../hooks/useNotebooks';
 import { 
   Bold, Italic, Underline as UnderlineIcon, Strikethrough, 
   Heading1, Heading2, Heading3, List, ListOrdered, Quote, 
   Link as LinkIcon, Image as ImageIcon, AlignLeft, AlignCenter, 
-  AlignRight, Undo, Redo, Type, ChevronDown, ListTodo, Plus 
+  AlignRight, Undo, Redo, Type, ChevronDown, ListTodo, Plus, FolderInput 
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 
-// Custom Font Size Extension to avoid type compilation issues with setFontSize commands
+// Custom Font Size Extension supporting setFontSize / unsetFontSize and style attribute rendering
 const FontSize = Extension.create({
   name: 'fontSize',
   addOptions() {
@@ -52,7 +53,7 @@ const FontSize = Extension.create({
   },
 });
 
-// Resilient Fallback Editor component (used if TipTap crashes on Mac app WebView/PWA)
+// Resilient Fallback Editor component (used if TipTap crashes on WebViews/PWAs)
 interface FallbackEditorProps {
   note: Note;
   title: string;
@@ -135,24 +136,31 @@ class EditorErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySta
 
 interface NoteEditorProps {
   note: Note | null;
+  notebooks?: Notebook[];
   onUpdate: (id: string, updates: Partial<Note>) => void;
+  onMoveNote?: (noteId: string, targetNotebookId: string) => void;
 }
 
 interface NoteEditorRichProps {
   note: Note;
+  notebooks?: Notebook[];
   onUpdate: (id: string, updates: Partial<Note>) => void;
+  onMoveNote?: (noteId: string, targetNotebookId: string) => void;
   title: string;
   setTitle: (t: string) => void;
   isSaving: boolean;
   setIsSaving: (s: boolean) => void;
 }
 
-function NoteEditorRich({ note, onUpdate, title, setTitle, isSaving, setIsSaving }: NoteEditorRichProps) {
+function NoteEditorRich({ note, notebooks = [], onUpdate, onMoveNote, title, setTitle, isSaving, setIsSaving }: NoteEditorRichProps) {
   // Dropdown states
   const [fontDropdownOpen, setFontDropdownOpen] = useState(false);
   const [sizeDropdownOpen, setSizeDropdownOpen] = useState(false);
   const [colorDropdownOpen, setColorDropdownOpen] = useState(false);
   const [highlightDropdownOpen, setHighlightDropdownOpen] = useState(false);
+  const [notebookDropdownOpen, setNotebookDropdownOpen] = useState(false);
+
+  const currentNotebook = notebooks.find(n => n.id === note.notebook_id);
 
   // Close all dropdowns
   const closeDropdowns = () => {
@@ -160,6 +168,7 @@ function NoteEditorRich({ note, onUpdate, title, setTitle, isSaving, setIsSaving
     setSizeDropdownOpen(false);
     setColorDropdownOpen(false);
     setHighlightDropdownOpen(false);
+    setNotebookDropdownOpen(false);
   };
 
   const handleUpdateContent = useCallback((content: string) => {
@@ -284,11 +293,83 @@ function NoteEditorRich({ note, onUpdate, title, setTitle, isSaving, setIsSaving
     { label: 'Laranja', value: '#ffedd5' }
   ];
 
+  const activeFont = editor?.getAttributes('textStyle').fontFamily;
+  const activeSize = editor?.getAttributes('textStyle').fontSize;
+  const activeColor = editor?.getAttributes('textStyle').color || '#111827';
+
+  const currentFontObj = fonts.find(f => f.value === activeFont);
+  const fontLabel = currentFontObj ? currentFontObj.label.split(' ')[0] : 'Fonte';
+  const sizeLabel = activeSize || 'Tamanho';
+
   return (
     <div className="h-full w-full flex flex-col bg-white overflow-hidden" onClick={closeDropdowns}>
       {/* Head & Rich Toolbar */}
       <div className="border-b border-gray-100 bg-white sticky top-0 z-10 shrink-0">
-        <div className="px-8 py-5">
+        
+        {/* Notebook badge selector & Status */}
+        <div className="px-8 pt-4 pb-1 flex items-center justify-between gap-4">
+          <div className="relative">
+            {notebooks.length > 0 && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setNotebookDropdownOpen(!notebookDropdownOpen);
+                  setFontDropdownOpen(false);
+                  setSizeDropdownOpen(false);
+                  setColorDropdownOpen(false);
+                  setHighlightDropdownOpen(false);
+                }}
+                className="flex items-center gap-2 px-3 py-1.5 rounded-xl border border-gray-200 bg-gray-50/80 hover:bg-gray-100 text-xs font-semibold text-gray-700 transition-all"
+                title="Mover nota para outro caderno"
+              >
+                <span className="text-sm">{currentNotebook?.emoji || '📔'}</span>
+                <span className="font-bold text-gray-900">{currentNotebook?.title || 'Caderno'}</span>
+                <FolderInput size={13} className="text-gray-400 ml-1" />
+              </button>
+            )}
+
+            {notebookDropdownOpen && (
+              <div 
+                className="absolute left-0 mt-1.5 w-60 rounded-2xl border border-gray-100 bg-white shadow-xl p-2 z-50 flex flex-col gap-1 text-left"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="text-[10px] font-bold text-gray-400 uppercase tracking-wider px-2 py-1 border-b border-gray-50">
+                  Mover para o Caderno:
+                </div>
+                {notebooks.map(nb => (
+                  <button
+                    key={nb.id}
+                    type="button"
+                    onClick={() => {
+                      if (onMoveNote && nb.id !== note.notebook_id) {
+                        onMoveNote(note.id, nb.id);
+                      }
+                      setNotebookDropdownOpen(false);
+                    }}
+                    disabled={nb.id === note.notebook_id}
+                    className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold transition-colors ${
+                      nb.id === note.notebook_id 
+                        ? 'bg-gray-50 text-gray-400 cursor-default' 
+                        : 'hover:bg-blue-50 text-gray-700 hover:text-blue-600'
+                    }`}
+                  >
+                    <span className="text-base">{nb.emoji || '📔'}</span>
+                    <span className="truncate flex-1 text-left">{nb.title}</span>
+                    {nb.id === note.notebook_id && <span className="text-[9px] font-bold text-gray-400 uppercase">(Atual)</span>}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="text-xs text-gray-400 font-medium">
+            {isSaving ? 'Salvando...' : 'Salvo'}
+          </div>
+        </div>
+
+        {/* Title Input */}
+        <div className="px-8 pb-3">
           <input
             type="text"
             className="w-full text-3xl font-bold bg-transparent outline-none placeholder-gray-300 text-brand-dark"
@@ -307,11 +388,12 @@ function NoteEditorRich({ note, onUpdate, title, setTitle, isSaving, setIsSaving
               {/* Fonte Dropdown */}
               <div className="relative shrink-0">
                 <button 
-                  type="button" 
-                  onClick={(e) => { e.stopPropagation(); setFontDropdownOpen(!fontDropdownOpen); setSizeDropdownOpen(false); setColorDropdownOpen(false); setHighlightDropdownOpen(false); }}
+                  type="button"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={(e) => { e.stopPropagation(); setFontDropdownOpen(!fontDropdownOpen); setSizeDropdownOpen(false); setColorDropdownOpen(false); setHighlightDropdownOpen(false); setNotebookDropdownOpen(false); }}
                   className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl border border-black/[0.05] bg-white text-xs font-semibold text-gray-600 hover:bg-gray-50 transition-all"
                 >
-                  <span>Fonte</span>
+                  <span className="truncate max-w-[80px]">{fontLabel}</span>
                   <ChevronDown size={12} className="opacity-60" />
                 </button>
                 {fontDropdownOpen && (
@@ -320,7 +402,9 @@ function NoteEditorRich({ note, onUpdate, title, setTitle, isSaving, setIsSaving
                       <button
                         key={font.value}
                         type="button"
-                        onClick={() => {
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={(e) => {
+                          e.stopPropagation();
                           editor.chain().focus().setFontFamily(font.value).run();
                           setFontDropdownOpen(false);
                         }}
@@ -337,11 +421,12 @@ function NoteEditorRich({ note, onUpdate, title, setTitle, isSaving, setIsSaving
               {/* Tamanho Dropdown */}
               <div className="relative shrink-0">
                 <button 
-                  type="button" 
-                  onClick={(e) => { e.stopPropagation(); setSizeDropdownOpen(!sizeDropdownOpen); setFontDropdownOpen(false); setColorDropdownOpen(false); setHighlightDropdownOpen(false); }}
+                  type="button"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={(e) => { e.stopPropagation(); setSizeDropdownOpen(!sizeDropdownOpen); setFontDropdownOpen(false); setColorDropdownOpen(false); setHighlightDropdownOpen(false); setNotebookDropdownOpen(false); }}
                   className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl border border-black/[0.05] bg-white text-xs font-semibold text-gray-600 hover:bg-gray-50 transition-all"
                 >
-                  <span>Tamanho</span>
+                  <span>{sizeLabel}</span>
                   <ChevronDown size={12} className="opacity-60" />
                 </button>
                 {sizeDropdownOpen && (
@@ -350,7 +435,9 @@ function NoteEditorRich({ note, onUpdate, title, setTitle, isSaving, setIsSaving
                       <button
                         key={size}
                         type="button"
-                        onClick={() => {
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={(e) => {
+                          e.stopPropagation();
                           editor.chain().focus().setMark('textStyle', { fontSize: size }).run();
                           setSizeDropdownOpen(false);
                         }}
@@ -366,17 +453,17 @@ function NoteEditorRich({ note, onUpdate, title, setTitle, isSaving, setIsSaving
               <div className="h-6 w-[1px] bg-gray-200 mx-1"></div>
 
               {/* Formatação Básica ([B] [I] [U] [S]) */}
-              <button type="button" onClick={() => editor.chain().focus().toggleBold().run()} className={`p-1.5 rounded-lg hover:bg-gray-200 ${editor.isActive('bold') ? 'bg-gray-200 text-brand-dark' : ''}`} title="Negrito"><Bold size={15} /></button>
-              <button type="button" onClick={() => editor.chain().focus().toggleItalic().run()} className={`p-1.5 rounded-lg hover:bg-gray-200 ${editor.isActive('italic') ? 'bg-gray-200 text-brand-dark' : ''}`} title="Itálico"><Italic size={15} /></button>
-              <button type="button" onClick={() => editor.chain().focus().toggleUnderline().run()} className={`p-1.5 rounded-lg hover:bg-gray-200 ${editor.isActive('underline') ? 'bg-gray-200 text-brand-dark' : ''}`} title="Sublinhado"><UnderlineIcon size={15} /></button>
-              <button type="button" onClick={() => editor.chain().focus().toggleStrike().run()} className={`p-1.5 rounded-lg hover:bg-gray-200 ${editor.isActive('strike') ? 'bg-gray-200 text-brand-dark' : ''}`} title="Riscar"><Strikethrough size={15} /></button>
+              <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => editor.chain().focus().toggleBold().run()} className={`p-1.5 rounded-lg hover:bg-gray-200 ${editor.isActive('bold') ? 'bg-gray-200 text-brand-dark font-bold' : ''}`} title="Negrito"><Bold size={15} /></button>
+              <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => editor.chain().focus().toggleItalic().run()} className={`p-1.5 rounded-lg hover:bg-gray-200 ${editor.isActive('italic') ? 'bg-gray-200 text-brand-dark' : ''}`} title="Itálico"><Italic size={15} /></button>
+              <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => editor.chain().focus().toggleUnderline().run()} className={`p-1.5 rounded-lg hover:bg-gray-200 ${editor.isActive('underline') ? 'bg-gray-200 text-brand-dark' : ''}`} title="Sublinhado"><UnderlineIcon size={15} /></button>
+              <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => editor.chain().focus().toggleStrike().run()} className={`p-1.5 rounded-lg hover:bg-gray-200 ${editor.isActive('strike') ? 'bg-gray-200 text-brand-dark' : ''}`} title="Riscar"><Strikethrough size={15} /></button>
 
               <div className="h-6 w-[1px] bg-gray-200 mx-1"></div>
 
               {/* H1, H2, H3 */}
-              <button type="button" onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()} className={`p-1.5 rounded-lg text-xs font-extrabold hover:bg-gray-200 ${editor.isActive('heading', { level: 1 }) ? 'bg-gray-200 text-brand-dark font-black' : ''}`} title="Título Grande">H1</button>
-              <button type="button" onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()} className={`p-1.5 rounded-lg text-xs font-bold hover:bg-gray-200 ${editor.isActive('heading', { level: 2 }) ? 'bg-gray-200 text-brand-dark font-black' : ''}`} title="Título Médio">H2</button>
-              <button type="button" onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()} className={`p-1.5 rounded-lg text-xs font-semibold hover:bg-gray-200 ${editor.isActive('heading', { level: 3 }) ? 'bg-gray-200 text-brand-dark font-black' : ''}`} title="Título Pequeno">H3</button>
+              <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()} className={`p-1.5 rounded-lg text-xs font-extrabold hover:bg-gray-200 ${editor.isActive('heading', { level: 1 }) ? 'bg-gray-200 text-brand-dark font-black' : ''}`} title="Título Grande">H1</button>
+              <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()} className={`p-1.5 rounded-lg text-xs font-bold hover:bg-gray-200 ${editor.isActive('heading', { level: 2 }) ? 'bg-gray-200 text-brand-dark font-black' : ''}`} title="Título Médio">H2</button>
+              <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()} className={`p-1.5 rounded-lg text-xs font-semibold hover:bg-gray-200 ${editor.isActive('heading', { level: 3 }) ? 'bg-gray-200 text-brand-dark font-black' : ''}`} title="Título Pequeno">H3</button>
 
               <div className="h-6 w-[1px] bg-gray-200 mx-1"></div>
 
@@ -384,37 +471,59 @@ function NoteEditorRich({ note, onUpdate, title, setTitle, isSaving, setIsSaving
               <div className="relative shrink-0">
                 <button 
                   type="button" 
-                  onClick={(e) => { e.stopPropagation(); setColorDropdownOpen(!colorDropdownOpen); setFontDropdownOpen(false); setSizeDropdownOpen(false); setHighlightDropdownOpen(false); }}
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={(e) => { e.stopPropagation(); setColorDropdownOpen(!colorDropdownOpen); setFontDropdownOpen(false); setSizeDropdownOpen(false); setHighlightDropdownOpen(false); setNotebookDropdownOpen(false); }}
                   className="p-1.5 rounded-lg hover:bg-gray-200 flex items-center gap-1 text-xs"
                   title="Cor do Texto"
                 >
-                  <Type size={15} style={{ color: editor.getAttributes('textStyle').color || '#111827' }} />
-                  <span className="text-[9px] text-gray-400 font-bold">🎨</span>
+                  <Type size={15} style={{ color: activeColor }} />
+                  <div className="w-2 h-2 rounded-full border border-black/10" style={{ backgroundColor: activeColor }} />
                 </button>
                 {colorDropdownOpen && (
-                  <div className="absolute left-0 mt-1 w-32 rounded-xl border border-gray-100 bg-white shadow-lg p-2 z-50 grid grid-cols-3 gap-1">
+                  <div className="absolute left-0 mt-1 w-36 rounded-2xl border border-gray-100 bg-white shadow-xl p-2.5 z-50 grid grid-cols-4 gap-1.5">
                     {colors.map(c => (
                       <button
                         key={c.value}
                         type="button"
-                        onClick={() => {
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={(e) => {
+                          e.stopPropagation();
                           editor.chain().focus().setColor(c.value).run();
                           setColorDropdownOpen(false);
                         }}
-                        className="w-6 h-6 rounded-lg transition-transform hover:scale-110 shadow-sm border border-black/[0.05]"
+                        className="w-6 h-6 rounded-lg transition-transform hover:scale-110 shadow-xs border border-black/10"
                         style={{ backgroundColor: c.value }}
                         title={c.label}
                       />
                     ))}
+                    {/* Custom Color Input */}
+                    <label
+                      className="w-6 h-6 rounded-lg transition-transform hover:scale-110 shadow-xs border border-gray-200 flex items-center justify-center cursor-pointer bg-gradient-to-tr from-red-400 via-green-400 to-blue-500 relative"
+                      title="Cor personalizada"
+                      onMouseDown={(e) => e.preventDefault()}
+                    >
+                      <input
+                        type="color"
+                        className="opacity-0 absolute inset-0 w-full h-full cursor-pointer"
+                        onChange={(e) => {
+                          editor.chain().focus().setColor(e.target.value).run();
+                          setColorDropdownOpen(false);
+                        }}
+                      />
+                      <Plus size={12} className="text-white drop-shadow-xs pointer-events-none" />
+                    </label>
+
                     <button 
                       type="button"
-                      onClick={() => {
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={(e) => {
+                        e.stopPropagation();
                         editor.chain().focus().unsetColor().run();
                         setColorDropdownOpen(false);
                       }}
-                      className="col-span-3 text-[10px] text-center font-bold py-1 bg-gray-50 hover:bg-gray-100 text-gray-500 rounded-lg"
+                      className="col-span-4 text-[10px] text-center font-bold py-1 bg-gray-50 hover:bg-gray-100 text-gray-600 rounded-lg transition-colors mt-1"
                     >
-                      Remover
+                      Remover Cor
                     </button>
                   </div>
                 )}
@@ -424,66 +533,69 @@ function NoteEditorRich({ note, onUpdate, title, setTitle, isSaving, setIsSaving
               <div className="relative shrink-0">
                 <button 
                   type="button" 
-                  onClick={(e) => { e.stopPropagation(); setHighlightDropdownOpen(!highlightDropdownOpen); setFontDropdownOpen(false); setSizeDropdownOpen(false); setColorDropdownOpen(false); }}
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={(e) => { e.stopPropagation(); setHighlightDropdownOpen(!highlightDropdownOpen); setFontDropdownOpen(false); setSizeDropdownOpen(false); setColorDropdownOpen(false); setNotebookDropdownOpen(false); }}
                   className="p-1.5 rounded-lg hover:bg-gray-200 flex items-center gap-1 text-xs"
                   title="Marca-texto / Grifar"
                 >
                   <span className="text-[12px] filter saturate-150">🖊️</span>
                 </button>
                 {highlightDropdownOpen && (
-                  <div className="absolute left-0 mt-1 w-32 rounded-xl border border-gray-100 bg-white shadow-lg p-2 z-50 grid grid-cols-3 gap-1">
+                  <div className="absolute left-0 mt-1 w-32 rounded-2xl border border-gray-100 bg-white shadow-xl p-2.5 z-50 grid grid-cols-3 gap-1.5">
                     {highlights.map(h => (
                       <button
                         key={h.value}
                         type="button"
-                        onClick={() => {
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={(e) => {
+                          e.stopPropagation();
                           editor.chain().focus().toggleHighlight({ color: h.value }).run();
                           setHighlightDropdownOpen(false);
                         }}
-                        className="w-6 h-6 rounded-lg transition-transform hover:scale-110 shadow-md border border-black/[0.05] shrink-0"
+                        className="w-6 h-6 rounded-lg transition-transform hover:scale-110 shadow-xs border border-black/10 shrink-0"
                         style={{ backgroundColor: h.value }}
                         title={h.label}
                       />
                     ))}
                     <button 
                       type="button"
-                      onClick={() => {
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={(e) => {
+                        e.stopPropagation();
                         editor.chain().focus().unsetHighlight().run();
                         setHighlightDropdownOpen(false);
                       }}
-                      className="col-span-3 text-[10px] text-center font-bold py-1 bg-gray-50 hover:bg-gray-100 text-gray-500 rounded-lg"
+                      className="col-span-3 text-[10px] text-center font-bold py-1 bg-gray-50 hover:bg-gray-100 text-gray-600 rounded-lg transition-colors mt-1"
                     >
-                      Remover
+                      Remover Grifo
                     </button>
                   </div>
                 )}
               </div>
 
-              <div className="ml-auto text-xs text-gray-400 font-medium px-2 flex items-center h-full shrink-0">
-                {isSaving ? 'Salvando...' : 'Salvo'}
-              </div>
             </div>
 
             {/* LINHA 2 - Listas, Alinhamento, Links, Mídia, Undo/Redo */}
             <div className="flex items-center gap-1.5 flex-nowrap shrink-0 overflow-x-auto no-scrollbar py-0.5 border-t border-gray-100 pt-1.5">
               
               {/* Listas e Checklist */}
-              <button type="button" onClick={() => editor.chain().focus().toggleBulletList().run()} className={`p-1.5 rounded-lg hover:bg-gray-200 ${editor.isActive('bulletList') ? 'bg-gray-200 text-brand-dark' : ''}`} title="Marcadores"><List size={15} /></button>
-              <button type="button" onClick={() => editor.chain().focus().toggleOrderedList().run()} className={`p-1.5 rounded-lg hover:bg-gray-200 ${editor.isActive('orderedList') ? 'bg-gray-200 text-brand-dark' : ''}`} title="Lista Numerada"><ListOrdered size={15} /></button>
-              <button type="button" onClick={() => editor.chain().focus().toggleTaskList().run()} className={`p-1.5 rounded-lg hover:bg-gray-200 ${editor.isActive('taskList') ? 'bg-gray-200 text-brand-dark' : ''}`} title="Checklist"><ListTodo size={15} /></button>
+              <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => editor.chain().focus().toggleBulletList().run()} className={`p-1.5 rounded-lg hover:bg-gray-200 ${editor.isActive('bulletList') ? 'bg-gray-200 text-brand-dark' : ''}`} title="Marcadores"><List size={15} /></button>
+              <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => editor.chain().focus().toggleOrderedList().run()} className={`p-1.5 rounded-lg hover:bg-gray-200 ${editor.isActive('orderedList') ? 'bg-gray-200 text-brand-dark' : ''}`} title="Lista Numerada"><ListOrdered size={15} /></button>
+              <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => editor.chain().focus().toggleTaskList().run()} className={`p-1.5 rounded-lg hover:bg-gray-200 ${editor.isActive('taskList') ? 'bg-gray-200 text-brand-dark' : ''}`} title="Checklist"><ListTodo size={15} /></button>
 
               <div className="h-6 w-[1px] bg-gray-200 mx-1"></div>
 
               {/* Alinhamento */}
-              <button type="button" onClick={() => editor.chain().focus().setTextAlign('left').run()} className={`p-1.5 rounded-lg hover:bg-gray-200 ${editor.isActive({ textAlign: 'left' }) ? 'bg-gray-200 text-brand-dark' : ''}`} title="Alinhar à Esquerda"><AlignLeft size={15} /></button>
-              <button type="button" onClick={() => editor.chain().focus().setTextAlign('center').run()} className={`p-1.5 rounded-lg hover:bg-gray-200 ${editor.isActive({ textAlign: 'center' }) ? 'bg-gray-200 text-brand-dark' : ''}`} title="Centralizar"><AlignCenter size={15} /></button>
-              <button type="button" onClick={() => editor.chain().focus().setTextAlign('right').run()} className={`p-1.5 rounded-lg hover:bg-gray-200 ${editor.isActive({ textAlign: 'right' }) ? 'bg-gray-200 text-brand-dark' : ''}`} title="Alinhar à Direita"><AlignRight size={15} /></button>
+              <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => editor.chain().focus().setTextAlign('left').run()} className={`p-1.5 rounded-lg hover:bg-gray-200 ${editor.isActive({ textAlign: 'left' }) ? 'bg-gray-200 text-brand-dark' : ''}`} title="Alinhar à Esquerda"><AlignLeft size={15} /></button>
+              <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => editor.chain().focus().setTextAlign('center').run()} className={`p-1.5 rounded-lg hover:bg-gray-200 ${editor.isActive({ textAlign: 'center' }) ? 'bg-gray-200 text-brand-dark' : ''}`} title="Centralizar"><AlignCenter size={15} /></button>
+              <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => editor.chain().focus().setTextAlign('right').run()} className={`p-1.5 rounded-lg hover:bg-gray-200 ${editor.isActive({ textAlign: 'right' }) ? 'bg-gray-200 text-brand-dark' : ''}`} title="Alinhar à Direita"><AlignRight size={15} /></button>
 
               <div className="h-6 w-[1px] bg-gray-200 mx-1"></div>
 
               {/* Mídia e Inserções */}
               <button 
                 type="button" 
+                onMouseDown={(e) => e.preventDefault()}
                 onClick={() => {
                   const currentUrl = editor.getAttributes('link').href || '';
                   const url = window.prompt('URL do link:', currentUrl);
@@ -499,20 +611,20 @@ function NoteEditorRich({ note, onUpdate, title, setTitle, isSaving, setIsSaving
               >
                 <LinkIcon size={15} />
               </button>
-              <button type="button" onClick={addImage} className="p-1.5 rounded-lg hover:bg-gray-200" title="Inserir Imagem"><ImageIcon size={15} /></button>
-              <button type="button" onClick={() => editor.chain().focus().setHorizontalRule().run()} className="p-1.5 rounded-lg hover:bg-gray-200 text-xs font-bold" title="Inserir Linha Divisória">—</button>
+              <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={addImage} className="p-1.5 rounded-lg hover:bg-gray-200" title="Inserir Imagem"><ImageIcon size={15} /></button>
+              <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => editor.chain().focus().setHorizontalRule().run()} className="p-1.5 rounded-lg hover:bg-gray-200 text-xs font-bold" title="Inserir Linha Divisória">—</button>
 
               <div className="h-6 w-[1px] bg-gray-200 mx-1"></div>
 
               {/* Código inline e Block */}
-              <button type="button" onClick={() => editor.chain().focus().toggleCode().run()} className={`p-1.5 rounded-lg text-xs font-mono hover:bg-gray-200 ${editor.isActive('code') ? 'bg-gray-200 text-brand-dark font-extrabold' : ''}`} title="Bloco de código Inline">&lt;/&gt;</button>
-              <button type="button" onClick={() => editor.chain().focus().toggleCodeBlock().run()} className={`p-1.5 rounded-lg text-xs font-mono border border-black/[0.05] hover:bg-gray-200 ${editor.isActive('codeBlock') ? 'bg-gray-200 text-brand-dark font-bold' : ''}`} title="Bloco de código Inteiro">CodeBox</button>
+              <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => editor.chain().focus().toggleCode().run()} className={`p-1.5 rounded-lg text-xs font-mono hover:bg-gray-200 ${editor.isActive('code') ? 'bg-gray-200 text-brand-dark font-extrabold' : ''}`} title="Bloco de código Inline">&lt;/&gt;</button>
+              <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => editor.chain().focus().toggleCodeBlock().run()} className={`p-1.5 rounded-lg text-xs font-mono border border-black/[0.05] hover:bg-gray-200 ${editor.isActive('codeBlock') ? 'bg-gray-200 text-brand-dark font-bold' : ''}`} title="Bloco de código Inteiro">CodeBox</button>
 
               <div className="h-6 w-[1px] bg-gray-200 mx-1"></div>
 
               {/* Histórico: Undo/Redo */}
-              <button type="button" onClick={() => editor.chain().focus().undo().run()} disabled={!editor.can().undo()} className="p-1.5 rounded-lg hover:bg-gray-200 disabled:opacity-30"><Undo size={15} /></button>
-              <button type="button" onClick={() => editor.chain().focus().redo().run()} disabled={!editor.can().redo()} className="p-1.5 rounded-lg hover:bg-gray-200 disabled:opacity-30"><Redo size={15} /></button>
+              <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => editor.chain().focus().undo().run()} disabled={!editor.can().undo()} className="p-1.5 rounded-lg hover:bg-gray-200 disabled:opacity-30"><Undo size={15} /></button>
+              <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => editor.chain().focus().redo().run()} disabled={!editor.can().redo()} className="p-1.5 rounded-lg hover:bg-gray-200 disabled:opacity-30"><Redo size={15} /></button>
 
             </div>
 
@@ -528,7 +640,7 @@ function NoteEditorRich({ note, onUpdate, title, setTitle, isSaving, setIsSaving
   );
 }
 
-export function NoteEditor({ note, onUpdate }: NoteEditorProps) {
+export function NoteEditor({ note, notebooks = [], onUpdate, onMoveNote }: NoteEditorProps) {
   const [title, setTitle] = useState(note?.title || '');
   const [isSaving, setIsSaving] = useState(false);
 
@@ -576,7 +688,9 @@ export function NoteEditor({ note, onUpdate }: NoteEditorProps) {
     }>
       <NoteEditorRich 
         note={note} 
+        notebooks={notebooks}
         onUpdate={onUpdate}
+        onMoveNote={onMoveNote}
         title={title}
         setTitle={setTitle}
         isSaving={isSaving}
@@ -585,4 +699,3 @@ export function NoteEditor({ note, onUpdate }: NoteEditorProps) {
     </EditorErrorBoundary>
   );
 }
-
