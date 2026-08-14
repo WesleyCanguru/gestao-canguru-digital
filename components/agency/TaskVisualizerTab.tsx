@@ -66,13 +66,33 @@ export const TaskVisualizerTab: React.FC<{ clients: any[] }> = ({ clients }) => 
       try {
         const { data: sData, error: sErr } = await supabase
           .from('task_sessions')
-          .select('*, task:agency_tasks(id, title, client_id, status, completed_at, client:clients(id, name, color, initials))')
+          .select('*')
           .eq('agency_id', agencyId)
           .gte('started_at', startDateStr)
           .order('started_at', { ascending: false });
 
-        if (!sErr && sData) {
-          sessionsData = sData as any[];
+        if (!sErr && sData && sData.length > 0) {
+          // Fetch task details for all distinct task_ids
+          const taskIds = Array.from(new Set(sData.map(s => s.task_id).filter(Boolean)));
+          let tasksMap: Record<string, any> = {};
+
+          if (taskIds.length > 0) {
+            const { data: tData } = await supabase
+              .from('agency_tasks')
+              .select('id, title, client_id, status, completed_at, client:clients(id, name, color, initials)')
+              .in('id', taskIds);
+
+            if (tData) {
+              tData.forEach((t: any) => {
+                tasksMap[t.id] = t;
+              });
+            }
+          }
+
+          sessionsData = sData.map(s => ({
+            ...s,
+            task: tasksMap[s.task_id] || null
+          }));
         }
       } catch (err) {
         console.warn('Erro ao consultar task_sessions:', err);

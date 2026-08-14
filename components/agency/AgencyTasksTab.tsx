@@ -493,6 +493,7 @@ const HojeTasks: React.FC<{
 }> = ({ clients, onEditTask, onRefresh, onTasksLoaded, onOpenFocusMode, onStartFocus }) => {
   const { agencyId } = useAuth();
   const [tasks, setTasks] = useState<AgencyTask[]>([]);
+  const [sessionDurations, setSessionDurations] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
 
   const sensors = useSensors(
@@ -659,6 +660,26 @@ const HojeTasks: React.FC<{
           onTasksLoaded(sorted);
         }
       }
+
+      // Fetch Pomodoro session durations for tasks
+      try {
+        const { data: sData } = await supabase
+          .from('task_sessions')
+          .select('task_id, duration_seconds')
+          .eq('agency_id', agencyId);
+
+        if (sData) {
+          const map: Record<string, number> = {};
+          sData.forEach((s: any) => {
+            if (s.task_id) {
+              map[s.task_id] = (map[s.task_id] || 0) + (s.duration_seconds || 0);
+            }
+          });
+          setSessionDurations(map);
+        }
+      } catch (err) {
+        console.warn('Erro ao carregar sessões em hoje:', err);
+      }
     } catch (err) {
       console.error('Error fetching tasks:', err);
     } finally {
@@ -782,7 +803,7 @@ const HojeTasks: React.FC<{
               >
                 <div className="divide-y divide-gray-50">
                    {sortedGroupTasks.map(task => (
-                     <SortableTaskListItem key={task.id} task={task} onToggle={() => toggleStatus(task)} onEdit={() => onEditTask(task)} onStartFocus={onStartFocus} isTodayView />
+                     <SortableTaskListItem key={task.id} task={task} onToggle={() => toggleStatus(task)} onEdit={() => onEditTask(task)} onStartFocus={onStartFocus} sessionDuration={sessionDurations[task.id]} isTodayView />
                    ))}
                 </div>
               </SortableContext>
@@ -832,7 +853,7 @@ const HojeTasks: React.FC<{
                               className="overflow-hidden space-y-2 mt-3 pt-3 border-t border-green-200/60 opacity-80"
                            >
                               {sortedCompletedRotinaDia.map(task => (
-                                 <TaskListItem key={task.id} task={task} onToggle={() => toggleStatus(task)} onEdit={() => onEditTask(task)} onStartFocus={onStartFocus} isTodayView />
+                                 <TaskListItem key={task.id} task={task} onToggle={() => toggleStatus(task)} onEdit={() => onEditTask(task)} onStartFocus={onStartFocus} sessionDuration={sessionDurations[task.id]} isTodayView />
                               ))}
                            </motion.div>
                         )}
@@ -852,7 +873,7 @@ const HojeTasks: React.FC<{
                     >
                       <div className="space-y-2">
                          {pendingRotinaDia.map(task => (
-                            <SortableTaskListItem key={task.id} task={task} onToggle={() => toggleStatus(task)} onEdit={() => onEditTask(task)} onStartFocus={onStartFocus} isTodayView />
+                            <SortableTaskListItem key={task.id} task={task} onToggle={() => toggleStatus(task)} onEdit={() => onEditTask(task)} onStartFocus={onStartFocus} sessionDuration={sessionDurations[task.id]} isTodayView />
                          ))}
                       </div>
                     </SortableContext>
@@ -930,7 +951,7 @@ const HojeTasks: React.FC<{
                               className="overflow-hidden space-y-2 mt-3 pt-3 border-t border-green-200/60 opacity-80"
                            >
                               {sortedCompletedRotinaSemana.map(task => (
-                                 <TaskListItem key={task.id} task={task} onToggle={() => toggleStatus(task)} onEdit={() => onEditTask(task)} onStartFocus={onStartFocus} isTodayView />
+                                 <TaskListItem key={task.id} task={task} onToggle={() => toggleStatus(task)} onEdit={() => onEditTask(task)} onStartFocus={onStartFocus} sessionDuration={sessionDurations[task.id]} isTodayView />
                               ))}
                            </motion.div>
                         )}
@@ -950,7 +971,7 @@ const HojeTasks: React.FC<{
                     >
                       <div className="space-y-2">
                          {pendingRotinaSemana.map(task => (
-                            <SortableTaskListItem key={task.id} task={task} onToggle={() => toggleStatus(task)} onEdit={() => onEditTask(task)} onStartFocus={onStartFocus} isTodayView />
+                            <SortableTaskListItem key={task.id} task={task} onToggle={() => toggleStatus(task)} onEdit={() => onEditTask(task)} onStartFocus={onStartFocus} sessionDuration={sessionDurations[task.id]} isTodayView />
                          ))}
                       </div>
                     </SortableContext>
@@ -1769,7 +1790,7 @@ const TodasTasks: React.FC<{
               >
                 <div className="divide-y divide-gray-50">
                    {sortedGroupTasks.map(task => (
-                     <SortableTaskListItem key={task.id} task={task} onToggle={() => toggleStatus(task)} onEdit={() => onEditTask(task)} onStartFocus={onStartFocus} isTodayView />
+                     <SortableTaskListItem key={task.id} task={task} onToggle={() => toggleStatus(task)} onEdit={() => onEditTask(task)} onStartFocus={onStartFocus} sessionDuration={sessionDurations[task.id]} isTodayView />
                    ))}
                 </div>
               </SortableContext>
@@ -1950,7 +1971,8 @@ const SortableTaskListItem: React.FC<{
   onEdit: () => void; 
   isTodayView?: boolean;
   onStartFocus?: (task: AgencyTask) => void;
-}> = ({ task, onToggle, onEdit, isTodayView, onStartFocus }) => {
+  sessionDuration?: number;
+}> = ({ task, onToggle, onEdit, isTodayView, onStartFocus, sessionDuration }) => {
   const {
     attributes,
     listeners,
@@ -1976,6 +1998,7 @@ const SortableTaskListItem: React.FC<{
         isTodayView={isTodayView} 
         isDragging={isDragging} 
         onStartFocus={onStartFocus}
+        sessionDuration={sessionDuration}
       />
     </div>
   );
@@ -1987,8 +2010,9 @@ const TaskListItem: React.FC<{
   onEdit: () => void, 
   isTodayView?: boolean, 
   isDragging?: boolean,
-  onStartFocus?: (task: AgencyTask) => void 
-}> = ({ task, onToggle, onEdit, isTodayView, isDragging, onStartFocus }) => {
+  onStartFocus?: (task: AgencyTask) => void,
+  sessionDuration?: number
+}> = ({ task, onToggle, onEdit, isTodayView, isDragging, onStartFocus, sessionDuration }) => {
   const [showDetailModal, setShowDetailModal] = useState(false);
   const isDone = !isTaskPendingInCurrentCycle(task);
   const isOverdue = (task.recurrence_type === 'weekly' && isWeeklyTaskOverdue(task)) || 
@@ -2006,6 +2030,19 @@ const TaskListItem: React.FC<{
   
   const dateObj = task.due_date ? dayjs(task.due_date) : null;
   const isMonthlyNotStarted = task.recurrence_type === 'monthly' && getMonthlyTaskState(task) === 'not_started';
+
+  const formatTaskDuration = (sec?: number) => {
+    if (!sec || sec <= 0) return null;
+    const mins = Math.floor(sec / 60);
+    const hrs = Math.floor(mins / 60);
+    const remainMins = mins % 60;
+    if (hrs > 0) {
+      return `${hrs}h ${remainMins > 0 ? `${remainMins}m` : ''}`.trim();
+    }
+    return `${Math.max(1, mins)} min`;
+  };
+
+  const durationLabel = sessionDuration && sessionDuration > 0 ? formatTaskDuration(sessionDuration) : null;
 
   const cardBgClass = isDone 
     ? 'opacity-60 bg-gray-50 border-gray-100' 
@@ -2085,6 +2122,16 @@ const TaskListItem: React.FC<{
                 <span className={`flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider whitespace-nowrap ${isOverdue ? 'text-red-600 bg-red-100/80 border border-red-200' : 'text-gray-500 bg-gray-50 border border-gray-100'}`}>
                   <Calendar size={12} />
                   {dateObj.format('DD/MM')}
+                </span>
+              )}
+
+              {durationLabel && (
+                <span 
+                  title={`Tempo dedicado em Modo Foco (Pomodoro): ${durationLabel}`} 
+                  className="flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider whitespace-nowrap text-amber-700 bg-amber-50 border border-amber-200"
+                >
+                  <Clock size={11} className="text-amber-600" />
+                  <span>{durationLabel}</span>
                 </span>
               )}
 
@@ -2210,8 +2257,23 @@ const TaskListItem: React.FC<{
                 </div>
               )}
 
-              {/* Informações adicionais de data */}
+              {/* Informações adicionais de data e Pomodoro */}
               <div className="grid grid-cols-2 gap-3 pt-2 text-xs">
+                {durationLabel && (
+                  <div className="col-span-2 bg-amber-50/80 p-3.5 rounded-xl border border-amber-200 flex items-center justify-between">
+                    <div className="flex items-center gap-2.5">
+                      <span className="text-xl">🍅</span>
+                      <div>
+                        <div className="text-[10px] font-bold uppercase tracking-wider text-amber-800">Modo Foco (Pomodoro)</div>
+                        <div className="text-xs font-bold text-amber-950">Tempo dedicado: {durationLabel}</div>
+                      </div>
+                    </div>
+                    <span className="text-[10px] font-extrabold uppercase tracking-wider bg-amber-200/80 text-amber-900 px-2 py-0.5 rounded-md border border-amber-300">
+                      Registrado
+                    </span>
+                  </div>
+                )}
+
                 <div className="bg-gray-50/80 p-3 rounded-xl border border-gray-100 flex flex-col gap-1">
                   <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Vencimento / Data</span>
                   <span className="font-bold text-gray-700 flex items-center gap-1.5">
