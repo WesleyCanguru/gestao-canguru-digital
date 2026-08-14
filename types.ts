@@ -556,3 +556,16 @@ export interface ProcessChecklist {
   created_at: string;
 }
 
+export interface TaskSession {
+  id: string;
+  task_id: string;
+  agency_id: number;
+  user_id?: string | null;
+  started_at: string;
+  ended_at: string;
+  duration_seconds: number;
+  completed_task: boolean;
+  created_at?: string;
+  task?: AgencyTask;
+}
+

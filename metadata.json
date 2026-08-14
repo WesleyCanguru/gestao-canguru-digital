@@ -1,5 +1,6 @@
 {
   "name": "Bolsa - Canguru Digital",
   "description": "Bolsa: O lugar onde a Canguru Digital guarda tudo da sua marca.",
-  "requestFramePermissions": []
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

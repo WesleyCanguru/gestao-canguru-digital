@@ -24,10 +24,14 @@ import {
   Briefcase,
   Repeat,
   GripVertical,
-  FileText
+  FileText,
+  Target,
+  Flame
 } from 'lucide-react';
 import { supabase, useAuth } from '../../lib/supabase';
 import { AgencyTask, AgencyTaskPriority, AgencyTaskRecurrenceType, ProcessInstance, ProcessChecklist } from '../../types';
+import { FocusMode } from './FocusMode';
+import { TaskVisualizerTab } from './TaskVisualizerTab';
 import dayjs from 'dayjs';
 import 'dayjs/locale/pt-br';
 import relativeTime from 'dayjs/plugin/relativeTime';
@@ -272,13 +276,27 @@ const getWeeklyDaysLabel = (days: any[]) => {
 
 export const AgencyTasksTab: React.FC = () => {
   const { agencyId } = useAuth();
-  const [activeTab, setActiveTab] = useState<'hoje' | 'processos' | 'todas'>('hoje');
+  const [activeTab, setActiveTab] = useState<'hoje' | 'todas' | 'processos' | 'visualizador'>('hoje');
   const [isAddingTask, setIsAddingTask] = useState(false);
   const [isAddingProcess, setIsAddingProcess] = useState(false);
   const [isConfiguringProcesses, setIsConfiguringProcesses] = useState(false);
+  const [isFocusModeOpen, setIsFocusModeOpen] = useState(false);
+  const [focusTask, setFocusTask] = useState<AgencyTask | null>(null);
+  const [todayTasksForFocus, setTodayTasksForFocus] = useState<AgencyTask[]>([]);
   const [editingTask, setEditingTask] = useState<AgencyTask | null>(null);
   const [clients, setClients] = useState<any[]>([]);
   const [refreshKey, setRefreshKey] = useState(0);
+
+  const handleStartFocusTask = (task: AgencyTask) => {
+    setFocusTask(task);
+    setTodayTasksForFocus(prev => {
+      if (!prev.some(t => t.id === task.id)) {
+        return [task, ...prev];
+      }
+      return prev;
+    });
+    setIsFocusModeOpen(true);
+  };
 
   useEffect(() => {
     fetchClients();
@@ -309,6 +327,13 @@ export const AgencyTasksTab: React.FC = () => {
             {activeTab === 'hoje' && <motion.div layoutId="taskTab" className="absolute bottom-0 left-0 right-0 h-0.5 bg-brand-dark" />}
           </button>
           <button 
+            onClick={() => setActiveTab('todas')}
+            className={`pb-4 text-sm font-bold uppercase tracking-widest transition-colors relative whitespace-nowrap ${activeTab === 'todas' ? 'text-brand-dark' : 'text-gray-400 hover:text-gray-600'}`}
+          >
+            Todas as Tarefas
+            {activeTab === 'todas' && <motion.div layoutId="taskTab" className="absolute bottom-0 left-0 right-0 h-0.5 bg-brand-dark" />}
+          </button>
+          <button 
             onClick={() => setActiveTab('processos')}
             className={`pb-4 text-sm font-bold uppercase tracking-widest transition-colors relative whitespace-nowrap ${activeTab === 'processos' ? 'text-brand-dark' : 'text-gray-400 hover:text-gray-600'}`}
           >
@@ -316,26 +341,38 @@ export const AgencyTasksTab: React.FC = () => {
             {activeTab === 'processos' && <motion.div layoutId="taskTab" className="absolute bottom-0 left-0 right-0 h-0.5 bg-brand-dark" />}
           </button>
           <button 
-            onClick={() => setActiveTab('todas')}
-            className={`pb-4 text-sm font-bold uppercase tracking-widest transition-colors relative whitespace-nowrap ${activeTab === 'todas' ? 'text-brand-dark' : 'text-gray-400 hover:text-gray-600'}`}
+            onClick={() => setActiveTab('visualizador')}
+            className={`pb-4 text-sm font-bold uppercase tracking-widest transition-colors relative whitespace-nowrap ${activeTab === 'visualizador' ? 'text-brand-dark' : 'text-gray-400 hover:text-gray-600'}`}
           >
-            Todas as Tarefas
-            {activeTab === 'todas' && <motion.div layoutId="taskTab" className="absolute bottom-0 left-0 right-0 h-0.5 bg-brand-dark" />}
+            Visualizador
+            {activeTab === 'visualizador' && <motion.div layoutId="taskTab" className="absolute bottom-0 left-0 right-0 h-0.5 bg-brand-dark" />}
           </button>
         </div>
 
-        <div className="flex gap-3 pb-2">
+        <div className="flex flex-wrap gap-2.5 pb-2">
+          {activeTab === 'hoje' && (
+            <button
+              onClick={() => {
+                setFocusTask(null);
+                setIsFocusModeOpen(true);
+              }}
+              className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white rounded-xl font-bold text-xs uppercase tracking-widest hover:shadow-lg transition-all whitespace-nowrap shadow-sm"
+            >
+              <Target size={16} /> Modo Foco
+            </button>
+          )}
+
           {activeTab === 'processos' ? (
             <>
               <button
                 onClick={() => setIsConfiguringProcesses(true)}
-                className="flex items-center gap-2 px-6 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl font-bold text-xs uppercase tracking-widest transition-colors whitespace-nowrap"
+                className="flex items-center gap-2 px-5 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl font-bold text-xs uppercase tracking-widest transition-colors whitespace-nowrap"
               >
                 <Settings2 size={16} /> Configurar Templates
               </button>
               <button
                 onClick={() => setIsAddingProcess(true)}
-                className="flex items-center gap-2 px-6 py-2.5 bg-brand-dark text-white rounded-xl font-bold text-xs uppercase tracking-widest hover:shadow-lg transition-all whitespace-nowrap"
+                className="flex items-center gap-2 px-5 py-2.5 bg-brand-dark text-white rounded-xl font-bold text-xs uppercase tracking-widest hover:shadow-lg transition-all whitespace-nowrap"
               >
                 <Plus size={16} /> Iniciar Processo
               </button>
@@ -350,7 +387,7 @@ export const AgencyTasksTab: React.FC = () => {
               </button>
               <button
                 onClick={() => { setEditingTask(null); setIsAddingTask(true); }}
-                className="flex items-center gap-2 px-6 py-2.5 bg-brand-dark text-white rounded-xl font-bold text-xs uppercase tracking-widest hover:shadow-lg transition-all whitespace-nowrap"
+                className="flex items-center gap-2 px-5 py-2.5 bg-brand-dark text-white rounded-xl font-bold text-xs uppercase tracking-widest hover:shadow-lg transition-all whitespace-nowrap"
               >
                 <Plus size={16} /> Nova Tarefa
               </button>
@@ -359,9 +396,51 @@ export const AgencyTasksTab: React.FC = () => {
         </div>
       </div>
 
-      {activeTab === 'hoje' && <HojeTasks key={`hoje-${refreshKey}`} clients={clients} onEditTask={(t) => { setEditingTask(t); setIsAddingTask(true); }} onRefresh={triggerRefresh} />}
+      {activeTab === 'hoje' && (
+        <HojeTasks 
+          key={`hoje-${refreshKey}`} 
+          clients={clients} 
+          onEditTask={(t) => { setEditingTask(t); setIsAddingTask(true); }} 
+          onRefresh={triggerRefresh}
+          onTasksLoaded={(tasksList) => setTodayTasksForFocus(tasksList)}
+          onStartFocus={handleStartFocusTask}
+          onOpenFocusMode={(tasksList) => {
+            if (tasksList) setTodayTasksForFocus(tasksList);
+            setFocusTask(null);
+            setIsFocusModeOpen(true);
+          }}
+        />
+      )}
+      {activeTab === 'todas' && (
+        <TodasTasks 
+          key={`todas-${refreshKey}`} 
+          clients={clients} 
+          onEditTask={(t) => { setEditingTask(t); setIsAddingTask(true); }} 
+          onRefresh={triggerRefresh}
+          onStartFocus={handleStartFocusTask}
+        />
+      )}
       {activeTab === 'processos' && <ProcessosView key={`proc-${refreshKey}`} clients={clients} />}
-      {activeTab === 'todas' && <TodasTasks key={`todas-${refreshKey}`} clients={clients} onEditTask={(t) => { setEditingTask(t); setIsAddingTask(true); }} onRefresh={triggerRefresh} />}
+      {activeTab === 'visualizador' && <TaskVisualizerTab clients={clients} />}
+
+      {/* Focus Mode Immersive Component */}
+      <AnimatePresence>
+        {isFocusModeOpen && (
+          <FocusMode
+            tasks={todayTasksForFocus}
+            initialTask={focusTask}
+            onClose={() => {
+              setIsFocusModeOpen(false);
+              setFocusTask(null);
+            }}
+            onTaskCompleted={triggerRefresh}
+            onOpenNewTask={() => {
+              setEditingTask(null);
+              setIsAddingTask(true);
+            }}
+          />
+        )}
+      </AnimatePresence>
 
       {/* Drawer Nova/Editar Tarefa */}
       <AnimatePresence>
@@ -371,6 +450,11 @@ export const AgencyTasksTab: React.FC = () => {
             task={editingTask}
             onClose={() => { setIsAddingTask(false); setEditingTask(null); }} 
             onSuccess={() => { setIsAddingTask(false); setEditingTask(null); triggerRefresh(); }}
+            onStartFocus={(t) => {
+              setIsAddingTask(false);
+              setEditingTask(null);
+              handleStartFocusTask(t);
+            }}
           />
         )}
       </AnimatePresence>
@@ -399,7 +483,14 @@ export const AgencyTasksTab: React.FC = () => {
 // ==========================================
 // ABA 1: HOJE
 // ==========================================
-const HojeTasks: React.FC<{ clients: any[], onEditTask: (t: AgencyTask) => void, onRefresh: () => void }> = ({ clients, onEditTask, onRefresh }) => {
+const HojeTasks: React.FC<{ 
+  clients: any[]; 
+  onEditTask: (t: AgencyTask) => void; 
+  onRefresh: () => void;
+  onTasksLoaded?: (tasks: AgencyTask[]) => void;
+  onOpenFocusMode?: (tasks?: AgencyTask[]) => void;
+  onStartFocus?: (task: AgencyTask) => void;
+}> = ({ clients, onEditTask, onRefresh, onTasksLoaded, onOpenFocusMode, onStartFocus }) => {
   const { agencyId } = useAuth();
   const [tasks, setTasks] = useState<AgencyTask[]>([]);
   const [loading, setLoading] = useState(true);
@@ -532,10 +623,9 @@ const HojeTasks: React.FC<{ clients: any[], onEditTask: (t: AgencyTask) => void,
         const activeData = data.filter(task => !task.client || task.client.client_status !== 'cancelled');
 
         const hojeTasks = activeData.filter(task => {
-          const isPending = isTaskPendingInCurrentCycle(task);
-          
+          // BUG FIX REATIVO: Tarefas com recurrence_type === none só aparecem se due_date <= hoje (hoje ou atrasada)
           if (task.recurrence_type === 'none' || !task.recurrence_type) {
-            return task.status === 'pending' && (task.priority === 'urgente' || (task.due_date && task.due_date <= todayString));
+            return task.status === 'pending' && Boolean(task.due_date) && task.due_date <= todayString;
           }
 
           if (task.recurrence_type === 'daily') {
@@ -563,7 +653,11 @@ const HojeTasks: React.FC<{ clients: any[], onEditTask: (t: AgencyTask) => void,
           if (!b.due_date) return -1;
           return a.due_date.localeCompare(b.due_date);
         });
+
         setTasks(sorted);
+        if (onTasksLoaded) {
+          onTasksLoaded(sorted);
+        }
       }
     } catch (err) {
       console.error('Error fetching tasks:', err);
@@ -688,7 +782,7 @@ const HojeTasks: React.FC<{ clients: any[], onEditTask: (t: AgencyTask) => void,
               >
                 <div className="divide-y divide-gray-50">
                    {sortedGroupTasks.map(task => (
-                     <SortableTaskListItem key={task.id} task={task} onToggle={() => toggleStatus(task)} onEdit={() => onEditTask(task)} isTodayView />
+                     <SortableTaskListItem key={task.id} task={task} onToggle={() => toggleStatus(task)} onEdit={() => onEditTask(task)} onStartFocus={onStartFocus} isTodayView />
                    ))}
                 </div>
               </SortableContext>
@@ -738,7 +832,7 @@ const HojeTasks: React.FC<{ clients: any[], onEditTask: (t: AgencyTask) => void,
                               className="overflow-hidden space-y-2 mt-3 pt-3 border-t border-green-200/60 opacity-80"
                            >
                               {sortedCompletedRotinaDia.map(task => (
-                                 <TaskListItem key={task.id} task={task} onToggle={() => toggleStatus(task)} onEdit={() => onEditTask(task)} isTodayView />
+                                 <TaskListItem key={task.id} task={task} onToggle={() => toggleStatus(task)} onEdit={() => onEditTask(task)} onStartFocus={onStartFocus} isTodayView />
                               ))}
                            </motion.div>
                         )}
@@ -758,7 +852,7 @@ const HojeTasks: React.FC<{ clients: any[], onEditTask: (t: AgencyTask) => void,
                     >
                       <div className="space-y-2">
                          {pendingRotinaDia.map(task => (
-                            <SortableTaskListItem key={task.id} task={task} onToggle={() => toggleStatus(task)} onEdit={() => onEditTask(task)} isTodayView />
+                            <SortableTaskListItem key={task.id} task={task} onToggle={() => toggleStatus(task)} onEdit={() => onEditTask(task)} onStartFocus={onStartFocus} isTodayView />
                          ))}
                       </div>
                     </SortableContext>
@@ -786,7 +880,7 @@ const HojeTasks: React.FC<{ clients: any[], onEditTask: (t: AgencyTask) => void,
                                  className="overflow-hidden space-y-2 mt-4 opacity-70 grayscale-[0.2]"
                               >
                                  {sortedCompletedRotinaDia.map(task => (
-                                    <TaskListItem key={task.id} task={task} onToggle={() => toggleStatus(task)} onEdit={() => onEditTask(task)} isTodayView />
+                                    <TaskListItem key={task.id} task={task} onToggle={() => toggleStatus(task)} onEdit={() => onEditTask(task)} onStartFocus={onStartFocus} isTodayView />
                                  ))}
                               </motion.div>
                            )}
@@ -836,7 +930,7 @@ const HojeTasks: React.FC<{ clients: any[], onEditTask: (t: AgencyTask) => void,
                               className="overflow-hidden space-y-2 mt-3 pt-3 border-t border-green-200/60 opacity-80"
                            >
                               {sortedCompletedRotinaSemana.map(task => (
-                                 <TaskListItem key={task.id} task={task} onToggle={() => toggleStatus(task)} onEdit={() => onEditTask(task)} isTodayView />
+                                 <TaskListItem key={task.id} task={task} onToggle={() => toggleStatus(task)} onEdit={() => onEditTask(task)} onStartFocus={onStartFocus} isTodayView />
                               ))}
                            </motion.div>
                         )}
@@ -856,7 +950,7 @@ const HojeTasks: React.FC<{ clients: any[], onEditTask: (t: AgencyTask) => void,
                     >
                       <div className="space-y-2">
                          {pendingRotinaSemana.map(task => (
-                            <SortableTaskListItem key={task.id} task={task} onToggle={() => toggleStatus(task)} onEdit={() => onEditTask(task)} isTodayView />
+                            <SortableTaskListItem key={task.id} task={task} onToggle={() => toggleStatus(task)} onEdit={() => onEditTask(task)} onStartFocus={onStartFocus} isTodayView />
                          ))}
                       </div>
                     </SortableContext>
@@ -884,7 +978,7 @@ const HojeTasks: React.FC<{ clients: any[], onEditTask: (t: AgencyTask) => void,
                                  className="overflow-hidden space-y-2 mt-4 opacity-70 grayscale-[0.2]"
                               >
                                  {sortedCompletedRotinaSemana.map(task => (
-                                    <TaskListItem key={task.id} task={task} onToggle={() => toggleStatus(task)} onEdit={() => onEditTask(task)} isTodayView />
+                                    <TaskListItem key={task.id} task={task} onToggle={() => toggleStatus(task)} onEdit={() => onEditTask(task)} onStartFocus={onStartFocus} isTodayView />
                                  ))}
                               </motion.div>
                            )}
@@ -934,7 +1028,7 @@ const HojeTasks: React.FC<{ clients: any[], onEditTask: (t: AgencyTask) => void,
                               className="overflow-hidden space-y-2 mt-3 pt-3 border-t border-green-200/60 opacity-80"
                            >
                               {sortedCompletedRotinaMes.map(task => (
-                                 <TaskListItem key={task.id} task={task} onToggle={() => toggleStatus(task)} onEdit={() => onEditTask(task)} isTodayView />
+                                 <TaskListItem key={task.id} task={task} onToggle={() => toggleStatus(task)} onEdit={() => onEditTask(task)} onStartFocus={onStartFocus} isTodayView />
                               ))}
                            </motion.div>
                         )}
@@ -957,7 +1051,7 @@ const HojeTasks: React.FC<{ clients: any[], onEditTask: (t: AgencyTask) => void,
                           >
                             <div className="space-y-2">
                                {pendingRotinaMes.map(task => (
-                                  <SortableTaskListItem key={task.id} task={task} onToggle={() => toggleStatus(task)} onEdit={() => onEditTask(task)} isTodayView />
+                                  <SortableTaskListItem key={task.id} task={task} onToggle={() => toggleStatus(task)} onEdit={() => onEditTask(task)} onStartFocus={onStartFocus} isTodayView />
                                ))}
                             </div>
                           </SortableContext>
@@ -969,7 +1063,7 @@ const HojeTasks: React.FC<{ clients: any[], onEditTask: (t: AgencyTask) => void,
                         <div className="space-y-2 pt-2 border-t border-gray-200/40 first:pt-0 first:border-00">
                            <div className="text-[10px] uppercase font-bold text-gray-400 tracking-wider mb-2">Futuras Aberturas deste Mês</div>
                            {notStartedRotinaMes.map(task => (
-                              <TaskListItem key={task.id} task={task} onToggle={() => toggleStatus(task)} onEdit={() => onEditTask(task)} isTodayView />
+                              <TaskListItem key={task.id} task={task} onToggle={() => toggleStatus(task)} onEdit={() => onEditTask(task)} onStartFocus={onStartFocus} isTodayView />
                            ))}
                         </div>
                      )}
@@ -997,7 +1091,7 @@ const HojeTasks: React.FC<{ clients: any[], onEditTask: (t: AgencyTask) => void,
                                  className="overflow-hidden space-y-2 mt-4 opacity-70 grayscale-[0.2]"
                               >
                                  {sortedCompletedRotinaMes.map(task => (
-                                    <TaskListItem key={task.id} task={task} onToggle={() => toggleStatus(task)} onEdit={() => onEditTask(task)} isTodayView />
+                                    <TaskListItem key={task.id} task={task} onToggle={() => toggleStatus(task)} onEdit={() => onEditTask(task)} onStartFocus={onStartFocus} isTodayView />
                                  ))}
                               </motion.div>
                            )}
@@ -1413,11 +1507,17 @@ const ProcessChecklistView: React.FC<{ process: any, agencyId: number, onBack: (
 };
 
 // ==========================================
-// ABA 3: TODAS AS TAREFAS
+// ABA 2: TODAS AS TAREFAS
 // ==========================================
-const TodasTasks: React.FC<{ clients: any[], onEditTask: (t: AgencyTask) => void, onRefresh: () => void }> = ({ clients, onEditTask, onRefresh }) => {
+const TodasTasks: React.FC<{ 
+  clients: any[]; 
+  onEditTask: (t: AgencyTask) => void; 
+  onRefresh: () => void;
+  onStartFocus?: (task: AgencyTask) => void;
+}> = ({ clients, onEditTask, onRefresh, onStartFocus }) => {
   const { agencyId } = useAuth();
   const [tasks, setTasks] = useState<AgencyTask[]>([]);
+  const [sessionDurations, setSessionDurations] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
   const [filterClient, setFilterClient] = useState('all');
   const [isCompletedExpanded, setIsCompletedExpanded] = useState(false);
@@ -1457,11 +1557,42 @@ const TodasTasks: React.FC<{ clients: any[], onEditTask: (t: AgencyTask) => void
         const activeTasks = data.filter(t => !t.client || t.client.client_status !== 'cancelled');
         setTasks(activeTasks);
       }
+
+      // Fetch Pomodoro session durations for tasks
+      try {
+        const { data: sData } = await supabase
+          .from('task_sessions')
+          .select('task_id, duration_seconds')
+          .eq('agency_id', agencyId);
+
+        if (sData) {
+          const map: Record<string, number> = {};
+          sData.forEach((s: any) => {
+            if (s.task_id) {
+              map[s.task_id] = (map[s.task_id] || 0) + (s.duration_seconds || 0);
+            }
+          });
+          setSessionDurations(map);
+        }
+      } catch (err) {
+        console.warn('Erro ao carregar sessões em todas as tarefas:', err);
+      }
     } catch (err) {
       console.error('Error fetching todas tasks:', err);
     } finally {
       setLoading(false);
     }
+  };
+
+  const formatTaskDuration = (sec: number) => {
+    if (!sec || sec <= 0) return null;
+    const mins = Math.floor(sec / 60);
+    const hrs = Math.floor(mins / 60);
+    const remainMins = mins % 60;
+    if (hrs > 0) {
+      return `${hrs}h ${remainMins > 0 ? `${remainMins}m` : ''}`.trim();
+    }
+    return `${Math.max(1, mins)} min`;
   };
 
   const toggleStatus = async (task: AgencyTask) => {
@@ -1638,7 +1769,7 @@ const TodasTasks: React.FC<{ clients: any[], onEditTask: (t: AgencyTask) => void
               >
                 <div className="divide-y divide-gray-50">
                    {sortedGroupTasks.map(task => (
-                     <SortableTaskListItem key={task.id} task={task} onToggle={() => toggleStatus(task)} onEdit={() => onEditTask(task)} isTodayView />
+                     <SortableTaskListItem key={task.id} task={task} onToggle={() => toggleStatus(task)} onEdit={() => onEditTask(task)} onStartFocus={onStartFocus} isTodayView />
                    ))}
                 </div>
               </SortableContext>
@@ -1731,12 +1862,12 @@ const TodasTasks: React.FC<{ clients: any[], onEditTask: (t: AgencyTask) => void
             <div className="pt-6 border-t border-gray-100 mt-6">
               <button
                 onClick={() => setIsCompletedExpanded(!isCompletedExpanded)}
-                className="flex items-center gap-2 text-[11px] font-extrabold text-gray-400 hover:text-brand-dark uppercase tracking-widest transition-colors mx-auto"
+                className="flex items-center gap-2 text-[11px] font-extrabold text-gray-400 hover:text-brand-dark uppercase tracking-widest transition-colors mx-auto group"
               >
                 <span>
                   {isCompletedExpanded 
-                    ? `Ocultar ${completedTasks.length} tarefas concluídas ▴`
-                    : `Ver ${completedTasks.length} tarefas concluídas ▾`
+                    ? `▲ Ocultar Tarefas Concluídas (${completedTasks.length})` 
+                    : `▼ Tarefas Concluídas (${completedTasks.length})`
                   }
                 </span>
               </button>
@@ -1747,11 +1878,57 @@ const TodasTasks: React.FC<{ clients: any[], onEditTask: (t: AgencyTask) => void
                     initial={{ height: 0, opacity: 0 }}
                     animate={{ height: 'auto', opacity: 1 }}
                     exit={{ height: 0, opacity: 0 }}
-                    className="overflow-hidden space-y-2 mt-4 opacity-70 grayscale-[0.2]"
+                    className="overflow-hidden space-y-2 mt-4"
                   >
-                    {sortedCompleted.map(task => (
-                      <TaskListItem key={task.id} task={task} onToggle={() => toggleStatus(task)} onEdit={() => onEditTask(task)} />
-                    ))}
+                    <div className="divide-y divide-gray-100 rounded-2xl border border-gray-100 bg-gray-50/50 overflow-hidden">
+                      {sortedCompleted.map(task => {
+                        const durationStr = sessionDurations[task.id] ? formatTaskDuration(sessionDurations[task.id]) : null;
+                        const clientName = task.client?.name || 'Canguru Digital';
+                        const completedDateStr = task.completed_at ? dayjs(task.completed_at).format('DD/MM/YYYY') : 'recentemente';
+
+                        return (
+                          <div 
+                            key={task.id}
+                            className="p-3.5 sm:px-5 flex items-center justify-between gap-3 text-xs hover:bg-white transition-colors group"
+                          >
+                            <div className="flex items-center gap-3 min-w-0">
+                              <button
+                                onClick={() => toggleStatus(task)}
+                                title="Reabrir tarefa (marcar como pendente)"
+                                className="w-5 h-5 rounded-md bg-emerald-50 text-emerald-600 border border-emerald-200 flex items-center justify-center shrink-0 hover:bg-emerald-100 transition-colors"
+                              >
+                                <CheckCircle2 size={13} />
+                              </button>
+                              
+                              <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 min-w-0">
+                                <span className="font-semibold text-gray-600 line-through truncate max-w-sm">
+                                  {task.title}
+                                </span>
+                                
+                                <span className="text-gray-400 text-[11px] shrink-0">
+                                  — concluída em {completedDateStr}
+                                </span>
+
+                                {durationStr && (
+                                  <span className="inline-flex items-center gap-1 font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded text-[10px] shrink-0 border border-blue-100/60">
+                                    <Clock size={11} /> {durationStr}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+
+                            <div className="flex items-center gap-2 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <button
+                                onClick={() => onEditTask(task)}
+                                className="p-1.5 hover:bg-gray-100 text-gray-400 hover:text-gray-700 rounded-lg text-[10px] font-bold uppercase transition-colors"
+                              >
+                                <Edit2 size={13} />
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
                   </motion.div>
                 )}
               </AnimatePresence>
@@ -1772,7 +1949,8 @@ const SortableTaskListItem: React.FC<{
   onToggle: () => void; 
   onEdit: () => void; 
   isTodayView?: boolean;
-}> = ({ task, onToggle, onEdit, isTodayView }) => {
+  onStartFocus?: (task: AgencyTask) => void;
+}> = ({ task, onToggle, onEdit, isTodayView, onStartFocus }) => {
   const {
     attributes,
     listeners,
@@ -1797,12 +1975,20 @@ const SortableTaskListItem: React.FC<{
         onEdit={onEdit} 
         isTodayView={isTodayView} 
         isDragging={isDragging} 
+        onStartFocus={onStartFocus}
       />
     </div>
   );
 };
 
-const TaskListItem: React.FC<{ task: AgencyTask, onToggle: () => void, onEdit: () => void, isTodayView?: boolean, isDragging?: boolean }> = ({ task, onToggle, onEdit, isTodayView, isDragging }) => {
+const TaskListItem: React.FC<{ 
+  task: AgencyTask, 
+  onToggle: () => void, 
+  onEdit: () => void, 
+  isTodayView?: boolean, 
+  isDragging?: boolean,
+  onStartFocus?: (task: AgencyTask) => void 
+}> = ({ task, onToggle, onEdit, isTodayView, isDragging, onStartFocus }) => {
   const [showDetailModal, setShowDetailModal] = useState(false);
   const isDone = !isTaskPendingInCurrentCycle(task);
   const isOverdue = (task.recurrence_type === 'weekly' && isWeeklyTaskOverdue(task)) || 
@@ -1902,6 +2088,21 @@ const TaskListItem: React.FC<{ task: AgencyTask, onToggle: () => void, onEdit: (
                 </span>
               )}
 
+              {!isDone && !isMonthlyNotStarted && onStartFocus && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onStartFocus(task);
+                  }}
+                  className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider bg-amber-500 hover:bg-amber-600 text-white shadow-xs transition-all hover:scale-105 active:scale-95 whitespace-nowrap"
+                  title="Iniciar esta tarefa no Modo Foco (Pomodoro)"
+                >
+                  <Flame size={12} className="fill-white" />
+                  <span>Foco</span>
+                </button>
+              )}
+
               {isDone && task.completed_at && (
                 <span className="flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider whitespace-nowrap text-green-600 bg-green-50 border border-green-100">
                   <Clock size={12} />
@@ -1919,7 +2120,16 @@ const TaskListItem: React.FC<{ task: AgencyTask, onToggle: () => void, onEdit: (
           )}
         </div>
         
-        <div className="flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" onClick={(e) => e.stopPropagation()}>
+        <div className="flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+          {!isDone && onStartFocus && (
+            <button 
+              onClick={() => onStartFocus(task)} 
+              className="p-2 text-amber-500 hover:text-amber-600 hover:bg-amber-50 rounded-xl transition-all" 
+              title="Iniciar no Modo Foco"
+            >
+              <Flame size={16} className="fill-amber-500 text-amber-500" />
+            </button>
+          )}
           <button onClick={onEdit} className="p-2 text-gray-400 hover:text-blue-500 hover:bg-blue-50 rounded-xl transition-all" title="Editar tarefa">
             <Edit2 size={16} />
           </button>
@@ -2029,28 +2239,45 @@ const TaskListItem: React.FC<{ task: AgencyTask, onToggle: () => void, onEdit: (
               </div>
 
               {/* Footer Ações */}
-              <div className="flex items-center justify-between gap-3 pt-4 border-t border-gray-100">
-                <button
-                  onClick={() => {
-                    onToggle();
-                    setShowDetailModal(false);
-                  }}
-                  className={`px-5 py-2.5 rounded-xl font-bold text-xs uppercase tracking-wider transition-all flex items-center gap-2 ${isDone ? 'bg-gray-100 text-gray-700 hover:bg-gray-200' : 'bg-green-500 text-white hover:bg-green-600 shadow-sm'}`}
-                >
-                  <CheckCircle2 size={16} />
-                  {isDone ? 'Marcar como Pendente' : 'Concluir Tarefa'}
-                </button>
+              <div className="flex flex-wrap items-center justify-between gap-3 pt-4 border-t border-gray-100">
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => {
+                      onToggle();
+                      setShowDetailModal(false);
+                    }}
+                    className={`px-4 py-2.5 rounded-xl font-bold text-xs uppercase tracking-wider transition-all flex items-center gap-2 ${isDone ? 'bg-gray-100 text-gray-700 hover:bg-gray-200' : 'bg-green-500 text-white hover:bg-green-600 shadow-sm'}`}
+                  >
+                    <CheckCircle2 size={16} />
+                    {isDone ? 'Marcar como Pendente' : 'Concluir'}
+                  </button>
 
-                <button
-                  onClick={() => {
-                    setShowDetailModal(false);
-                    onEdit();
-                  }}
-                  className="px-5 py-2.5 bg-brand-dark/5 hover:bg-brand-dark/10 text-brand-dark rounded-xl font-bold text-xs uppercase tracking-wider transition-all flex items-center gap-2"
-                >
-                  <Edit2 size={16} />
-                  Editar
-                </button>
+                  <button
+                    onClick={() => {
+                      setShowDetailModal(false);
+                      onEdit();
+                    }}
+                    className="px-4 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl font-bold text-xs uppercase tracking-wider transition-all flex items-center gap-2"
+                  >
+                    <Edit2 size={15} />
+                    Editar
+                  </button>
+                </div>
+
+                {!isDone && onStartFocus && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowDetailModal(false);
+                      onStartFocus(task);
+                    }}
+                    className="px-5 py-2.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white rounded-xl font-bold text-xs uppercase tracking-wider transition-all flex items-center gap-2 shadow-sm hover:shadow-md active:scale-95"
+                    title="Iniciar diretamente no Modo Foco Pomodoro"
+                  >
+                    <Flame size={16} className="fill-white text-white" />
+                    Iniciar no Modo Foco
+                  </button>
+                )}
               </div>
             </motion.div>
           </div>
@@ -2073,7 +2300,13 @@ const WEEK_DAYS = [
   { id: 0, label: 'Dom' },
 ];
 
-const TaskFormDrawer: React.FC<{ clients: any[], task?: AgencyTask | null, onClose: () => void, onSuccess: () => void }> = ({ clients, task, onClose, onSuccess }) => {
+const TaskFormDrawer: React.FC<{ 
+  clients: any[]; 
+  task?: AgencyTask | null; 
+  onClose: () => void; 
+  onSuccess: () => void;
+  onStartFocus?: (task: AgencyTask) => void;
+}> = ({ clients, task, onClose, onSuccess, onStartFocus }) => {
   const { agencyId } = useAuth();
   const [form, setForm] = useState<{
     title: string;
@@ -2261,10 +2494,21 @@ const TaskFormDrawer: React.FC<{ clients: any[], task?: AgencyTask | null, onClo
           </form>
         </div>
         
-        <div className="p-6 border-t border-gray-100 flex gap-4 bg-gray-50/50">
+        <div className="p-6 border-t border-gray-100 flex gap-3 bg-gray-50/50">
           {task && (
-            <button type="button" onClick={handleDelete} className="p-4 text-red-500 hover:bg-red-50 rounded-xl transition-all">
+            <button type="button" onClick={handleDelete} className="p-4 text-red-500 hover:bg-red-50 rounded-xl transition-all" title="Excluir tarefa">
               <Trash2 size={24} />
+            </button>
+          )}
+          {task && onStartFocus && task.status !== 'completed' && (
+            <button 
+              type="button" 
+              onClick={() => onStartFocus(task)} 
+              className="px-5 py-4 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white rounded-xl font-bold text-xs uppercase tracking-widest transition-all flex items-center justify-center gap-2 shadow-sm whitespace-nowrap active:scale-95"
+              title="Iniciar esta tarefa no Modo Foco"
+            >
+              <Flame size={16} className="fill-white text-white" />
+              <span>Modo Foco</span>
             </button>
           )}
           <button type="submit" form="task-form" className="flex-1 py-4 bg-brand-dark text-white rounded-xl font-bold uppercase tracking-widest hover:opacity-90 transition-opacity">
