@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { supabase, hashPassword, useAuth } from '../lib/supabase';
 import { Client, ClientLeadConfig } from '../types';
 import { getAnnualOverviewTemplate } from '../constants';
+import { parseCurrencyInput } from '../lib/currencyUtils';
 import dayjs from 'dayjs';
 import { 
   ArrowLeft, 
@@ -135,7 +136,7 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
   const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
   const [cancelDate, setCancelDate] = useState('');
   const [cancelLastPaymentDate, setCancelLastPaymentDate] = useState('');
-  const [cancelLastPaymentValue, setCancelLastPaymentValue] = useState<number>(0);
+  const [cancelLastPaymentValue, setCancelLastPaymentValue] = useState<number | string>('');
   const [showInactive, setShowInactive] = useState(false);
   const [clientContract, setClientContract] = useState<any | null>(null);
   const [loadingContract, setLoadingContract] = useState(false);
@@ -204,7 +205,7 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
     traffic_platforms: [] as string[],
     password: '',
     logo_url: '',
-    base_value: 0,
+    base_value: '' as string | number,
     due_day: 10,
     briefings_waived: false,
     is_lead_tracking_enabled: false,
@@ -214,7 +215,7 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
     service_end_date: '',
     cancelled_at: '',
     last_payment_date: '',
-    last_payment_value: null as number | null,
+    last_payment_value: '' as string | number | null,
   });
   const [uploading, setUploading] = useState(false);
   const [newContractLinkInfo, setNewContractLinkInfo] = useState<{ clientId: string, token: string } | null>(null);
@@ -304,7 +305,7 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
         social_networks: socialNetworks,
         traffic_platforms: form.traffic_platforms,
         logo_url: form.logo_url || null,
-        base_value: form.base_value,
+        base_value: parseCurrencyInput(form.base_value),
         due_day: form.due_day,
         briefings_waived: form.briefings_waived,
         features_settings: form.features_settings,
@@ -315,7 +316,7 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
         service_end_date: form.client_type === 'one_time' ? (form.service_end_date || null) : null,
         cancelled_at: (editingClientId && form.client_status === 'cancelled') ? (form.cancelled_at || null) : null,
         last_payment_date: (editingClientId && form.client_status === 'cancelled') ? (form.last_payment_date || null) : null,
-        last_payment_value: (editingClientId && form.client_status === 'cancelled') ? (form.last_payment_value || null) : null,
+        last_payment_value: (editingClientId && form.client_status === 'cancelled') ? (parseCurrencyInput(form.last_payment_value) || null) : null,
       };
 
       let clientData;
@@ -620,7 +621,7 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
       traffic_platforms: client.traffic_platforms || [],
       password: '', // Não carregamos a senha
       logo_url: client.logo_url || '',
-      base_value: client.base_value || 0,
+      base_value: client.base_value !== undefined && client.base_value !== null ? String(client.base_value).replace('.', ',') : '',
       due_day: client.due_day || 10,
       briefings_waived: client.briefings_waived || false,
       is_lead_tracking_enabled: leadConfig?.is_enabled || false,
@@ -630,7 +631,7 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
       service_end_date: client.service_end_date || '',
       cancelled_at: client.cancelled_at || '',
       last_payment_date: client.last_payment_date || '',
-      last_payment_value: client.last_payment_value !== undefined ? client.last_payment_value : null,
+      last_payment_value: client.last_payment_value !== undefined && client.last_payment_value !== null ? String(client.last_payment_value).replace('.', ',') : '',
       ...{ 
         kanban_stages: leadConfig?.kanban_stages || ['Novo Lead', 'Em Contato', 'Reunião Agendada', 'Proposta Enviada', 'Fechado'], 
         specialty_options: leadConfig?.specialty_options || [] 
@@ -670,7 +671,7 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
     setCancellingClient(client);
     setCancelDate(new Date().toISOString().split('T')[0]);
     setCancelLastPaymentDate('');
-    setCancelLastPaymentValue(client.base_value || 0);
+    setCancelLastPaymentValue(client.base_value !== undefined && client.base_value !== null ? String(client.base_value).replace('.', ',') : '');
     setIsCancelModalOpen(true);
   };
 
@@ -688,7 +689,7 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
           is_active: false,
           cancelled_at: cancelDate,
           last_payment_date: cancelLastPaymentDate || null,
-          last_payment_value: cancelLastPaymentValue || null
+          last_payment_value: parseCurrencyInput(cancelLastPaymentValue) || null
         })
         .eq('id', cancellingClient.id);
 
@@ -1100,10 +1101,11 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
                   <div>
                     <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Valor Base Mensal (R$)</label>
                     <input 
-                      type="number" 
-                      value={form.base_value} 
-                      onChange={e => setForm(f => ({...f, base_value: Number(e.target.value)}))}
-                      placeholder="Ex: 1500"
+                      type="text" 
+                      inputMode="decimal"
+                      value={form.base_value ?? ''} 
+                      onChange={e => setForm(f => ({...f, base_value: e.target.value}))}
+                      placeholder="Ex: 1500,00"
                       className="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" 
                     />
                   </div>
@@ -1162,10 +1164,11 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
                     <div>
                       <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Valor do Último Pagamento (R$)</label>
                       <input 
-                        type="number" 
-                        value={form.last_payment_value === null ? '' : form.last_payment_value} 
-                        onChange={e => setForm(f => ({...f, last_payment_value: e.target.value === '' ? null : Number(e.target.value)}))}
-                        placeholder="Ex: 1500"
+                        type="text" 
+                        inputMode="decimal"
+                        value={form.last_payment_value === null || form.last_payment_value === undefined ? '' : form.last_payment_value} 
+                        onChange={e => setForm(f => ({...f, last_payment_value: e.target.value}))}
+                        placeholder="Ex: 1500,00"
                         className="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-500 bg-white" 
                       />
                     </div>
@@ -1953,10 +1956,11 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
                   Valor do último pagamento (R$) (Opcional)
                 </label>
                 <input 
-                  type="number" 
-                  value={cancelLastPaymentValue === 0 ? '' : cancelLastPaymentValue} 
-                  onChange={e => setCancelLastPaymentValue(Number(e.target.value))}
-                  placeholder="Ex: 1500"
+                  type="text" 
+                  inputMode="decimal"
+                  value={cancelLastPaymentValue ?? ''} 
+                  onChange={e => setCancelLastPaymentValue(e.target.value)}
+                  placeholder="Ex: 1500,00"
                   className="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" 
                 />
               </div>

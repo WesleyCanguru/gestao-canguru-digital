@@ -55,6 +55,7 @@ import {
   Cell 
 } from 'recharts';
 import { useAgencyFinanceiro } from '../../hooks/useAgencyFinanceiro';
+import { parseCurrencyInput } from '../../lib/currencyUtils';
 import dayjs from 'dayjs';
 
 export const FinanceiroTab: React.FC = () => {
@@ -109,18 +110,31 @@ export const FinanceiroTab: React.FC = () => {
   const [showSporadicModal, setShowSporadicModal] = useState(false);
   const [deletingSporadicBilling, setDeletingSporadicBilling] = useState<any>(null);
   const [editingBilling, setEditingBilling] = useState<any>(null);
-  const [newSporadicBilling, setNewSporadicBilling] = useState({
+  const [newSporadicBilling, setNewSporadicBilling] = useState<{
+    sporadic_name: string;
+    base_value: string | number;
+    due_day: number;
+    notes: string;
+  }>({
     sporadic_name: '',
-    base_value: 0,
+    base_value: '',
     due_day: 10,
     notes: ''
   });
-  const [newExpense, setNewExpense] = useState({ 
+  const [newExpense, setNewExpense] = useState<{
+    description: string;
+    category: 'fixed' | 'variable';
+    expense_type: 'tools' | 'freelancers' | 'extras';
+    origin: 'canguru' | 'kanoa' | 'pessoal';
+    amount: string | number;
+    due_day: number;
+    notes: string;
+  }>({ 
     description: '', 
-    category: 'fixed' as 'fixed' | 'variable', 
-    expense_type: 'tools' as 'tools' | 'freelancers' | 'extras',
-    origin: 'canguru' as 'canguru' | 'kanoa' | 'pessoal',
-    amount: 0,
+    category: 'fixed', 
+    expense_type: 'tools',
+    origin: 'canguru',
+    amount: '',
     due_day: 10,
     notes: ''
   });
@@ -283,12 +297,14 @@ export const FinanceiroTab: React.FC = () => {
       due_date = dayjs(currentMonthYear).date(newExpense.due_day || 10).format('YYYY-MM-DD');
     }
 
+    const parsedAmount = parseCurrencyInput(newExpense.amount);
+
     await addExpense({ 
       description: newExpense.description,
       category: newExpense.category,
       expense_type: newExpense.expense_type,
       origin: newExpense.origin,
-      amount: newExpense.amount,
+      amount: parsedAmount,
       month_year: currentMonthYear,
       due_date,
       due_day: newExpense.due_day,
@@ -299,7 +315,7 @@ export const FinanceiroTab: React.FC = () => {
     });
     
     setShowExpenseModal(false);
-    setNewExpense({ description: '', category: 'fixed', expense_type: 'tools', origin: 'canguru', amount: 0, due_day: 10, notes: '' });
+    setNewExpense({ description: '', category: 'fixed', expense_type: 'tools', origin: 'canguru', amount: '', due_day: 10, notes: '' });
   };
 
   const handleMarkExpensePaid = async (expense: any, paidAt?: string) => {
@@ -339,19 +355,20 @@ export const FinanceiroTab: React.FC = () => {
 
   const handleAddSporadicBilling = async (e: React.FormEvent) => {
     e.preventDefault();
+    const parsedBase = parseCurrencyInput(newSporadicBilling.base_value);
     await updateBilling({
       is_sporadic: true,
       sporadic_name: newSporadicBilling.sporadic_name,
-      base_value: newSporadicBilling.base_value,
+      base_value: parsedBase,
       extra_value: 0,
-      total_value: newSporadicBilling.base_value,
+      total_value: parsedBase,
       due_day: newSporadicBilling.due_day,
       notes: newSporadicBilling.notes,
       month_year: currentMonthYear,
       status: 'pending'
     });
     setShowSporadicModal(false);
-    setNewSporadicBilling({ sporadic_name: '', base_value: 0, due_day: 10, notes: '' });
+    setNewSporadicBilling({ sporadic_name: '', base_value: '', due_day: 10, notes: '' });
   };
 
   const handleUpdateBilling = async (e: React.FormEvent) => {
@@ -359,7 +376,14 @@ export const FinanceiroTab: React.FC = () => {
     if (editingBilling && !isUpdating) {
       setIsUpdating(true);
       try {
-        await updateBilling(editingBilling);
+        const base = parseCurrencyInput(editingBilling.base_value);
+        const extra = parseCurrencyInput(editingBilling.extra_value);
+        await updateBilling({
+          ...editingBilling,
+          base_value: base,
+          extra_value: extra,
+          total_value: base + extra
+        });
         setEditingBilling(null);
       } catch (error) {
         console.error('Failed to update billing:', error);
@@ -373,8 +397,17 @@ export const FinanceiroTab: React.FC = () => {
     const dueDay = expense.due_day || (expense.due_date ? dayjs(expense.due_date).date() : 10);
     setEditingExpense({
       ...expense,
+      amount: expense.amount !== undefined && expense.amount !== null ? String(expense.amount).replace('.', ',') : '',
       due_day: dueDay,
       origin: expense.origin || 'canguru'
+    });
+  };
+
+  const startEditingBilling = (billing: any) => {
+    setEditingBilling({
+      ...billing,
+      base_value: billing.base_value !== undefined && billing.base_value !== null ? String(billing.base_value).replace('.', ',') : '',
+      extra_value: billing.extra_value !== undefined && billing.extra_value !== null ? String(billing.extra_value).replace('.', ',') : ''
     });
   };
 
@@ -391,12 +424,14 @@ export const FinanceiroTab: React.FC = () => {
       due_date = null;
     }
 
+    const parsedAmount = parseCurrencyInput(editingExpense.amount);
+
     const payload = {
       description: editingExpense.description,
       category: editingExpense.category,
       expense_type: editingExpense.expense_type,
       origin: editingExpense.origin,
-      amount: editingExpense.amount,
+      amount: parsedAmount,
       due_date,
       due_day: editingExpense.due_day,
       notes: editingExpense.notes,
@@ -1219,7 +1254,7 @@ export const FinanceiroTab: React.FC = () => {
                   <div className="flex items-center gap-2 pt-1">
                     <button 
                       type="button"
-                      onClick={() => setEditingBilling(billing)}
+                      onClick={() => startEditingBilling(billing)}
                       className="flex-1 p-2.5 text-blue-600 bg-blue-50/50 hover:bg-blue-100 rounded-xl transition-all flex items-center justify-center gap-2 text-xs font-bold"
                     >
                       <Edit2 size={14} /> Editar
@@ -1313,7 +1348,7 @@ export const FinanceiroTab: React.FC = () => {
                         <div className="flex items-center gap-2">
                           <button 
                             type="button"
-                            onClick={() => setEditingBilling(billing)}
+                            onClick={() => startEditingBilling(billing)}
                             className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-all"
                             title="Editar Detalhes"
                           >
@@ -1735,12 +1770,11 @@ export const FinanceiroTab: React.FC = () => {
                     Valor Estimado (R$) *
                   </label>
                   <input 
-                    type="number" 
+                    type="text" 
+                    inputMode="decimal"
                     required
-                    step="0.01"
-                    min="0"
-                    value={newExpense.amount || ''}
-                    onChange={(e) => setNewExpense({ ...newExpense, amount: Number(e.target.value) })}
+                    value={newExpense.amount}
+                    onChange={(e) => setNewExpense({ ...newExpense, amount: e.target.value })}
                     className="w-full px-4 py-3 bg-stone-50 border border-stone-200/80 rounded-2xl focus:bg-white focus:border-emerald-600 focus:ring-2 focus:ring-emerald-600/10 transition-all outline-none text-sm font-medium text-brand-dark"
                     placeholder="0,00"
                   />
@@ -1877,11 +1911,11 @@ export const FinanceiroTab: React.FC = () => {
                 <div className="space-y-2">
                   <label className="text-[10px] uppercase tracking-widest font-bold text-gray-400 ml-1">Valor (R$)</label>
                   <input 
-                    type="number" 
+                    type="text" 
+                    inputMode="decimal"
                     required
-                    step="0.01"
                     value={newSporadicBilling.base_value}
-                    onChange={(e) => setNewSporadicBilling({ ...newSporadicBilling, base_value: Number(e.target.value) })}
+                    onChange={(e) => setNewSporadicBilling({ ...newSporadicBilling, base_value: e.target.value })}
                     className="w-full px-4 py-3 bg-gray-50 border border-transparent rounded-2xl focus:bg-white focus:border-blue-600 transition-all outline-none text-sm font-medium"
                     placeholder="0,00"
                   />
@@ -1953,21 +1987,24 @@ export const FinanceiroTab: React.FC = () => {
                 <div className="space-y-2">
                   <label className="text-[10px] uppercase tracking-widest font-bold text-gray-400 ml-1">Valor Base (R$)</label>
                   <input 
-                    type="number" 
+                    type="text" 
+                    inputMode="decimal"
                     required
-                    value={editingBilling.base_value}
-                    onChange={(e) => setEditingBilling({ ...editingBilling, base_value: Number(e.target.value) })}
+                    value={editingBilling.base_value ?? ''}
+                    onChange={(e) => setEditingBilling({ ...editingBilling, base_value: e.target.value })}
                     className="w-full px-4 py-3 bg-gray-50 border border-transparent rounded-2xl focus:bg-white focus:border-blue-600 transition-all outline-none text-sm font-medium"
+                    placeholder="0,00"
                   />
                 </div>
                 <div className="space-y-2">
                   <label className="text-[10px] uppercase tracking-widest font-bold text-gray-400 ml-1">Extras (R$)</label>
                   <input 
-                    type="number" 
-                    required
-                    value={editingBilling.extra_value}
-                    onChange={(e) => setEditingBilling({ ...editingBilling, extra_value: Number(e.target.value) })}
+                    type="text" 
+                    inputMode="decimal"
+                    value={editingBilling.extra_value ?? ''}
+                    onChange={(e) => setEditingBilling({ ...editingBilling, extra_value: e.target.value })}
                     className="w-full px-4 py-3 bg-gray-50 border border-transparent rounded-2xl focus:bg-white focus:border-blue-600 transition-all outline-none text-sm font-medium"
+                    placeholder="0,00"
                   />
                 </div>
                 
@@ -2131,13 +2168,13 @@ export const FinanceiroTab: React.FC = () => {
                     Valor (R$) *
                   </label>
                   <input 
-                    type="number" 
+                    type="text" 
+                    inputMode="decimal"
                     required
-                    step="0.01"
-                    min="0"
-                    value={editingExpense.amount}
-                    onChange={(e) => setEditingExpense({ ...editingExpense, amount: Number(e.target.value) })}
+                    value={editingExpense.amount ?? ''}
+                    onChange={(e) => setEditingExpense({ ...editingExpense, amount: e.target.value })}
                     className="w-full px-4 py-3 bg-stone-50 border border-stone-200/80 rounded-2xl focus:bg-white focus:border-emerald-600 focus:ring-2 focus:ring-emerald-600/10 transition-all outline-none text-sm font-medium text-brand-dark"
+                    placeholder="0,00"
                   />
                 </div>
 

@@ -3,6 +3,7 @@ import { X, Save, Trash2, Clock, Pause, Play, Edit } from 'lucide-react';
 import { AgencyCRM, AgencyLead } from '../../types';
 import { useAgencyCRM } from '../../hooks/useAgencyCRM';
 import { ConfirmModal } from '../ConfirmModal';
+import { parseCurrencyInput } from '../../lib/currencyUtils';
 
 interface CRMLeadModalProps {
   crm: AgencyCRM;
@@ -32,8 +33,13 @@ export const CRMLeadModal: React.FC<CRMLeadModalProps> = ({ crm, lead, isOpen, o
         : '';
       const temp_custom_loss_reason = lead.loss_reason && !isPredefined ? lead.loss_reason : '';
 
+      const initialFormData = { ...(lead.form_data || {}) };
+      if (initialFormData.deal_value !== undefined && initialFormData.deal_value !== null) {
+        initialFormData.deal_value = String(initialFormData.deal_value).replace('.', ',');
+      }
+
       setFormData({
-        ...(lead.form_data || {}),
+        ...initialFormData,
         temp_loss_reason,
         temp_custom_loss_reason
       });
@@ -73,6 +79,12 @@ export const CRMLeadModal: React.FC<CRMLeadModalProps> = ({ crm, lead, isOpen, o
       const cleanFormData = { ...formData };
       delete cleanFormData.temp_loss_reason;
       delete cleanFormData.temp_custom_loss_reason;
+
+      if (cleanFormData.deal_value !== undefined && cleanFormData.deal_value !== null && cleanFormData.deal_value !== '') {
+        cleanFormData.deal_value = parseCurrencyInput(cleanFormData.deal_value);
+      } else {
+        cleanFormData.deal_value = null;
+      }
 
       if (lead) {
         await updateLead(lead.id, {
@@ -220,12 +232,13 @@ export const CRMLeadModal: React.FC<CRMLeadModalProps> = ({ crm, lead, isOpen, o
               <div className="bg-purple-50/50 border border-purple-100 p-4 rounded-xl space-y-3">
                 <label className="block text-sm font-bold text-purple-900">💜 Valor da Proposta / Negociação (R$)</label>
                 <input
-                  type="number"
-                  value={formData.deal_value || ''}
-                  onChange={(e) => setFormData({ ...formData, deal_value: parseFloat(e.target.value) || null })}
+                  type="text"
+                  inputMode="decimal"
+                  value={formData.deal_value ?? ''}
+                  onChange={(e) => setFormData({ ...formData, deal_value: e.target.value })}
                   disabled={!isEditing}
                   className="w-full px-4 py-2 bg-white border border-purple-200 rounded-xl text-gray-900 focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all disabled:opacity-100 disabled:bg-purple-50/30 disabled:text-purple-900/80 disabled:border-purple-100/80 disabled:cursor-default"
-                  placeholder="Ex: 1500"
+                  placeholder="Ex: 1500,00"
                 />
               </div>
             )}

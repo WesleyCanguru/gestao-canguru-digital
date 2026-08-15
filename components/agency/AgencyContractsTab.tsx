@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase, useAuth } from '../../lib/supabase';
 import { ContractForm, Client } from '../../types';
+import { parseCurrencyInput } from '../../lib/currencyUtils';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 import ptBr from 'dayjs/locale/pt-br';
@@ -195,8 +196,8 @@ const ContractHistoryModal: React.FC<{
 
   const handleAdd = () => {
     if (!selectedMonth || !selectedYear || !newValue) return;
-    const parsedValue = parseFloat(newValue);
-    if (isNaN(parsedValue)) return;
+    const parsedValue = parseCurrencyInput(newValue);
+    if (isNaN(parsedValue) || parsedValue <= 0) return;
 
     const dateFormatted = `${selectedYear}-${selectedMonth}`; 
     
@@ -365,8 +366,9 @@ const ContractHistoryModal: React.FC<{
             <div className="col-span-4">
               <label className="text-[10px] text-gray-400 font-bold uppercase tracking-widest block mb-1">Valor (R$)</label>
               <input
-                type="number"
-                placeholder="1330"
+                type="text"
+                inputMode="decimal"
+                placeholder="1330,00"
                 value={newValue}
                 onChange={(e) => setNewValue(e.target.value)}
                 className="w-full px-2.5 py-2.5 bg-gray-50 border border-transparent rounded-xl focus:bg-white focus:border-brand-dark transition-all outline-none text-xs font-semibold"
@@ -622,7 +624,7 @@ export const AgencyContractsTab: React.FC = () => {
         agency_id: agencyId,
         status: 'signed',
         signed_at: new Date().toISOString(),
-        contract_value: parseFloat(contractValue),
+        contract_value: parseCurrencyInput(contractValue),
         contract_start_date: startDate,
         signed_contract_url: urlData.publicUrl
       };
@@ -1217,12 +1219,12 @@ export const AgencyContractsTab: React.FC = () => {
               <div>
                 <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Valor Mensal (R$) *</label>
                 <input 
-                  type="number" 
-                  step="0.01"
+                  type="text" 
+                  inputMode="decimal"
                   required
                   value={contractValue}
                   onChange={e => setContractValue(e.target.value)}
-                  placeholder="Ex: 1500.00"
+                  placeholder="Ex: 1500,00"
                   className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-brand-dark focus:border-transparent outline-none"
                 />
               </div>

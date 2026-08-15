@@ -43,6 +43,7 @@ import { useAgencyCRM } from '../../hooks/useAgencyCRM';
 import { CRMLeadCard } from './CRMLeadCard';
 import { CRMLeadModal } from './CRMLeadModal';
 import { SortableLeadCard } from './SortableLeadCard';
+import { parseCurrencyInput } from '../../lib/currencyUtils';
 
 class SmartMouseSensor extends MouseSensor {
   static activators = [
@@ -272,7 +273,7 @@ export const CRMBoard: React.FC<CRMBoardProps> = ({ crm }) => {
 
   const handleConfirmProposalValue = async (skip: boolean) => {
     if (proposalValueModal.lead) {
-      const numericValue = skip ? null : parseFloat(proposalValue) || null;
+      const numericValue = skip ? null : parseCurrencyInput(proposalValue) || null;
       
       const updatedFormData = {
         ...(proposalValueModal.lead.form_data || {}),
@@ -1300,7 +1301,8 @@ export const CRMBoard: React.FC<CRMBoardProps> = ({ crm }) => {
               <div className="relative">
                 <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 text-sm font-bold">R$</span>
                 <input
-                  type="number"
+                  type="text"
+                  inputMode="decimal"
                   value={proposalValue}
                   onChange={(e) => setProposalValue(e.target.value)}
                   placeholder="0,00"

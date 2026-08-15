@@ -30,6 +30,7 @@ import {
   Download
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { parseCurrencyInput } from '../lib/currencyUtils';
 import dayjs from 'dayjs';
 import 'dayjs/locale/pt-br';
 import {
@@ -142,11 +143,11 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
   const [leadToWin, setLeadToWin] = useState<string | null>(null);
   const [lossReason, setLossReason] = useState('');
   const [customLossReason, setCustomLossReason] = useState('');
-  const [dealValue, setDealValue] = useState<number>(0);
+  const [dealValue, setDealValue] = useState<number | string>('');
   const [isContractValueModalOpen, setIsContractValueModalOpen] = useState(false);
   const [leadForContractValue, setLeadForContractValue] = useState<string | null>(null);
   const [contractValueStage, setContractValueStage] = useState<string>('');
-  const [estimatedContractValue, setEstimatedContractValue] = useState<number>(0);
+  const [estimatedContractValue, setEstimatedContractValue] = useState<number | string>('');
   const [editingLead, setEditingLead] = useState<ClientLead | null>(null);
   const [selectedMonth, setSelectedMonth] = useState<string>(dayjs().format('YYYY-MM'));
 
@@ -527,7 +528,7 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
 
     if (targetStage === 'Fechado' && activeLead.kanban_stage !== 'Fechado') {
       setLeadToWin(activeId);
-      setDealValue(0);
+      setDealValue(activeLead.deal_value ? String(activeLead.deal_value).replace('.', ',') : '');
       setClosedAtDate('');
       setWinNotes('');
       setIsWonModalOpen(true);
@@ -537,7 +538,7 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
     if (isContractSentStage(targetStage) && activeLead.kanban_stage !== targetStage) {
       setLeadForContractValue(activeId);
       setContractValueStage(targetStage);
-      setEstimatedContractValue(activeLead.deal_value || 0);
+      setEstimatedContractValue(activeLead.deal_value ? String(activeLead.deal_value).replace('.', ',') : '');
       setIsContractValueModalOpen(true);
       return;
     }
@@ -574,8 +575,9 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
     }
 
     if (newStage === 'Fechado') {
+      const lead = leads.find(l => l.id === leadId);
       setLeadToWin(leadId);
-      setDealValue(0);
+      setDealValue(lead?.deal_value ? String(lead.deal_value).replace('.', ',') : '');
       setClosedAtDate('');
       setWinNotes('');
       setIsWonModalOpen(true);
@@ -586,7 +588,7 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
       setLeadForContractValue(leadId);
       setContractValueStage(newStage);
       const lead = leads.find(l => l.id === leadId);
-      setEstimatedContractValue(lead?.deal_value || 0);
+      setEstimatedContractValue(lead?.deal_value ? String(lead.deal_value).replace('.', ',') : '');
       setIsContractValueModalOpen(true);
       return;
     }
@@ -625,7 +627,7 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
       await updateLead(leadToWin, { 
          kanban_stage: 'Fechado', 
          closed: true, 
-         deal_value: dealValue,
+         deal_value: parseCurrencyInput(dealValue),
          closed_at: closedAtDate,
          notes: winNotes || undefined
       });
@@ -644,7 +646,7 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
     try {
       await updateLead(leadForContractValue, {
         kanban_stage: contractValueStage,
-        deal_value: estimatedContractValue,
+        deal_value: parseCurrencyInput(estimatedContractValue),
         quote_sent: true
       });
       setIsContractValueModalOpen(false);
@@ -1770,9 +1772,10 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
                   <div className="relative">
                     <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 font-bold">R$</span>
                     <input 
-                      type="number"
-                      value={dealValue || ''}
-                      onChange={(e) => setDealValue(Number(e.target.value))}
+                      type="text" 
+                      inputMode="decimal"
+                      value={dealValue ?? ''}
+                      onChange={(e) => setDealValue(e.target.value)}
                       className="w-full bg-gray-50 border border-black/[0.05] rounded-2xl py-4 pl-12 pr-4 text-lg font-bold focus:ring-2 focus:ring-brand-green/20 outline-none"
                       placeholder="0,00"
                     />
@@ -1884,9 +1887,10 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
                   <div className="relative">
                     <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 font-bold">R$</span>
                     <input 
-                      type="number"
-                      value={estimatedContractValue || ''}
-                      onChange={(e) => setEstimatedContractValue(Number(e.target.value))}
+                      type="text" 
+                      inputMode="decimal"
+                      value={estimatedContractValue ?? ''}
+                      onChange={(e) => setEstimatedContractValue(e.target.value)}
                       className="w-full bg-gray-50 border border-black/[0.05] rounded-2xl py-4 pl-12 pr-4 text-lg font-bold focus:ring-2 focus:ring-brand-green/20 outline-none"
                       placeholder="0,00"
                       autoFocus
@@ -2077,9 +2081,10 @@ const LeadCard: React.FC<LeadCardProps & { isOverlay?: boolean }> = ({
           <div className="flex items-center gap-1">
             <span className="text-xs font-bold">R$</span>
             <input 
-              type="number"
-              defaultValue={lead.deal_value || 0}
-              onBlur={(e) => onUpdateDealValue(lead.id, Number(e.target.value))}
+              type="text" 
+              inputMode="decimal"
+              defaultValue={lead.deal_value !== undefined && lead.deal_value !== null ? String(lead.deal_value).replace('.', ',') : '0'}
+              onBlur={(e) => onUpdateDealValue(lead.id, parseCurrencyInput(e.target.value))}
               className={`bg-transparent border-none p-0 w-16 text-xs font-bold focus:ring-0 text-right ${
                 isClosed 
                   ? 'text-emerald-700' 
