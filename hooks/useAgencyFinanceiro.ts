@@ -454,7 +454,7 @@ export function useAgencyFinanceiro(monthYear: string) {
     editedData: {
       description: string;
       amount: number;
-      category: 'fixed' | 'variable';
+      category?: 'fixed' | 'variable';
       expense_type?: 'tools' | 'freelancers' | 'extras';
       due_date?: string | null;
       notes?: string | null;
@@ -468,18 +468,22 @@ export function useAgencyFinanceiro(monthYear: string) {
     try {
       if (!agencyId) return;
 
+      const isTargetFixed = targetExpense.is_fixed || targetExpense.category === 'fixed' || Boolean(targetExpense.parent_id);
+
       if (targetExpense.parent_id) {
         // Already a child override
         await updateExpense(targetExpense.id, {
           description: editedData.description,
           amount: editedData.amount,
+          category: editedData.category || (isTargetFixed ? 'fixed' : 'variable'),
+          is_fixed: isTargetFixed,
           expense_type: editedData.expense_type,
           due_date: editedData.due_date,
           notes: editedData.notes,
           paid: editedData.paid,
           paid_at: editedData.paid_at,
           origin: editedData.origin !== undefined ? editedData.origin : targetExpense.origin,
-          due_day: editedData.due_day
+          due_day: editedData.due_day !== undefined ? editedData.due_day : targetExpense.due_day
         });
         return;
       }
@@ -503,11 +507,14 @@ export function useAgencyFinanceiro(monthYear: string) {
       if (motherErr) throw motherErr;
 
       // Insert child override
+      const finalDueDay = editedData.due_day !== undefined ? editedData.due_day : targetExpense.due_day;
+      const finalDueDate = editedData.due_date || (finalDueDay ? `${targetMonthYear}-${String(finalDueDay).padStart(2, '0')}` : null);
+
       const childRawNotes = encodeNotesAndMeta(editedData.notes, {
         parent_id: targetExpense.id,
-        is_fixed: false,
+        is_fixed: isTargetFixed,
         origin: editedData.origin || targetExpense.origin || null,
-        due_day: editedData.due_day
+        due_day: finalDueDay
       });
 
       const { error: childErr } = await supabase
@@ -516,10 +523,10 @@ export function useAgencyFinanceiro(monthYear: string) {
           agency_id: agencyId,
           description: editedData.description,
           amount: editedData.amount,
-          category: 'variable',
-          expense_type: editedData.expense_type || 'tools',
+          category: isTargetFixed ? 'fixed' : (editedData.category || 'variable'),
+          expense_type: editedData.expense_type || targetExpense.expense_type || 'tools',
           month_year: targetMonthYear,
-          due_date: editedData.due_date || null,
+          due_date: finalDueDate,
           paid: editedData.paid ?? false,
           paid_at: editedData.paid_at ?? null,
           notes: childRawNotes,

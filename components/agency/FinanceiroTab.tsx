@@ -139,7 +139,6 @@ export const FinanceiroTab: React.FC = () => {
     due_day: 10,
     notes: ''
   });
-  const [payingExpense, setPayingExpense] = useState<any>(null);
   const [editingExpense, setEditingExpense] = useState<any>(null);
   const [deletingExpense, setDeletingExpense] = useState<any>(null);
   const [pendingEditExpense, setPendingEditExpense] = useState<any>(null);
@@ -319,39 +318,78 @@ export const FinanceiroTab: React.FC = () => {
     setNewExpense({ description: '', category: 'fixed', expense_type: 'tools', origin: 'canguru', amount: '', due_day: 10, notes: '' });
   };
 
+  const [markingExpenseId, setMarkingExpenseId] = useState<string | null>(null);
+
   const handleMarkExpensePaid = async (expense: any, paidAt?: string) => {
-    const isFixed = expense.is_fixed || expense.category === 'fixed';
-    if (expense.category === 'variable' && !paidAt && !expense.parent_id) {
-      setPayingExpense(expense);
-      return;
-    }
+    if (markingExpenseId) return;
+    setMarkingExpenseId(expense.id);
+    try {
+      const isFixed = expense.is_fixed || expense.category === 'fixed' || Boolean(expense.parent_id);
+      const dateToSet = paidAt || new Date().toISOString();
 
-    const dateToSet = paidAt || new Date().toISOString();
-
-    if (isFixed && !expense.parent_id) {
-      await overrideExpenseForMonth(
-        expense,
-        {
-          description: expense.description,
-          amount: expense.amount,
-          category: expense.category,
-          expense_type: expense.expense_type,
-          origin: expense.origin,
-          due_date: expense.due_date,
-          due_day: expense.due_day,
-          notes: expense.notes,
+      if (isFixed && !expense.parent_id) {
+        await overrideExpenseForMonth(
+          expense,
+          {
+            description: expense.description,
+            amount: expense.amount,
+            category: 'fixed',
+            expense_type: expense.expense_type,
+            origin: expense.origin,
+            due_date: expense.due_date,
+            due_day: expense.due_day,
+            notes: expense.notes,
+            paid: true,
+            paid_at: dateToSet
+          },
+          currentMonthYear
+        );
+      } else {
+        await updateExpense(expense.id, {
           paid: true,
           paid_at: dateToSet
-        },
-        currentMonthYear
-      );
-    } else {
-      await updateExpense(expense.id, {
-        paid: true,
-        paid_at: dateToSet
-      });
+        });
+      }
+    } catch (error) {
+      console.error('Error marking expense as paid:', error);
+    } finally {
+      setMarkingExpenseId(null);
     }
-    setPayingExpense(null);
+  };
+
+  const handleUnmarkExpensePaid = async (expense: any) => {
+    if (markingExpenseId) return;
+    setMarkingExpenseId(expense.id);
+    try {
+      const isFixed = expense.is_fixed || expense.category === 'fixed';
+      if (isFixed && !expense.parent_id && expense.month_year !== currentMonthYear) {
+        await overrideExpenseForMonth(
+          expense,
+          {
+            description: expense.description,
+            amount: expense.amount,
+            category: 'fixed',
+            expense_type: expense.expense_type,
+            origin: expense.origin,
+            due_date: expense.due_date,
+            due_day: expense.due_day,
+            notes: expense.notes,
+            paid: false,
+            paid_at: null
+          },
+          currentMonthYear
+        );
+      } else {
+        await updateExpense(expense.id, {
+          paid: false,
+          paid_at: null
+        });
+      }
+    } catch (error) {
+      console.error('Error unmarking expense as paid:', error);
+    } finally {
+      setMarkingExpenseId(null);
+    }
   };
 
   const handleAddSporadicBilling = async (e: React.FormEvent) => {
@@ -1566,18 +1604,20 @@ export const FinanceiroTab: React.FC = () => {
                     {!expense.paid ? (
                       <button 
                         type="button"
+                        disabled={markingExpenseId === expense.id}
                         onClick={() => handleMarkExpensePaid(expense)}
-                        className="flex-1 py-2.5 bg-emerald-600 text-white rounded-xl text-[10px] font-bold uppercase tracking-widest hover:bg-emerald-700 transition-all text-center"
+                        className="flex-1 py-2.5 bg-emerald-600 text-white rounded-xl text-[10px] font-bold uppercase tracking-widest hover:bg-emerald-700 transition-all text-center disabled:opacity-50"
                       >
-                        Marcar Pago
+                        {markingExpenseId === expense.id ? 'Salvando...' : 'Marcar Pago'}
                       </button>
                     ) : (
                       <button 
                         type="button"
-                        onClick={() => updateExpense(expense.id, { paid: false, paid_at: null })}
-                        className="flex-1 py-2.5 bg-gray-100 text-gray-500 rounded-xl text-[10px] font-bold uppercase tracking-widest border border-gray-200 text-center"
+                        disabled={markingExpenseId === expense.id}
+                        onClick={() => handleUnmarkExpensePaid(expense)}
+                        className="flex-1 py-2.5 bg-gray-100 text-gray-500 rounded-xl text-[10px] font-bold uppercase tracking-widest border border-gray-200 text-center hover:bg-rose-50 hover:text-rose-600 transition-all disabled:opacity-50"
                       >
-                        Estornar
+                        {markingExpenseId === expense.id ? 'Salvando...' : 'Estornar'}
                       </button>
                     )}
                     <button 
@@ -1654,18 +1694,20 @@ export const FinanceiroTab: React.FC = () => {
                           {!expense.paid ? (
                             <button 
                               type="button"
+                              disabled={markingExpenseId === expense.id}
                               onClick={() => handleMarkExpensePaid(expense)}
-                              className="px-4 py-2 bg-emerald-600 text-white rounded-xl text-[9px] font-bold uppercase tracking-widest hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-600/10 whitespace-nowrap"
+                              className="px-4 py-2 bg-emerald-600 text-white rounded-xl text-[9px] font-bold uppercase tracking-widest hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-600/10 whitespace-nowrap disabled:opacity-50"
                             >
-                              Marcar Pago
+                              {markingExpenseId === expense.id ? 'Salvando...' : 'Marcar Pago'}
                             </button>
                           ) : (
                             <button 
                               type="button"
-                              onClick={() => updateExpense(expense.id, { paid: false, paid_at: null })}
-                              className="px-4 py-2 bg-gray-50 text-gray-400 rounded-xl text-[9px] font-bold uppercase tracking-widest border border-gray-100 whitespace-nowrap hover:bg-rose-50 hover:text-rose-600 hover:border-rose-100 transition-all"
+                              disabled={markingExpenseId === expense.id}
+                              onClick={() => handleUnmarkExpensePaid(expense)}
+                              className="px-4 py-2 bg-gray-50 text-gray-400 rounded-xl text-[9px] font-bold uppercase tracking-widest border border-gray-100 whitespace-nowrap hover:bg-rose-50 hover:text-rose-600 hover:border-rose-100 transition-all disabled:opacity-50"
                             >
-                              Estornar
+                              {markingExpenseId === expense.id ? 'Salvando...' : 'Estornar'}
                             </button>
                           )}
                           <button 
@@ -2307,44 +2349,6 @@ export const FinanceiroTab: React.FC = () => {
                 </button>
               </div>
             </form>
-          </motion.div>
-        </div>
-      )}
-
-      {/* Date Picker Modal for Variable Expenses */}
-      {payingExpense && (
-        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-brand-dark/20 backdrop-blur-sm">
-          <motion.div 
-            initial={{ opacity: 0, scale: 0.95, y: 20 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            className="bg-white w-full max-w-sm rounded-3xl p-8 shadow-2xl border border-black/[0.03]"
-          >
-            <h3 className="text-lg font-bold text-brand-dark mb-6 text-center">Data de Pagamento</h3>
-            <div className="space-y-6">
-              <input 
-                type="date"
-                defaultValue={dayjs().format('YYYY-MM-DD')}
-                id="payment-date"
-                className="w-full px-4 py-3 bg-gray-50 border border-transparent rounded-2xl focus:bg-white focus:border-blue-600 transition-all outline-none text-sm font-medium"
-              />
-              <div className="flex gap-3">
-                <button 
-                  onClick={() => setPayingExpense(null)}
-                  className="flex-1 px-6 py-3 border border-gray-100 text-gray-400 rounded-2xl font-bold text-xs uppercase tracking-widest hover:bg-gray-50 transition-all"
-                >
-                  Cancelar
-                </button>
-                <button 
-                  onClick={() => {
-                    const date = (document.getElementById('payment-date') as HTMLInputElement).value;
-                    handleMarkExpensePaid(payingExpense, dayjs(date).toISOString());
-                  }}
-                  className="flex-1 px-6 py-3 bg-emerald-600 text-white rounded-2xl font-bold text-xs uppercase tracking-widest hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-600/10"
-                >
-                  Confirmar
-                </button>
-              </div>
-            </div>
           </motion.div>
         </div>
       )}
