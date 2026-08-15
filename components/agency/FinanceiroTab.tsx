@@ -319,6 +319,43 @@ export const FinanceiroTab: React.FC = () => {
   };
 
   const [markingExpenseId, setMarkingExpenseId] = useState<string | null>(null);
+  const [markingBillingId, setMarkingBillingId] = useState<string | null>(null);
+
+  const handleMarkBillingPaid = async (billing: any) => {
+    if (markingBillingId) return;
+    setMarkingBillingId(billing.id);
+    try {
+      await updateBilling({
+        id: billing.id,
+        client_id: billing.client_id,
+        month_year: billing.month_year || currentMonthYear,
+        status: 'paid',
+        paid_at: new Date().toISOString()
+      });
+    } catch (error) {
+      console.error('Error marking billing as paid:', error);
+    } finally {
+      setMarkingBillingId(null);
+    }
+  };
+
+  const handleUnmarkBillingPaid = async (billing: any) => {
+    if (markingBillingId) return;
+    setMarkingBillingId(billing.id);
+    try {
+      await updateBilling({
+        id: billing.id,
+        client_id: billing.client_id,
+        month_year: billing.month_year || currentMonthYear,
+        status: 'pending',
+        paid_at: null
+      });
+    } catch (error) {
+      console.error('Error unmarking billing as paid:', error);
+    } finally {
+      setMarkingBillingId(null);
+    }
+  };
 
   const handleMarkExpensePaid = async (expense: any, paidAt?: string) => {
     if (markingExpenseId) return;
@@ -421,7 +458,8 @@ export const FinanceiroTab: React.FC = () => {
           ...editingBilling,
           base_value: base,
           extra_value: extra,
-          total_value: base + extra
+          total_value: base + extra,
+          update_global_contract: Boolean(editingBilling.update_global_contract)
         });
         setEditingBilling(null);
       } catch (error) {
@@ -446,7 +484,8 @@ export const FinanceiroTab: React.FC = () => {
     setEditingBilling({
       ...billing,
       base_value: billing.base_value !== undefined && billing.base_value !== null ? String(billing.base_value).replace('.', ',') : '',
-      extra_value: billing.extra_value !== undefined && billing.extra_value !== null ? String(billing.extra_value).replace('.', ',') : ''
+      extra_value: billing.extra_value !== undefined && billing.extra_value !== null ? String(billing.extra_value).replace('.', ',') : '',
+      update_global_contract: false
     });
   };
 
@@ -1316,21 +1355,21 @@ export const FinanceiroTab: React.FC = () => {
                     {billing.status !== 'paid' ? (
                       <button 
                         type="button"
-                        onClick={() => updateBilling({ 
-                          id: billing.id, 
-                          client_id: billing.client_id, 
-                          month_year: billing.month_year, 
-                          status: 'paid', 
-                          paid_at: new Date().toISOString() 
-                        })}
-                        className="flex-1 py-2.5 bg-emerald-600 text-white rounded-xl text-[10px] font-bold uppercase tracking-widest hover:bg-emerald-700 transition-all text-center"
+                        disabled={markingBillingId === billing.id}
+                        onClick={() => handleMarkBillingPaid(billing)}
+                        className="flex-1 py-2.5 bg-emerald-600 text-white rounded-xl text-[10px] font-bold uppercase tracking-widest hover:bg-emerald-700 transition-all text-center disabled:opacity-50"
                       >
-                        Marcar Pago
+                        {markingBillingId === billing.id ? 'Salvando...' : 'Marcar Pago'}
                       </button>
                     ) : (
-                      <div className="flex-1 py-2.5 bg-gray-100 text-gray-400 rounded-xl text-[10px] font-bold uppercase tracking-widest border border-gray-200 text-center">
-                        Recebido
-                      </div>
+                      <button 
+                        type="button"
+                        disabled={markingBillingId === billing.id}
+                        onClick={() => handleUnmarkBillingPaid(billing)}
+                        className="flex-1 py-2.5 bg-gray-100 text-gray-500 rounded-xl text-[10px] font-bold uppercase tracking-widest border border-gray-200 text-center hover:bg-rose-50 hover:text-rose-600 hover:border-rose-100 transition-all disabled:opacity-50"
+                      >
+                        {markingBillingId === billing.id ? 'Salvando...' : 'Estornar'}
+                      </button>
                     )}
                     {billing.is_sporadic && (
                       <button 
@@ -1411,21 +1450,21 @@ export const FinanceiroTab: React.FC = () => {
                           {billing.status !== 'paid' ? (
                             <button 
                               type="button"
-                              onClick={() => updateBilling({ 
-                                id: billing.id, 
-                                client_id: billing.client_id, 
-                                month_year: billing.month_year, 
-                                status: 'paid', 
-                                paid_at: new Date().toISOString() 
-                              })}
-                              className="px-4 py-2 bg-emerald-600 text-white rounded-xl text-[9px] font-bold uppercase tracking-widest hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-600/10 whitespace-nowrap"
+                              disabled={markingBillingId === billing.id}
+                              onClick={() => handleMarkBillingPaid(billing)}
+                              className="px-4 py-2 bg-emerald-600 text-white rounded-xl text-[9px] font-bold uppercase tracking-widest hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-600/10 whitespace-nowrap disabled:opacity-50"
                             >
-                              Marcar Pago
+                              {markingBillingId === billing.id ? 'Salvando...' : 'Marcar Pago'}
                             </button>
                           ) : (
-                            <div className="px-4 py-2 bg-gray-50 text-gray-400 rounded-xl text-[9px] font-bold uppercase tracking-widest border border-gray-100 whitespace-nowrap">
-                              Recebido
-                            </div>
+                            <button 
+                              type="button"
+                              disabled={markingBillingId === billing.id}
+                              onClick={() => handleUnmarkBillingPaid(billing)}
+                              className="px-4 py-2 bg-gray-50 text-gray-500 rounded-xl text-[9px] font-bold uppercase tracking-widest border border-gray-200 hover:bg-rose-50 hover:text-rose-600 hover:border-rose-100 transition-all whitespace-nowrap disabled:opacity-50"
+                            >
+                              {markingBillingId === billing.id ? 'Salvando...' : 'Estornar'}
+                            </button>
                           )}
                           {billing.is_sporadic && (
                             <button 
@@ -2071,7 +2110,7 @@ export const FinanceiroTab: React.FC = () => {
                     <label className="flex items-center gap-2 cursor-pointer mt-1 text-xs text-gray-600 font-medium select-none bg-gray-50 px-4 py-3 rounded-xl border border-gray-100">
                       <input 
                         type="checkbox" 
-                        checked={editingBilling.update_global_contract !== false}
+                        checked={Boolean(editingBilling.update_global_contract)}
                         onChange={(e) => setEditingBilling({ ...editingBilling, update_global_contract: e.target.checked })}
                         className="w-4 h-4 text-brand-dark rounded border-gray-300 focus:ring-brand-dark"
                       />

@@ -242,15 +242,25 @@ export function useAgencyFinanceiro(monthYear: string) {
 
   const updateBilling = async (billing: Partial<AgencyBilling> & { update_global_contract?: boolean }) => {
     try {
+      if (!agencyId) return;
+
       const existing = billings.find(b => {
         if (billing.id && b.id === billing.id) return true;
         if (billing.client_id && b.client_id === billing.client_id && !b.is_sporadic) return true;
         return false;
       });
       
-      const base = billing.base_value !== undefined ? billing.base_value : (existing?.base_value || 0);
-      const extra = billing.extra_value !== undefined ? billing.extra_value : (existing?.extra_value || 0);
+      const base = billing.base_value !== undefined ? Number(billing.base_value) : (existing?.base_value || 0);
+      const extra = billing.extra_value !== undefined ? Number(billing.extra_value) : (existing?.extra_value || 0);
       const total = base + extra;
+
+      let newStatus = billing.status || existing?.status || 'pending';
+      let paidAt = billing.paid_at !== undefined ? billing.paid_at : (existing?.paid_at || null);
+      if (newStatus === 'paid' && !paidAt) {
+        paidAt = new Date().toISOString();
+      } else if (newStatus === 'pending' || newStatus === 'overdue') {
+        paidAt = null;
+      }
 
       const dbData = {
         client_id: billing.client_id || existing?.client_id || null,
@@ -259,15 +269,34 @@ export function useAgencyFinanceiro(monthYear: string) {
         extra_value: extra,
         total_value: total,
         due_day: billing.due_day !== undefined ? billing.due_day : (existing?.due_day || 10),
-        status: billing.status || existing?.status || 'pending',
+        status: newStatus,
         notes: billing.notes !== undefined ? billing.notes : (existing?.notes || null),
-        paid_at: billing.paid_at !== undefined ? billing.paid_at : (existing?.paid_at || null),
+        paid_at: paidAt,
         is_sporadic: billing.is_sporadic !== undefined ? billing.is_sporadic : (existing?.is_sporadic || false),
         sporadic_name: billing.sporadic_name !== undefined ? billing.sporadic_name : (existing?.sporadic_name || null),
         agency_id: agencyId
       };
 
-      if (billing.id?.startsWith('temp-') || !billing.id) {
+      let existingDbId = (billing.id && !billing.id.startsWith('temp-')) ? billing.id : null;
+
+      // If no valid DB ID, check if record already exists in database to prevent duplicates/errors
+      if (!existingDbId && dbData.client_id && !dbData.is_sporadic) {
+        const { data: found } = await supabase
+          .from('agency_billing')
+          .select('id')
+          .eq('agency_id', agencyId)
+          .eq('client_id', dbData.client_id)
+          .eq('month_year', dbData.month_year)
+          .limit(1);
+
+        if (found && found.length > 0) {
+          existingDbId = found[0].id;
+        }
+      }
+
+      let savedRecord: AgencyBilling | null = null;
+
+      if (!existingDbId) {
         const { data, error } = await supabase
           .from('agency_billing')
           .insert([dbData])
@@ -275,92 +304,110 @@ export function useAgencyFinanceiro(monthYear: string) {
         
         if (error) throw error;
         if (data && data.length > 0) {
-          const inserted = data[0];
-          if (billing.id?.startsWith('temp-')) {
-            setBillings(prev => prev.map(b => b.client_id === inserted.client_id && !b.is_sporadic ? inserted : b));
-          } else {
-            setBillings(prev => [...prev, inserted]);
-          }
+          savedRecord = data[0];
         }
       } else {
         const { data, error } = await supabase
           .from('agency_billing')
           .update(dbData)
           .eq('agency_id', agencyId)
-          .eq('id', billing.id)
+          .eq('id', existingDbId)
           .select('*, client:clients(*)');
 
         if (error) throw error;
         if (data && data.length > 0) {
-          const updated = data[0];
-          setBillings(prev => prev.map(b => b.id === updated.id ? updated : b));
+          savedRecord = data[0];
         }
       }
 
-      if (dbData.client_id && !dbData.is_sporadic && billing.update_global_contract !== false) {
-        const { data: clientData } = await supabase
-          .from('clients')
-          .select('features_settings')
-          .eq('id', dbData.client_id)
-          .single();
-
-        const currentFeatures = clientData?.features_settings || {};
-        const clientHistory = currentFeatures.value_history || [];
-        
-        const monthYearToUpdate = dbData.month_year;
-        const existingClientEntryIndex = clientHistory.findIndex((h: any) => h.date === monthYearToUpdate);
-        
-        if (existingClientEntryIndex > -1) {
-          clientHistory[existingClientEntryIndex].value = dbData.base_value;
-        } else {
-          clientHistory.push({ date: monthYearToUpdate, value: dbData.base_value });
-        }
-        clientHistory.sort((a: any, b: any) => a.date.localeCompare(b.date));
-
-        const updatedFeatures = {
-          ...currentFeatures,
-          value_history: clientHistory
+      if (savedRecord) {
+        const fullRecord: AgencyBilling = {
+          ...savedRecord,
+          client: savedRecord.client || existing?.client || billing.client
         };
-
-        await supabase
-          .from('clients')
-          .update({
-            base_value: dbData.base_value,
-            due_day: dbData.due_day,
-            features_settings: updatedFeatures
-          })
-          .eq('agency_id', agencyId)
-          .eq('id', dbData.client_id);
-
-        const { data: contractData } = await supabase
-          .from('contract_forms')
-          .select('*')
-          .eq('client_id', dbData.client_id)
-          .eq('status', 'signed')
-          .limit(1);
-
-        if (contractData && contractData.length > 0) {
-          const contract = contractData[0];
-          const formData = contract.form_data || {};
-          const history = formData.value_history || [];
-          
-          const existingEntryIndex = history.findIndex((h: any) => h.date === monthYearToUpdate);
-          
-          if (existingEntryIndex > -1) {
-            history[existingEntryIndex].value = dbData.base_value;
-          } else {
-            history.push({ date: monthYearToUpdate, value: dbData.base_value });
+        setBillings(prev => {
+          const matchIndex = prev.findIndex(b => 
+            b.id === fullRecord.id || 
+            (fullRecord.client_id && b.client_id === fullRecord.client_id && !b.is_sporadic)
+          );
+          if (matchIndex > -1) {
+            const next = [...prev];
+            next[matchIndex] = fullRecord;
+            return next;
           }
+          return [...prev, fullRecord];
+        });
+      }
+
+      // If user explicitly checked to update global contract
+      if (dbData.client_id && !dbData.is_sporadic && billing.update_global_contract === true) {
+        try {
+          const { data: clientData } = await supabase
+            .from('clients')
+            .select('features_settings')
+            .eq('id', dbData.client_id)
+            .single();
+
+          const currentFeatures = clientData?.features_settings || {};
+          const clientHistory = currentFeatures.value_history || [];
           
-          history.sort((a: any, b: any) => a.date.localeCompare(b.date));
+          const monthYearToUpdate = dbData.month_year;
+          const existingClientEntryIndex = clientHistory.findIndex((h: any) => h.date === monthYearToUpdate);
           
+          if (existingClientEntryIndex > -1) {
+            clientHistory[existingClientEntryIndex].value = dbData.base_value;
+          } else {
+            clientHistory.push({ date: monthYearToUpdate, value: dbData.base_value });
+          }
+          clientHistory.sort((a: any, b: any) => a.date.localeCompare(b.date));
+
+          const updatedFeatures = {
+            ...currentFeatures,
+            value_history: clientHistory
+          };
+
           await supabase
-            .from('contract_forms')
+            .from('clients')
             .update({
-              contract_value: dbData.base_value,
-              form_data: { ...formData, value_history: history }
+              base_value: dbData.base_value,
+              due_day: dbData.due_day,
+              features_settings: updatedFeatures
             })
-            .eq('id', contract.id);
+            .eq('agency_id', agencyId)
+            .eq('id', dbData.client_id);
+
+          const { data: contractData } = await supabase
+            .from('contract_forms')
+            .select('*')
+            .eq('client_id', dbData.client_id)
+            .eq('status', 'signed')
+            .limit(1);
+
+          if (contractData && contractData.length > 0) {
+            const contract = contractData[0];
+            const formData = contract.form_data || {};
+            const history = formData.value_history || [];
+            
+            const existingEntryIndex = history.findIndex((h: any) => h.date === monthYearToUpdate);
+            
+            if (existingEntryIndex > -1) {
+              history[existingEntryIndex].value = dbData.base_value;
+            } else {
+              history.push({ date: monthYearToUpdate, value: dbData.base_value });
+            }
+            
+            history.sort((a: any, b: any) => a.date.localeCompare(b.date));
+            
+            await supabase
+              .from('contract_forms')
+              .update({
+                contract_value: dbData.base_value,
+                form_data: { ...formData, value_history: history }
+              })
+              .eq('id', contract.id);
+          }
+        } catch (globalErr) {
+          console.warn('Non-fatal: could not sync global contract data:', globalErr);
         }
       }
     } catch (error) {
