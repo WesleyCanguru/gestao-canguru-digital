@@ -5,6 +5,18 @@ import { AgencyBilling, AgencyExpense } from '../types';
 import { parseExpenseRow, filterExpensesForMonth, encodeNotesAndMeta } from '../lib/expenses';
 import dayjs from 'dayjs';
 
+export interface MonthFinancialSummary {
+  monthYear: string;
+  monthLabel: string;
+  revenue: number;
+  revenueReceived: number;
+  expenses: number;
+  expensesPaid: number;
+  profit: number;
+  profitRealized: number;
+  margin: number;
+}
+
 export function useAgencyFinanceiro(monthYear: string) {
   const { agencyId } = useAuth();
   const [billings, setBillings] = useState<AgencyBilling[]>([]);
@@ -12,6 +24,7 @@ export function useAgencyFinanceiro(monthYear: string) {
   const [rawExpenses, setRawExpenses] = useState<AgencyExpense[]>([]);
   const [ticketMedio, setTicketMedio] = useState(0);
   const [faturamentoAcumulado, setFaturamentoAcumulado] = useState(0);
+  const [history, setHistory] = useState<MonthFinancialSummary[]>([]);
   const [loading, setLoading] = useState(true);
 
   const fetchData = async () => {
@@ -90,6 +103,12 @@ export function useAgencyFinanceiro(monthYear: string) {
         .eq('agency_id', agencyId)
         .eq('month_year', monthYear);
 
+      // Fetch all Billings of current and past months for historical chart
+      const { data: allYearBillingsData } = await supabase
+        .from('agency_billing')
+        .select('*, client:clients(*)')
+        .eq('agency_id', agencyId);
+
       let currentBillings = ((billingsData || []) as AgencyBilling[]).filter(b => {
         if (b.is_sporadic) return true;
         const c = b.client as any;
@@ -149,6 +168,67 @@ export function useAgencyFinanceiro(monthYear: string) {
 
       const monthExpenses = filterExpensesForMonth(parsedAll, monthYear);
       setExpenses(monthExpenses);
+
+      // Compute multi-month historical summaries (e.g. for last 6 to 12 months)
+      const selectedDate = dayjs(monthYear);
+      const monthsList: string[] = [];
+      for (let i = 5; i >= 0; i--) {
+        monthsList.push(selectedDate.subtract(i, 'month').format('YYYY-MM'));
+      }
+
+      const allYearBillings = (allYearBillingsData || []) as AgencyBilling[];
+      const computedHistory = monthsList.map(mStr => {
+        const mDate = dayjs(mStr);
+        const mLabel = `${["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"][mDate.month()]} ${mDate.format('YY')}`;
+        
+        // Month billings
+        const mExplicitBillings = allYearBillings.filter(b => b.month_year === mStr);
+        const explicitClientIds = new Set(mExplicitBillings.filter(b => !b.is_sporadic).map(b => b.client_id));
+        
+        const mActiveClients = clients.filter(c => {
+          if (c.client_status === 'cancelled' && c.cancelled_at && dayjs(c.cancelled_at).format('YYYY-MM') < mStr) {
+            return false;
+          }
+          let startDate = c.created_at;
+          if (c.contract && c.contract.length > 0 && c.contract[0].contract_start_date) {
+            startDate = c.contract[0].contract_start_date;
+          }
+          if (startDate && dayjs(startDate).format('YYYY-MM') > mStr) return false;
+          return true;
+        });
+
+        const missingInMonth = mActiveClients.filter(c => !explicitClientIds.has(c.id));
+        const totalBaseMissing = missingInMonth.reduce((sum, c) => sum + (Number(c.base_value) || 0), 0);
+        
+        const explicitTotal = mExplicitBillings.reduce((sum, b) => sum + (Number(b.base_value || 0) + Number(b.extra_value || 0)), 0);
+        const explicitReceived = mExplicitBillings.filter(b => b.status === 'paid').reduce((sum, b) => sum + (Number(b.base_value || 0) + Number(b.extra_value || 0)), 0);
+
+        const totalRevenue = explicitTotal + totalBaseMissing;
+        const totalRevenueReceived = explicitReceived;
+
+        // Month expenses
+        const mExp = filterExpensesForMonth(parsedAll, mStr);
+        const totalExp = mExp.reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
+        const totalExpPaid = mExp.filter(e => e.paid).reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
+
+        const profit = totalRevenue - totalExp;
+        const profitRealized = totalRevenueReceived - totalExpPaid;
+        const margin = totalRevenue > 0 ? (profit / totalRevenue) * 100 : 0;
+
+        return {
+          monthYear: mStr,
+          monthLabel: mLabel,
+          revenue: totalRevenue,
+          revenueReceived: totalRevenueReceived,
+          expenses: totalExp,
+          expensesPaid: totalExpPaid,
+          profit,
+          profitRealized,
+          margin
+        };
+      });
+
+      setHistory(computedHistory);
     } catch (error) {
       console.error('Error fetching financeiro data:', error);
     } finally {
@@ -645,6 +725,7 @@ export function useAgencyFinanceiro(monthYear: string) {
     rawExpenses,
     ticketMedio,
     faturamentoAcumulado,
+    history,
     loading,
     updateBilling,
     deleteBilling,

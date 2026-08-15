@@ -4,6 +4,7 @@ import { motion } from 'motion/react';
 import { 
   DollarSign, 
   TrendingUp, 
+  TrendingDown,
   AlertCircle, 
   CheckCircle2, 
   Plus, 
@@ -31,18 +32,46 @@ import {
   ArrowDownRight,
   Clock,
   Percent,
-  CheckCheck
+  CheckCheck,
+  Eye,
+  EyeOff,
+  FileText,
+  PieChart as PieChartIcon,
+  ShieldCheck,
+  Scale
 } from 'lucide-react';
+import { 
+  ResponsiveContainer, 
+  ComposedChart, 
+  Bar, 
+  Line, 
+  XAxis, 
+  YAxis, 
+  CartesianGrid, 
+  Tooltip as RechartsTooltip, 
+  Legend, 
+  PieChart, 
+  Pie, 
+  Cell 
+} from 'recharts';
 import { useAgencyFinanceiro } from '../../hooks/useAgencyFinanceiro';
 import dayjs from 'dayjs';
 
 export const FinanceiroTab: React.FC = () => {
   const [currentMonthYear, setCurrentMonthYear] = useState(dayjs().format('YYYY-MM'));
+  const [hideValues, setHideValues] = useState<boolean>(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('agency_finance_hide_values') === 'true';
+    }
+    return false;
+  });
+
   const { 
     billings, 
     expenses, 
     ticketMedio, 
     faturamentoAcumulado, 
+    history,
     loading, 
     updateBilling, 
     deleteBilling, 
@@ -54,6 +83,16 @@ export const FinanceiroTab: React.FC = () => {
     deleteExpenseFromMonthOnwards,
     deleteExpensePermanently
   } = useAgencyFinanceiro(currentMonthYear);
+
+  const toggleHideValues = () => {
+    setHideValues(prev => {
+      const next = !prev;
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('agency_finance_hide_values', String(next));
+      }
+      return next;
+    });
+  };
 
   const monthNames = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
   const monthFullNames = [
@@ -199,8 +238,42 @@ export const FinanceiroTab: React.FC = () => {
   const handleNextMonth = () => setCurrentMonthYear(dayjs(currentMonthYear).add(1, 'month').format('YYYY-MM'));
 
   const formatCurrency = (value: number) => {
+    if (hideValues) return 'R$ ••••••';
     return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
   };
+
+  const sporadicTotal = useMemo(() => {
+    return billings.filter(b => b.is_sporadic).reduce((acc, b) => acc + (b.base_value + b.extra_value), 0);
+  }, [billings]);
+
+  const recurringTotal = useMemo(() => {
+    return stats.totalToReceive - sporadicTotal;
+  }, [stats.totalToReceive, sporadicTotal]);
+
+  const expenseBreakdown = useMemo(() => {
+    const tools = expenses.filter(e => e.expense_type === 'tools').reduce((sum, e) => sum + e.amount, 0);
+    const freelancers = expenses.filter(e => e.expense_type === 'freelancers').reduce((sum, e) => sum + e.amount, 0);
+    const extras = expenses.filter(e => e.expense_type === 'extras' || !e.expense_type).reduce((sum, e) => sum + e.amount, 0);
+
+    const canguru = expenses.filter(e => (e.origin || 'canguru') === 'canguru').reduce((sum, e) => sum + e.amount, 0);
+    const kanoa = expenses.filter(e => e.origin === 'kanoa').reduce((sum, e) => sum + e.amount, 0);
+    const pessoal = expenses.filter(e => e.origin === 'pessoal').reduce((sum, e) => sum + e.amount, 0);
+
+    const total = stats.totalExpenses || 1;
+
+    return {
+      byType: [
+        { name: 'Ferramentas & SaaS', value: tools, percent: (tools / total) * 100, color: '#3B82F6' },
+        { name: 'Freelancers & Equipe', value: freelancers, percent: (freelancers / total) * 100, color: '#8B5CF6' },
+        { name: 'Custos Extras & Op.', value: extras, percent: (extras / total) * 100, color: '#F59E0B' }
+      ].filter(item => item.value > 0),
+      byOrigin: [
+        { name: 'Canguru Digital', value: canguru, percent: (canguru / total) * 100, color: '#10B981' },
+        { name: 'Kanoa', value: kanoa, percent: (kanoa / total) * 100, color: '#6366F1' },
+        { name: 'Pessoal', value: pessoal, percent: (pessoal / total) * 100, color: '#EC4899' }
+      ].filter(item => item.value > 0)
+    };
+  }, [expenses, stats.totalExpenses]);
 
   const handleAddExpense = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -503,21 +576,43 @@ export const FinanceiroTab: React.FC = () => {
     );
   };
 
+  const CustomChartTooltip = ({ active, payload, label }: any) => {
+    if (active && payload && payload.length) {
+      return (
+        <div className="bg-stone-900/95 backdrop-blur-md text-white p-3.5 rounded-2xl border border-stone-700/50 shadow-2xl text-xs space-y-2 min-w-[190px]">
+          <p className="font-bold text-stone-300 border-b border-stone-800 pb-1.5 text-[11px] uppercase tracking-wider">{label}</p>
+          {payload.map((entry: any, index: number) => (
+            <div key={index} className="flex justify-between items-center gap-3">
+              <span className="flex items-center gap-1.5 text-stone-300 text-[11px]">
+                <span className="w-2 h-2 rounded-full" style={{ backgroundColor: entry.color }} />
+                {entry.name}:
+              </span>
+              <span className="font-bold text-white text-[11px]">
+                {formatCurrency(entry.value)}
+              </span>
+            </div>
+          ))}
+        </div>
+      );
+    }
+    return null;
+  };
+
   return (
     <div className="space-y-8">
       {/* Main Header */}
       <div className="flex flex-col lg:flex-row lg:justify-between lg:items-center gap-6">
         <div>
           <h2 className="text-2xl font-bold text-brand-dark">Financeiro</h2>
-          <p className="text-sm text-gray-500 mt-1">Gestão de receitas, despesas e rentabilidade da agência.</p>
+          <p className="text-sm text-gray-500 mt-1">Gestão executiva de receitas, despesas e rentabilidade da agência.</p>
         </div>
 
-        {/* Subtabs Navigation */}
-        <div className="flex items-center gap-1.5 p-1.5 bg-stone-100/80 rounded-[2rem] border border-black/[0.04] self-start lg:self-auto">
+        {/* Subtabs Navigation (Clean, Professional, No Values) */}
+        <div className="flex items-center gap-1.5 p-1.5 bg-stone-100/90 rounded-[2rem] border border-black/[0.04] self-start lg:self-auto shadow-inner">
           <button
             type="button"
             onClick={() => setActiveSubTab('overview')}
-            className={`flex items-center gap-2 px-4 py-2.5 rounded-full text-xs font-bold transition-all ${
+            className={`flex items-center gap-2 px-5 py-2.5 rounded-full text-xs font-bold transition-all ${
               activeSubTab === 'overview'
                 ? 'bg-white text-brand-dark shadow-sm'
                 : 'text-gray-500 hover:text-brand-dark hover:bg-white/50'
@@ -530,7 +625,7 @@ export const FinanceiroTab: React.FC = () => {
           <button
             type="button"
             onClick={() => setActiveSubTab('faturamento')}
-            className={`flex items-center gap-2 px-4 py-2.5 rounded-full text-xs font-bold transition-all ${
+            className={`flex items-center gap-2 px-5 py-2.5 rounded-full text-xs font-bold transition-all ${
               activeSubTab === 'faturamento'
                 ? 'bg-white text-brand-dark shadow-sm'
                 : 'text-gray-500 hover:text-brand-dark hover:bg-white/50'
@@ -538,17 +633,12 @@ export const FinanceiroTab: React.FC = () => {
           >
             <DollarSign size={15} />
             <span>Faturamento</span>
-            <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
-              activeSubTab === 'faturamento' ? 'bg-blue-50 text-blue-700' : 'bg-stone-200/70 text-gray-600'
-            }`}>
-              {formatCurrency(stats.totalToReceive)}
-            </span>
           </button>
 
           <button
             type="button"
             onClick={() => setActiveSubTab('despesas')}
-            className={`flex items-center gap-2 px-4 py-2.5 rounded-full text-xs font-bold transition-all ${
+            className={`flex items-center gap-2 px-5 py-2.5 rounded-full text-xs font-bold transition-all ${
               activeSubTab === 'despesas'
                 ? 'bg-white text-brand-dark shadow-sm'
                 : 'text-gray-500 hover:text-brand-dark hover:bg-white/50'
@@ -556,40 +646,52 @@ export const FinanceiroTab: React.FC = () => {
           >
             <Receipt size={15} />
             <span>Despesas</span>
-            <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
-              activeSubTab === 'despesas' ? 'bg-rose-50 text-rose-700' : 'bg-stone-200/70 text-gray-600'
-            }`}>
-              {formatCurrency(stats.totalExpenses)}
-            </span>
           </button>
         </div>
       </div>
 
-      {/* Auxiliary Control Bar with Month Selector and Quick Actions */}
-      <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-4 bg-white p-3 sm:p-4 rounded-3xl border border-black/[0.03] shadow-sm">
-        {/* Month Selector */}
-        <div className="flex items-center gap-1 bg-stone-50 p-1 rounded-2xl border border-black/[0.03]">
-          <button 
-            type="button"
-            onClick={handlePrevMonth} 
-            className="p-2 hover:bg-white rounded-xl transition-all text-gray-400 hover:text-brand-dark"
-            title="Mês Anterior"
-          >
-            <ChevronLeft size={16} />
-          </button>
-          <div className="px-4 py-1 text-center min-w-[130px]">
-            <p className="text-[8px] uppercase tracking-[0.2em] font-bold text-gray-400">Período</p>
-            <p className="text-xs font-bold text-brand-dark capitalize">
-              {dayjs(currentMonthYear).format('MMMM YYYY')}
-            </p>
+      {/* Auxiliary Control Bar with Month Selector, Privacy Eye and Quick Actions */}
+      <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-4 bg-white p-3 sm:p-4 rounded-3xl border border-black/[0.04] shadow-sm">
+        {/* Month Selector & Privacy Toggle */}
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex items-center gap-1 bg-stone-50 p-1 rounded-2xl border border-black/[0.03]">
+            <button 
+              type="button"
+              onClick={handlePrevMonth} 
+              className="p-2 hover:bg-white rounded-xl transition-all text-gray-400 hover:text-brand-dark"
+              title="Mês Anterior"
+            >
+              <ChevronLeft size={16} />
+            </button>
+            <div className="px-4 py-1 text-center min-w-[130px]">
+              <p className="text-[8px] uppercase tracking-[0.2em] font-bold text-gray-400">Período</p>
+              <p className="text-xs font-bold text-brand-dark capitalize">
+                {dayjs(currentMonthYear).format('MMMM YYYY')}
+              </p>
+            </div>
+            <button 
+              type="button"
+              onClick={handleNextMonth} 
+              className="p-2 hover:bg-white rounded-xl transition-all text-gray-400 hover:text-brand-dark"
+              title="Próximo Mês"
+            >
+              <ChevronRight size={16} />
+            </button>
           </div>
-          <button 
+
+          {/* Privacy Eye Toggle */}
+          <button
             type="button"
-            onClick={handleNextMonth} 
-            className="p-2 hover:bg-white rounded-xl transition-all text-gray-400 hover:text-brand-dark"
-            title="Próximo Mês"
+            onClick={toggleHideValues}
+            className={`flex items-center gap-2 px-3.5 py-2.5 rounded-2xl text-xs font-bold transition-all border ${
+              hideValues 
+                ? 'bg-amber-500/10 text-amber-700 border-amber-500/30 hover:bg-amber-500/20' 
+                : 'bg-stone-50 text-stone-600 border-black/[0.04] hover:bg-stone-100 hover:text-brand-dark'
+            }`}
+            title={hideValues ? 'Clique para exibir valores monetários' : 'Clique para ocultar valores monetários (Modo Privacidade)'}
           >
-            <ChevronRight size={16} />
+            {hideValues ? <EyeOff size={15} className="text-amber-600" /> : <Eye size={15} className="text-stone-500" />}
+            <span className="text-[11px] tracking-wide">{hideValues ? 'Valores Ocultos' : 'Ocultar Valores'}</span>
           </button>
         </div>
 
@@ -619,7 +721,7 @@ export const FinanceiroTab: React.FC = () => {
       </div>
 
       {/* ========================================================================= */}
-      {/* ABA 1: VISÃO GERAL (DASHBOARD GERAL & LUCRO) */}
+      {/* ABA 1: VISÃO GERAL (DASHBOARD EXECUTIVO COMPLETO) */}
       {/* ========================================================================= */}
       {activeSubTab === 'overview' && (
         <div className="space-y-8">
@@ -628,7 +730,7 @@ export const FinanceiroTab: React.FC = () => {
             {/* Lucro Projetado / Estimado */}
             <motion.div
               whileHover={{ y: -2 }}
-              className="relative overflow-hidden bg-gradient-to-br from-emerald-900 via-stone-900 to-stone-950 p-6 sm:p-7 rounded-3xl text-white shadow-xl shadow-emerald-950/10 border border-emerald-900/40"
+              className="relative overflow-hidden bg-gradient-to-br from-emerald-950 via-stone-900 to-stone-950 p-6 sm:p-7 rounded-3xl text-white shadow-xl shadow-emerald-950/10 border border-emerald-900/40"
             >
               <div className="flex justify-between items-start mb-4">
                 <div className="flex items-center gap-3">
@@ -711,9 +813,9 @@ export const FinanceiroTab: React.FC = () => {
           {/* 4 CARDS DE RESUMO OPERACIONAL */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {/* 1. Faturamento Total */}
-            <div className="bg-white p-5 rounded-3xl border border-black/[0.03] shadow-sm">
+            <div className="bg-white p-5 rounded-3xl border border-black/[0.04] shadow-sm">
               <div className="flex items-center justify-between mb-2">
-                <span className="text-[9px] uppercase tracking-[0.15em] font-bold text-gray-400">Faturamento Total</span>
+                <span className="text-[9px] uppercase tracking-[0.15em] font-bold text-gray-400">Faturamento Previsto</span>
                 <div className="w-8 h-8 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
                   <DollarSign size={16} />
                 </div>
@@ -724,12 +826,12 @@ export const FinanceiroTab: React.FC = () => {
                 <span className="font-medium text-amber-600">{formatCurrency(stats.totalOpen)} em aberto</span>
               </div>
               <div className="w-full h-1.5 bg-gray-100 rounded-full mt-1.5 overflow-hidden">
-                <div className="h-full bg-blue-600 rounded-full" style={{ width: `${Math.min(100, stats.taxaRecebimento)}%` }} />
+                <div className="h-full bg-blue-600 rounded-full transition-all duration-500" style={{ width: `${Math.min(100, stats.taxaRecebimento)}%` }} />
               </div>
             </div>
 
             {/* 2. Total Recebido */}
-            <div className="bg-white p-5 rounded-3xl border border-black/[0.03] shadow-sm">
+            <div className="bg-white p-5 rounded-3xl border border-black/[0.04] shadow-sm">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-[9px] uppercase tracking-[0.15em] font-bold text-gray-400">Total Recebido</span>
                 <div className="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
@@ -738,12 +840,12 @@ export const FinanceiroTab: React.FC = () => {
               </div>
               <h4 className="text-xl font-bold text-emerald-600">{formatCurrency(stats.totalReceived)}</h4>
               <p className="text-[11px] text-gray-400 mt-3">
-                {billings.filter(b => b.status === 'paid').length} de {billings.length} clientes quitados
+                {billings.filter(b => b.status === 'paid').length} de {billings.length} cobranças quitadas
               </p>
             </div>
 
             {/* 3. Total de Despesas */}
-            <div className="bg-white p-5 rounded-3xl border border-black/[0.03] shadow-sm">
+            <div className="bg-white p-5 rounded-3xl border border-black/[0.04] shadow-sm">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-[9px] uppercase tracking-[0.15em] font-bold text-gray-400">Total de Despesas</span>
                 <div className="w-8 h-8 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center">
@@ -756,12 +858,12 @@ export const FinanceiroTab: React.FC = () => {
                 <span className="font-medium text-rose-600">{formatCurrency(stats.totalExpensesPending)} a pagar</span>
               </div>
               <div className="w-full h-1.5 bg-gray-100 rounded-full mt-1.5 overflow-hidden">
-                <div className="h-full bg-rose-600 rounded-full" style={{ width: `${Math.min(100, stats.taxaDespesasPagas)}%` }} />
+                <div className="h-full bg-rose-600 rounded-full transition-all duration-500" style={{ width: `${Math.min(100, stats.taxaDespesasPagas)}%` }} />
               </div>
             </div>
 
             {/* 4. Despesas Fixas vs Variáveis */}
-            <div className="bg-white p-5 rounded-3xl border border-black/[0.03] shadow-sm">
+            <div className="bg-white p-5 rounded-3xl border border-black/[0.04] shadow-sm">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-[9px] uppercase tracking-[0.15em] font-bold text-gray-400">Composição de Custos</span>
                 <div className="w-8 h-8 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center">
@@ -781,161 +883,239 @@ export const FinanceiroTab: React.FC = () => {
             </div>
           </div>
 
-          {/* AGENDA IMEDIATA & ATENÇÃO (ESTILO BOLSA - DISCRETO E PROFISSIONAL) */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Coluna 1: Contas a Pagar / Atenção */}
-            <div className="bg-white rounded-3xl border border-black/[0.03] shadow-sm p-6 space-y-4">
-              <div className="flex items-center justify-between pb-3 border-b border-gray-100">
-                <div className="flex items-center gap-2">
-                  <div className="w-7 h-7 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center">
-                    <Clock size={15} />
-                  </div>
-                  <div>
-                    <h4 className="text-sm font-bold text-brand-dark">Contas & Vencimentos</h4>
-                    <p className="text-[10px] text-gray-400">Próximos pagamentos e contas pendentes</p>
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setActiveSubTab('despesas')}
-                  className="text-[10px] font-bold text-blue-600 hover:text-blue-700 uppercase tracking-wider"
-                >
-                  Ver todas ({expenses.length}) →
-                </button>
+          {/* INDICADORES ESTRATÉGICOS & ANUAIS */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="bg-stone-50/80 p-4 rounded-2xl border border-stone-200/60 flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl bg-teal-50 text-teal-600 flex items-center justify-center shrink-0">
+                <BarChart3 size={18} />
               </div>
-
-              {/* Lista de Contas que precisam de atenção */}
-              <div className="space-y-2.5">
-                {sortedExpenses.filter(e => !e.paid).slice(0, 5).map((expense) => {
-                  const dayNum = expense.due_day || (expense.due_date ? dayjs(expense.due_date).date() : null);
-                  const isLate = expense.category === 'fixed' && expense.due_date && dayjs().isAfter(dayjs(expense.due_date), 'day');
-
-                  return (
-                    <div 
-                      key={expense.id}
-                      className="p-3 rounded-2xl bg-stone-50/70 border border-stone-200/60 flex items-center justify-between gap-3 hover:bg-stone-100/60 transition-colors"
-                    >
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2">
-                          <span className="font-bold text-xs text-brand-dark truncate">{expense.description}</span>
-                          {getExpenseOriginBadge(expense.origin)}
-                        </div>
-                        <div className="flex items-center gap-2 mt-1">
-                          <span className="text-[10px] text-gray-400 font-medium">
-                            {dayNum ? `Vence dia ${dayNum}` : 'Sem data fixa'}
-                          </span>
-                          {isLate && (
-                            <span className="text-[9px] font-bold text-rose-600 bg-rose-50 px-1.5 py-0.2 rounded">
-                              Atrasado
-                            </span>
-                          )}
-                        </div>
-                      </div>
-
-                      <div className="flex items-center gap-3 shrink-0">
-                        <span className="font-bold text-xs text-brand-dark">{formatCurrency(expense.amount)}</span>
-                        <button
-                          type="button"
-                          onClick={() => handleMarkExpensePaid(expense)}
-                          className="px-3 py-1.5 bg-white hover:bg-emerald-600 hover:text-white border border-stone-200 text-stone-700 rounded-xl text-[10px] font-bold uppercase tracking-wider transition-all shadow-sm"
-                        >
-                          Quitar
-                        </button>
-                      </div>
-                    </div>
-                  );
-                })}
-
-                {sortedExpenses.filter(e => !e.paid).length === 0 && (
-                  <div className="text-center py-8 text-gray-400">
-                    <div className="w-10 h-10 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto mb-2">
-                      <CheckCircle2 size={20} />
-                    </div>
-                    <p className="text-xs font-bold text-gray-700">Tudo em dia!</p>
-                    <p className="text-[11px] text-gray-400 mt-0.5">Todas as despesas deste mês já foram pagas.</p>
-                  </div>
-                )}
+              <div className="min-w-0">
+                <p className="text-[9px] uppercase tracking-wider font-bold text-gray-400">Acumulado no Ano</p>
+                <p className="text-sm font-bold text-brand-dark truncate">{formatCurrency(faturamentoAcumulado)}</p>
+                <p className="text-[9px] text-gray-400">{labelPeriodo}</p>
               </div>
             </div>
 
-            {/* Coluna 2: Faturamentos de Clientes a Receber */}
-            <div className="bg-white rounded-3xl border border-black/[0.03] shadow-sm p-6 space-y-4">
-              <div className="flex items-center justify-between pb-3 border-b border-gray-100">
-                <div className="flex items-center gap-2">
-                  <div className="w-7 h-7 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
-                    <DollarSign size={15} />
-                  </div>
-                  <div>
-                    <h4 className="text-sm font-bold text-brand-dark">Recebimentos de Clientes</h4>
-                    <p className="text-[10px] text-gray-400">Faturamentos aguardando quitação</p>
-                  </div>
+            <div className="bg-stone-50/80 p-4 rounded-2xl border border-stone-200/60 flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center shrink-0">
+                <Briefcase size={18} />
+              </div>
+              <div className="min-w-0">
+                <p className="text-[9px] uppercase tracking-wider font-bold text-gray-400">Ticket Médio</p>
+                <p className="text-sm font-bold text-brand-dark truncate">{formatCurrency(ticketMedio)}</p>
+                <p className="text-[9px] text-gray-400">por contrato recorrente</p>
+              </div>
+            </div>
+
+            <div className="bg-stone-50/80 p-4 rounded-2xl border border-stone-200/60 flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center shrink-0">
+                <Scale size={18} />
+              </div>
+              <div className="min-w-0">
+                <p className="text-[9px] uppercase tracking-wider font-bold text-gray-400">Ponto de Equilíbrio</p>
+                <p className="text-sm font-bold text-brand-dark truncate">{formatCurrency(stats.totalExpenses)}</p>
+                <p className="text-[9px] text-gray-400">break-even operacional</p>
+              </div>
+            </div>
+
+            <div className="bg-stone-50/80 p-4 rounded-2xl border border-stone-200/60 flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
+                <ShieldCheck size={18} />
+              </div>
+              <div className="min-w-0">
+                <p className="text-[9px] uppercase tracking-wider font-bold text-gray-400">Comprometimento Fixo</p>
+                <p className="text-sm font-bold text-brand-dark truncate">
+                  {stats.totalToReceive > 0 ? ((stats.totalFixedExpenses / stats.totalToReceive) * 100).toFixed(1) : 0}%
+                </p>
+                <p className="text-[9px] text-gray-400">da receita em custos fixos</p>
+              </div>
+            </div>
+          </div>
+
+          {/* PAINEL DE GRÁFICOS EXECUTIVOS (HISTÓRICO & COMPOSIÇÃO) */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Gráfico 1: Evolução Financeira Multi-Mensal (2 Colunas) */}
+            <div className="lg:col-span-2 bg-white rounded-3xl border border-black/[0.04] shadow-sm p-6 sm:p-7 space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-gray-100">
+                <div>
+                  <h3 className="text-base font-bold text-brand-dark">Evolução Financeira</h3>
+                  <p className="text-xs text-gray-400">Histórico de Faturamento, Despesas e Lucro Líquido (últimos 6 meses)</p>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setActiveSubTab('faturamento')}
-                  className="text-[10px] font-bold text-blue-600 hover:text-blue-700 uppercase tracking-wider"
-                >
-                  Ver todos ({billings.length}) →
-                </button>
+                <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-3 py-1 rounded-full self-start sm:self-auto">
+                  Visão Histórica
+                </span>
               </div>
 
-              {/* Lista de Faturamentos em Aberto */}
-              <div className="space-y-2.5">
-                {sortedBillings.filter(b => b.status !== 'paid').slice(0, 5).map((billing) => (
-                  <div 
-                    key={billing.id}
-                    className="p-3 rounded-2xl bg-stone-50/70 border border-stone-200/60 flex items-center justify-between gap-3 hover:bg-stone-100/60 transition-colors"
-                  >
-                    <div className="flex items-center gap-2.5 min-w-0 flex-1">
-                      {billing.is_sporadic ? (
-                        <div className="w-7 h-7 rounded-lg flex-shrink-0 flex items-center justify-center text-white font-bold text-[9px] bg-gray-400">
-                          ES
+              <div className="pt-2">
+                <ResponsiveContainer width="100%" height={280}>
+                  <ComposedChart data={history} margin={{ top: 10, right: 10, left: -15, bottom: 0 }}>
+                    <defs>
+                      <linearGradient id="revenueGrad" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#3B82F6" stopOpacity={0.85}/>
+                        <stop offset="95%" stopColor="#3B82F6" stopOpacity={0.35}/>
+                      </linearGradient>
+                      <linearGradient id="expenseGrad" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#F43F5E" stopOpacity={0.85}/>
+                        <stop offset="95%" stopColor="#F43F5E" stopOpacity={0.35}/>
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F3F4F6" />
+                    <XAxis 
+                      dataKey="monthLabel" 
+                      tickLine={false} 
+                      axisLine={false} 
+                      tick={{ fill: '#6B7280', fontSize: 11, fontWeight: 500 }} 
+                    />
+                    <YAxis 
+                      tickLine={false} 
+                      axisLine={false} 
+                      tick={{ fill: '#9CA3AF', fontSize: 10 }}
+                      tickFormatter={(val) => hideValues ? '•••' : `R$ ${val >= 1000 ? `${(val/1000).toFixed(0)}k` : val}`}
+                    />
+                    <RechartsTooltip content={<CustomChartTooltip />} />
+                    <Legend 
+                      verticalAlign="top" 
+                      align="right" 
+                      iconType="circle"
+                      wrapperStyle={{ paddingBottom: 15, fontSize: 11, fontWeight: 600 }}
+                    />
+                    <Bar dataKey="revenue" name="Faturamento" fill="url(#revenueGrad)" radius={[6, 6, 0, 0]} maxBarSize={30} />
+                    <Bar dataKey="expenses" name="Despesas" fill="url(#expenseGrad)" radius={[6, 6, 0, 0]} maxBarSize={30} />
+                    <Line 
+                      type="monotone" 
+                      dataKey="profit" 
+                      name="Lucro Líquido" 
+                      stroke="#10B981" 
+                      strokeWidth={3} 
+                      dot={{ r: 4, fill: '#10B981', strokeWidth: 2, stroke: '#FFFFFF' }}
+                      activeDot={{ r: 6 }} 
+                    />
+                  </ComposedChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+
+            {/* Gráfico 2: Composição de Despesas & Centro de Custos */}
+            <div className="bg-white rounded-3xl border border-black/[0.04] shadow-sm p-6 sm:p-7 space-y-4">
+              <div className="flex items-center justify-between pb-3 border-b border-gray-100">
+                <div>
+                  <h3 className="text-base font-bold text-brand-dark">Centro de Custos</h3>
+                  <p className="text-xs text-gray-400">Distribuição das despesas do mês</p>
+                </div>
+                <div className="w-8 h-8 rounded-xl bg-stone-100 text-stone-600 flex items-center justify-center">
+                  <PieChartIcon size={16} />
+                </div>
+              </div>
+
+              {expenseBreakdown.byType.length > 0 ? (
+                <div>
+                  <div className="h-[180px] w-full">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie
+                          data={expenseBreakdown.byType}
+                          dataKey="value"
+                          nameKey="name"
+                          cx="50%"
+                          cy="50%"
+                          innerRadius={50}
+                          outerRadius={72}
+                          paddingAngle={3}
+                        >
+                          {expenseBreakdown.byType.map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={entry.color} />
+                          ))}
+                        </Pie>
+                        <RechartsTooltip 
+                          formatter={(val: any) => [formatCurrency(Number(val)), 'Total']}
+                          contentStyle={{ backgroundColor: '#18181B', borderRadius: '12px', border: 'none', color: '#fff', fontSize: '11px' }}
+                        />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
+
+                  {/* Legenda de Tipos */}
+                  <div className="space-y-2 mt-2 pt-3 border-t border-gray-100 text-xs">
+                    {expenseBreakdown.byType.map((item, idx) => (
+                      <div key={idx} className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: item.color }} />
+                          <span className="text-gray-600 font-medium text-[11px]">{item.name}</span>
                         </div>
-                      ) : (
-                        <div className="w-7 h-7 rounded-lg flex-shrink-0 flex items-center justify-center text-white font-bold text-[9px]" style={{ backgroundColor: billing.client?.color }}>
-                          {billing.client?.initials}
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-brand-dark text-[11px]">{formatCurrency(item.value)}</span>
+                          <span className="text-[10px] text-gray-400 font-medium w-8 text-right">({item.percent.toFixed(0)}%)</span>
                         </div>
-                      )}
-                      <div className="min-w-0">
-                        <span className="font-bold text-xs text-brand-dark block truncate">
-                          {billing.is_sporadic ? billing.sporadic_name : billing.client?.name}
-                        </span>
-                        <span className="text-[10px] text-gray-400 font-medium">
-                          Vencimento: Dia {billing.due_day}
-                        </span>
                       </div>
-                    </div>
-
-                    <div className="flex items-center gap-3 shrink-0">
-                      <span className="font-bold text-xs text-brand-dark">
-                        {formatCurrency(billing.base_value + billing.extra_value)}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => updateBilling({ 
-                          id: billing.id, 
-                          client_id: billing.client_id, 
-                          month_year: billing.month_year, 
-                          status: 'paid', 
-                          paid_at: new Date().toISOString() 
-                        })}
-                        className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[10px] font-bold uppercase tracking-wider transition-all shadow-sm"
-                      >
-                        Receber
-                      </button>
-                    </div>
+                    ))}
                   </div>
-                ))}
+                </div>
+              ) : (
+                <div className="py-12 text-center text-gray-400">
+                  <p className="text-xs">Nenhuma despesa cadastrada no mês.</p>
+                </div>
+              )}
+            </div>
+          </div>
 
-                {sortedBillings.filter(b => b.status !== 'paid').length === 0 && (
-                  <div className="text-center py-8 text-gray-400">
-                    <div className="w-10 h-10 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto mb-2">
-                      <CheckCircle2 size={20} />
-                    </div>
-                    <p className="text-xs font-bold text-gray-700">Tudo recebido!</p>
-                    <p className="text-[11px] text-gray-400 mt-0.5">Todos os faturamentos deste mês já foram quitados.</p>
-                  </div>
-                )}
+          {/* DRE SINTÉTICA (DEMONSTRATIVO DE RESULTADO DO EXERCÍCIO) */}
+          <div className="bg-white rounded-3xl border border-black/[0.04] shadow-sm p-6 sm:p-7">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-4 border-b border-stone-100">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-stone-100 text-stone-700 flex items-center justify-center shrink-0">
+                  <FileText size={18} />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-brand-dark">DRE Sintética Mensal</h3>
+                  <p className="text-xs text-gray-400">Demonstrativo de Resultado do Exercício consolidado ({currentMonthFormatted})</p>
+                </div>
+              </div>
+              <span className="text-[10px] font-bold uppercase tracking-widest text-emerald-700 bg-emerald-50 border border-emerald-200/60 px-3.5 py-1.5 rounded-full self-start sm:self-auto">
+                Margem Líquida: {stats.margemProjetada.toFixed(1)}%
+              </span>
+            </div>
+
+            <div className="mt-4 divide-y divide-stone-100 text-xs">
+              {/* Receita Recorrente */}
+              <div className="py-3 flex items-center justify-between">
+                <span className="text-stone-600 font-medium">(+) Receita Recorrente de Contratos</span>
+                <span className="font-bold text-brand-dark">{formatCurrency(recurringTotal)}</span>
+              </div>
+              {/* Receita Esporádica */}
+              <div className="py-3 flex items-center justify-between">
+                <span className="text-stone-600 font-medium">(+) Receita de Serviços Esporádicos</span>
+                <span className="font-bold text-brand-dark">{formatCurrency(sporadicTotal)}</span>
+              </div>
+              {/* Receita Bruta Total */}
+              <div className="py-3 flex items-center justify-between bg-blue-50/40 px-3.5 rounded-xl font-bold my-1">
+                <span className="text-blue-950">(=) Receita Operacional Bruta (Faturamento)</span>
+                <span className="text-blue-700 font-extrabold text-sm">{formatCurrency(stats.totalToReceive)}</span>
+              </div>
+              {/* Despesas Fixas */}
+              <div className="py-3 flex items-center justify-between">
+                <span className="text-stone-600 font-medium">(-) Despesas Operacionais Fixas (Ferramentas, Infra, Assinaturas)</span>
+                <span className="font-bold text-rose-600">{formatCurrency(stats.totalFixedExpenses)}</span>
+              </div>
+              {/* Despesas Variáveis */}
+              <div className="py-3 flex items-center justify-between">
+                <span className="text-stone-600 font-medium">(-) Despesas Operacionais Variáveis (Freelancers, Terceiros, Extras)</span>
+                <span className="font-bold text-rose-600">{formatCurrency(stats.totalVariableExpenses)}</span>
+              </div>
+              {/* Total Despesas */}
+              <div className="py-3 flex items-center justify-between bg-rose-50/40 px-3.5 rounded-xl font-bold my-1">
+                <span className="text-rose-950">(=) Total de Despesas Operacionais</span>
+                <span className="text-rose-700 font-extrabold text-sm">{formatCurrency(stats.totalExpenses)}</span>
+              </div>
+              {/* Lucro Líquido */}
+              <div className="py-3.5 flex items-center justify-between bg-stone-900 text-white px-4 rounded-2xl font-bold mt-2 shadow-sm">
+                <div className="flex items-center gap-2">
+                  <TrendingUp size={16} className="text-emerald-400" />
+                  <span className="text-sm">(=) Resultado Operacional Líquido (EBITDA Projetado)</span>
+                </div>
+                <div className="text-right">
+                  <span className="text-base sm:text-lg text-emerald-400 font-extrabold">{formatCurrency(stats.lucroProjetado)}</span>
+                  <span className="text-[10px] text-stone-300 block font-medium">Margem de {stats.margemProjetada.toFixed(1)}%</span>
+                </div>
               </div>
             </div>
           </div>
