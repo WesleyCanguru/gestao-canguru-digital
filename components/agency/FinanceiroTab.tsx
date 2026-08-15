@@ -80,6 +80,7 @@ export const FinanceiroTab: React.FC = () => {
     updateExpense,
     overrideExpenseForMonth,
     updateMotherExpenseAllMonths,
+    updateExpenseFromMonthOnwards,
     deleteExpenseForMonth,
     deleteExpenseFromMonthOnwards,
     deleteExpensePermanently
@@ -460,6 +461,21 @@ export const FinanceiroTab: React.FC = () => {
     setIsUpdating(true);
     try {
       await overrideExpenseForMonth(pendingEditExpense.original, pendingEditExpense.payload, currentMonthYear);
+      setShowEditScopeModal(false);
+      setPendingEditExpense(null);
+      setEditingExpense(null);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
+  const confirmEditFromMonthOnwards = async () => {
+    if (!pendingEditExpense || isUpdating) return;
+    setIsUpdating(true);
+    try {
+      await updateExpenseFromMonthOnwards(pendingEditExpense.original, pendingEditExpense.payload, currentMonthYear);
       setShowEditScopeModal(false);
       setPendingEditExpense(null);
       setEditingExpense(null);
@@ -2375,58 +2391,125 @@ export const FinanceiroTab: React.FC = () => {
           <motion.div 
             initial={{ opacity: 0, scale: 0.95, y: 20 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
-            className="bg-white w-full max-w-md rounded-3xl p-8 shadow-2xl border border-black/[0.03]"
+            className="bg-white w-full max-w-lg rounded-3xl p-6 sm:p-8 shadow-2xl border border-black/[0.03] max-h-[90vh] overflow-y-auto"
           >
-            <div className="flex justify-between items-center mb-6">
-              <h3 className="text-xl font-bold text-brand-dark">Alterar Despesa Recorrente</h3>
+            <div className="flex justify-between items-start mb-6">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 bg-emerald-50 text-emerald-700 rounded-2xl flex items-center justify-center shrink-0">
+                  <Repeat size={22} />
+                </div>
+                <div>
+                  <h3 className="text-lg sm:text-xl font-bold text-brand-dark">Alterar Despesa Recorrente</h3>
+                  <p className="text-xs text-gray-500 mt-0.5">
+                    Defina o escopo de aplicação das alterações nesta conta fixa
+                  </p>
+                </div>
+              </div>
               <button 
-                type="button"
+                type="button" 
                 onClick={() => { setShowEditScopeModal(false); setPendingEditExpense(null); }} 
-                className="p-2 hover:bg-gray-50 rounded-xl transition-colors"
+                className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-50 rounded-xl transition-colors shrink-0"
               >
-                <X size={20} className="text-gray-400" />
+                <X size={18} />
               </button>
             </div>
 
-            <p className="text-sm text-gray-600 mb-6 leading-relaxed">
-              Esta despesa é <strong>Fixa / Recorrente</strong>. Como você deseja aplicar as alterações feitas em <strong>"{pendingEditExpense.original.description}"</strong>?
-            </p>
+            {/* Change Summary Card */}
+            <div className="mb-6 p-4 rounded-2xl bg-stone-50/80 border border-stone-200/70">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-gray-700">Despesa selecionada:</span>
+                <div className="text-right">
+                  {pendingEditExpense.original.amount !== pendingEditExpense.payload.amount ? (
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-gray-400 line-through">
+                        {formatCurrency(pendingEditExpense.original.amount)}
+                      </span>
+                      <span className="text-xs font-bold text-emerald-800">
+                        {formatCurrency(pendingEditExpense.payload.amount)}
+                      </span>
+                    </div>
+                  ) : (
+                    <span className="text-xs font-bold text-brand-dark">
+                      {formatCurrency(pendingEditExpense.payload.amount)}
+                    </span>
+                  )}
+                </div>
+              </div>
+              <p className="font-bold text-sm text-brand-dark mt-1">"{pendingEditExpense.payload.description || pendingEditExpense.original.description}"</p>
+              <div className="flex items-center gap-2 mt-2 pt-2 border-t border-stone-200/50 text-[11px] text-gray-500">
+                <Calendar size={13} className="text-emerald-700" />
+                <span>Mês de referência: <strong className="text-brand-dark">{currentMonthFormatted}</strong></span>
+              </div>
+            </div>
 
+            {/* 3 Scope Options */}
             <div className="space-y-3 mb-6">
+              {/* Option 1: Editar apenas neste mês */}
               <button
                 type="button"
                 onClick={confirmEditOnlyThisMonth}
                 disabled={isUpdating}
-                className="w-full text-left p-4 rounded-2xl border border-gray-100 bg-gray-50/50 hover:bg-blue-50/50 hover:border-blue-200 transition-all group disabled:opacity-50"
+                className="w-full text-left p-4 rounded-2xl border border-stone-200/90 bg-stone-50/60 hover:bg-stone-100/80 transition-all group disabled:opacity-50 cursor-pointer select-none"
               >
-                <span className="font-bold text-sm text-brand-dark block group-hover:text-blue-600 mb-1">
-                  Editar apenas neste mês ({currentMonthFormatted})
-                </span>
-                <span className="text-xs text-gray-500 block leading-relaxed">
-                  Cria uma exceção exclusiva para o mês atual. Os outros meses continuarão com os valores originais da conta fixa.
+                <div className="flex items-center justify-between mb-1">
+                  <span className="font-bold text-sm text-stone-900 group-hover:text-emerald-800 transition-colors">
+                    Editar apenas neste mês ({currentMonthFormatted})
+                  </span>
+                  <span className="text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md bg-stone-200/70 text-stone-700 shrink-0">
+                    Este Mês
+                  </span>
+                </div>
+                <span className="text-xs text-stone-600 block leading-relaxed">
+                  Cria uma exceção exclusiva para o mês selecionado. Os outros meses continuarão com os valores e configurações originais da conta fixa.
                 </span>
               </button>
 
+              {/* Option 2: Deste mês em diante */}
+              <button
+                type="button"
+                onClick={confirmEditFromMonthOnwards}
+                disabled={isUpdating}
+                className="w-full text-left p-4 rounded-2xl border border-emerald-300/80 bg-emerald-50/50 hover:bg-emerald-100/60 transition-all group disabled:opacity-50 cursor-pointer select-none"
+              >
+                <div className="flex items-center justify-between mb-1">
+                  <span className="font-bold text-sm text-emerald-950 group-hover:text-emerald-900 transition-colors">
+                    Deste mês em diante ({currentMonthFormatted} para frente)
+                  </span>
+                  <span className="text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md bg-emerald-200/80 text-emerald-900 shrink-0">
+                    Deste Mês em Diante
+                  </span>
+                </div>
+                <span className="text-xs text-emerald-800/90 block leading-relaxed">
+                  Aplica as alterações no mês atual e em todas as recorrências futuras. <strong>Os meses anteriores permanecem 100% intactos com seus valores históricos.</strong>
+                </span>
+              </button>
+
+              {/* Option 3: Todos os meses */}
               <button
                 type="button"
                 onClick={confirmEditAllMonths}
                 disabled={isUpdating}
-                className="w-full text-left p-4 rounded-2xl border border-gray-100 bg-gray-50/50 hover:bg-blue-50/50 hover:border-blue-200 transition-all group disabled:opacity-50"
+                className="w-full text-left p-4 rounded-2xl border border-stone-200/80 bg-stone-50/40 hover:bg-stone-100/60 transition-all group disabled:opacity-50 cursor-pointer select-none"
               >
-                <span className="font-bold text-sm text-brand-dark block group-hover:text-blue-600 mb-1">
-                  Editar para todos os meses
-                </span>
-                <span className="text-xs text-gray-500 block leading-relaxed">
-                  Atualiza a conta fixa principal. As mudanças serão refletidas imediatamente no mês atual e em todos os outros meses.
+                <div className="flex items-center justify-between mb-1">
+                  <span className="font-bold text-sm text-stone-900 group-hover:text-brand-dark transition-colors">
+                    Editar para todos os meses (Global)
+                  </span>
+                  <span className="text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md bg-stone-200/60 text-stone-600 shrink-0">
+                    Todos os Meses
+                  </span>
+                </div>
+                <span className="text-xs text-stone-500 block leading-relaxed">
+                  Atualiza a conta fixa principal. As mudanças serão refletidas tanto nos meses futuros quanto no histórico passado de todos os meses.
                 </span>
               </button>
             </div>
 
-            <div className="flex justify-end">
+            <div className="flex justify-end pt-2 border-t border-gray-100">
               <button
                 type="button"
                 onClick={() => { setShowEditScopeModal(false); setPendingEditExpense(null); }}
-                className="px-6 py-3 border border-gray-100 text-gray-400 rounded-2xl font-bold text-xs uppercase tracking-widest hover:bg-gray-50 transition-all"
+                className="px-6 py-3 border border-stone-200 text-gray-500 rounded-2xl font-bold text-xs uppercase tracking-widest hover:bg-stone-50 transition-all"
               >
                 Cancelar
               </button>
