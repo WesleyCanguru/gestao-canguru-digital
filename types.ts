@@ -300,6 +300,9 @@ export interface AgencyExpense {
   is_fixed?: boolean;
   parent_id?: string | null;
   exclude_months?: string[];
+  cancelled_from?: string | null;
+  origin?: 'canguru' | 'kanoa' | 'pessoal' | string | null;
+  due_day?: number;
   raw_notes?: string | null;
   expense_type?: 'tools' | 'freelancers' | 'extras';
   agency_id: number;

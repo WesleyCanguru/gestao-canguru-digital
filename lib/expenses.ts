@@ -5,6 +5,9 @@ export function parseNotesAndMeta(rawNotes: string | null | undefined, category?
   let exclude_months: string[] = [];
   let parent_id: string | null = null;
   let is_fixed: boolean = category === 'fixed';
+  let cancelled_from: string | null = null;
+  let origin: string | null = null;
+  let due_day: number | undefined = undefined;
 
   if (rawNotes && rawNotes.includes('__NF_META__=')) {
     const parts = rawNotes.split('__NF_META__=');
@@ -14,17 +17,27 @@ export function parseNotesAndMeta(rawNotes: string | null | undefined, category?
       if (Array.isArray(meta.exclude_months)) exclude_months = meta.exclude_months;
       if (meta.parent_id !== undefined) parent_id = meta.parent_id;
       if (meta.is_fixed !== undefined) is_fixed = meta.is_fixed;
+      if (meta.cancelled_from !== undefined) cancelled_from = meta.cancelled_from;
+      if (meta.origin !== undefined) origin = meta.origin;
+      if (meta.due_day !== undefined) due_day = meta.due_day;
     } catch (e) {
       console.error('Error parsing __NF_META__:', e);
     }
   }
 
-  return { userNotes, exclude_months, parent_id, is_fixed };
+  return { userNotes, exclude_months, parent_id, is_fixed, cancelled_from, origin, due_day };
 }
 
 export function encodeNotesAndMeta(
   userNotes: string | null | undefined, 
-  meta: { exclude_months?: string[]; parent_id?: string | null; is_fixed?: boolean }
+  meta: { 
+    exclude_months?: string[]; 
+    parent_id?: string | null; 
+    is_fixed?: boolean; 
+    cancelled_from?: string | null;
+    origin?: string | null;
+    due_day?: number;
+  }
 ) {
   const cleanUserNotes = (userNotes || '').replace(/\n?__NF_META__=.*$/s, '').trim();
   const metaObj: Record<string, any> = {};
@@ -34,13 +47,16 @@ export function encodeNotesAndMeta(
   }
   if (meta.parent_id) metaObj.parent_id = meta.parent_id;
   if (meta.is_fixed !== undefined) metaObj.is_fixed = meta.is_fixed;
+  if (meta.cancelled_from) metaObj.cancelled_from = meta.cancelled_from;
+  if (meta.origin) metaObj.origin = meta.origin;
+  if (meta.due_day) metaObj.due_day = meta.due_day;
 
   if (Object.keys(metaObj).length === 0) return cleanUserNotes || null;
   return cleanUserNotes ? `${cleanUserNotes}\n__NF_META__=${JSON.stringify(metaObj)}` : `__NF_META__=${JSON.stringify(metaObj)}`;
 }
 
 export function parseExpenseRow(row: any): AgencyExpense {
-  const { userNotes, exclude_months, parent_id, is_fixed } = parseNotesAndMeta(row.notes, row.category);
+  const { userNotes, exclude_months, parent_id, is_fixed, cancelled_from, origin, due_day } = parseNotesAndMeta(row.notes, row.category);
   return {
     ...row,
     notes: userNotes,
@@ -48,15 +64,23 @@ export function parseExpenseRow(row: any): AgencyExpense {
     category: row.category || (is_fixed ? 'fixed' : 'variable'),
     is_fixed: row.is_fixed ?? is_fixed,
     parent_id: row.parent_id ?? parent_id,
-    exclude_months: row.exclude_months ?? exclude_months
+    exclude_months: row.exclude_months ?? exclude_months,
+    cancelled_from: row.cancelled_from ?? cancelled_from,
+    origin: row.origin ?? origin,
+    due_day: row.due_day ?? due_day
   };
 }
 
 export function filterExpensesForMonth(allExpenses: AgencyExpense[], targetMonth: string): AgencyExpense[] {
   const activeExpenses = allExpenses.filter(e => !e.is_deleted);
 
-  // 1. Direct expenses for this targetMonth
-  const directExpenses = activeExpenses.filter(e => e.month_year === targetMonth);
+  // 1. Direct expenses for this targetMonth (must NOT be excluded for this month and must NOT be cancelled before this month)
+  const directExpenses = activeExpenses.filter(e => {
+    if (e.month_year !== targetMonth) return false;
+    if ((e.exclude_months || []).includes(targetMonth)) return false;
+    if (e.cancelled_from && targetMonth >= e.cancelled_from) return false;
+    return true;
+  });
 
   // Track descriptions and parent_ids of fixed expenses already present in targetMonth
   const existingFixedKeys = new Set(
@@ -77,6 +101,7 @@ export function filterExpensesForMonth(allExpenses: AgencyExpense[], targetMonth
     if (!isFixedMother) return false;
     if (e.month_year && e.month_year >= targetMonth) return false; // must be from strict prior month
     if ((e.exclude_months || []).includes(targetMonth)) return false; // excluded for targetMonth
+    if (e.cancelled_from && targetMonth >= e.cancelled_from) return false; // cancelled from this month or earlier
 
     const keyByParent = 'parent:' + e.id;
     const keyByDesc = 'desc:' + e.description.toLowerCase().trim();
@@ -104,3 +129,4 @@ export function filterExpensesForMonth(allExpenses: AgencyExpense[], targetMonth
 
   return [...directExpenses, ...virtualCarriedOver];
 }
+

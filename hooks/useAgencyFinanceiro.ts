@@ -295,7 +295,10 @@ export function useAgencyFinanceiro(monthYear: string) {
       const rawNotes = encodeNotesAndMeta(expense.notes, {
         is_fixed: isFixed,
         exclude_months: expense.exclude_months || [],
-        parent_id: expense.parent_id || null
+        parent_id: expense.parent_id || null,
+        cancelled_from: expense.cancelled_from || null,
+        origin: expense.origin || null,
+        due_day: expense.due_day
       });
 
       const { data, error } = await supabase
@@ -334,7 +337,10 @@ export function useAgencyFinanceiro(monthYear: string) {
         {
           is_fixed: isFixed,
           exclude_months: updates.exclude_months || existing?.exclude_months || [],
-          parent_id: updates.parent_id !== undefined ? updates.parent_id : (existing?.parent_id || null)
+          parent_id: updates.parent_id !== undefined ? updates.parent_id : (existing?.parent_id || null),
+          cancelled_from: updates.cancelled_from !== undefined ? updates.cancelled_from : (existing?.cancelled_from || null),
+          origin: updates.origin !== undefined ? updates.origin : (existing?.origin || null),
+          due_day: updates.due_day !== undefined ? updates.due_day : existing?.due_day
         }
       );
 
@@ -374,6 +380,8 @@ export function useAgencyFinanceiro(monthYear: string) {
       notes?: string | null;
       paid?: boolean;
       paid_at?: string | null;
+      origin?: string | null;
+      due_day?: number;
     },
     targetMonthYear: string = monthYear
   ) => {
@@ -389,7 +397,9 @@ export function useAgencyFinanceiro(monthYear: string) {
           due_date: editedData.due_date,
           notes: editedData.notes,
           paid: editedData.paid,
-          paid_at: editedData.paid_at
+          paid_at: editedData.paid_at,
+          origin: editedData.origin !== undefined ? editedData.origin : targetExpense.origin,
+          due_day: editedData.due_day
         });
         return;
       }
@@ -398,7 +408,10 @@ export function useAgencyFinanceiro(monthYear: string) {
       const updatedExcludeMonths = Array.from(new Set([...(targetExpense.exclude_months || []), targetMonthYear]));
       const motherRawNotes = encodeNotesAndMeta(targetExpense.notes, {
         exclude_months: updatedExcludeMonths,
-        is_fixed: true
+        is_fixed: true,
+        cancelled_from: targetExpense.cancelled_from || null,
+        origin: targetExpense.origin || null,
+        due_day: targetExpense.due_day
       });
 
       const { error: motherErr } = await supabase
@@ -412,7 +425,9 @@ export function useAgencyFinanceiro(monthYear: string) {
       // Insert child override
       const childRawNotes = encodeNotesAndMeta(editedData.notes, {
         parent_id: targetExpense.id,
-        is_fixed: false
+        is_fixed: false,
+        origin: editedData.origin || targetExpense.origin || null,
+        due_day: editedData.due_day
       });
 
       const { error: childErr } = await supabase
@@ -450,6 +465,8 @@ export function useAgencyFinanceiro(monthYear: string) {
       notes?: string | null;
       paid?: boolean;
       paid_at?: string | null;
+      origin?: string | null;
+      due_day?: number;
     }
   ) => {
     try {
@@ -459,7 +476,10 @@ export function useAgencyFinanceiro(monthYear: string) {
       const motherExp = rawExpenses.find(e => e.id === motherId) || targetExpense;
       const rawNotes = encodeNotesAndMeta(editedData.notes ?? motherExp.notes, {
         exclude_months: motherExp.exclude_months || [],
-        is_fixed: true
+        is_fixed: true,
+        cancelled_from: motherExp.cancelled_from || null,
+        origin: editedData.origin !== undefined ? editedData.origin : (motherExp.origin || null),
+        due_day: editedData.due_day !== undefined ? editedData.due_day : motherExp.due_day
       });
 
       const { error } = await supabase
@@ -494,7 +514,10 @@ export function useAgencyFinanceiro(monthYear: string) {
       const updatedExcludeMonths = Array.from(new Set([...(motherExp.exclude_months || []), targetMonthYear]));
       const motherRawNotes = encodeNotesAndMeta(motherExp.notes, {
         exclude_months: updatedExcludeMonths,
-        is_fixed: true
+        is_fixed: true,
+        cancelled_from: motherExp.cancelled_from || null,
+        origin: motherExp.origin || null,
+        due_day: motherExp.due_day
       });
 
       await supabase
@@ -514,6 +537,59 @@ export function useAgencyFinanceiro(monthYear: string) {
       await fetchData();
     } catch (error) {
       console.error('Error deleting expense for month:', error);
+      throw error;
+    }
+  };
+
+  const deleteExpenseFromMonthOnwards = async (targetExpense: AgencyExpense, targetMonthYear: string = monthYear) => {
+    try {
+      if (!agencyId) return;
+      const motherId = targetExpense.parent_id || targetExpense.id;
+      const motherExp = rawExpenses.find(e => e.id === motherId) || targetExpense;
+
+      // If mother expense started on or after targetMonthYear, there is no prior history to preserve -> delete mother
+      if (motherExp.month_year && motherExp.month_year >= targetMonthYear) {
+        await supabase
+          .from('agency_expenses')
+          .update({ is_deleted: true })
+          .eq('agency_id', agencyId)
+          .eq('id', motherId);
+      } else {
+        // Mother was created in an earlier month -> set cancelled_from to targetMonthYear
+        const motherRawNotes = encodeNotesAndMeta(motherExp.notes, {
+          exclude_months: motherExp.exclude_months || [],
+          is_fixed: true,
+          cancelled_from: targetMonthYear,
+          origin: motherExp.origin || null,
+          due_day: motherExp.due_day
+        });
+
+        await supabase
+          .from('agency_expenses')
+          .update({ notes: motherRawNotes })
+          .eq('agency_id', agencyId)
+          .eq('id', motherId);
+      }
+
+      // Delete all child / override records from targetMonthYear onwards
+      const childIdsToDelete = rawExpenses
+        .filter(e => e.parent_id === motherId && e.month_year >= targetMonthYear)
+        .map(e => e.id);
+
+      if (targetExpense.parent_id && !childIdsToDelete.includes(targetExpense.id)) {
+        childIdsToDelete.push(targetExpense.id);
+      }
+
+      if (childIdsToDelete.length > 0) {
+        await supabase
+          .from('agency_expenses')
+          .update({ is_deleted: true })
+          .in('id', childIdsToDelete);
+      }
+
+      await fetchData();
+    } catch (error) {
+      console.error('Error deleting expense from month onwards:', error);
       throw error;
     }
   };
@@ -577,6 +653,7 @@ export function useAgencyFinanceiro(monthYear: string) {
     overrideExpenseForMonth,
     updateMotherExpenseAllMonths,
     deleteExpenseForMonth,
+    deleteExpenseFromMonthOnwards,
     deleteExpensePermanently,
     refresh: fetchData
   };
