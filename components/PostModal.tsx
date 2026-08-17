@@ -609,11 +609,11 @@ export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, group
       if (onUpdate) onUpdate();
       
       // Close or Exit Edit
-      // Only close if date changed. If it was isNew, we now have a date, it stays open in View Mode.
-      if (!isNew && dateKey !== 'new' && postDate !== dateKey.split('-').slice(0,3).reverse().join('-')) {
-          onClose(); // Se mudou data, fecha
+      // Close modal on new post creation or when date changes. For existing posts where date didn't change, exit edit mode.
+      if (isNew || dateKey === 'new' || (!isNew && postDate !== dateKey.split('-').slice(0,3).reverse().join('-'))) {
+          onClose(); // Fecha o modal após criar publicação nova ou após mover a data
       } else {
-          setIsEditing(false); // Apenas sai da aba de edição
+          setIsEditing(false); // Apenas sai da aba de edição quando foi edição de post existente na mesma data
       }
 
     } catch (error) {

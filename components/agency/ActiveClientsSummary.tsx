@@ -76,7 +76,10 @@ export const ActiveClientsSummary: React.FC<ActiveClientsSummaryProps> = ({ onSe
       const { data: postsData } = await supabase
         .from('posts')
         .select('*')
-        .in('client_id', clientsData.map(c => c.id));
+        .in('client_id', clientsData.map(c => c.id))
+        .neq('status', 'deleted')
+        .order('last_updated', { ascending: false })
+        .limit(10000);
 
       // 3. Fetch Quick Links
       const { data: linksData } = await supabase

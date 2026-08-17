@@ -42,7 +42,10 @@ export function useClientesOverview() {
       const { data: postsData } = await supabase
         .from('posts')
         .select('*')
-        .eq('agency_id', agencyId);
+        .eq('agency_id', agencyId)
+        .neq('status', 'deleted')
+        .order('last_updated', { ascending: false })
+        .limit(10000);
 
       const posts = (postsData || []) as PostData[];
 

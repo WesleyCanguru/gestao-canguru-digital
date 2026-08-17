@@ -694,25 +694,33 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack, ini
 
   // 2. Buscar Dados do Supabase
   const fetchMonthPosts = useCallback(async () => {
-    if (!currentPlan) return;
+    if (!currentPlan || !activeClient?.id) return;
     setLoadingPosts(true);
     
-    const { data } = await supabase
-      .from('posts')
-      .select('*')
-      
-      .eq('client_id', activeClient?.id);
+    try {
+      const { data, error } = await supabase
+        .from('posts')
+        .select('*')
+        .eq('client_id', activeClient.id)
+        .order('last_updated', { ascending: false })
+        .limit(10000);
 
-    const processedData = data ? await autoPublishPastScheduledPosts(data) : [];
+      if (error) throw error;
 
-    const postsMap: Record<string, PostData> = {};
-    if (processedData) {
-      processedData.forEach((post: PostData) => {
-        postsMap[post.date_key] = post;
-      });
+      const processedData = data ? await autoPublishPastScheduledPosts(data) : [];
+
+      const postsMap: Record<string, PostData> = {};
+      if (processedData) {
+        processedData.forEach((post: PostData) => {
+          postsMap[post.date_key] = post;
+        });
+      }
+      setDbPosts(postsMap);
+    } catch (err) {
+      console.error('Erro ao buscar posts do mês:', err);
+    } finally {
+      setLoadingPosts(false);
     }
-    setDbPosts(postsMap);
-    setLoadingPosts(false);
   }, [currentPlan, activeClient]);
 
   useEffect(() => {
@@ -772,14 +780,20 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack, ini
       if (processedKeys.has(post.date_key)) return;
 
       const parts = post.date_key.split('-');
-      const d = parts[0];
-      const m = parts[1];
-      const y = parts[2];
-      const platform = parts[3] as 'meta' | 'linkedin' | 'tiktok';
-      
-      if (parseInt(m) !== currentPlan.month || parseInt(y) !== currentPlan.year) return;
+      if (parts.length < 3) return;
 
-      const dateStr = `${d}/${m}`;
+      const dNum = parseInt(parts[0], 10);
+      const mNum = parseInt(parts[1], 10);
+      const yNum = parseInt(parts[2], 10);
+      const platform = (parts[3] || 'meta') as 'meta' | 'linkedin' | 'tiktok';
+      
+      if (isNaN(dNum) || isNaN(mNum) || isNaN(yNum)) return;
+      if (mNum !== currentPlan.month || yNum !== currentPlan.year) return;
+
+      const dStr = dNum < 10 ? `0${dNum}` : `${dNum}`;
+      const mStr = mNum < 10 ? `0${mNum}` : `${mNum}`;
+      const dateStr = `${dStr}/${mStr}`;
+
       const newContent: DailyContent = {
         day: `${dateStr} – (Novo)`,
         platform: platform,
@@ -792,7 +806,7 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack, ini
       tempPosts.push({
         content: newContent,
         key: post.date_key,
-        sortDate: new Date(parseInt(y), parseInt(m) - 1, parseInt(d)).getTime()
+        sortDate: new Date(yNum, mNum - 1, dNum).getTime()
       });
     });
 

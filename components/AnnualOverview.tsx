@@ -116,7 +116,8 @@ export const AnnualOverview: React.FC<AnnualOverviewProps> = ({ onSelectMonth })
         .from('posts')
         .select('date_key')
         .eq('client_id', activeClient.id)
-        .neq('status', 'deleted');
+        .neq('status', 'deleted')
+        .limit(10000);
 
       if (error) {
         console.error('Error fetching post counts:', error);

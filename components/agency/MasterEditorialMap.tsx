@@ -105,7 +105,9 @@ export const MasterEditorialMap: React.FC<MasterEditorialMapProps> = ({ onBackTo
           )
         `)
         .eq('agency_id', agencyId)
-        .neq('status', 'deleted');
+        .neq('status', 'deleted')
+        .order('last_updated', { ascending: false })
+        .limit(10000);
         
       if (error) throw error;
       if (data) {
