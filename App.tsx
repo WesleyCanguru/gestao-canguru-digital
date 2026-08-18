@@ -28,6 +28,7 @@ import { AiPhotosView } from './components/AiPhotosView';
 import { PhotosApprovalPublic } from './components/PhotosApprovalPublic';
 import { RoteirosSection } from './components/anotacoes/RoteirosSection';
 import { ScriptApprovalPublic } from './components/anotacoes/ScriptApprovalPublic';
+import { ClientPainelConteudo } from './components/client/ClientPainelConteudo';
 
 import { AgencyHome } from './components/agency/AgencyHome';
 import { AgencyDashboard } from './components/agency/AgencyDashboard';
@@ -165,157 +166,100 @@ const MainApp: React.FC<MainAppProps> = ({ initialView, onExitAgencyDashboard, o
       )}
 
       <div className="flex-1 flex flex-col min-w-0">
-        {/* Header Fixo - Apenas para visões sem sidebar persistente ou para visualização do mapa editorial */}
-        {((!showNav && view !== 'agencyDashboard' && view !== 'strategic-briefings') || view === 'month-detail') && (
+        {/* Header Fixo - Apenas para visões sem sidebar persistente */}
+        {(!showNav && view !== 'agencyDashboard' && view !== 'strategic-briefings') && (
           <header className={`bg-white/70 backdrop-blur-xl border-b border-black/[0.02] sticky ${showNav ? 'top-16 lg:top-0 z-40' : 'top-0 z-50'} shadow-[0_1px_10px_rgba(0,0,0,0.02)]`}>
-            {/* Linha Superior: Logo e Botões de Navegação - Ocultar se já houver sidebar lateral */}
-            {!showNav && (
-              <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                <div className="flex justify-between items-center h-20 sm:h-24">
-                  {/* Área de Logos */}
-                  <div className="flex items-center gap-4 sm:gap-10 overflow-hidden">
-                    <motion.div
-                      whileHover={{ scale: 1.02 }}
-                      className="cursor-pointer flex items-center gap-2 sm:gap-4 shrink-0"
-                      onClick={() => setView('dashboard')}
-                    >
-                      {activeClient ? (
-                        activeClient.logo_url ? (
-                          <img src={activeClient.logo_url} alt={activeClient.name} className="h-10 sm:h-20 w-auto max-w-[100px] sm:max-w-[200px] object-contain mix-blend-multiply" />
-                        ) : (
-                          <span className="text-lg sm:text-3xl font-bold text-brand-dark tracking-tighter serif italic truncate max-w-[120px] sm:max-w-none">{activeClient.name}</span>
-                        )
+            {/* Linha Superior: Logo e Botões de Navegação */}
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+              <div className="flex justify-between items-center h-20 sm:h-24">
+                {/* Área de Logos */}
+                <div className="flex items-center gap-4 sm:gap-10 overflow-hidden">
+                  <motion.div
+                    whileHover={{ scale: 1.02 }}
+                    className="cursor-pointer flex items-center gap-2 sm:gap-4 shrink-0"
+                    onClick={() => setView('dashboard')}
+                  >
+                    {activeClient ? (
+                      activeClient.logo_url ? (
+                        <img src={activeClient.logo_url} alt={activeClient.name} className="h-10 sm:h-20 w-auto max-w-[100px] sm:max-w-[200px] object-contain mix-blend-multiply" />
                       ) : (
-                        <Logo size="large" />
-                      )}
-                      {activeClient && (
-                        <>
-                          <div className="h-6 w-px bg-gray-100 hidden sm:block"></div>
-                          <div className="flex items-center gap-1 sm:gap-2 opacity-40 hover:opacity-100 transition-opacity duration-500">
-                            <span className="text-[5px] sm:text-[7px] uppercase tracking-[0.3em] text-gray-400 font-bold">Strategy by</span>
-                            <div className="scale-75 sm:scale-100 origin-left">
-                              <Logo size="small" />
-                            </div>
+                        <span className="text-lg sm:text-3xl font-bold text-brand-dark tracking-tighter serif italic truncate max-w-[120px] sm:max-w-none">{activeClient.name}</span>
+                      )
+                    ) : (
+                      <Logo size="large" />
+                    )}
+                    {activeClient && (
+                      <>
+                        <div className="h-6 w-px bg-gray-100 hidden sm:block"></div>
+                        <div className="flex items-center gap-1 sm:gap-2 opacity-40 hover:opacity-100 transition-opacity duration-500">
+                          <span className="text-[5px] sm:text-[7px] uppercase tracking-[0.3em] text-gray-400 font-bold">Strategy by</span>
+                          <div className="scale-75 sm:scale-100 origin-left">
+                            <Logo size="small" />
                           </div>
-                        </>
-                      )}
-                    </motion.div>
-                  </div>
+                        </div>
+                      </>
+                    )}
+                  </motion.div>
+                </div>
 
-                  <div className="flex items-center gap-2 sm:gap-4 shrink-0">
-                    <div className="hidden md:flex flex-col items-end mr-4">
-                      <span className="text-[8px] uppercase tracking-[0.3em] text-gray-400 font-bold mb-0.5">Membro Premium</span>
-                      <span className="text-[11px] font-bold text-brand-dark uppercase tracking-widest">{getRoleLabel()}</span>
-                    </div>
-                    {(userRole as any) === 'admin' && (
-                      <button
-                        onClick={onGoToAgencyHome}
-                        className="flex items-center gap-2 px-3 sm:px-5 py-2 sm:py-2.5 rounded-xl sm:rounded-2xl text-[9px] sm:text-[10px] font-bold uppercase tracking-[0.15em] transition-all bg-gray-50/50 text-gray-500 hover:bg-gray-100 hover:text-brand-dark border border-black/[0.02]"
-                        title="Menu Inicial"
-                      >
-                        <Home size={14} />
-                        <span className="hidden sm:inline">Menu Inicial</span>
-                      </button>
-                    )}
-                    {(userRole as any) === 'admin' && (
-                      <button
-                        onClick={() => setView('agencyDashboard')}
-                        className={`flex items-center gap-2 px-3 sm:px-5 py-2 sm:py-2.5 rounded-xl sm:rounded-2xl text-[9px] sm:text-[10px] font-bold uppercase tracking-[0.15em] transition-all ${
-                          (view as string) === 'agencyDashboard'
-                            ? 'bg-brand-dark text-white shadow-xl shadow-brand-dark/20'
-                            : 'bg-gray-50/50 text-gray-500 hover:text-brand-dark hover:bg-gray-100 border border-black/[0.02]'
-                        }`}
-                        title="Painel Canguru"
-                      >
-                        <Shield size={14} />
-                        <span className="hidden sm:inline">Painel Canguru</span>
-                      </button>
-                    )}
-                    {(userRole as any) === 'admin' && (
-                      <button
-                        onClick={() => {
-                          setActiveClient(null);
-                          if (onGoToClientSelector) onGoToClientSelector();
-                        }}
-                        className="flex items-center gap-2 px-3 sm:px-5 py-2 sm:py-2.5 rounded-xl sm:rounded-2xl text-[9px] sm:text-[10px] font-bold uppercase tracking-[0.15em] transition-all bg-gray-50/50 text-gray-500 hover:bg-gray-100 hover:text-brand-dark border border-black/[0.02]"
-                        title="Trocar Cliente"
-                      >
-                        <Building2 size={14} />
-                        <span className="hidden sm:inline">Trocar Cliente</span>
-                      </button>
-                    )}
-                    <button
-                      onClick={logout}
-                      className="p-2 sm:p-3 rounded-xl sm:rounded-2xl bg-red-50/50 text-red-400 hover:bg-red-50 hover:text-red-600 transition-all active:scale-95 border border-red-100/20"
-                      title="Sair"
-                    >
-                      <LogOut size={16} className="sm:w-[18px] sm:h-[18px]" />
-                    </button>
+                <div className="flex items-center gap-2 sm:gap-4 shrink-0">
+                  <div className="hidden md:flex flex-col items-end mr-4">
+                    <span className="text-[8px] uppercase tracking-[0.3em] text-gray-400 font-bold mb-0.5">Membro Premium</span>
+                    <span className="text-[11px] font-bold text-brand-dark uppercase tracking-widest">{getRoleLabel()}</span>
                   </div>
+                  {(userRole as any) === 'admin' && (
+                    <button
+                      onClick={onGoToAgencyHome}
+                      className="flex items-center gap-2 px-3 sm:px-5 py-2 sm:py-2.5 rounded-xl sm:rounded-2xl text-[9px] sm:text-[10px] font-bold uppercase tracking-[0.15em] transition-all bg-gray-50/50 text-gray-500 hover:bg-gray-100 hover:text-brand-dark border border-black/[0.02]"
+                      title="Menu Inicial"
+                    >
+                      <Home size={14} />
+                      <span className="hidden sm:inline">Menu Inicial</span>
+                    </button>
+                  )}
+                  {(userRole as any) === 'admin' && (
+                    <button
+                      onClick={() => setView('agencyDashboard')}
+                      className={`flex items-center gap-2 px-3 sm:px-5 py-2 sm:py-2.5 rounded-xl sm:rounded-2xl text-[9px] sm:text-[10px] font-bold uppercase tracking-[0.15em] transition-all ${
+                        (view as string) === 'agencyDashboard'
+                          ? 'bg-brand-dark text-white shadow-xl shadow-brand-dark/20'
+                          : 'bg-gray-50/50 text-gray-500 hover:text-brand-dark hover:bg-gray-100 border border-black/[0.02]'
+                      }`}
+                      title="Painel Canguru"
+                    >
+                      <Shield size={14} />
+                      <span className="hidden sm:inline">Painel Canguru</span>
+                    </button>
+                  )}
+                  {(userRole as any) === 'admin' && (
+                    <button
+                      onClick={() => {
+                        setActiveClient(null);
+                        if (onGoToClientSelector) onGoToClientSelector();
+                      }}
+                      className="flex items-center gap-2 px-3 sm:px-5 py-2 sm:py-2.5 rounded-xl sm:rounded-2xl text-[9px] sm:text-[10px] font-bold uppercase tracking-[0.15em] transition-all bg-gray-50/50 text-gray-500 hover:bg-gray-100 hover:text-brand-dark border border-black/[0.02]"
+                      title="Trocar Cliente"
+                    >
+                      <Building2 size={14} />
+                      <span className="hidden sm:inline">Trocar Cliente</span>
+                    </button>
+                  )}
+                  <button
+                    onClick={logout}
+                    className="p-2 sm:p-3 rounded-xl sm:rounded-2xl bg-red-50/50 text-red-400 hover:bg-red-50 hover:text-red-600 transition-all active:scale-95 border border-red-100/20"
+                    title="Sair"
+                  >
+                    <LogOut size={16} className="sm:w-[18px] sm:h-[18px]" />
+                  </button>
                 </div>
               </div>
-            )}
-
-            {/* Linha Inferior: Navegação dos Meses */}
-            <AnimatePresence>
-              {(view === 'month-detail') && (
-                <motion.div
-                  initial={{ height: 0, opacity: 0 }}
-                  animate={{ height: 'auto', opacity: 1 }}
-                  exit={{ height: 0, opacity: 0 }}
-                  className="border-t border-black/[0.02] bg-white/30 overflow-hidden"
-                >
-                  <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                    <div className="flex items-center gap-3 overflow-x-auto no-scrollbar py-4 -mx-4 px-4 sm:mx-0 sm:px-0">
-                      {monthlyPlans.map((plan) => {
-                        const monthName = MONTH_NAMES[plan.month - 1];
-                        const isActive = selectedMonth === monthName;
-                        const isLocked = userRole !== 'admin' && !plan.is_released;
-
-                        return (
-                          <button
-                            key={plan.id}
-                            onClick={() => !isLocked && handleSelectMonth(monthName)}
-                            className={`
-                              whitespace-nowrap px-6 py-2.5 rounded-full text-[10px] font-bold uppercase tracking-[0.2em] transition-all border
-                              ${isLocked 
-                                ? 'bg-gray-50 border-transparent text-gray-300 cursor-not-allowed opacity-60' 
-                                : isActive
-                                  ? 'bg-brand-dark border-brand-dark text-white shadow-xl transform scale-105'
-                                  : 'bg-white border-black/[0.03] text-gray-400 hover:border-brand-dark hover:text-brand-dark'
-                              }
-                            `}
-                          >
-                            {monthName}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
+            </div>
           </header>
         )}
 
         {/* Main Content */}
         <main className={`flex-grow ${showNav ? 'pt-24 lg:pt-10 pb-10' : 'py-6 sm:py-10'}`}>
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <AnimatePresence mode="wait">
-              {view === 'month-detail' && (
-                <motion.div
-                  initial={{ opacity: 0, x: -10 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: -10 }}
-                  className="mb-12 flex items-center gap-4 text-[10px] font-bold text-gray-400 uppercase tracking-[0.3em]"
-                >
-                  <span onClick={handleBackToHome} className="cursor-pointer hover:text-brand-dark transition-colors">Dashboard</span>
-                  <ChevronRight size={12} className="opacity-30" />
-                  <span className="text-brand-dark">{selectedMonth}</span>
-                </motion.div>
-              )}
-            </AnimatePresence>
-
             <AnimatePresence mode="wait">
               <motion.div
                 key={view + (isAgencyView ? agencyTab : '')}
@@ -498,7 +442,7 @@ const MainApp: React.FC<MainAppProps> = ({ initialView, onExitAgencyDashboard, o
                 ) : view === 'home' ? (
                   <AnnualOverview onSelectMonth={handleSelectMonth} />
                 ) : (
-                  <MonthDetail monthName={selectedMonth || ''} onBack={handleBackToHome} />
+                  <ClientPainelConteudo onBackToHome={handleBackToHome} />
                 )}
               </motion.div>
             </AnimatePresence>

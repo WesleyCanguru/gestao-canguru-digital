@@ -108,7 +108,7 @@ export const Navigation: React.FC<SidebarProps> = ({
     const allModules = [
       { id: 'dashboard', label: 'Início', icon: Home, featureKey: null, defaultVisible: true },
       { id: 'crm', label: 'CRM', icon: Kanban, featureKey: 'crm', defaultVisible: false },
-      { id: 'month-detail', label: 'Mapa Editorial', icon: Calendar, featureKey: 'mapa', defaultVisible: hasService('Social Media') },
+      { id: 'month-detail', label: 'Painel de Conteúdo', icon: LayoutDashboard, featureKey: 'mapa', defaultVisible: hasService('Social Media') },
       { id: 'strategic-briefings', label: 'Briefings', icon: Target, featureKey: 'briefings', defaultVisible: hasService('Social Media') || hasService('Tráfego Pago') },
       { id: 'paid-traffic', label: 'Tráfego Pago', icon: Zap, featureKey: null, defaultVisible: services.includes('Tráfego Pago') },
       { id: 'website', label: 'Website', icon: Globe, featureKey: 'website', defaultVisible: hasService('Tráfego Pago') },

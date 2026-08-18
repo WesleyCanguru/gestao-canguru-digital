@@ -242,9 +242,9 @@ export const ClientHome: React.FC<ClientHomeProps> = ({
             </div>
             <ArrowRight size={22} className="text-gray-200 group-hover:text-brand-dark transform group-hover:-rotate-45 transition-all duration-500" />
           </div>
-          <h3 className="text-2xl font-bold text-brand-dark mb-3 tracking-tight">Mapa Editorial</h3>
+          <h3 className="text-2xl font-bold text-brand-dark mb-3 tracking-tight">Painel de Conteúdo</h3>
           <p className="text-gray-500 text-sm leading-relaxed font-medium">
-            Acesse o calendário completo de publicações. Visualize, aprove e acompanhe o status de cada conteúdo planejado.
+            Acesse o painel completo de conteúdo com dashboard de métricas, lista de publicações e mapa editorial da sua marca.
           </p>
         </motion.div>
       )
