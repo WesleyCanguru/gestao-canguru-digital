@@ -25,7 +25,7 @@ import { AgencyContractsTab } from './AgencyContractsTab';
 import { OnboardingTab } from './OnboardingTab';
 import { ClientesTab } from './ClientesTab';
 import { AnotacoesTab } from './AnotacoesTab';
-import { MasterEditorialMap } from './MasterEditorialMap';
+import { PainelConteudo } from './PainelConteudo';
 import { Logo } from '../Logo';
 
 import { useAuth } from '../../lib/supabase';
@@ -37,21 +37,26 @@ interface AgencyDashboardProps {
   onTabChange?: (tab: string) => void;
 }
 
-type Tab = 'home' | 'tasks' | 'financeiro' | 'prospeccao' | 'contratos' | 'onboarding' | 'clientes' | 'anotacoes' | 'masterMap';
+type Tab = 'home' | 'tasks' | 'financeiro' | 'prospeccao' | 'contratos' | 'onboarding' | 'clientes' | 'anotacoes' | 'masterMap' | 'painelConteudo';
 
 export const AgencyDashboard: React.FC<AgencyDashboardProps> = ({ onBack, onSelectClient, activeTab, onTabChange }) => {
   const { userRole } = useAuth();
-  const [masterMapFilter, setMasterMapFilter] = useState<{ status?: string; date?: string }>({});
+  const [contentPanelFilter, setContentPanelFilter] = useState<{
+    aba?: 'dashboard' | 'publicacoes';
+    status?: string;
+    periodo?: string;
+    date?: string;
+  }>({});
 
   if (userRole !== 'admin') {
     return null;
   }
 
-  const handleNavigateToMasterMap = (filter?: { status?: string; date?: string }) => {
+  const handleNavigateToContentPanel = (filter?: { aba?: 'dashboard' | 'publicacoes'; status?: string; periodo?: string; date?: string }) => {
     if (filter) {
-      setMasterMapFilter(filter);
+      setContentPanelFilter(filter);
     } else {
-      setMasterMapFilter({});
+      setContentPanelFilter({});
     }
     onTabChange?.('masterMap');
   };
@@ -72,13 +77,16 @@ export const AgencyDashboard: React.FC<AgencyDashboardProps> = ({ onBack, onSele
               {activeTab === 'home' && (
                 <HomeTab 
                   onNavigateToClients={(client) => onSelectClient(client)} 
-                  onNavigateToMasterMap={handleNavigateToMasterMap}
+                  onNavigateToMasterMap={handleNavigateToContentPanel}
+                  onNavigateToPainelConteudo={handleNavigateToContentPanel}
                 />
               )}
-              {activeTab === 'masterMap' && (
-                <MasterEditorialMap 
-                  initialFilterStatus={masterMapFilter.status}
-                  initialFilterDate={masterMapFilter.date}
+              {(activeTab === 'masterMap' || (activeTab as string) === 'painelConteudo') && (
+                <PainelConteudo 
+                  initialTab={contentPanelFilter.aba}
+                  initialFilterStatus={contentPanelFilter.status}
+                  initialFilterPeriod={contentPanelFilter.periodo}
+                  initialFilterDate={contentPanelFilter.date}
                 />
               )}
               {activeTab === 'contratos' && <AgencyContractsTab />}

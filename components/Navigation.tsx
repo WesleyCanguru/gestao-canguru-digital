@@ -83,7 +83,7 @@ export const Navigation: React.FC<SidebarProps> = ({
 
   const agencyItems = [
     { id: 'home', label: 'Início', icon: Home },
-    { id: 'masterMap', label: 'Mapa Master', icon: Calendar },
+    { id: 'masterMap', label: 'Painel de Conteúdo', icon: LayoutDashboard },
     { id: 'tasks', label: 'Processos & Tarefas', icon: ClipboardList },
     { id: 'anotacoes', label: 'Anotações', icon: NotebookPen },
     { id: 'prospeccao', label: 'CRM / Prospecção', icon: Kanban },

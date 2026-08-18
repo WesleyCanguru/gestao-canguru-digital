@@ -19,6 +19,8 @@ import {
   Sparkles,
   Layers,
   ChevronRight,
+  ChevronDown,
+  ChevronUp,
   Instagram,
   Linkedin,
   Video,
@@ -28,9 +30,10 @@ import {
 import dayjs from 'dayjs';
 import 'dayjs/locale/pt-br';
 import { motion, AnimatePresence } from 'motion/react';
-import { Client, AgencyTask, AgencyCRM, AgencyLead, PostStatus } from '../../types';
+import { Client, AgencyTask, AgencyCRM, AgencyLead, PostStatus, DailyContent } from '../../types';
 import { parseExpenseRow, filterExpensesForMonth } from '../../lib/expenses';
 import { AgencyLogo } from '../AgencyLogo';
+import { PostModal } from '../PostModal';
 
 dayjs.locale('pt-br');
 
@@ -57,6 +60,7 @@ interface DaySummaryCounts {
 interface WeekPostItem {
   id: string;
   dateKey: string;
+  groupKeys?: string[];
   day: number;
   month: number;
   year: number;
@@ -73,6 +77,7 @@ interface WeekPostItem {
   status: PostStatus;
   platforms: ('meta' | 'linkedin' | 'tiktok')[];
   scheduled_time?: string | null;
+  rawPost?: any;
 }
 
 interface WeekDayGroup {
@@ -85,13 +90,24 @@ interface WeekDayGroup {
 
 interface HomeTabProps {
   onNavigateToClients: (client: Client) => void;
-  onNavigateToMasterMap?: (filter?: { status?: string; date?: string }) => void;
+  onNavigateToMasterMap?: (filter?: { aba?: 'dashboard' | 'publicacoes'; status?: string; periodo?: string; date?: string }) => void;
+  onNavigateToPainelConteudo?: (filter?: { aba?: 'dashboard' | 'publicacoes'; status?: string; periodo?: string; date?: string }) => void;
 }
 
-export const HomeTab: React.FC<HomeTabProps> = ({ onNavigateToClients, onNavigateToMasterMap }) => {
+export const HomeTab: React.FC<HomeTabProps> = ({ onNavigateToClients, onNavigateToMasterMap, onNavigateToPainelConteudo }) => {
   const { agencyId, agencyName } = useAuth();
   const [loading, setLoading] = useState(true);
   
+  // Modal de edição / visualização de post direto da semana
+  const [modalOpen, setModalOpen] = useState(false);
+  const [selectedPost, setSelectedPost] = useState<{
+    dayContent: DailyContent;
+    dateKey: string;
+    groupKeys?: string[];
+    isNew?: boolean;
+    clientOverride?: any;
+  } | null>(null);
+
   const [financial, setFinancial] = useState<FinancialData>({ 
     receitas: 0, 
     despesas: 0, 
@@ -120,6 +136,19 @@ export const HomeTab: React.FC<HomeTabProps> = ({ onNavigateToClients, onNavigat
     setShowFinancials((prev: boolean) => {
       const next = !prev;
       localStorage.setItem('canguru_show_financials', JSON.stringify(next));
+      return next;
+    });
+  };
+
+  const [showWeekPosts, setShowWeekPosts] = useState(() => {
+    const stored = localStorage.getItem('canguru_show_week_posts');
+    return stored !== null ? JSON.parse(stored) : true;
+  });
+
+  const toggleWeekPosts = () => {
+    setShowWeekPosts((prev: boolean) => {
+      const next = !prev;
+      localStorage.setItem('canguru_show_week_posts', JSON.stringify(next));
       return next;
     });
   };
@@ -370,6 +399,7 @@ export const HomeTab: React.FC<HomeTabProps> = ({ onNavigateToClients, onNavigat
             groupedMap[gKey] = {
               id: post.id || post.date_key,
               dateKey: post.date_key,
+              groupKeys: [post.date_key],
               day: dDay,
               month: dMonth,
               year: dYear,
@@ -385,9 +415,13 @@ export const HomeTab: React.FC<HomeTabProps> = ({ onNavigateToClients, onNavigat
               theme: post.theme || post.theme_title || 'Sem tema definido',
               status: post.status as PostStatus,
               platforms: [platform],
-              scheduled_time: post.scheduled_time || null
+              scheduled_time: post.scheduled_time || null,
+              rawPost: post
             };
           } else {
+            if (groupedMap[gKey].groupKeys && !groupedMap[gKey].groupKeys.includes(post.date_key)) {
+              groupedMap[gKey].groupKeys.push(post.date_key);
+            }
             if (!groupedMap[gKey].platforms.includes(platform)) {
               groupedMap[gKey].platforms.push(platform);
             }
@@ -516,6 +550,29 @@ export const HomeTab: React.FC<HomeTabProps> = ({ onNavigateToClients, onNavigat
 
   const monthNames = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
   const labelPeriodo = `Jan–${monthNames[dayjs().month()]} de ${dayjs().year()}`;
+
+  const handleOpenPostModal = (item: WeekPostItem) => {
+    const dayStr = item.day < 10 ? `0${item.day}` : `${item.day}`;
+    const monthStr = item.month < 10 ? `0${item.month}` : `${item.month}`;
+
+    const dayContent: DailyContent = {
+      day: `${dayStr}/${monthStr}`,
+      platform: item.platforms[0] || 'meta',
+      type: item.type,
+      theme: item.theme,
+      bullets: item.rawPost?.bullets || [],
+      initialImageUrl: item.rawPost?.image_url || undefined
+    };
+
+    setSelectedPost({
+      dayContent,
+      dateKey: item.dateKey,
+      groupKeys: item.groupKeys || [item.dateKey],
+      clientOverride: item.client,
+      isNew: false
+    });
+    setModalOpen(true);
+  };
 
   const getStatusBadge = (status: PostStatus) => {
     switch (status) {
@@ -709,8 +766,8 @@ export const HomeTab: React.FC<HomeTabProps> = ({ onNavigateToClients, onNavigat
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           {/* 1. Publicações Hoje */}
           <button
-            onClick={() => onNavigateToMasterMap?.({ date: dayjs().format('YYYY-MM-DD') })}
-            className={`p-4 sm:p-5 rounded-2xl border transition-all text-left flex items-center justify-between group active:scale-[0.98] ${
+            onClick={() => (onNavigateToPainelConteudo || onNavigateToMasterMap)?.({ aba: 'publicacoes', periodo: 'hoje' })}
+            className={`p-4 sm:p-5 rounded-2xl border transition-all text-left flex items-center justify-between group active:scale-[0.98] cursor-pointer ${
               summaryCounts.hoje > 0 
                 ? 'bg-white hover:bg-indigo-50/40 border-indigo-200/80 shadow-2xs' 
                 : 'bg-stone-50/70 hover:bg-stone-100/80 border-stone-200/60 text-stone-500'
@@ -745,8 +802,8 @@ export const HomeTab: React.FC<HomeTabProps> = ({ onNavigateToClients, onNavigat
 
           {/* 2. Aguardando Aprovação */}
           <button
-            onClick={() => onNavigateToMasterMap?.({ status: 'pending_approval' })}
-            className={`p-4 sm:p-5 rounded-2xl border transition-all text-left flex items-center justify-between group active:scale-[0.98] ${
+            onClick={() => (onNavigateToPainelConteudo || onNavigateToMasterMap)?.({ aba: 'publicacoes', status: 'pending_approval' })}
+            className={`p-4 sm:p-5 rounded-2xl border transition-all text-left flex items-center justify-between group active:scale-[0.98] cursor-pointer ${
               summaryCounts.pendentes > 0 
                 ? 'bg-white hover:bg-amber-50/40 border-amber-300 shadow-2xs' 
                 : 'bg-stone-50/70 hover:bg-stone-100/80 border-stone-200/60 text-stone-500'
@@ -781,8 +838,8 @@ export const HomeTab: React.FC<HomeTabProps> = ({ onNavigateToClients, onNavigat
 
           {/* 3. Com Alteração Solicitada */}
           <button
-            onClick={() => onNavigateToMasterMap?.({ status: 'changes_requested' })}
-            className={`p-4 sm:p-5 rounded-2xl border transition-all text-left flex items-center justify-between group active:scale-[0.98] ${
+            onClick={() => (onNavigateToPainelConteudo || onNavigateToMasterMap)?.({ aba: 'publicacoes', status: 'changes_requested' })}
+            className={`p-4 sm:p-5 rounded-2xl border transition-all text-left flex items-center justify-between group active:scale-[0.98] cursor-pointer ${
               summaryCounts.alteracao > 0 
                 ? 'bg-white hover:bg-orange-50/40 border-orange-300 shadow-2xs' 
                 : 'bg-stone-50/70 hover:bg-stone-100/80 border-stone-200/60 text-stone-500'
@@ -825,136 +882,193 @@ export const HomeTab: React.FC<HomeTabProps> = ({ onNavigateToClients, onNavigat
               <Calendar size={20} />
             </div>
             <div>
-              <h3 className="text-lg font-bold text-brand-dark tracking-tight flex items-center gap-2">
-                Publicações desta semana
-              </h3>
+              <div className="flex items-center gap-2.5">
+                <h3 className="text-lg font-bold text-brand-dark tracking-tight">
+                  Publicações desta semana
+                </h3>
+                {totalWeekPostsCount > 0 && (
+                  <span className="text-[11px] font-bold text-stone-500 bg-stone-100 px-2 py-0.5 rounded-full">
+                    {totalWeekPostsCount}
+                  </span>
+                )}
+              </div>
               <p className="text-xs text-stone-400 font-medium">Programação dos próximos 7 dias em todas as marcas</p>
             </div>
           </div>
 
-          {totalWeekPostsCount > 0 && (
+          <div className="flex items-center gap-2 self-start sm:self-auto flex-wrap">
+            {/* Botão Minimizar / Mostrar */}
             <button
-              onClick={() => onNavigateToMasterMap?.()}
-              className="inline-flex items-center gap-1.5 text-xs font-bold text-stone-600 hover:text-brand-dark transition-colors px-3 py-1.5 rounded-xl hover:bg-stone-50 self-start sm:self-auto group"
+              onClick={toggleWeekPosts}
+              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold text-stone-600 hover:text-brand-dark bg-stone-50 hover:bg-stone-100 transition-all border border-stone-200/70 cursor-pointer active:scale-95"
+              title={showWeekPosts ? 'Minimizar publicações da semana' : 'Mostrar publicações da semana'}
             >
-              <span>Ver todas no Mapa Master</span>
-              <ArrowRight size={14} className="group-hover:translate-x-0.5 transition-transform" />
+              {showWeekPosts ? (
+                <>
+                  <ChevronUp size={14} />
+                  <span>Minimizar</span>
+                </>
+              ) : (
+                <>
+                  <ChevronDown size={14} />
+                  <span>Mostrar ({totalWeekPostsCount})</span>
+                </>
+              )}
             </button>
-          )}
-        </div>
 
-        {/* LISTA AGRUPADA POR DIA */}
-        {totalWeekPostsCount === 0 ? (
-          <div className="py-12 px-6 rounded-3xl bg-stone-50/70 border border-dashed border-stone-200 text-center flex flex-col items-center justify-center">
-            <CheckCircle2 size={32} className="text-stone-300 mb-2" />
-            <p className="text-sm font-bold text-stone-700">Nenhuma publicação agendada para esta semana.</p>
-            <p className="text-xs text-stone-400 mt-1">Os calendários estão em dia ou os novos temas ainda serão planejados.</p>
-          </div>
-        ) : (
-          <div className="space-y-6">
-            {weekGroups.map((group) => {
-              if (group.items.length === 0) return null;
-
-              return (
-                <div key={group.date.format('YYYY-MM-DD')} className="space-y-3">
-                  {/* Cabeçalho do Dia */}
-                  <div className="flex items-center gap-2">
-                    <span className={`text-xs font-bold uppercase tracking-wider px-2.5 py-1 rounded-full ${
-                      group.isToday 
-                        ? 'bg-indigo-100 text-indigo-800' 
-                        : group.isTomorrow 
-                          ? 'bg-stone-200/80 text-stone-800' 
-                          : 'bg-stone-100 text-stone-600'
-                    }`}>
-                      {group.label}
-                    </span>
-                    <div className="h-px bg-stone-100 flex-grow"></div>
-                  </div>
-
-                  {/* Itens do Dia */}
-                  <div className="grid grid-cols-1 gap-2.5">
-                    {group.items.map((item) => {
-                      if (renderedCount >= maxDisplayItems) return null;
-                      renderedCount++;
-
-                      const statusBadge = getStatusBadge(item.status);
-
-                      return (
-                        <div
-                          key={item.id}
-                          onClick={() => onNavigateToMasterMap?.({ date: item.dateStr })}
-                          className="p-3.5 sm:p-4 rounded-2xl bg-stone-50/60 hover:bg-stone-100/70 border border-stone-200/70 transition-all cursor-pointer flex flex-col sm:flex-row sm:items-center justify-between gap-3 group"
-                        >
-                          <div className="flex items-start sm:items-center gap-3.5 min-w-0">
-                            {/* Logo ou Avatar do Cliente */}
-                            {item.client.logo_url ? (
-                              <img 
-                                src={item.client.logo_url} 
-                                alt={item.client.name} 
-                                className="w-6 h-6 rounded-full object-cover border border-stone-200 shrink-0 mt-0.5 sm:mt-0" 
-                              />
-                            ) : (
-                              <div 
-                                className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0 mt-0.5 sm:mt-0 shadow-2xs"
-                                style={{ backgroundColor: item.client.color || '#1A1A1A' }}
-                              >
-                                {item.client.initials || item.client.name.slice(0, 2).toUpperCase()}
-                              </div>
-                            )}
-
-                            {/* Informações Principais */}
-                            <div className="min-w-0 flex-1">
-                              <div className="flex flex-wrap items-center gap-2">
-                                <span className="text-xs sm:text-sm font-bold text-stone-900 truncate">
-                                  {item.client.name}
-                                </span>
-                                <span className="text-stone-300 text-xs hidden sm:inline">•</span>
-                                <span className="text-[11px] font-semibold text-stone-500 bg-white/90 px-2 py-0.5 rounded-md border border-stone-200/60 shrink-0">
-                                  {item.type || 'Post'}
-                                </span>
-                                {item.platforms && item.platforms.length > 0 && (
-                                  <div className="flex items-center gap-1 text-stone-400">
-                                    {item.platforms.includes('meta') && <Instagram size={12} className="text-pink-600" />}
-                                    {item.platforms.includes('linkedin') && <Linkedin size={12} className="text-blue-600" />}
-                                    {item.platforms.includes('tiktok') && <Video size={12} className="text-stone-700" />}
-                                  </div>
-                                )}
-                              </div>
-                              <p className="text-xs text-stone-600 font-medium truncate mt-0.5">
-                                Tema: "{item.theme}"
-                              </p>
-                            </div>
-                          </div>
-
-                          {/* Status Badge */}
-                          <div className="flex items-center justify-between sm:justify-end gap-3 shrink-0 self-end sm:self-center">
-                            <span className={`inline-flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-1 rounded-full border ${statusBadge.badgeClass}`}>
-                              <span className={`w-1.5 h-1.5 rounded-full ${statusBadge.dotClass}`}></span>
-                              {statusBadge.label}
-                            </span>
-                            <ChevronRight size={16} className="text-stone-300 group-hover:text-stone-600 transition-colors hidden sm:block" />
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              );
-            })}
-
-            {totalWeekPostsCount > maxDisplayItems && (
-              <div className="pt-2 text-center">
-                <button
-                  onClick={() => onNavigateToMasterMap?.()}
-                  className="inline-flex items-center gap-2 text-xs font-bold text-stone-600 hover:text-brand-dark bg-stone-50 hover:bg-stone-100 px-4 py-2.5 rounded-xl transition-all border border-stone-200/60"
-                >
-                  <span>Ver todas as {totalWeekPostsCount} publicações no Mapa Master</span>
-                  <ArrowRight size={14} />
-                </button>
-              </div>
+            {totalWeekPostsCount > 0 && (
+              <button
+                onClick={() => (onNavigateToPainelConteudo || onNavigateToMasterMap)?.({ aba: 'publicacoes' })}
+                className="inline-flex items-center gap-1.5 text-xs font-bold text-stone-600 hover:text-brand-dark transition-colors px-3 py-1.5 rounded-xl hover:bg-stone-50 group cursor-pointer"
+              >
+                <span>Ver todas no Painel</span>
+                <ArrowRight size={14} className="group-hover:translate-x-0.5 transition-transform" />
+              </button>
             )}
           </div>
+        </div>
+
+        {/* Resumo quando minimizado */}
+        {!showWeekPosts && totalWeekPostsCount > 0 && (
+          <div 
+            onClick={toggleWeekPosts}
+            className="py-3.5 px-4 rounded-2xl bg-stone-50/80 border border-stone-200/60 flex items-center justify-between text-xs text-stone-600 cursor-pointer hover:bg-stone-100/70 transition-all group"
+          >
+            <div className="flex items-center gap-2">
+              <span className="font-bold text-brand-dark">{totalWeekPostsCount} {totalWeekPostsCount === 1 ? 'publicação programada' : 'publicações programadas'}</span>
+              <span className="text-stone-400 hidden sm:inline">• Clique para expandir a lista da semana</span>
+            </div>
+            <div className="flex items-center gap-1 font-bold text-stone-500 group-hover:text-brand-dark text-[11px]">
+              <span>Expandir</span>
+              <ChevronDown size={14} className="group-hover:translate-y-0.5 transition-transform" />
+            </div>
+          </div>
         )}
+
+        {/* LISTA AGRUPADA POR DIA (COM ANIMAÇÃO DE EXPANDIR/RECOLHER) */}
+        <AnimatePresence initial={false}>
+          {showWeekPosts && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              transition={{ duration: 0.2 }}
+              className="overflow-hidden space-y-6"
+            >
+              {totalWeekPostsCount === 0 ? (
+                <div className="py-12 px-6 rounded-3xl bg-stone-50/70 border border-dashed border-stone-200 text-center flex flex-col items-center justify-center">
+                  <CheckCircle2 size={32} className="text-stone-300 mb-2" />
+                  <p className="text-sm font-bold text-stone-700">Nenhuma publicação agendada para esta semana.</p>
+                  <p className="text-xs text-stone-400 mt-1">Os calendários estão em dia ou os novos temas ainda serão planejados.</p>
+                </div>
+              ) : (
+                <div className="space-y-6">
+                  {weekGroups.map((group) => {
+                    if (group.items.length === 0) return null;
+
+                    return (
+                      <div key={group.date.format('YYYY-MM-DD')} className="space-y-3">
+                        {/* Cabeçalho do Dia */}
+                        <div className="flex items-center gap-2">
+                          <span className={`text-xs font-bold uppercase tracking-wider px-2.5 py-1 rounded-full ${
+                            group.isToday 
+                              ? 'bg-indigo-100 text-indigo-800' 
+                              : group.isTomorrow 
+                                ? 'bg-stone-200/80 text-stone-800' 
+                                : 'bg-stone-100 text-stone-600'
+                          }`}>
+                            {group.label}
+                          </span>
+                          <div className="h-px bg-stone-100 flex-grow"></div>
+                        </div>
+
+                        {/* Itens do Dia */}
+                        <div className="grid grid-cols-1 gap-2.5">
+                          {group.items.map((item) => {
+                            if (renderedCount >= maxDisplayItems) return null;
+                            renderedCount++;
+
+                            const statusBadge = getStatusBadge(item.status);
+
+                            return (
+                              <div
+                                key={item.id}
+                                onClick={() => handleOpenPostModal(item)}
+                                className="p-3.5 sm:p-4 rounded-2xl bg-stone-50/60 hover:bg-stone-100/70 border border-stone-200/70 transition-all cursor-pointer flex flex-col sm:flex-row sm:items-center justify-between gap-3 group active:scale-[0.99]"
+                              >
+                                <div className="flex items-start sm:items-center gap-3.5 min-w-0">
+                                  {/* Logo ou Avatar do Cliente */}
+                                  {item.client.logo_url ? (
+                                    <img 
+                                      src={item.client.logo_url} 
+                                      alt={item.client.name} 
+                                      className="w-6 h-6 rounded-full object-cover border border-stone-200 shrink-0 mt-0.5 sm:mt-0" 
+                                    />
+                                  ) : (
+                                    <div 
+                                      className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0 mt-0.5 sm:mt-0 shadow-2xs"
+                                      style={{ backgroundColor: item.client.color || '#1A1A1A' }}
+                                    >
+                                      {item.client.initials || item.client.name.slice(0, 2).toUpperCase()}
+                                    </div>
+                                  )}
+
+                                  {/* Informações Principais */}
+                                  <div className="min-w-0 flex-1">
+                                    <div className="flex flex-wrap items-center gap-2">
+                                      <span className="text-xs sm:text-sm font-bold text-stone-900 truncate">
+                                        {item.client.name}
+                                      </span>
+                                      <span className="text-stone-300 text-xs hidden sm:inline">•</span>
+                                      <span className="text-[11px] font-semibold text-stone-500 bg-white/90 px-2 py-0.5 rounded-md border border-stone-200/60 shrink-0">
+                                        {item.type || 'Post'}
+                                      </span>
+                                      {item.platforms && item.platforms.length > 0 && (
+                                        <div className="flex items-center gap-1 text-stone-400">
+                                          {item.platforms.includes('meta') && <Instagram size={12} className="text-pink-600" />}
+                                          {item.platforms.includes('linkedin') && <Linkedin size={12} className="text-blue-600" />}
+                                          {item.platforms.includes('tiktok') && <Video size={12} className="text-stone-700" />}
+                                        </div>
+                                      )}
+                                    </div>
+                                    <p className="text-xs text-stone-600 font-medium truncate mt-0.5">
+                                      Tema: "{item.theme}"
+                                    </p>
+                                  </div>
+                                </div>
+
+                                {/* Status Badge */}
+                                <div className="flex items-center justify-between sm:justify-end gap-3 shrink-0 self-end sm:self-center">
+                                  <span className={`inline-flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-1 rounded-full border ${statusBadge.badgeClass}`}>
+                                    <span className={`w-1.5 h-1.5 rounded-full ${statusBadge.dotClass}`}></span>
+                                    {statusBadge.label}
+                                  </span>
+                                  <ChevronRight size={16} className="text-stone-300 group-hover:text-stone-600 transition-colors hidden sm:block" />
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })}
+
+                  {totalWeekPostsCount > maxDisplayItems && (
+                    <div className="pt-2 text-center">
+                      <button
+                        onClick={() => (onNavigateToPainelConteudo || onNavigateToMasterMap)?.({ aba: 'publicacoes' })}
+                        className="inline-flex items-center gap-2 text-xs font-bold text-stone-600 hover:text-brand-dark bg-stone-50 hover:bg-stone-100 px-4 py-2.5 rounded-xl transition-all border border-stone-200/60 cursor-pointer"
+                      >
+                        <span>Ver todas as {totalWeekPostsCount} publicações no Painel de Conteúdo</span>
+                        <ArrowRight size={14} />
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
 
       {/* BLOCO 3 & 4 - TAREFAS URGENTES E FUNIS DO CRM (MANTIDOS) */}
@@ -1047,6 +1161,27 @@ export const HomeTab: React.FC<HomeTabProps> = ({ onNavigateToClients, onNavigat
         </div>
 
       </div>
+
+      {/* POST MODAL PARA VISUALIZAÇÃO / EDIÇÃO DIRETA */}
+      {modalOpen && selectedPost && (
+        <PostModal
+          dayContent={selectedPost.dayContent}
+          dateKey={selectedPost.dateKey}
+          groupKeys={selectedPost.groupKeys}
+          isNew={selectedPost.isNew}
+          clientOverride={selectedPost.clientOverride}
+          isMasterMap={true}
+          onClose={() => {
+            setModalOpen(false);
+            setSelectedPost(null);
+          }}
+          onUpdate={() => {
+            fetchData();
+            setModalOpen(false);
+            setSelectedPost(null);
+          }}
+        />
+      )}
 
     </div>
   );

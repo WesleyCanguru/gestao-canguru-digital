@@ -63,6 +63,9 @@ const MainApp: React.FC<MainAppProps> = ({ initialView, onExitAgencyDashboard, o
       setView('strategic-briefings');
     } else if (viewParam === 'crm') {
       setView('crm');
+    } else if (viewParam === 'painel-conteudo' || viewParam === 'mapa-master' || viewParam === 'posts') {
+      setView('agencyDashboard');
+      setAgencyTab('masterMap');
     } else if (viewParam === 'tutorial') {
       setView('tutorials');
       if (tutorialId) {
