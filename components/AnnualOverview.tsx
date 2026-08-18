@@ -1,10 +1,11 @@
 
 import React, { useState, useEffect } from 'react';
 import { MonthCard } from './MonthCard';
-import { Compass, CheckCircle2, Sparkles, ArrowRight } from 'lucide-react';
+import { Compass, CheckCircle2, Sparkles, ArrowRight, FileText } from 'lucide-react';
 import { useAuth, supabase } from '../lib/supabase';
 import { useEditorialData, MONTH_NAMES } from '../hooks/useEditorialData';
 import { getAnnualOverviewTemplate } from '../constants';
+import { RejectedPostsModal } from './RejectedPostsModal';
 import { motion } from 'motion/react';
 
 interface AnnualOverviewProps {
@@ -64,11 +65,36 @@ const EditableText: React.FC<{
 };
 
 export const AnnualOverview: React.FC<AnnualOverviewProps> = ({ onSelectMonth }) => {
-  const { activeClient, userRole } = useAuth();
+  const { activeClient, userRole, agencyId } = useAuth();
   const [postCounts, setPostCounts] = useState<Record<string, number>>({});
   const { monthlyPlans, loading } = useEditorialData();
   const [overview, setOverview] = useState<any>(null);
+  const [showRejectedModal, setShowRejectedModal] = useState(false);
+  const [rejectedPostsCount, setRejectedPostsCount] = useState(0);
   const isAdmin = userRole === 'admin';
+
+  const fetchRejectedCount = async () => {
+    if (!activeClient?.id) return;
+    try {
+      let query = supabase
+        .from('posts')
+        .select('id', { count: 'exact', head: true })
+        .eq('client_id', activeClient.id)
+        .or('status.eq.rejected,status.eq.theme_rejected')
+        .eq('is_deleted', true);
+
+      if (agencyId) {
+        query = query.eq('agency_id', agencyId);
+      }
+
+      const { count, error } = await query;
+      if (!error && count !== null) {
+        setRejectedPostsCount(count);
+      }
+    } catch (e) {
+      console.error('Erro ao buscar contagem de reprovadas:', e);
+    }
+  };
 
   const fetchOverview = async () => {
     if (!activeClient) return;
@@ -106,6 +132,7 @@ export const AnnualOverview: React.FC<AnnualOverviewProps> = ({ onSelectMonth })
 
   useEffect(() => {
     fetchOverview();
+    fetchRejectedCount();
   }, [activeClient]);
 
   useEffect(() => {
@@ -114,7 +141,7 @@ export const AnnualOverview: React.FC<AnnualOverviewProps> = ({ onSelectMonth })
 
       const { data, error } = await supabase
         .from('posts')
-        .select('date_key')
+        .select('date_key, is_deleted, status')
         .eq('client_id', activeClient.id)
         .neq('status', 'deleted')
         .limit(10000);
@@ -125,7 +152,8 @@ export const AnnualOverview: React.FC<AnnualOverviewProps> = ({ onSelectMonth })
       }
 
       const counts: Record<string, number> = {};
-      data.forEach((post) => {
+      data.forEach((post: any) => {
+        if (post.is_deleted) return;
         // date_key format: DD-MM-YYYY-platform
         const parts = post.date_key.split('-');
         if (parts.length >= 3) {
@@ -256,7 +284,7 @@ export const AnnualOverview: React.FC<AnnualOverviewProps> = ({ onSelectMonth })
 
       {/* Quarters / Grid Grid */}
       <motion.div variants={itemVariants} className="space-y-10">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="space-y-2">
             <h2 className="text-3xl font-bold text-brand-dark tracking-tight flex items-center gap-4">
               <span className="w-3 h-3 rounded-full bg-brand-dark shadow-[0_0_15px_rgba(0,0,0,0.1)]"></span>
@@ -264,8 +292,17 @@ export const AnnualOverview: React.FC<AnnualOverviewProps> = ({ onSelectMonth })
             </h2>
             <p className="text-sm text-gray-400 font-medium ml-7">Explore o planejamento mensal detalhado da sua marca.</p>
           </div>
-          <div className="hidden sm:flex items-center gap-3 px-4 py-2 rounded-full bg-gray-50 border border-black/[0.02] text-[10px] font-bold text-gray-400 uppercase tracking-[0.2em]">
-            <Sparkles size={12} /> Ciclo 2026
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setShowRejectedModal(true)}
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-white hover:bg-stone-50 border border-stone-200/80 text-xs font-bold text-stone-700 shadow-2xs transition-all hover:border-stone-300 active:scale-95"
+              title="Ver histórico de publicações reprovadas pelo cliente"
+            >
+              <span>📋</span> Ver publicações reprovadas ({rejectedPostsCount})
+            </button>
+            <div className="hidden sm:flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-gray-50 border border-black/[0.02] text-[10px] font-bold text-gray-400 uppercase tracking-[0.2em]">
+              <Sparkles size={12} /> Ciclo 2026
+            </div>
           </div>
         </div>
 
@@ -339,6 +376,18 @@ export const AnnualOverview: React.FC<AnnualOverviewProps> = ({ onSelectMonth })
           Bolsa • Planejamento estratégico sujeito a adaptações táticas conforme feedback de mercado.
         </p>
       </motion.div>
+
+      {showRejectedModal && activeClient && (
+        <RejectedPostsModal
+          clientId={activeClient.id}
+          agencyId={agencyId}
+          isOpen={showRejectedModal}
+          onClose={() => {
+            setShowRejectedModal(false);
+            fetchRejectedCount();
+          }}
+        />
+      )}
     </motion.div>
   );
 };

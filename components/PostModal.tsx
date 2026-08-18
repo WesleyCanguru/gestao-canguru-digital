@@ -629,16 +629,42 @@ export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, group
           setLoading(true);
           // Se houver múltiplas (grupo), deleta todas
           const keysToDelete = originalKeys.length > 0 ? originalKeys : [dateKey];
+          const currentStatus = post?.status || manualStatus;
+          const isRejected = currentStatus === 'rejected' || currentStatus === 'theme_rejected';
           
           for (const k of keysToDelete) {
-             const { error } = await supabase.from('posts').upsert({
-                date_key: k,
-                client_id: activeClient?.id,
-                agency_id: agencyId,
-                status: 'deleted',
-                last_updated: new Date().toISOString()
-             }, { onConflict: 'date_key' });
-             if (error) throw error;
+             const recordIsRejected = isRejected || (post?.date_key === k && (post.status === 'rejected' || post.status === 'theme_rejected'));
+
+             if (recordIsRejected) {
+                // Preserva o histórico da reprovação
+                const payload: any = {
+                   date_key: k,
+                   client_id: activeClient?.id,
+                   agency_id: agencyId,
+                   status: currentStatus === 'theme_rejected' ? 'theme_rejected' : 'rejected',
+                   theme: post?.theme || dayContent.theme,
+                   type: post?.type || dayContent.type,
+                   theme_rejection_reason: post?.theme_rejection_reason || null,
+                   theme_client_notes: post?.theme_client_notes || null,
+                   image_url: post?.image_url || null,
+                   caption: post?.caption || null,
+                   is_deleted: true,
+                   deleted_at: new Date().toISOString(),
+                   last_updated: new Date().toISOString()
+                };
+                const { error } = await supabase.from('posts').upsert(payload, { onConflict: 'date_key' });
+                if (error) throw error;
+             } else {
+                // Exclusão normal
+                const { error } = await supabase.from('posts').upsert({
+                   date_key: k,
+                   client_id: activeClient?.id,
+                   agency_id: agencyId,
+                   status: 'deleted',
+                   last_updated: new Date().toISOString()
+                }, { onConflict: 'date_key' });
+                if (error) throw error;
+             }
           }
 
           if (onUpdate) onUpdate();

@@ -105,7 +105,6 @@ export const FinanceiroTab: React.FC = () => {
   const currentMonthFormatted = `${monthFullNames[dayjs(currentMonthYear).month()]} de ${dayjs(currentMonthYear).year()}`;
   
   const [activeSubTab, setActiveSubTab] = useState<'overview' | 'faturamento' | 'despesas'>('overview');
-  const [expenseFilterOrigin, setExpenseFilterOrigin] = useState<'all' | 'canguru' | 'kanoa' | 'pessoal'>('all');
   const [expenseFilterStatus, setExpenseFilterStatus] = useState<'all' | 'pending' | 'paid'>('all');
   const [showExpenseModal, setShowExpenseModal] = useState(false);
   const [showSporadicModal, setShowSporadicModal] = useState(false);
@@ -205,14 +204,11 @@ export const FinanceiroTab: React.FC = () => {
 
   const filteredExpenses = useMemo(() => {
     return sortedExpenses.filter(e => {
-      if (expenseFilterOrigin !== 'all' && (e.origin || 'canguru') !== expenseFilterOrigin) {
-        return false;
-      }
       if (expenseFilterStatus === 'paid' && !e.paid) return false;
       if (expenseFilterStatus === 'pending' && e.paid) return false;
       return true;
     });
-  }, [sortedExpenses, expenseFilterOrigin, expenseFilterStatus]);
+  }, [sortedExpenses, expenseFilterStatus]);
 
   // Alertas e Agenda Imediata (Estilo refinado e discreto)
   const alertsAndAgenda = useMemo(() => {
@@ -1541,26 +1537,8 @@ export const FinanceiroTab: React.FC = () => {
 
           {/* Filtros e Barra de Ações de Despesas */}
           <div className="bg-white p-4 rounded-3xl border border-black/[0.03] shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-            {/* Filtros de Origem & Status */}
+            {/* Filtro de Status */}
             <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
-              <span className="text-xs font-bold text-gray-400 mr-1">Origem:</span>
-              {(['all', 'canguru', 'kanoa', 'pessoal'] as const).map((origin) => (
-                <button
-                  key={origin}
-                  type="button"
-                  onClick={() => setExpenseFilterOrigin(origin)}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
-                    expenseFilterOrigin === origin
-                      ? 'bg-brand-dark text-white shadow-sm'
-                      : 'bg-stone-50 text-gray-600 hover:bg-stone-100'
-                  }`}
-                >
-                  {origin === 'all' ? 'Todas' : origin === 'canguru' ? 'Canguru' : origin === 'kanoa' ? 'Kanoa' : 'Pessoal'}
-                </button>
-              ))}
-
-              <div className="h-4 w-px bg-gray-200 mx-1 hidden sm:block" />
-
               <span className="text-xs font-bold text-gray-400 mr-1">Status:</span>
               {(['all', 'pending', 'paid'] as const).map((status) => (
                 <button
@@ -1814,49 +1792,15 @@ export const FinanceiroTab: React.FC = () => {
               </div>
 
               {/* Origin / Quem Paga */}
-              <div className="space-y-2">
+              <div className="space-y-1.5">
                 <label className="text-[10px] uppercase tracking-widest font-bold text-gray-500 ml-1">
                   Origem / Quem Paga *
                 </label>
-                <div className="grid grid-cols-3 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setNewExpense({ ...newExpense, origin: 'canguru' })}
-                    className={`py-2.5 px-3 rounded-2xl text-xs font-bold transition-all flex items-center justify-center gap-2 border ${
-                      newExpense.origin === 'canguru'
-                        ? 'bg-emerald-50 text-emerald-800 border-emerald-300 ring-2 ring-emerald-600/15 shadow-sm'
-                        : 'bg-stone-50 text-gray-600 border-stone-200/80 hover:bg-stone-100'
-                    }`}
-                  >
+                <div>
+                  <div className="inline-flex items-center gap-2 py-2 px-3.5 rounded-2xl text-xs font-bold bg-emerald-50 text-emerald-800 border border-emerald-300 ring-2 ring-emerald-600/15 shadow-sm">
                     <span className="w-2 h-2 rounded-full bg-emerald-500" />
                     Canguru
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setNewExpense({ ...newExpense, origin: 'kanoa' })}
-                    className={`py-2.5 px-3 rounded-2xl text-xs font-bold transition-all flex items-center justify-center gap-2 border ${
-                      newExpense.origin === 'kanoa'
-                        ? 'bg-blue-50 text-blue-800 border-blue-300 ring-2 ring-blue-600/15 shadow-sm'
-                        : 'bg-stone-50 text-gray-600 border-stone-200/80 hover:bg-stone-100'
-                    }`}
-                  >
-                    <span className="w-2 h-2 rounded-full bg-blue-500" />
-                    Kanoa
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setNewExpense({ ...newExpense, origin: 'pessoal' })}
-                    className={`py-2.5 px-3 rounded-2xl text-xs font-bold transition-all flex items-center justify-center gap-2 border ${
-                      newExpense.origin === 'pessoal'
-                        ? 'bg-amber-50 text-amber-800 border-amber-300 ring-2 ring-amber-600/15 shadow-sm'
-                        : 'bg-stone-50 text-gray-600 border-stone-200/80 hover:bg-stone-100'
-                    }`}
-                  >
-                    <span className="w-2 h-2 rounded-full bg-amber-500" />
-                    Pessoal
-                  </button>
+                  </div>
                 </div>
               </div>
 
@@ -2212,49 +2156,15 @@ export const FinanceiroTab: React.FC = () => {
               </div>
 
               {/* Origin / Quem Paga */}
-              <div className="space-y-2">
+              <div className="space-y-1.5">
                 <label className="text-[10px] uppercase tracking-widest font-bold text-gray-500 ml-1">
                   Origem / Quem Paga *
                 </label>
-                <div className="grid grid-cols-3 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setEditingExpense({ ...editingExpense, origin: 'canguru' })}
-                    className={`py-2.5 px-3 rounded-2xl text-xs font-bold transition-all flex items-center justify-center gap-2 border ${
-                      (editingExpense.origin || 'canguru') === 'canguru'
-                        ? 'bg-emerald-50 text-emerald-800 border-emerald-300 ring-2 ring-emerald-600/15 shadow-sm'
-                        : 'bg-stone-50 text-gray-600 border-stone-200/80 hover:bg-stone-100'
-                    }`}
-                  >
+                <div>
+                  <div className="inline-flex items-center gap-2 py-2 px-3.5 rounded-2xl text-xs font-bold bg-emerald-50 text-emerald-800 border border-emerald-300 ring-2 ring-emerald-600/15 shadow-sm">
                     <span className="w-2 h-2 rounded-full bg-emerald-500" />
                     Canguru
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setEditingExpense({ ...editingExpense, origin: 'kanoa' })}
-                    className={`py-2.5 px-3 rounded-2xl text-xs font-bold transition-all flex items-center justify-center gap-2 border ${
-                      editingExpense.origin === 'kanoa'
-                        ? 'bg-blue-50 text-blue-800 border-blue-300 ring-2 ring-blue-600/15 shadow-sm'
-                        : 'bg-stone-50 text-gray-600 border-stone-200/80 hover:bg-stone-100'
-                    }`}
-                  >
-                    <span className="w-2 h-2 rounded-full bg-blue-500" />
-                    Kanoa
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setEditingExpense({ ...editingExpense, origin: 'pessoal' })}
-                    className={`py-2.5 px-3 rounded-2xl text-xs font-bold transition-all flex items-center justify-center gap-2 border ${
-                      editingExpense.origin === 'pessoal'
-                        ? 'bg-amber-50 text-amber-800 border-amber-300 ring-2 ring-amber-600/15 shadow-sm'
-                        : 'bg-stone-50 text-gray-600 border-stone-200/80 hover:bg-stone-100'
-                    }`}
-                  >
-                    <span className="w-2 h-2 rounded-full bg-amber-500" />
-                    Pessoal
-                  </button>
+                  </div>
                 </div>
               </div>
 

@@ -155,6 +155,10 @@ export interface PostData {
   theme_description?: string | null;
   theme_rejection_reason?: string | null;
   theme_client_notes?: string | null;
+
+  // Campos de exclusão / arquivamento de histórico
+  is_deleted?: boolean;
+  deleted_at?: string | null;
 }
 
 export interface TrafficStrategyData {

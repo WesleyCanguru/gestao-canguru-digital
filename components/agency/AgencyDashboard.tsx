@@ -41,10 +41,20 @@ type Tab = 'home' | 'tasks' | 'financeiro' | 'prospeccao' | 'contratos' | 'onboa
 
 export const AgencyDashboard: React.FC<AgencyDashboardProps> = ({ onBack, onSelectClient, activeTab, onTabChange }) => {
   const { userRole } = useAuth();
+  const [masterMapFilter, setMasterMapFilter] = useState<{ status?: string; date?: string }>({});
 
   if (userRole !== 'admin') {
     return null;
   }
+
+  const handleNavigateToMasterMap = (filter?: { status?: string; date?: string }) => {
+    if (filter) {
+      setMasterMapFilter(filter);
+    } else {
+      setMasterMapFilter({});
+    }
+    onTabChange?.('masterMap');
+  };
 
   return (
     <div className="bg-transparent flex flex-col font-sans text-brand-dark relative">
@@ -59,8 +69,18 @@ export const AgencyDashboard: React.FC<AgencyDashboardProps> = ({ onBack, onSele
               exit={{ opacity: 0, y: -10 }}
               transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
             >
-              {activeTab === 'home' && <HomeTab onNavigateToClients={(client) => onSelectClient(client)} />}
-              {activeTab === 'masterMap' && <MasterEditorialMap />}
+              {activeTab === 'home' && (
+                <HomeTab 
+                  onNavigateToClients={(client) => onSelectClient(client)} 
+                  onNavigateToMasterMap={handleNavigateToMasterMap}
+                />
+              )}
+              {activeTab === 'masterMap' && (
+                <MasterEditorialMap 
+                  initialFilterStatus={masterMapFilter.status}
+                  initialFilterDate={masterMapFilter.date}
+                />
+              )}
               {activeTab === 'contratos' && <AgencyContractsTab />}
               {activeTab === 'onboarding' && <OnboardingTab onNavigateToClients={(client) => onSelectClient(client)} />}
               {activeTab === 'tasks' && <AgencyTasksTab />}

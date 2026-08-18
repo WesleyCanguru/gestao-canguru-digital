@@ -27,6 +27,8 @@ dayjs.locale('pt-br');
 
 interface MasterEditorialMapProps {
   onBackToHome?: () => void;
+  initialFilterStatus?: string;
+  initialFilterDate?: string;
 }
 
 interface GroupedPost {
@@ -44,11 +46,15 @@ interface GroupedPost {
   rawPosts: any[];
 }
 
-export const MasterEditorialMap: React.FC<MasterEditorialMapProps> = ({ onBackToHome }) => {
+export const MasterEditorialMap: React.FC<MasterEditorialMapProps> = ({ 
+  onBackToHome, 
+  initialFilterStatus,
+  initialFilterDate 
+}) => {
   const { agencyId, userRole } = useAuth();
   
   // Data de referência (mês ativo)
-  const [currentDate, setCurrentDate] = useState(dayjs());
+  const [currentDate, setCurrentDate] = useState(() => initialFilterDate ? dayjs(initialFilterDate) : dayjs());
   
   // Estados para dados do banco
   const [posts, setPosts] = useState<any[]>([]);
@@ -57,7 +63,19 @@ export const MasterEditorialMap: React.FC<MasterEditorialMapProps> = ({ onBackTo
   
   // Filtros selecionados
   const [filterClient, setFilterClient] = useState<string>('all');
-  const [filterStatus, setFilterStatus] = useState<string>('all');
+  const [filterStatus, setFilterStatus] = useState<string>(initialFilterStatus || 'all');
+
+  useEffect(() => {
+    if (initialFilterStatus) {
+      setFilterStatus(initialFilterStatus);
+    }
+  }, [initialFilterStatus]);
+
+  useEffect(() => {
+    if (initialFilterDate) {
+      setCurrentDate(dayjs(initialFilterDate));
+    }
+  }, [initialFilterDate]);
   
   // Modal de edição/criação
   const [modalOpen, setModalOpen] = useState(false);

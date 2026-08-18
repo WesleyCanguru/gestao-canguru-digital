@@ -5,6 +5,7 @@ import { Instagram, Linkedin, CalendarDays, Target, BarChart3, Repeat, FileCheck
 import { PostModal } from './PostModal';
 import { PostIdeasModal } from './PostIdeasModal';
 import { ImportPdfModal } from './ImportPdfModal';
+import { RejectedPostsModal } from './RejectedPostsModal';
 import { ThemeBankAdmin } from './agency/ThemeBankAdmin';
 import { useAuth, supabase } from '../lib/supabase';
 import { autoPublishPastScheduledPosts } from '../lib/scheduledPostsUtils';
@@ -74,6 +75,8 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack, ini
   // Post Ideas State
   const [showPostIdeas, setShowPostIdeas] = useState(false);
   const [showImportPdf, setShowImportPdf] = useState(false);
+  const [showRejectedModal, setShowRejectedModal] = useState(false);
+  const [rejectedPostsCount, setRejectedPostsCount] = useState(0);
 
   // Selection State
   const [selectedPosts, setSelectedPosts] = useState<Set<string>>(new Set());
@@ -692,12 +695,36 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack, ini
      return `${datePart}-${year}-${platform}-${activeClient?.id}`; 
   };
 
+  const fetchRejectedCount = useCallback(async () => {
+    if (!activeClient?.id) return;
+    try {
+      let query = supabase
+        .from('posts')
+        .select('id', { count: 'exact', head: true })
+        .eq('client_id', activeClient.id)
+        .or('status.eq.rejected,status.eq.theme_rejected')
+        .eq('is_deleted', true);
+
+      if (agencyId) {
+        query = query.eq('agency_id', agencyId);
+      }
+
+      const { count, error } = await query;
+      if (!error && count !== null) {
+        setRejectedPostsCount(count);
+      }
+    } catch (err) {
+      console.error('Erro ao buscar contagem de posts reprovados:', err);
+    }
+  }, [activeClient?.id, agencyId]);
+
   // 2. Buscar Dados do Supabase
   const fetchMonthPosts = useCallback(async () => {
     if (!currentPlan || !activeClient?.id) return;
     setLoadingPosts(true);
     
     try {
+      fetchRejectedCount();
       const { data, error } = await supabase
         .from('posts')
         .select('*')
@@ -753,7 +780,7 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack, ini
         
         const key = getDateKey(`${dayFormatted} – ${DAY_NAMES[mappedDayOfWeek]}`, item.platform);
         const dbPost = dbPosts[key];
-        if (dbPost && dbPost.status === 'deleted') return;
+        if (dbPost && (dbPost.status === 'deleted' || dbPost.is_deleted)) return;
 
         processedKeys.add(key);
         const sortDate = date.getTime();
@@ -776,7 +803,7 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack, ini
 
     // B. Adicionar Posts NOVOS (DB only)
     Object.values(dbPosts).forEach((post: PostData) => {
-      if (post.status === 'deleted') return;
+      if (post.status === 'deleted' || post.is_deleted) return;
       if (processedKeys.has(post.date_key)) return;
 
       const parts = post.date_key.split('-');
@@ -1198,15 +1225,27 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack, ini
           if (selectedPosts.has(group.primaryKey)) {
             group.keys.forEach(key => {
               const dbPost = dbPosts[key];
+              const isRejected = dbPost?.status === 'rejected' || dbPost?.status === 'theme_rejected' || group.status === 'rejected' || group.status === 'theme_rejected';
+              
               const payload: any = {
                 date_key: key,
                 client_id: activeClient?.id,
                 agency_id: agencyId,
-                status: 'deleted',
+                status: isRejected ? (dbPost?.status || group.status || 'rejected') : 'deleted',
                 last_updated: new Date().toISOString()
               };
 
-              if (!dbPost) {
+              if (isRejected) {
+                payload.is_deleted = true;
+                payload.deleted_at = new Date().toISOString();
+                payload.theme = dbPost?.theme || group.theme;
+                payload.type = dbPost?.type || group.type;
+                payload.bullets = dbPost?.bullets || group.bullets;
+                payload.theme_rejection_reason = dbPost?.theme_rejection_reason || null;
+                payload.theme_client_notes = dbPost?.theme_client_notes || null;
+                payload.image_url = dbPost?.image_url || group.content.initialImageUrl || null;
+                payload.caption = dbPost?.caption || null;
+              } else if (!dbPost) {
                 payload.theme = group.theme;
                 payload.type = group.type;
                 payload.bullets = group.bullets;
@@ -1856,6 +1895,14 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack, ini
                 >
                   <Sparkles size={14} /> Ideias de Publicações
                 </motion.button>
+                <motion.button 
+                  whileHover={{ scale: 1.05 }}
+                  onClick={() => setShowRejectedModal(true)}
+                  className="flex items-center gap-2.5 px-6 py-3 bg-white/10 hover:bg-white/20 rounded-2xl text-[10px] font-bold uppercase tracking-[0.2em] transition-all backdrop-blur-md border border-white/10 shadow-xl text-white"
+                  title="Ver histórico de publicações reprovadas pelo cliente"
+                >
+                  <span>📋</span> Ver publicações reprovadas ({rejectedPostsCount})
+                </motion.button>
                 {userRole === 'admin' && !isEditingPlan && (
                   <motion.button 
                     whileHover={{ scale: 1.05 }}
@@ -1925,6 +1972,17 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack, ini
         {/* Content */}
         <div className="p-6 md:p-10 bg-gray-50/50">
              <>
+               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+                 <div className="text-[11px] font-bold text-gray-500 uppercase tracking-wider">
+                   Visualização do Calendário Editorial
+                 </div>
+                 <button
+                   onClick={() => setShowRejectedModal(true)}
+                   className="inline-flex items-center gap-2 text-xs font-bold text-stone-600 hover:text-brand-dark bg-white px-4 py-2.5 rounded-2xl border border-stone-200/80 shadow-2xs hover:bg-stone-50 transition-all active:scale-95"
+                 >
+                   <span>📋</span> Ver publicações reprovadas ({rejectedPostsCount})
+                 </button>
+               </div>
                <StatusLegend />
                <div className={viewMode === 'list' ? 'block' : 'block md:hidden'}>
                   {/* Seletor de Sub-abas (Postagens vs Temas) */}
@@ -2227,6 +2285,16 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack, ini
                {renderCalendar()}
              </div>
            )}
+
+           {/* Bottom link to rejected posts */}
+           <div className="mt-8 pt-6 border-t border-stone-200/70 flex justify-center">
+             <button
+               onClick={() => setShowRejectedModal(true)}
+               className="inline-flex items-center gap-2.5 px-6 py-3 rounded-2xl bg-white hover:bg-stone-50 text-stone-700 border border-stone-200/80 text-xs font-bold shadow-sm transition-all hover:border-stone-300 active:scale-95"
+             >
+               <span>📋</span> Ver publicações reprovadas ({rejectedPostsCount})
+             </button>
+           </div>
            </>
         </div>
       </div>
@@ -2236,6 +2304,18 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack, ini
           clientId={activeClient.id}
           monthName={monthName}
           onClose={() => setShowPostIdeas(false)}
+        />
+      )}
+
+      {showRejectedModal && activeClient && (
+        <RejectedPostsModal
+          clientId={activeClient.id}
+          agencyId={agencyId}
+          isOpen={showRejectedModal}
+          onClose={() => {
+            setShowRejectedModal(false);
+            fetchRejectedCount();
+          }}
         />
       )}
 
