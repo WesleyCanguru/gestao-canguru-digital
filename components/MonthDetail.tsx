@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { MonthlyDetailedPlan, DailyContent, PostStatus, PostData, PostTheme } from '../types';
-import { Instagram, Linkedin, CalendarDays, Target, BarChart3, Repeat, FileCheck, CheckCircle2, ArrowLeft, MessageCircle, List, Calendar as CalendarIcon, Plus, Loader2, Check, Edit2, Edit3, RefreshCw, Save, X, Trash, Sparkles, FileText, Clock } from 'lucide-react';
+import { Instagram, Linkedin, CalendarDays, Target, BarChart3, Repeat, FileCheck, CheckCircle2, ArrowLeft, MessageCircle, List, Calendar as CalendarIcon, Plus, Loader2, Check, Edit2, Edit3, RefreshCw, Save, X, Trash, Sparkles, FileText, Clock, ChevronLeft, ChevronRight, ChevronDown, Lock } from 'lucide-react';
 import { PostModal } from './PostModal';
 import { PostIdeasModal } from './PostIdeasModal';
 import { ImportPdfModal } from './ImportPdfModal';
@@ -20,6 +20,7 @@ interface MonthDetailProps {
   monthName: string;
   onBack: () => void;
   initialViewMode?: ViewMode;
+  onSelectMonth?: (month: string) => void;
 }
 
 type ViewMode = 'list' | 'calendar';
@@ -38,7 +39,7 @@ interface GroupedPost {
     platformTimes?: { platform: 'meta' | 'linkedin' | 'tiktok'; time: string }[];
 }
 
-export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack, initialViewMode }) => {
+export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack, initialViewMode, onSelectMonth }) => {
   const { userRole, activeClient, agencyId } = useAuth();
   const { monthlyPlans, weeklySchedule, updateMonthlyPlan, loading: loadingEditorial } = useEditorialData();
   
@@ -88,6 +89,25 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack, ini
   const currentPlan = monthlyPlans.find(p => MONTH_NAMES[p.month - 1].toLowerCase() === monthName.toLowerCase());
   const monthIndex = MONTH_NAMES.findIndex(m => m.toLowerCase() === monthName.toLowerCase());
   const year = 2026;
+
+  const [monthPickerOpen, setMonthPickerOpen] = useState(false);
+  const [pickerYear, setPickerYear] = useState(year);
+
+  const MONTH_SHORT_NAMES = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+
+  const handlePrevMonth = () => {
+    if (monthIndex > 0) {
+      const prevMonth = MONTH_NAMES[monthIndex - 1];
+      onSelectMonth?.(prevMonth);
+    }
+  };
+
+  const handleNextMonth = () => {
+    if (monthIndex < 11) {
+      const nextMonth = MONTH_NAMES[monthIndex + 1];
+      onSelectMonth?.(nextMonth);
+    }
+  };
 
   const isReleased = currentPlan?.is_released;
   const isLockedForClient = userRole !== 'admin' && !isReleased;
@@ -1863,126 +1883,198 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack, ini
         </div>
       </div>
 
-      <div className="bg-white rounded-[3rem] shadow-[0_40px_80px_rgba(0,0,0,0.08)] border border-black/[0.02] overflow-hidden">
-        {/* Header */}
-        <div className="bg-brand-dark text-white p-8 md:p-12 relative overflow-hidden">
-           <div className="absolute top-0 right-0 p-8 opacity-[0.03] pointer-events-none transform translate-x-1/4 -translate-y-1/4"><CalendarDays size={400} /></div>
-           <div className="relative z-10">
-            <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-6">
-              <div className="space-y-2">
-                <div className="flex items-center gap-3 text-[10px] font-bold uppercase tracking-[0.4em] text-white/40">
-                  <Sparkles size={14} /> Planejamento Mensal
+      <div className="bg-white rounded-[2.5rem] shadow-[0_20px_50px_rgba(0,0,0,0.04)] border border-black/[0.04] overflow-hidden">
+        {/* Compact Header */}
+        <div className="bg-brand-dark text-white px-4 sm:px-6 py-3 sm:py-3.5 relative overflow-visible">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 relative z-20">
+            {/* Left: Compact Month Navigation & Theme */}
+            <div className="flex flex-wrap items-center gap-2 sm:gap-4">
+              {/* Navigation: ◀ MêsAno ▶ */}
+              <div className="inline-flex items-center bg-white/[0.08] hover:bg-white/[0.12] backdrop-blur-md rounded-2xl p-1 border border-white/15 shadow-sm transition-all relative">
+                <button
+                  type="button"
+                  onClick={handlePrevMonth}
+                  disabled={monthIndex === 0}
+                  className="w-8 h-8 rounded-xl flex items-center justify-center text-white/70 hover:text-white hover:bg-white/15 active:scale-95 transition-all disabled:opacity-25 disabled:cursor-not-allowed cursor-pointer"
+                  title="Mês anterior"
+                >
+                  <ChevronLeft size={18} />
+                </button>
+
+                {/* Popover trigger button */}
+                <div className="relative">
+                  <button
+                    type="button"
+                    onClick={() => setMonthPickerOpen(!monthPickerOpen)}
+                    className="flex items-center gap-2 px-3 py-1.5 rounded-xl hover:bg-white/15 transition-all cursor-pointer select-none group"
+                    title="Clique para selecionar outro mês"
+                  >
+                    <span className="text-base sm:text-lg font-extrabold text-white tracking-tight leading-none">
+                      {monthName}
+                    </span>
+                    <span className="text-xs font-bold font-mono text-white/80 bg-white/10 px-2 py-0.5 rounded-md border border-white/10 leading-tight">
+                      {pickerYear}
+                    </span>
+                    <ChevronDown 
+                      size={14} 
+                      className={`text-white/60 group-hover:text-white transition-transform duration-200 ${monthPickerOpen ? 'rotate-180 text-white' : ''}`} 
+                    />
+                  </button>
+
+                  {/* Popover */}
+                  {monthPickerOpen && (
+                    <>
+                      <div 
+                        className="fixed inset-0 z-40" 
+                        onClick={() => setMonthPickerOpen(false)} 
+                      />
+                      <div className="absolute left-0 top-full mt-2.5 z-50 bg-[#18181b] text-white rounded-2xl p-4 shadow-2xl border border-stone-700/80 w-72 backdrop-blur-xl animate-in fade-in zoom-in-95">
+                        <div className="flex items-center justify-between pb-3 mb-3 border-b border-stone-800 text-xs font-bold text-stone-300">
+                          <button 
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); setPickerYear(y => y - 1); }}
+                            className="w-7 h-7 rounded-lg flex items-center justify-center hover:bg-stone-800 text-stone-400 hover:text-white transition-colors cursor-pointer"
+                          >
+                            <ChevronLeft size={15} />
+                          </button>
+                          <span className="font-mono text-sm font-bold text-white tracking-wider">{pickerYear}</span>
+                          <button 
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); setPickerYear(y => y + 1); }}
+                            className="w-7 h-7 rounded-lg flex items-center justify-center hover:bg-stone-800 text-stone-400 hover:text-white transition-colors cursor-pointer"
+                          >
+                            <ChevronRight size={15} />
+                          </button>
+                        </div>
+
+                        <div className="grid grid-cols-3 gap-1.5">
+                          {MONTH_NAMES.map((mName, idx) => {
+                            const isCurrent = mName.toLowerCase() === monthName.toLowerCase() && pickerYear === year;
+                            const plan = monthlyPlans.find(p => p.month === idx + 1);
+                            const isLocked = userRole !== 'admin' && !plan?.is_released;
+
+                            return (
+                              <button
+                                key={mName}
+                                type="button"
+                                disabled={isLocked}
+                                onClick={() => {
+                                  if (!isLocked) {
+                                    onSelectMonth?.(mName);
+                                    setMonthPickerOpen(false);
+                                  }
+                                }}
+                                className={`
+                                  px-2 py-2.5 rounded-xl text-xs font-bold transition-all text-center flex items-center justify-center gap-1 cursor-pointer
+                                  ${isLocked 
+                                    ? 'bg-stone-800/30 text-stone-600 border border-transparent cursor-not-allowed opacity-40'
+                                    : isCurrent
+                                      ? 'bg-white text-stone-900 font-extrabold shadow-md scale-102'
+                                      : 'bg-stone-800/50 hover:bg-stone-800 text-stone-200 hover:text-white border border-stone-800 hover:border-stone-700'
+                                  }
+                                `}
+                              >
+                                <span>{MONTH_SHORT_NAMES[idx]}</span>
+                                {isLocked && <Lock size={10} className="text-stone-500" />}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </>
+                  )}
                 </div>
-                <h2 className="text-5xl md:text-7xl font-serif font-medium tracking-tight italic leading-none">
-                  {monthName} <span className="not-italic font-sans font-bold opacity-20">{year}</span>
-                </h2>
-              </div>
-              
-              <div className="flex flex-wrap items-center gap-3">
-                {userRole === 'admin' && (
-                  <motion.button 
-                    whileHover={{ scale: 1.05 }}
-                    onClick={() => setShowImportPdf(true)}
-                    className="flex items-center gap-3 px-6 py-3 bg-white/10 hover:bg-white/20 rounded-2xl text-[10px] font-bold uppercase tracking-[0.2em] transition-all backdrop-blur-md border border-white/10 shadow-xl"
-                  >
-                    <FileText size={14} /> Importar PDF
-                  </motion.button>
-                )}
-                <motion.button 
-                  whileHover={{ scale: 1.05 }}
-                  onClick={() => setShowPostIdeas(true)}
-                  className="flex items-center gap-3 px-6 py-3 bg-white/10 hover:bg-white/20 rounded-2xl text-[10px] font-bold uppercase tracking-[0.2em] transition-all backdrop-blur-md border border-white/10 shadow-xl"
+
+                <button
+                  type="button"
+                  onClick={handleNextMonth}
+                  disabled={monthIndex === 11}
+                  className="w-8 h-8 rounded-xl flex items-center justify-center text-white/70 hover:text-white hover:bg-white/15 active:scale-95 transition-all disabled:opacity-25 disabled:cursor-not-allowed cursor-pointer"
+                  title="Próximo mês"
                 >
-                  <Sparkles size={14} /> Ideias de Publicações
-                </motion.button>
-                <motion.button 
-                  whileHover={{ scale: 1.05 }}
-                  onClick={() => setShowRejectedModal(true)}
-                  className="flex items-center gap-2.5 px-6 py-3 bg-white/10 hover:bg-white/20 rounded-2xl text-[10px] font-bold uppercase tracking-[0.2em] transition-all backdrop-blur-md border border-white/10 shadow-xl text-white"
-                  title="Ver histórico de publicações reprovadas pelo cliente"
-                >
-                  <span>📋</span> Ver publicações reprovadas ({rejectedPostsCount})
-                </motion.button>
-                {userRole === 'admin' && !isEditingPlan && (
-                  <motion.button 
-                    whileHover={{ scale: 1.05 }}
-                    onClick={handleEditPlan}
-                    className="flex items-center gap-3 px-6 py-3 bg-white/10 hover:bg-white/20 rounded-2xl text-[10px] font-bold uppercase tracking-[0.2em] transition-all backdrop-blur-md border border-white/10 shadow-xl"
-                  >
-                    <Edit2 size={14} /> Editar Plano
-                  </motion.button>
-                )}
+                  <ChevronRight size={18} />
+                </button>
               </div>
+
+              {/* Theme badge */}
+              {currentPlan?.theme && (
+                <div className="hidden lg:flex items-center gap-2 bg-white/[0.08] border border-white/10 px-3.5 py-1.5 rounded-xl text-xs text-white/90 max-w-xs truncate" title={currentPlan.theme}>
+                  <Target size={13} className="text-white/50 shrink-0" />
+                  <span className="truncate font-semibold text-white/80">{currentPlan.theme}</span>
+                </div>
+              )}
             </div>
 
-            {isEditingPlan ? (
-              <div className="bg-white/5 p-6 rounded-3xl border border-white/10 mt-6 space-y-4 backdrop-blur-xl">
-                <div>
-                  <label className="premium-label text-white/60 mb-2 block">Tema do Mês</label>
-                  <input 
-                    type="text" 
-                    value={editTheme} 
-                    onChange={e => setEditTheme(e.target.value)}
-                    className="w-full bg-white/5 border border-white/10 rounded-2xl px-5 py-3.5 text-white placeholder-white/20 focus:outline-none focus:border-white/40 transition-all font-medium"
-                    placeholder="Ex: Inovação e Segurança"
-                  />
-                </div>
-                <div className="flex justify-end gap-4 mt-6">
+            {/* Right: Actions */}
+            <div className="flex flex-wrap items-center gap-2">
+              {userRole === 'admin' && (
+                <button 
+                  type="button"
+                  onClick={() => setShowImportPdf(true)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-white/10 hover:bg-white/20 rounded-xl text-[10px] sm:text-[11px] font-bold uppercase tracking-wider transition-all backdrop-blur-md border border-white/10 text-white cursor-pointer active:scale-95"
+                >
+                  <FileText size={13} /> Importar PDF
+                </button>
+              )}
+
+              <button 
+                type="button"
+                onClick={() => setShowRejectedModal(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-white/10 hover:bg-white/20 rounded-xl text-[10px] sm:text-[11px] font-bold uppercase tracking-wider transition-all backdrop-blur-md border border-white/10 text-white cursor-pointer active:scale-95"
+                title="Ver histórico de publicações reprovadas pelo cliente"
+              >
+                <span>📋</span> {rejectedPostsCount} Reprovadas
+              </button>
+
+              {userRole === 'admin' && !isEditingPlan && (
+                <button 
+                  type="button"
+                  onClick={handleEditPlan}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-white/10 hover:bg-white/20 rounded-xl text-[10px] sm:text-[11px] font-bold uppercase tracking-wider transition-all backdrop-blur-md border border-white/10 text-white cursor-pointer active:scale-95"
+                >
+                  <Edit2 size={13} /> Editar
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Inline Edit Plan Drawer if active */}
+          {isEditingPlan && (
+            <div className="bg-white/5 p-3 sm:p-4 rounded-2xl border border-white/10 mt-3 space-y-3 backdrop-blur-xl animate-in fade-in duration-200">
+              <div className="flex flex-col sm:flex-row sm:items-center gap-2.5">
+                <input 
+                  type="text" 
+                  value={editTheme} 
+                  onChange={e => setEditTheme(e.target.value)}
+                  className="flex-1 bg-white/5 border border-white/10 rounded-xl px-3.5 py-1.5 text-xs text-white placeholder-white/20 focus:outline-none focus:border-white/40 transition-all font-medium"
+                  placeholder="Tema do Mês (ex: Inovação e Segurança)"
+                />
+                <div className="flex items-center justify-end gap-2">
                   <button 
+                    type="button"
                     onClick={() => setIsEditingPlan(false)}
-                    className="flex items-center gap-2 px-6 py-3 bg-transparent hover:bg-white/5 text-white rounded-2xl text-[10px] font-bold uppercase tracking-widest transition-all"
+                    className="flex items-center gap-1 px-3 py-1.5 bg-transparent hover:bg-white/5 text-white rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all cursor-pointer"
                   >
-                    <X size={14} /> Cancelar
+                    <X size={12} /> Cancelar
                   </button>
                   <button 
+                    type="button"
                     onClick={handleSavePlan}
                     disabled={isSavingPlan}
-                    className="flex items-center gap-2 px-8 py-3 bg-white text-brand-dark hover:bg-gray-100 rounded-2xl text-[10px] font-bold uppercase tracking-widest transition-all disabled:opacity-50 shadow-xl"
+                    className="flex items-center gap-1 px-3.5 py-1.5 bg-white text-brand-dark hover:bg-gray-100 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all disabled:opacity-50 shadow-md cursor-pointer"
                   >
-                    {isSavingPlan ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />} 
-                    Salvar Alterações
+                    {isSavingPlan ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />} 
+                    Salvar
                   </button>
                 </div>
               </div>
-            ) : (
-              <div className="flex flex-wrap items-center gap-4">
-                <div className="inline-flex items-center gap-3 bg-white/10 backdrop-blur-md px-4 py-2 rounded-xl border border-white/10 text-white/80 text-[10px] font-bold uppercase tracking-[0.2em] mb-6 mt-2">
-                  <Target size={12} className="text-white/40" />
-                  Tema: <span className="text-white">{currentPlan?.theme || 'Não definido'}</span>
-                </div>
-
-                {userRole === 'admin' && themes.length > 0 && (
-                  <div className="inline-flex flex-wrap items-center gap-x-4 gap-y-2 bg-white/10 backdrop-blur-md px-4 py-2 rounded-xl border border-white/10 text-white/80 text-[10px] font-bold uppercase tracking-[0.15em] mb-6 mt-2">
-                    <Sparkles size={12} className="text-white/40 animate-pulse" />
-                    <span>Temas do mês:</span>
-                    <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-yellow-500 animate-pulse" /> {themes.filter(t => getOverallDayStatus(t) === 'pending').length} pendentes</span>
-                    <span className="text-white/20">|</span>
-                    <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-emerald-500" /> {themes.filter(t => getOverallDayStatus(t) === 'approved').length} aprovados</span>
-                    <span className="text-white/20">|</span>
-                    <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-blue-500" /> {themes.filter(t => getOverallDayStatus(t) === 'revision').length} alterações</span>
-                    <span className="text-white/20">|</span>
-                    <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-red-500" /> {themes.filter(t => getOverallDayStatus(t) === 'rejected').length} reprovados</span>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
+            </div>
+          )}
         </div>
 
         {/* Content */}
-        <div className="p-6 md:p-10 bg-gray-50/50">
+        <div className="p-4 sm:p-6 md:p-8 bg-gray-50/50">
              <>
-               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
-                 <div className="text-[11px] font-bold text-gray-500 uppercase tracking-wider">
-                   Visualização do Calendário Editorial
-                 </div>
-                 <button
-                   onClick={() => setShowRejectedModal(true)}
-                   className="inline-flex items-center gap-2 text-xs font-bold text-stone-600 hover:text-brand-dark bg-white px-4 py-2.5 rounded-2xl border border-stone-200/80 shadow-2xs hover:bg-stone-50 transition-all active:scale-95"
-                 >
-                   <span>📋</span> Ver publicações reprovadas ({rejectedPostsCount})
-                 </button>
-               </div>
                <StatusLegend />
                <div className={viewMode === 'list' ? 'block' : 'block md:hidden'}>
                   {/* Seletor de Sub-abas (Postagens vs Temas) */}

@@ -1312,50 +1312,12 @@ export const ClientPainelConteudo: React.FC<ClientPainelConteudoProps> = ({
           transition={{ duration: 0.25 }}
           className="space-y-6"
         >
-          {/* SELETOR DOS MESES PARA O MAPA EDITORIAL */}
-          <div className="bg-white rounded-3xl p-4 sm:p-5 border border-stone-200/70 shadow-xs">
-            <div className="flex items-center justify-between mb-3 px-1">
-              <span className="text-xs font-bold text-stone-700 flex items-center gap-2">
-                <Calendar size={15} className="text-emerald-600" />
-                Selecione o mês do Calendário Editorial:
-              </span>
-              <span className="text-[11px] text-stone-400 font-mono font-bold">{currentYear}</span>
-            </div>
-
-            <div className="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar">
-              {monthlyPlans.map((plan) => {
-                const monthName = MONTH_NAMES[plan.month - 1];
-                const isActive = selectedMonth.toLowerCase() === monthName.toLowerCase();
-                const isLocked = userRole !== 'admin' && !plan.is_released;
-
-                return (
-                  <button
-                    key={plan.id}
-                    disabled={isLocked}
-                    onClick={() => !isLocked && setSelectedMonth(monthName)}
-                    className={`
-                      whitespace-nowrap px-4 sm:px-5 py-2 rounded-xl text-xs font-bold uppercase tracking-wider transition-all border cursor-pointer
-                      ${isLocked 
-                        ? 'bg-stone-50 border-transparent text-stone-300 cursor-not-allowed opacity-60 flex items-center gap-1.5' 
-                        : isActive
-                          ? 'bg-brand-dark border-brand-dark text-white shadow-sm scale-102'
-                          : 'bg-white border-stone-200/80 text-stone-600 hover:border-brand-dark hover:text-brand-dark'
-                      }
-                    `}
-                  >
-                    <span>{monthName}</span>
-                    {isLocked && <Lock size={11} className="text-stone-300" />}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
           {/* COMPONENTE ORIGINAL DO MAPA EDITORIAL (MONTHDETAIL) */}
-          <div className="bg-white rounded-3xl border border-stone-200/70 shadow-xs p-4 sm:p-8">
+          <div className="bg-white rounded-3xl border border-stone-200/70 shadow-xs p-3 sm:p-6">
             <MonthDetail 
               monthName={selectedMonth} 
               onBack={() => setActiveTab('dashboard')} 
+              onSelectMonth={(m) => setSelectedMonth(m)}
             />
           </div>
         </motion.div>

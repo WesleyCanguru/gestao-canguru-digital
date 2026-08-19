@@ -84,6 +84,12 @@ interface GroupedPostItem {
 }
 
 const MONTH_SHORT_NAMES = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
+const MONTH_NAMES = [
+  "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
+  "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"
+];
+
+type DashboardPeriodType = 'este_mes' | 'ultimos_2_meses' | 'ultimos_3_meses' | 'este_ano' | 'todo_periodo';
 
 const PALETTE_COLORS = [
   '#059669', // Emerald
@@ -109,6 +115,9 @@ export const PainelConteudo: React.FC<PainelConteudoProps> = ({
   const { agencyId } = useAuth();
   const currentYear = dayjs().year();
   const currentMonthNum = dayjs().month() + 1; // 1-12
+
+  // Filtro de período do Dashboard
+  const [dashboardPeriod, setDashboardPeriod] = useState<DashboardPeriodType>('este_mes');
 
   // Ler parâmetros da URL se existirem
   const urlParams = useMemo(() => {
@@ -276,18 +285,137 @@ export const PainelConteudo: React.FC<PainelConteudoProps> = ({
   }, [agencyId, fetchClients, fetchPosts]);
 
   // Processar métricas e agrupamentos
-  const { summary, monthlyBarData, clientPieData, monthlyTrendData, groupedFilteredPosts } = useMemo(() => {
-    let totalPublicadosAno = 0;
-    let totalPublicadosMes = 0;
-    let totalAguardandoAprovacao = 0;
-    let totalAlteracaoSolicitada = 0;
+  const { summary, monthlyBarData, clientPieData, monthlyTrendData, filteredPeriodLabel, groupedFilteredPosts } = useMemo(() => {
+    let totalPublicadosPeriodo = 0;
+    let totalPublicadosMesAtual = 0;
+    let totalAguardandoAprovacao = 0; // Sempre o estado atual
+    let totalAlteracaoSolicitada = 0; // Sempre o estado atual
 
-    // Inicializar dados mensais (12 meses)
-    const monthlyStats: { [monthNum: number]: { name: string; mes: number; publicado: number; aprovado: number; pendente: number; rascunho: number; total: number; trendTotal: number } } = {};
-    for (let m = 1; m <= 12; m++) {
-      monthlyStats[m] = {
-        name: MONTH_SHORT_NAMES[m - 1],
-        mes: m,
+    const now = dayjs();
+
+    // Encontrar datas extremas entre todas as postagens da agência
+    let earliestPostDate: dayjs.Dayjs | null = null;
+    let latestPostDate: dayjs.Dayjs | null = null;
+
+    posts.forEach((p) => {
+      const parts = (p.date_key || '').split('-');
+      if (parts.length >= 3) {
+        const pDay = parseInt(parts[0], 10);
+        const pMonth = parseInt(parts[1], 10);
+        const pYear = parseInt(parts[2], 10);
+        if (!isNaN(pDay) && !isNaN(pMonth) && !isNaN(pYear)) {
+          const d = dayjs(`${pYear}-${String(pMonth).padStart(2, '0')}-${String(pDay).padStart(2, '0')}`);
+          if (d.isValid()) {
+            if (!earliestPostDate || d.isBefore(earliestPostDate)) {
+              earliestPostDate = d;
+            }
+            if (!latestPostDate || d.isAfter(latestPostDate)) {
+              latestPostDate = d;
+            }
+          }
+        }
+      }
+    });
+
+    // Determinar intervalo de datas do Dashboard
+    let startDate: dayjs.Dayjs;
+    let endDate: dayjs.Dayjs = now.endOf('month');
+    let periodLabel = 'Este mês';
+    let monthsToInclude: { year: number; month: number; label: string }[] = [];
+
+    if (dashboardPeriod === 'este_mes') {
+      startDate = now.startOf('month');
+      endDate = now.endOf('month');
+      periodLabel = `${MONTH_NAMES[now.month()]} de ${now.year()}`;
+      monthsToInclude.push({
+        year: now.year(),
+        month: now.month() + 1,
+        label: `${MONTH_SHORT_NAMES[now.month()]}/${String(now.year()).slice(2)}`
+      });
+    } else if (dashboardPeriod === 'ultimos_2_meses') {
+      startDate = now.subtract(1, 'month').startOf('month');
+      endDate = now.endOf('month');
+      periodLabel = 'Últimos 2 meses';
+      const m1 = now.subtract(1, 'month');
+      monthsToInclude.push({
+        year: m1.year(),
+        month: m1.month() + 1,
+        label: `${MONTH_SHORT_NAMES[m1.month()]}/${String(m1.year()).slice(2)}`
+      });
+      monthsToInclude.push({
+        year: now.year(),
+        month: now.month() + 1,
+        label: `${MONTH_SHORT_NAMES[now.month()]}/${String(now.year()).slice(2)}`
+      });
+    } else if (dashboardPeriod === 'ultimos_3_meses') {
+      startDate = now.subtract(2, 'month').startOf('month');
+      endDate = now.endOf('month');
+      periodLabel = 'Últimos 3 meses';
+      for (let i = 2; i >= 0; i--) {
+        const m = now.subtract(i, 'month');
+        monthsToInclude.push({
+          year: m.year(),
+          month: m.month() + 1,
+          label: `${MONTH_SHORT_NAMES[m.month()]}/${String(m.year()).slice(2)}`
+        });
+      }
+    } else if (dashboardPeriod === 'este_ano') {
+      startDate = now.startOf('year');
+      endDate = now.endOf('year');
+      periodLabel = `Ano de ${now.year()}`;
+      for (let m = 1; m <= 12; m++) {
+        monthsToInclude.push({
+          year: now.year(),
+          month: m,
+          label: MONTH_SHORT_NAMES[m - 1]
+        });
+      }
+    } else {
+      // todo_periodo: abrange do post mais antigo até o final do período
+      startDate = earliestPostDate ? earliestPostDate.startOf('month') : now.startOf('year');
+      const endLimit = (latestPostDate && latestPostDate.isAfter(now))
+        ? latestPostDate.endOf('month')
+        : now.endOf('month');
+      endDate = (latestPostDate && latestPostDate.isAfter(endLimit))
+        ? latestPostDate.endOf('month')
+        : endLimit;
+
+      if (endDate.isBefore(startDate)) {
+        endDate = startDate.endOf('month');
+      }
+
+      periodLabel = 'Todo o período';
+
+      let curr = startDate.clone();
+      while (curr.isBefore(endDate) || curr.isSame(endDate, 'month')) {
+        monthsToInclude.push({
+          year: curr.year(),
+          month: curr.month() + 1,
+          label: `${MONTH_SHORT_NAMES[curr.month()]}/${String(curr.year()).slice(2)}`
+        });
+        curr = curr.add(1, 'month');
+      }
+    }
+
+    // Inicializar mapa de meses para os gráficos
+    const monthlyStatsMap: Record<string, {
+      name: string;
+      year: number;
+      mes: number;
+      publicado: number;
+      aprovado: number;
+      pendente: number;
+      rascunho: number;
+      total: number;
+      trendTotal: number;
+    }> = {};
+
+    monthsToInclude.forEach(m => {
+      const key = `${m.year}-${m.month}`;
+      monthlyStatsMap[key] = {
+        name: m.label,
+        year: m.year,
+        mes: m.month,
         publicado: 0,
         aprovado: 0,
         pendente: 0,
@@ -295,9 +423,9 @@ export const PainelConteudo: React.FC<PainelConteudoProps> = ({
         total: 0,
         trendTotal: 0
       };
-    }
+    });
 
-    // Contagem de publicados por cliente no ano
+    // Contagem de publicados por cliente no período selecionado
     const clientPublishedMap: Record<string, { name: string; color: string; count: number }> = {};
     clients.forEach(c => {
       clientPublishedMap[c.id] = {
@@ -332,9 +460,10 @@ export const PainelConteudo: React.FC<PainelConteudoProps> = ({
       const pYear = parseInt(parts[2], 10);
       const platform = (parts[3] || 'meta') as 'meta' | 'linkedin' | 'tiktok';
 
+      if (isNaN(pDay) || isNaN(pMonth) || isNaN(pYear)) return;
+
       const postDate = dayjs(`${pYear}-${String(pMonth).padStart(2, '0')}-${String(pDay).padStart(2, '0')}`);
-      const isCurrentYear = pYear === currentYear;
-      const isCurrentMonth = isCurrentYear && pMonth === currentMonthNum;
+      const isCurrentMonthNow = pYear === now.year() && pMonth === (now.month() + 1);
 
       // Status checks
       const status = post.status as PostStatus;
@@ -344,52 +473,59 @@ export const PainelConteudo: React.FC<PainelConteudoProps> = ({
       const isChanges = status === 'changes_requested';
       const isDraft = status === 'draft';
 
-      // 1. Resumo Cards
-      if (isCurrentYear && isPublished) {
-        totalPublicadosAno++;
-      }
-      if (isCurrentMonth && isPublished) {
-        totalPublicadosMes++;
-      }
+      // 1. Resumo Cards: estado atual da agência
       if (isPending) {
         totalAguardandoAprovacao++;
       }
       if (isChanges) {
         totalAlteracaoSolicitada++;
       }
-
-      // 2. Gráficos Mensais (ano atual)
-      if (isCurrentYear && pMonth >= 1 && pMonth <= 12) {
-        const mObj = monthlyStats[pMonth];
-        mObj.total++;
-
-        if (isPublished) mObj.publicado++;
-        else if (isApproved) mObj.aprovado++;
-        else if (isPending || isChanges) mObj.pendente++;
-        else if (isDraft) mObj.rascunho++;
-
-        // Tendência: todos os posts exceto rascunho
-        if (status !== 'draft' && status !== 'deleted') {
-          mObj.trendTotal++;
-        }
+      if (isCurrentMonthNow && isPublished) {
+        totalPublicadosMesAtual++;
       }
 
-      // 3. Gráfico por cliente (apenas publicados no ano atual)
-      if (isCurrentYear && isPublished) {
-        const cid = post.client_id || post.clients?.id;
-        if (cid) {
-          if (!clientPublishedMap[cid]) {
-            clientPublishedMap[cid] = {
-              name: post.clients?.name || 'Cliente',
-              color: post.clients?.color || PALETTE_COLORS[0],
-              count: 0
-            };
+      // Verificar se post está no período selecionado
+      const isInPeriod = !postDate.isBefore(startDate, 'day') && !postDate.isAfter(endDate, 'day');
+
+      if (isInPeriod) {
+        if (isPublished) {
+          totalPublicadosPeriodo++;
+        }
+
+        // 2. Gráficos Mensais
+        const monthKey = `${pYear}-${pMonth}`;
+        if (monthlyStatsMap[monthKey]) {
+          const mObj = monthlyStatsMap[monthKey];
+          mObj.total++;
+
+          if (isPublished) mObj.publicado++;
+          else if (isApproved) mObj.aprovado++;
+          else if (isPending || isChanges) mObj.pendente++;
+          else if (isDraft) mObj.rascunho++;
+
+          // Tendência: todos os posts exceto rascunho
+          if (status !== 'draft' && status !== 'deleted') {
+            mObj.trendTotal++;
           }
-          clientPublishedMap[cid].count++;
+        }
+
+        // 3. Gráfico por cliente (apenas publicados no período)
+        if (isPublished) {
+          const cid = post.client_id || post.clients?.id;
+          if (cid) {
+            if (!clientPublishedMap[cid]) {
+              clientPublishedMap[cid] = {
+                name: post.clients?.name || 'Cliente',
+                color: post.clients?.color || PALETTE_COLORS[0],
+                count: 0
+              };
+            }
+            clientPublishedMap[cid].count++;
+          }
         }
       }
 
-      // 4. Agrupamento para lista
+      // 4. Agrupamento para lista de publicações
       const cleanTheme = (post.theme || post.theme_title || 'Sem tema definido').trim().toLowerCase();
       const cid = post.client_id || post.clients?.id || 'unknown';
       const groupKey = `${pYear}-${String(pMonth).padStart(2, '0')}-${String(pDay).padStart(2, '0')}-${cid}-${cleanTheme}`;
@@ -441,15 +577,27 @@ export const PainelConteudo: React.FC<PainelConteudoProps> = ({
       }
     });
 
-    // Converter dados mensais para array do gráfico de barras
-    const barData = Object.values(monthlyStats).sort((a, b) => a.mes - b.mes);
+    // Converter dados mensais para array dos gráficos
+    const barData = monthsToInclude.map(m => {
+      const key = `${m.year}-${m.month}`;
+      return monthlyStatsMap[key] || {
+        name: m.label,
+        year: m.year,
+        mes: m.month,
+        publicado: 0,
+        aprovado: 0,
+        pendente: 0,
+        rascunho: 0,
+        total: 0,
+        trendTotal: 0
+      };
+    });
 
     // Converter dados de clientes para o gráfico de pizza
     const pieData = Object.values(clientPublishedMap)
       .filter(c => c.count > 0)
       .sort((a, b) => b.count - a.count);
 
-    // Se nenhum post publicado ainda, fornecer dados vazios limpos
     const trendData = barData.map(d => ({
       name: d.name,
       mes: d.mes,
@@ -542,17 +690,18 @@ export const PainelConteudo: React.FC<PainelConteudoProps> = ({
 
     return {
       summary: {
-        totalAno: totalPublicadosAno,
-        esteMes: totalPublicadosMes,
+        totalPeriodo: totalPublicadosPeriodo,
+        esteMes: totalPublicadosMesAtual,
         aguardandoAprovacao: totalAguardandoAprovacao,
         alteracaoSolicitada: totalAlteracaoSolicitada
       },
       monthlyBarData: barData,
       clientPieData: pieData,
       monthlyTrendData: trendData,
+      filteredPeriodLabel: periodLabel,
       groupedFilteredPosts: dateGroupsArray
     };
-  }, [posts, clients, currentYear, currentMonthNum, filterClient, filterStatus, filterPeriod, searchQuery]);
+  }, [posts, clients, currentYear, currentMonthNum, dashboardPeriod, filterClient, filterStatus, filterPeriod, searchQuery]);
 
   // Abertura do Modal de Publicação
   const handleOpenPostModal = (item: GroupedPostItem) => {
@@ -660,19 +809,19 @@ export const PainelConteudo: React.FC<PainelConteudoProps> = ({
     if (active && payload && payload.length) {
       const total = payload.reduce((sum: number, entry: any) => sum + (Number(entry.value) || 0), 0);
       return (
-        <div className="bg-stone-900 text-white p-3.5 rounded-2xl shadow-xl border border-stone-800 text-xs space-y-2 min-w-[170px]">
+        <div className="bg-stone-900 text-white p-3.5 rounded-2xl shadow-2xl border border-stone-700/80 text-xs space-y-2 min-w-[180px] z-50">
           <div className="flex items-center justify-between border-b border-stone-800 pb-1.5 font-bold">
-            <span>{label} {currentYear}</span>
-            <span className="text-stone-300 font-mono">{total} posts</span>
+            <span className="text-white font-bold">{label}</span>
+            <span className="text-emerald-400 font-mono font-bold">{total} {total === 1 ? 'post' : 'posts'}</span>
           </div>
           <div className="space-y-1">
             {payload.map((entry: any, index: number) => (
               <div key={index} className="flex items-center justify-between text-[11px] gap-3">
                 <div className="flex items-center gap-1.5">
-                  <span className="w-2 h-2 rounded-full" style={{ backgroundColor: entry.color }}></span>
-                  <span className="text-stone-300">{entry.name}</span>
+                  <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: entry.color }}></span>
+                  <span className="text-stone-300 font-medium">{entry.name}</span>
                 </div>
-                <span className="font-bold font-mono">{entry.value}</span>
+                <span className="font-bold font-mono text-white">{entry.value}</span>
               </div>
             ))}
           </div>
@@ -687,13 +836,13 @@ export const PainelConteudo: React.FC<PainelConteudoProps> = ({
     if (active && payload && payload.length) {
       const count = Number(payload[0]?.value) || 0;
       return (
-        <div className="bg-stone-900 text-white p-3.5 rounded-2xl shadow-xl border border-stone-800 text-xs min-w-[160px] space-y-1.5">
-          <div className="font-bold text-stone-300 text-xs border-b border-stone-800 pb-1 flex items-center justify-between">
-            <span>{label} {currentYear}</span>
+        <div className="bg-stone-900 text-white p-3.5 rounded-2xl shadow-2xl border border-stone-700/80 text-xs min-w-[170px] space-y-2 z-50">
+          <div className="font-bold text-white text-xs border-b border-stone-800 pb-1.5 flex items-center justify-between">
+            <span className="text-white font-bold">{label}</span>
             <span className="text-[10px] text-emerald-400 uppercase tracking-widest font-mono font-bold">Volume</span>
           </div>
           <div className="flex items-center justify-between gap-4 font-mono pt-0.5">
-            <span className="text-stone-400 text-xs font-sans">Publicações:</span>
+            <span className="text-stone-300 text-xs font-sans">Publicações:</span>
             <span className="text-emerald-400 font-bold text-sm">{count} {count === 1 ? 'post' : 'posts'}</span>
           </div>
         </div>
@@ -709,13 +858,13 @@ export const PainelConteudo: React.FC<PainelConteudoProps> = ({
       const totalPubs = clientPieData.reduce((acc, c) => acc + c.count, 0);
       const pct = totalPubs > 0 ? Math.round((Number(data.value) / totalPubs) * 100) : 0;
       return (
-        <div className="bg-stone-900 text-white p-3.5 rounded-2xl shadow-xl border border-stone-800 text-xs min-w-[160px] space-y-1.5">
-          <div className="flex items-center gap-2 font-bold text-xs text-stone-100 border-b border-stone-800 pb-1">
+        <div className="bg-stone-900 text-white p-3.5 rounded-2xl shadow-2xl border border-stone-700/80 text-xs min-w-[170px] space-y-2 z-50">
+          <div className="flex items-center gap-2 font-bold text-xs text-white border-b border-stone-800 pb-1.5">
             <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: data.payload?.color || '#059669' }}></span>
-            <span className="truncate">{data.name}</span>
+            <span className="truncate text-white font-bold">{data.name}</span>
           </div>
           <div className="flex items-center justify-between gap-3 font-mono pt-0.5">
-            <span className="text-stone-400 text-xs font-sans">Total publicado:</span>
+            <span className="text-stone-300 text-xs font-sans">Total publicado:</span>
             <span className="text-emerald-400 font-bold">{data.value} posts <span className="text-stone-400 font-normal">({pct}%)</span></span>
           </div>
         </div>
@@ -788,10 +937,39 @@ export const PainelConteudo: React.FC<PainelConteudoProps> = ({
           transition={{ duration: 0.25 }}
           className="space-y-8"
         >
+          {/* FILTRO DE PERÍODO (DASHBOARD) */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-stone-200/40">
+            <div className="flex items-center gap-1.5 p-1 bg-stone-100/90 rounded-2xl border border-stone-200/60 shadow-2xs overflow-x-auto scrollbar-none w-fit">
+              {[
+                { id: 'este_mes', label: 'Este mês' },
+                { id: 'ultimos_2_meses', label: 'Últimos 2 meses' },
+                { id: 'ultimos_3_meses', label: 'Últimos 3 meses' },
+                { id: 'este_ano', label: 'Este ano' },
+                { id: 'todo_periodo', label: 'Todo o período' },
+              ].map((period) => (
+                <button
+                  key={period.id}
+                  onClick={() => setDashboardPeriod(period.id as DashboardPeriodType)}
+                  className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap cursor-pointer ${
+                    dashboardPeriod === period.id
+                      ? 'bg-white text-brand-dark shadow-xs border border-black/[0.04]'
+                      : 'text-stone-500 hover:text-stone-900 hover:bg-stone-200/50'
+                  }`}
+                >
+                  {period.label}
+                </button>
+              ))}
+            </div>
+
+            <div className="text-xs font-semibold text-stone-500 bg-stone-100/80 px-3.5 py-1.5 rounded-xl border border-stone-200/40 w-fit">
+              Período ativo: <span className="font-bold text-brand-dark">{filteredPeriodLabel}</span>
+            </div>
+          </div>
+
           {/* CARDS DE RESUMO (4 CARDS) */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             
-            {/* 1. Total Publicações no Ano */}
+            {/* 1. Total Publicações no Período */}
             <div 
               onClick={() => {
                 setFilterPeriod('todos');
@@ -802,7 +980,7 @@ export const PainelConteudo: React.FC<PainelConteudoProps> = ({
             >
               <div className="flex items-center justify-between">
                 <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-800">
-                  Total Publicações no Ano
+                  Total no Período
                 </span>
                 <div className="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center group-hover:scale-110 transition-transform">
                   <CheckCircle2 size={16} />
@@ -810,10 +988,10 @@ export const PainelConteudo: React.FC<PainelConteudoProps> = ({
               </div>
               <div className="mt-4 flex items-baseline justify-between">
                 <span className="text-3xl font-bold text-emerald-950 font-mono tracking-tight">
-                  {summary.totalAno}
+                  {summary.totalPeriodo}
                 </span>
-                <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md">
-                  {currentYear}
+                <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md max-w-[120px] truncate">
+                  {filteredPeriodLabel}
                 </span>
               </div>
             </div>
@@ -909,7 +1087,7 @@ export const PainelConteudo: React.FC<PainelConteudoProps> = ({
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-stone-100">
                 <div>
                   <h3 className="text-base font-bold text-brand-dark tracking-tight flex items-center gap-2">
-                    <BarChart3 size={18} className="text-stone-400" /> Publicações por Mês ({currentYear})
+                    <BarChart3 size={18} className="text-stone-400" /> Publicações por Mês ({filteredPeriodLabel})
                   </h3>
                   <p className="text-xs text-stone-400 font-medium">
                     Distribuição mensal por status de produção e aprovação
@@ -946,13 +1124,13 @@ export const PainelConteudo: React.FC<PainelConteudoProps> = ({
                   <PieChartIcon size={18} className="text-stone-400" /> Publicações por Cliente
                 </h3>
                 <p className="text-xs text-stone-400 font-medium">
-                  Posts publicados em {currentYear}
+                  Posts publicados em {filteredPeriodLabel}
                 </p>
               </div>
 
               {clientPieData.length === 0 ? (
                 <div className="h-[250px] flex flex-col items-center justify-center text-center p-4 bg-stone-50/50 rounded-2xl border border-dashed border-stone-200">
-                  <p className="text-xs font-bold text-stone-600">Nenhum post publicado em {currentYear} ainda</p>
+                  <p className="text-xs font-bold text-stone-600">Nenhum post publicado em {filteredPeriodLabel} ainda</p>
                   <p className="text-[10px] text-stone-400 mt-0.5">O gráfico será atualizado conforme os posts forem publicados.</p>
                 </div>
               ) : (
@@ -1012,7 +1190,7 @@ export const PainelConteudo: React.FC<PainelConteudoProps> = ({
                   <TrendingUp size={18} className="text-stone-400" /> Evolução Mensal de Conteúdo
                 </h3>
                 <p className="text-xs text-stone-400 font-medium">
-                  Tendência de volume de publicações programadas e aprovadas ao longo do ano
+                  Tendência de volume de publicações programadas e aprovadas ({filteredPeriodLabel})
                 </p>
               </div>
               <span className="text-[10px] font-bold uppercase tracking-widest text-emerald-700 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-100 w-fit">
