@@ -247,9 +247,14 @@ export const FinanceiroTab: React.FC = () => {
   const handlePrevMonth = () => setCurrentMonthYear(dayjs(currentMonthYear).subtract(1, 'month').format('YYYY-MM'));
   const handleNextMonth = () => setCurrentMonthYear(dayjs(currentMonthYear).add(1, 'month').format('YYYY-MM'));
 
-  const formatCurrency = (value: number) => {
+  const formatCurrency = (value: number | string | null | undefined) => {
     if (hideValues) return 'R$ ••••••';
-    return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
+    if (value === null || value === undefined || value === '') return 'R$ 0,00';
+    let numeric = typeof value === 'number' ? value : Number(String(value).replace(/\./g, '').replace(',', '.'));
+    if (isNaN(numeric)) {
+      numeric = typeof value === 'string' ? parseCurrencyInput(value) : 0;
+    }
+    return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(numeric);
   };
 
   const sporadicTotal = useMemo(() => {
@@ -2372,7 +2377,7 @@ export const FinanceiroTab: React.FC = () => {
               <div className="flex items-center justify-between">
                 <span className="text-xs font-bold text-gray-700">Despesa selecionada:</span>
                 <div className="text-right">
-                  {pendingEditExpense.original.amount !== pendingEditExpense.payload.amount ? (
+                  {parseCurrencyInput(String(pendingEditExpense.original.amount)) !== pendingEditExpense.payload.amount ? (
                     <div className="flex items-center gap-2">
                       <span className="text-xs text-gray-400 line-through">
                         {formatCurrency(pendingEditExpense.original.amount)}

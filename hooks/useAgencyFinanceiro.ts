@@ -770,18 +770,22 @@ export function useAgencyFinanceiro(monthYear: string) {
         due_day: motherExp.due_day
       });
 
-      await supabase
+      const { error: upErr } = await supabase
         .from('agency_expenses')
         .update({ notes: motherRawNotes })
         .eq('agency_id', agencyId)
         .eq('id', motherId);
 
+      if (upErr) throw upErr;
+
       if (targetExpense.parent_id) {
-        await supabase
+        const { error: delChildErr } = await supabase
           .from('agency_expenses')
           .update({ is_deleted: true })
           .eq('agency_id', agencyId)
           .eq('id', targetExpense.id);
+
+        if (delChildErr) throw delChildErr;
       }
 
       await fetchData();
@@ -799,11 +803,13 @@ export function useAgencyFinanceiro(monthYear: string) {
 
       // If mother expense started on or after targetMonthYear, there is no prior history to preserve -> delete mother
       if (motherExp.month_year && motherExp.month_year >= targetMonthYear) {
-        await supabase
+        const { error: delMotherErr } = await supabase
           .from('agency_expenses')
           .update({ is_deleted: true })
           .eq('agency_id', agencyId)
           .eq('id', motherId);
+
+        if (delMotherErr) throw delMotherErr;
       } else {
         // Mother was created in an earlier month -> set cancelled_from to targetMonthYear
         const motherRawNotes = encodeNotesAndMeta(motherExp.notes, {
@@ -814,11 +820,13 @@ export function useAgencyFinanceiro(monthYear: string) {
           due_day: motherExp.due_day
         });
 
-        await supabase
+        const { error: upMotherErr } = await supabase
           .from('agency_expenses')
           .update({ notes: motherRawNotes })
           .eq('agency_id', agencyId)
           .eq('id', motherId);
+
+        if (upMotherErr) throw upMotherErr;
       }
 
       // Delete all child / override records from targetMonthYear onwards
@@ -831,10 +839,12 @@ export function useAgencyFinanceiro(monthYear: string) {
       }
 
       if (childIdsToDelete.length > 0) {
-        await supabase
+        const { error: delChildErr } = await supabase
           .from('agency_expenses')
           .update({ is_deleted: true })
           .in('id', childIdsToDelete);
+
+        if (delChildErr) throw delChildErr;
       }
 
       await fetchData();
@@ -849,21 +859,25 @@ export function useAgencyFinanceiro(monthYear: string) {
       if (!agencyId) return;
       const motherId = targetExpense.parent_id || targetExpense.id;
 
-      await supabase
+      const { error: delMotherErr } = await supabase
         .from('agency_expenses')
         .update({ is_deleted: true })
         .eq('agency_id', agencyId)
         .eq('id', motherId);
+
+      if (delMotherErr) throw delMotherErr;
 
       const childIdsToDelete = rawExpenses
         .filter(e => e.parent_id === motherId)
         .map(e => e.id);
 
       if (childIdsToDelete.length > 0) {
-        await supabase
+        const { error: delChildErr } = await supabase
           .from('agency_expenses')
           .update({ is_deleted: true })
           .in('id', childIdsToDelete);
+
+        if (delChildErr) throw delChildErr;
       }
 
       await fetchData();

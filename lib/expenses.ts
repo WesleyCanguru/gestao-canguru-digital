@@ -57,17 +57,42 @@ export function encodeNotesAndMeta(
 
 export function parseExpenseRow(row: any): AgencyExpense {
   const { userNotes, exclude_months, parent_id, is_fixed, cancelled_from, origin, due_day } = parseNotesAndMeta(row.notes, row.category);
+
+  const finalExcludeMonths = (Array.isArray(row.exclude_months) && row.exclude_months.length > 0)
+    ? row.exclude_months
+    : exclude_months;
+
+  const finalParentId = (typeof row.parent_id === 'string' && row.parent_id.trim() !== '')
+    ? row.parent_id
+    : (parent_id || null);
+
+  const finalCancelledFrom = (typeof row.cancelled_from === 'string' && row.cancelled_from.trim() !== '')
+    ? row.cancelled_from
+    : (cancelled_from || null);
+
+  const finalOrigin = (typeof row.origin === 'string' && row.origin.trim() !== '')
+    ? row.origin
+    : (origin || null);
+
+  const finalDueDay = (row.due_day !== undefined && row.due_day !== null && row.due_day !== '')
+    ? Number(row.due_day)
+    : (due_day !== undefined ? due_day : undefined);
+
+  const finalIsFixed = (row.is_fixed !== undefined && row.is_fixed !== null)
+    ? Boolean(row.is_fixed)
+    : is_fixed;
+
   return {
     ...row,
     notes: userNotes,
     raw_notes: row.notes,
-    category: row.category || (is_fixed ? 'fixed' : 'variable'),
-    is_fixed: row.is_fixed ?? is_fixed,
-    parent_id: row.parent_id ?? parent_id,
-    exclude_months: row.exclude_months ?? exclude_months,
-    cancelled_from: row.cancelled_from ?? cancelled_from,
-    origin: row.origin ?? origin,
-    due_day: row.due_day ?? due_day
+    category: row.category || (finalIsFixed ? 'fixed' : 'variable'),
+    is_fixed: finalIsFixed,
+    parent_id: finalParentId,
+    exclude_months: finalExcludeMonths,
+    cancelled_from: finalCancelledFrom,
+    origin: finalOrigin,
+    due_day: finalDueDay
   };
 }
 
