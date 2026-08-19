@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react';
 import { supabase, useAuth } from '../lib/supabase';
 import { AgencyBilling, AgencyExpense } from '../types';
-import { parseExpenseRow, filterExpensesForMonth, encodeNotesAndMeta } from '../lib/expenses';
+import { parseExpenseRow, filterExpensesForMonth } from '../lib/expenses';
 import dayjs from 'dayjs';
 
 export interface MonthFinancialSummary {
@@ -158,7 +158,7 @@ export function useAgencyFinanceiro(monthYear: string) {
       // Fetch all non-deleted Expenses for agency
       const { data: rawExpensesData } = await supabase
         .from('agency_expenses')
-        .select('*')
+        .select('id, description, category, amount, month_year, notes, due_date, paid, paid_at, expense_type, is_deleted, is_fixed, origin, due_day, parent_id, cancelled_from, agency_id, created_at')
         .eq('agency_id', agencyId)
         .not('is_deleted', 'is', true)
         .order('created_at', { ascending: false });
@@ -419,36 +419,85 @@ export function useAgencyFinanceiro(monthYear: string) {
   const addExpense = async (expense: Omit<AgencyExpense, 'id' | 'created_at'>) => {
     try {
       const isFixed = expense.category === 'fixed' || expense.is_fixed === true;
-      const rawNotes = encodeNotesAndMeta(expense.notes, {
-        is_fixed: isFixed,
-        exclude_months: expense.exclude_months || [],
-        parent_id: expense.parent_id || null,
-        cancelled_from: expense.cancelled_from || null,
-        origin: expense.origin || null,
-        due_day: expense.due_day
-      });
+      const currentMonth = expense.month_year || monthYear;
+      const dueDay = expense.due_day ? Number(expense.due_day) : 10;
+      const origin = expense.origin || 'canguru';
 
-      const { data, error } = await supabase
-        .from('agency_expenses')
-        .insert([{
-          description: expense.description,
-          category: isFixed ? 'fixed' : 'variable',
-          expense_type: expense.expense_type || 'tools',
-          amount: expense.amount,
-          month_year: expense.month_year || monthYear,
-          due_date: expense.due_date || null,
-          paid: expense.paid || false,
-          paid_at: expense.paid_at || null,
-          notes: rawNotes,
-          agency_id: agencyId,
-          is_deleted: false
-        }])
-        .select()
-        .single();
+      if (isFixed) {
+        // Criar a despesa-mãe (mês atual)
+        const { data: parent, error: parentError } = await supabase
+          .from('agency_expenses')
+          .insert([{
+            description: expense.description,
+            amount: expense.amount,
+            category: 'fixed',
+            expense_type: expense.expense_type || 'tools',
+            is_fixed: true,
+            origin,
+            due_day: dueDay,
+            due_date: expense.due_date || null,
+            month_year: currentMonth,
+            notes: expense.notes || null,
+            agency_id: agencyId,
+            paid: expense.paid || false,
+            paid_at: expense.paid_at || null,
+            is_deleted: false
+          }])
+          .select('id')
+          .single();
 
-      if (error) throw error;
+        if (parentError) throw parentError;
+
+        // Criar instâncias para os próximos 11 meses
+        const instances = [];
+        for (let i = 1; i <= 11; i++) {
+          const nextMonthStr = dayjs(currentMonth, 'YYYY-MM').add(i, 'month').format('YYYY-MM');
+          const nextDueDate = dayjs(nextMonthStr, 'YYYY-MM').date(dueDay).format('YYYY-MM-DD');
+          instances.push({
+            description: expense.description,
+            amount: expense.amount,
+            category: 'fixed',
+            expense_type: expense.expense_type || 'tools',
+            is_fixed: true,
+            origin,
+            due_day: dueDay,
+            due_date: nextDueDate,
+            month_year: nextMonthStr,
+            parent_id: parent.id,
+            agency_id: agencyId,
+            notes: expense.notes || null,
+            paid: false,
+            paid_at: null,
+            is_deleted: false
+          });
+        }
+        await supabase.from('agency_expenses').insert(instances);
+      } else {
+        const { data, error } = await supabase
+          .from('agency_expenses')
+          .insert([{
+            description: expense.description,
+            category: 'variable',
+            expense_type: expense.expense_type || 'tools',
+            amount: expense.amount,
+            month_year: currentMonth,
+            due_date: expense.due_date || null,
+            due_day: dueDay,
+            paid: expense.paid || false,
+            paid_at: expense.paid_at || null,
+            notes: expense.notes || null,
+            agency_id: agencyId,
+            is_fixed: false,
+            origin,
+            is_deleted: false
+          }])
+          .select()
+          .single();
+
+        if (error) throw error;
+      }
+
       await fetchData();
-      return data;
     } catch (error) {
       console.error('Error adding expense:', error);
       throw error;
@@ -457,30 +506,18 @@ export function useAgencyFinanceiro(monthYear: string) {
 
   const updateExpense = async (id: string, updates: Partial<AgencyExpense>) => {
     try {
-      const existing = rawExpenses.find(e => e.id === id);
-      const isFixed = updates.is_fixed !== undefined ? updates.is_fixed : (existing?.is_fixed ?? (updates.category === 'fixed' || existing?.category === 'fixed'));
-      const rawNotes = encodeNotesAndMeta(
-        updates.notes !== undefined ? updates.notes : existing?.notes,
-        {
-          is_fixed: isFixed,
-          exclude_months: updates.exclude_months || existing?.exclude_months || [],
-          parent_id: updates.parent_id !== undefined ? updates.parent_id : (existing?.parent_id || null),
-          cancelled_from: updates.cancelled_from !== undefined ? updates.cancelled_from : (existing?.cancelled_from || null),
-          origin: updates.origin !== undefined ? updates.origin : (existing?.origin || null),
-          due_day: updates.due_day !== undefined ? updates.due_day : existing?.due_day
-        }
-      );
-
-      const dbUpdates: Record<string, any> = {
-        notes: rawNotes
-      };
+      const dbUpdates: Record<string, any> = {};
       if (updates.description !== undefined) dbUpdates.description = updates.description;
       if (updates.category !== undefined) dbUpdates.category = updates.category;
       if (updates.expense_type !== undefined) dbUpdates.expense_type = updates.expense_type;
       if (updates.amount !== undefined) dbUpdates.amount = updates.amount;
       if (updates.due_date !== undefined) dbUpdates.due_date = updates.due_date;
+      if (updates.due_day !== undefined) dbUpdates.due_day = updates.due_day;
       if (updates.paid !== undefined) dbUpdates.paid = updates.paid;
       if (updates.paid_at !== undefined) dbUpdates.paid_at = updates.paid_at;
+      if (updates.notes !== undefined) dbUpdates.notes = updates.notes;
+      if (updates.is_fixed !== undefined) dbUpdates.is_fixed = updates.is_fixed;
+      dbUpdates.origin = updates.origin ?? 'canguru';
 
       const { error } = await supabase
         .from('agency_expenses')
@@ -515,72 +552,25 @@ export function useAgencyFinanceiro(monthYear: string) {
     try {
       if (!agencyId) return;
 
-      const isTargetFixed = targetExpense.is_fixed || targetExpense.category === 'fixed' || Boolean(targetExpense.parent_id);
+      const dbUpdates: Record<string, any> = {
+        description: editedData.description,
+        amount: editedData.amount,
+        category: editedData.category || 'fixed',
+        expense_type: editedData.expense_type,
+        due_date: editedData.due_date,
+        due_day: editedData.due_day,
+        notes: editedData.notes,
+        origin: editedData.origin ?? 'canguru',
+        paid: editedData.paid,
+        paid_at: editedData.paid_at
+      };
 
-      if (targetExpense.parent_id) {
-        // Already a child override
-        await updateExpense(targetExpense.id, {
-          description: editedData.description,
-          amount: editedData.amount,
-          category: editedData.category || (isTargetFixed ? 'fixed' : 'variable'),
-          is_fixed: isTargetFixed,
-          expense_type: editedData.expense_type,
-          due_date: editedData.due_date,
-          notes: editedData.notes,
-          paid: editedData.paid,
-          paid_at: editedData.paid_at,
-          origin: editedData.origin !== undefined ? editedData.origin : targetExpense.origin,
-          due_day: editedData.due_day !== undefined ? editedData.due_day : targetExpense.due_day
-        });
-        return;
-      }
-
-      // Add targetMonthYear to mother exclude_months
-      const updatedExcludeMonths = Array.from(new Set([...(targetExpense.exclude_months || []), targetMonthYear]));
-      const motherRawNotes = encodeNotesAndMeta(targetExpense.notes, {
-        exclude_months: updatedExcludeMonths,
-        is_fixed: true,
-        cancelled_from: targetExpense.cancelled_from || null,
-        origin: targetExpense.origin || null,
-        due_day: targetExpense.due_day
-      });
-
-      const { error: motherErr } = await supabase
+      await supabase
         .from('agency_expenses')
-        .update({ notes: motherRawNotes })
+        .update(dbUpdates)
         .eq('agency_id', agencyId)
         .eq('id', targetExpense.id);
 
-      if (motherErr) throw motherErr;
-
-      // Insert child override
-      const finalDueDay = editedData.due_day !== undefined ? editedData.due_day : targetExpense.due_day;
-      const finalDueDate = editedData.due_date || (finalDueDay ? `${targetMonthYear}-${String(finalDueDay).padStart(2, '0')}` : null);
-
-      const childRawNotes = encodeNotesAndMeta(editedData.notes, {
-        parent_id: targetExpense.id,
-        is_fixed: isTargetFixed,
-        origin: editedData.origin || targetExpense.origin || null,
-        due_day: finalDueDay
-      });
-
-      const { error: childErr } = await supabase
-        .from('agency_expenses')
-        .insert([{
-          agency_id: agencyId,
-          description: editedData.description,
-          amount: editedData.amount,
-          category: isTargetFixed ? 'fixed' : (editedData.category || 'variable'),
-          expense_type: editedData.expense_type || targetExpense.expense_type || 'tools',
-          month_year: targetMonthYear,
-          due_date: finalDueDate,
-          paid: editedData.paid ?? false,
-          paid_at: editedData.paid_at ?? null,
-          notes: childRawNotes,
-          is_deleted: false
-        }]);
-
-      if (childErr) throw childErr;
       await fetchData();
     } catch (error) {
       console.error('Error overriding expense:', error);
@@ -605,31 +595,25 @@ export function useAgencyFinanceiro(monthYear: string) {
   ) => {
     try {
       if (!agencyId) return;
-      const motherId = targetExpense.parent_id || targetExpense.id;
+      const baseId = targetExpense.parent_id ?? targetExpense.id;
 
-      const motherExp = rawExpenses.find(e => e.id === motherId) || targetExpense;
-      const rawNotes = encodeNotesAndMeta(editedData.notes ?? motherExp.notes, {
-        exclude_months: motherExp.exclude_months || [],
+      const dbUpdates: Record<string, any> = {
+        description: editedData.description,
+        amount: editedData.amount,
+        category: 'fixed',
         is_fixed: true,
-        cancelled_from: motherExp.cancelled_from || null,
-        origin: editedData.origin !== undefined ? editedData.origin : (motherExp.origin || null),
-        due_day: editedData.due_day !== undefined ? editedData.due_day : motherExp.due_day
-      });
+        expense_type: editedData.expense_type,
+        due_day: editedData.due_day,
+        notes: editedData.notes,
+        origin: editedData.origin ?? 'canguru'
+      };
+      if (editedData.due_date !== undefined) dbUpdates.due_date = editedData.due_date;
 
       const { error } = await supabase
         .from('agency_expenses')
-        .update({
-          description: editedData.description,
-          amount: editedData.amount,
-          category: 'fixed',
-          expense_type: editedData.expense_type,
-          due_date: editedData.due_date,
-          paid: editedData.paid,
-          paid_at: editedData.paid_at,
-          notes: rawNotes
-        })
+        .update(dbUpdates)
         .eq('agency_id', agencyId)
-        .eq('id', motherId);
+        .or(`id.eq.${baseId},parent_id.eq.${baseId}`);
 
       if (error) throw error;
       await fetchData();
@@ -657,97 +641,28 @@ export function useAgencyFinanceiro(monthYear: string) {
   ) => {
     try {
       if (!agencyId) return;
-      const motherId = targetExpense.parent_id || targetExpense.id;
-      const motherExp = rawExpenses.find(e => e.id === motherId) || targetExpense;
+      const baseId = targetExpense.parent_id ?? targetExpense.id;
 
-      const isMotherSameOrAfter = motherExp.month_year && motherExp.month_year >= targetMonthYear;
+      const dbUpdates: Record<string, any> = {
+        description: editedData.description,
+        amount: editedData.amount,
+        category: 'fixed',
+        is_fixed: true,
+        expense_type: editedData.expense_type,
+        due_day: editedData.due_day,
+        notes: editedData.notes,
+        origin: editedData.origin ?? 'canguru'
+      };
+      if (editedData.due_date !== undefined) dbUpdates.due_date = editedData.due_date;
 
-      if (isMotherSameOrAfter) {
-        // Se a despesa mãe nasceu no mês alvo ou depois, atualizamos diretamente
-        const rawNotes = encodeNotesAndMeta(editedData.notes ?? motherExp.notes, {
-          exclude_months: (motherExp.exclude_months || []).filter(m => m !== targetMonthYear),
-          is_fixed: true,
-          cancelled_from: motherExp.cancelled_from || null,
-          origin: editedData.origin !== undefined ? editedData.origin : (motherExp.origin || null),
-          due_day: editedData.due_day !== undefined ? editedData.due_day : motherExp.due_day
-        });
+      const { error } = await supabase
+        .from('agency_expenses')
+        .update(dbUpdates)
+        .eq('agency_id', agencyId)
+        .or(`id.eq.${baseId},parent_id.eq.${baseId}`)
+        .gte('month_year', targetMonthYear);
 
-        const { error } = await supabase
-          .from('agency_expenses')
-          .update({
-            description: editedData.description,
-            amount: editedData.amount,
-            category: 'fixed',
-            expense_type: editedData.expense_type,
-            due_date: editedData.due_date,
-            paid: editedData.paid,
-            paid_at: editedData.paid_at,
-            notes: rawNotes
-          })
-          .eq('agency_id', agencyId)
-          .eq('id', motherId);
-
-        if (error) throw error;
-      } else {
-        // Despesa mãe veio do passado -> Preserva o histórico dos meses anteriores
-        // 1. Marca cancelamento na mãe original a partir de targetMonthYear
-        const oldMotherRawNotes = encodeNotesAndMeta(motherExp.notes, {
-          exclude_months: motherExp.exclude_months || [],
-          is_fixed: true,
-          cancelled_from: targetMonthYear,
-          origin: motherExp.origin || null,
-          due_day: motherExp.due_day
-        });
-
-        await supabase
-          .from('agency_expenses')
-          .update({ notes: oldMotherRawNotes })
-          .eq('agency_id', agencyId)
-          .eq('id', motherId);
-
-        // 2. Cria nova versão mãe a partir de targetMonthYear com os dados atualizados
-        const newMotherRawNotes = encodeNotesAndMeta(editedData.notes, {
-          is_fixed: true,
-          exclude_months: [],
-          origin: editedData.origin !== undefined ? editedData.origin : (motherExp.origin || null),
-          due_day: editedData.due_day !== undefined ? editedData.due_day : motherExp.due_day
-        });
-
-        const { error: newErr } = await supabase
-          .from('agency_expenses')
-          .insert([{
-            agency_id: agencyId,
-            description: editedData.description,
-            amount: editedData.amount,
-            category: 'fixed',
-            expense_type: editedData.expense_type || 'tools',
-            month_year: targetMonthYear,
-            due_date: editedData.due_date || null,
-            paid: editedData.paid ?? false,
-            paid_at: editedData.paid_at ?? null,
-            notes: newMotherRawNotes,
-            is_deleted: false
-          }]);
-
-        if (newErr) throw newErr;
-      }
-
-      // 3. Remove overrides de meses presentes/futuros atrelados à mãe antiga
-      const childIdsToDelete = rawExpenses
-        .filter(e => e.parent_id === motherId && e.month_year >= targetMonthYear)
-        .map(e => e.id);
-
-      if (targetExpense.parent_id && !childIdsToDelete.includes(targetExpense.id)) {
-        childIdsToDelete.push(targetExpense.id);
-      }
-
-      if (childIdsToDelete.length > 0) {
-        await supabase
-          .from('agency_expenses')
-          .update({ is_deleted: true })
-          .in('id', childIdsToDelete);
-      }
-
+      if (error) throw error;
       await fetchData();
     } catch (error) {
       console.error('Error updating expense from month onwards:', error);
@@ -758,36 +673,14 @@ export function useAgencyFinanceiro(monthYear: string) {
   const deleteExpenseForMonth = async (targetExpense: AgencyExpense, targetMonthYear: string = monthYear) => {
     try {
       if (!agencyId) return;
-      const motherId = targetExpense.parent_id || targetExpense.id;
 
-      const motherExp = rawExpenses.find(e => e.id === motherId) || targetExpense;
-      const updatedExcludeMonths = Array.from(new Set([...(motherExp.exclude_months || []), targetMonthYear]));
-      const motherRawNotes = encodeNotesAndMeta(motherExp.notes, {
-        exclude_months: updatedExcludeMonths,
-        is_fixed: true,
-        cancelled_from: motherExp.cancelled_from || null,
-        origin: motherExp.origin || null,
-        due_day: motherExp.due_day
-      });
-
-      const { error: upErr } = await supabase
+      const { error } = await supabase
         .from('agency_expenses')
-        .update({ notes: motherRawNotes })
+        .update({ is_deleted: true })
         .eq('agency_id', agencyId)
-        .eq('id', motherId);
+        .eq('id', targetExpense.id);
 
-      if (upErr) throw upErr;
-
-      if (targetExpense.parent_id) {
-        const { error: delChildErr } = await supabase
-          .from('agency_expenses')
-          .update({ is_deleted: true })
-          .eq('agency_id', agencyId)
-          .eq('id', targetExpense.id);
-
-        if (delChildErr) throw delChildErr;
-      }
-
+      if (error) throw error;
       await fetchData();
     } catch (error) {
       console.error('Error deleting expense for month:', error);
@@ -798,54 +691,25 @@ export function useAgencyFinanceiro(monthYear: string) {
   const deleteExpenseFromMonthOnwards = async (targetExpense: AgencyExpense, targetMonthYear: string = monthYear) => {
     try {
       if (!agencyId) return;
-      const motherId = targetExpense.parent_id || targetExpense.id;
-      const motherExp = rawExpenses.find(e => e.id === motherId) || targetExpense;
+      const baseId = targetExpense.parent_id ?? targetExpense.id;
 
-      // If mother expense started on or after targetMonthYear, there is no prior history to preserve -> delete mother
-      if (motherExp.month_year && motherExp.month_year >= targetMonthYear) {
-        const { error: delMotherErr } = await supabase
-          .from('agency_expenses')
-          .update({ is_deleted: true })
-          .eq('agency_id', agencyId)
-          .eq('id', motherId);
+      // Passo 1: marcar a despesa atual e todas as instâncias futuras como deletadas
+      const { error: delErr } = await supabase
+        .from('agency_expenses')
+        .update({ is_deleted: true })
+        .eq('agency_id', agencyId)
+        .or(`id.eq.${baseId},parent_id.eq.${baseId}`)
+        .gte('month_year', targetMonthYear);
 
-        if (delMotherErr) throw delMotherErr;
-      } else {
-        // Mother was created in an earlier month -> set cancelled_from to targetMonthYear
-        const motherRawNotes = encodeNotesAndMeta(motherExp.notes, {
-          exclude_months: motherExp.exclude_months || [],
-          is_fixed: true,
-          cancelled_from: targetMonthYear,
-          origin: motherExp.origin || null,
-          due_day: motherExp.due_day
-        });
+      if (delErr) throw delErr;
 
-        const { error: upMotherErr } = await supabase
-          .from('agency_expenses')
-          .update({ notes: motherRawNotes })
-          .eq('agency_id', agencyId)
-          .eq('id', motherId);
+      // Passo 2: marcar cancelled_from na despesa-mãe
+      const { error: cancelErr } = await supabase
+        .from('agency_expenses')
+        .update({ cancelled_from: targetMonthYear })
+        .eq('id', baseId);
 
-        if (upMotherErr) throw upMotherErr;
-      }
-
-      // Delete all child / override records from targetMonthYear onwards
-      const childIdsToDelete = rawExpenses
-        .filter(e => e.parent_id === motherId && e.month_year >= targetMonthYear)
-        .map(e => e.id);
-
-      if (targetExpense.parent_id && !childIdsToDelete.includes(targetExpense.id)) {
-        childIdsToDelete.push(targetExpense.id);
-      }
-
-      if (childIdsToDelete.length > 0) {
-        const { error: delChildErr } = await supabase
-          .from('agency_expenses')
-          .update({ is_deleted: true })
-          .in('id', childIdsToDelete);
-
-        if (delChildErr) throw delChildErr;
-      }
+      if (cancelErr) throw cancelErr;
 
       await fetchData();
     } catch (error) {
@@ -857,29 +721,15 @@ export function useAgencyFinanceiro(monthYear: string) {
   const deleteExpensePermanently = async (targetExpense: AgencyExpense) => {
     try {
       if (!agencyId) return;
-      const motherId = targetExpense.parent_id || targetExpense.id;
+      const baseId = targetExpense.parent_id ?? targetExpense.id;
 
-      const { error: delMotherErr } = await supabase
+      const { error } = await supabase
         .from('agency_expenses')
         .update({ is_deleted: true })
         .eq('agency_id', agencyId)
-        .eq('id', motherId);
+        .or(`id.eq.${baseId},parent_id.eq.${baseId}`);
 
-      if (delMotherErr) throw delMotherErr;
-
-      const childIdsToDelete = rawExpenses
-        .filter(e => e.parent_id === motherId)
-        .map(e => e.id);
-
-      if (childIdsToDelete.length > 0) {
-        const { error: delChildErr } = await supabase
-          .from('agency_expenses')
-          .update({ is_deleted: true })
-          .in('id', childIdsToDelete);
-
-        if (delChildErr) throw delChildErr;
-      }
-
+      if (error) throw error;
       await fetchData();
     } catch (error) {
       console.error('Error deleting expense permanently:', error);

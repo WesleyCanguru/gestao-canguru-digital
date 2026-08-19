@@ -33,6 +33,7 @@ import {
   Lock,
   ArrowRight
 } from 'lucide-react';
+import { CustomDropdown, CustomDropdownOption } from '../CustomDropdown';
 import { 
   ResponsiveContainer, 
   BarChart, 
@@ -752,6 +753,24 @@ export const ClientPainelConteudo: React.FC<ClientPainelConteudoProps> = ({
     return null;
   };
 
+  const clientStatusDropdownOptions: CustomDropdownOption[] = useMemo(() => [
+    { value: 'all', label: 'Todos os status', icon: <Filter size={14} className="text-stone-400" /> },
+    { value: 'pending_approval', label: 'Aguardando Aprovação', badgeColor: '#F59E0B' },
+    { value: 'changes_requested', label: 'Alteração Solicitada', badgeColor: '#EA580C' },
+    { value: 'approved', label: 'Aprovado / Agendado', badgeColor: '#3B82F6' },
+    { value: 'published', label: 'Publicado', badgeColor: '#10B981' },
+    { value: 'draft', label: 'Rascunho', badgeColor: '#9CA3AF' },
+    { value: 'rejected', label: 'Reprovado', badgeColor: '#EF4444' },
+  ], []);
+
+  const clientPeriodDropdownOptions: CustomDropdownOption[] = useMemo(() => [
+    { value: 'esta_semana', label: 'Esta semana', icon: <CalendarIcon size={14} className="text-stone-400" /> },
+    { value: 'este_mes', label: 'Este mês', icon: <CalendarIcon size={14} className="text-stone-400" /> },
+    { value: 'ultimos_30', label: 'Últimos 30 dias', icon: <CalendarIcon size={14} className="text-stone-400" /> },
+    { value: 'este_ano', label: 'Este ano', icon: <CalendarIcon size={14} className="text-stone-400" /> },
+    { value: 'todos', label: 'Todo o período', icon: <CalendarIcon size={14} className="text-stone-400" /> },
+  ], []);
+
   return (
     <div className="space-y-8 pb-20">
       
@@ -1126,45 +1145,23 @@ export const ClientPainelConteudo: React.FC<ClientPainelConteudoProps> = ({
           {/* BARRA DE FILTROS & BUSCA */}
           <div className="bg-white rounded-3xl p-5 border border-stone-200/70 shadow-xs flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4">
             
-            {/* Filtros em Linha */}
+            {/* Filtros em Linha Customizados */}
             <div className="flex flex-wrap items-center gap-3">
               {/* Filtro Status */}
-              <div className="relative min-w-[170px]">
-                <select
-                  value={filterStatus}
-                  onChange={(e) => setFilterStatus(e.target.value)}
-                  className="w-full pl-3.5 pr-8 py-2.5 rounded-xl bg-stone-50 border border-stone-200/80 text-xs font-bold text-stone-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 appearance-none cursor-pointer"
-                >
-                  <option value="all">Todos os status</option>
-                  <option value="pending_approval">Aguardando Aprovação</option>
-                  <option value="changes_requested">Alteração Solicitada</option>
-                  <option value="approved">Aprovado / Agendado</option>
-                  <option value="published">Publicado</option>
-                  <option value="draft">Rascunho</option>
-                  <option value="rejected">Reprovado</option>
-                </select>
-                <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-stone-400">
-                  <ChevronRight size={14} className="rotate-90" />
-                </div>
-              </div>
+              <CustomDropdown
+                value={filterStatus}
+                onChange={setFilterStatus}
+                options={clientStatusDropdownOptions}
+                triggerIcon={<Filter size={14} />}
+              />
 
               {/* Filtro Período */}
-              <div className="relative min-w-[150px]">
-                <select
-                  value={filterPeriod}
-                  onChange={(e) => setFilterPeriod(e.target.value)}
-                  className="w-full pl-3.5 pr-8 py-2.5 rounded-xl bg-stone-50 border border-stone-200/80 text-xs font-bold text-stone-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 appearance-none cursor-pointer"
-                >
-                  <option value="esta_semana">Esta semana</option>
-                  <option value="este_mes">Este mês</option>
-                  <option value="ultimos_30">Últimos 30 dias</option>
-                  <option value="este_ano">Este ano</option>
-                  <option value="todos">Todo o período</option>
-                </select>
-                <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-stone-400">
-                  <ChevronRight size={14} className="rotate-90" />
-                </div>
-              </div>
+              <CustomDropdown
+                value={filterPeriod}
+                onChange={setFilterPeriod}
+                options={clientPeriodDropdownOptions}
+                triggerIcon={<CalendarIcon size={14} />}
+              />
 
               {/* Limpar Filtros */}
               {(filterStatus !== 'all' || filterPeriod !== 'este_mes' || searchQuery) && (

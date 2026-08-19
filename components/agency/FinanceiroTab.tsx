@@ -362,32 +362,11 @@ export const FinanceiroTab: React.FC = () => {
     if (markingExpenseId) return;
     setMarkingExpenseId(expense.id);
     try {
-      const isFixed = expense.is_fixed || expense.category === 'fixed' || Boolean(expense.parent_id);
       const dateToSet = paidAt || new Date().toISOString();
-
-      if (isFixed && !expense.parent_id) {
-        await overrideExpenseForMonth(
-          expense,
-          {
-            description: expense.description,
-            amount: expense.amount,
-            category: 'fixed',
-            expense_type: expense.expense_type,
-            origin: expense.origin,
-            due_date: expense.due_date,
-            due_day: expense.due_day,
-            notes: expense.notes,
-            paid: true,
-            paid_at: dateToSet
-          },
-          currentMonthYear
-        );
-      } else {
-        await updateExpense(expense.id, {
-          paid: true,
-          paid_at: dateToSet
-        });
-      }
+      await updateExpense(expense.id, {
+        paid: true,
+        paid_at: dateToSet
+      });
     } catch (error) {
       console.error('Error marking expense as paid:', error);
     } finally {
@@ -399,30 +378,10 @@ export const FinanceiroTab: React.FC = () => {
     if (markingExpenseId) return;
     setMarkingExpenseId(expense.id);
     try {
-      const isFixed = expense.is_fixed || expense.category === 'fixed';
-      if (isFixed && !expense.parent_id && expense.month_year !== currentMonthYear) {
-        await overrideExpenseForMonth(
-          expense,
-          {
-            description: expense.description,
-            amount: expense.amount,
-            category: 'fixed',
-            expense_type: expense.expense_type,
-            origin: expense.origin,
-            due_date: expense.due_date,
-            due_day: expense.due_day,
-            notes: expense.notes,
-            paid: false,
-            paid_at: null
-          },
-          currentMonthYear
-        );
-      } else {
-        await updateExpense(expense.id, {
-          paid: false,
-          paid_at: null
-        });
-      }
+      await updateExpense(expense.id, {
+        paid: false,
+        paid_at: null
+      });
     } catch (error) {
       console.error('Error unmarking expense as paid:', error);
     } finally {

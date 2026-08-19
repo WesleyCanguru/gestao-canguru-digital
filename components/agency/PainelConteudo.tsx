@@ -28,8 +28,10 @@ import {
   RefreshCw,
   Filter,
   Layers,
-  FileText
+  FileText,
+  RotateCcw
 } from 'lucide-react';
+import { CustomDropdown, CustomDropdownOption } from '../CustomDropdown';
 import { 
   ResponsiveContainer, 
   BarChart, 
@@ -285,7 +287,7 @@ export const PainelConteudo: React.FC<PainelConteudoProps> = ({
   }, [agencyId, fetchClients, fetchPosts]);
 
   // Processar métricas e agrupamentos
-  const { summary, monthlyBarData, clientPieData, monthlyTrendData, filteredPeriodLabel, groupedFilteredPosts } = useMemo(() => {
+  const { summary, monthlyBarData, clientPieData, formatPieData, monthlyTrendData, filteredPeriodLabel, groupedFilteredPosts, selectedClientObj } = useMemo(() => {
     let totalPublicadosPeriodo = 0;
     let totalPublicadosMesAtual = 0;
     let totalAguardandoAprovacao = 0; // Sempre o estado atual
@@ -293,11 +295,19 @@ export const PainelConteudo: React.FC<PainelConteudoProps> = ({
 
     const now = dayjs();
 
-    // Encontrar datas extremas entre todas as postagens da agência
+    // Objeto do cliente selecionado se filterClient !== 'all'
+    const selectedClient = filterClient !== 'all' ? clients.find(c => c.id === filterClient) : null;
+
+    // Filtrar posts por cliente se filterClient !== 'all'
+    const targetClientPosts = filterClient === 'all'
+      ? posts
+      : posts.filter(p => (p.client_id || p.clients?.id) === filterClient);
+
+    // Encontrar datas extremas entre todas as postagens filtradas
     let earliestPostDate: dayjs.Dayjs | null = null;
     let latestPostDate: dayjs.Dayjs | null = null;
 
-    posts.forEach((p) => {
+    targetClientPosts.forEach((p) => {
       const parts = (p.date_key || '').split('-');
       if (parts.length >= 3) {
         const pDay = parseInt(parts[0], 10);
@@ -435,6 +445,21 @@ export const PainelConteudo: React.FC<PainelConteudoProps> = ({
       };
     });
 
+    // Contagem de publicados por formato (quando cliente individual selecionado)
+    const formatPublishedMap: Record<string, { name: string; color: string; count: number }> = {};
+    const FORMAT_COLORS: Record<string, string> = {
+      'reels': '#E1306C',
+      'carrossel': '#2563EB',
+      'story': '#F59E0B',
+      'stories': '#F59E0B',
+      'imagem': '#10B981',
+      'estático': '#10B981',
+      'estatico': '#10B981',
+      'vídeo': '#7C3AED',
+      'video': '#7C3AED',
+      'post': '#0D9488'
+    };
+
     const STATUS_PRIORITY: Record<string, number> = {
       'theme_rejected': 1,
       'rejected': 1,
@@ -451,7 +476,7 @@ export const PainelConteudo: React.FC<PainelConteudoProps> = ({
     // Agrupamento de posts por dia / cliente / tema
     const allGroupedMap: Record<string, GroupedPostItem> = {};
 
-    posts.forEach((post) => {
+    targetClientPosts.forEach((post) => {
       const parts = (post.date_key || '').split('-');
       if (parts.length < 3) return;
 
@@ -473,7 +498,7 @@ export const PainelConteudo: React.FC<PainelConteudoProps> = ({
       const isChanges = status === 'changes_requested';
       const isDraft = status === 'draft';
 
-      // 1. Resumo Cards: estado atual da agência
+      // 1. Resumo Cards: estado atual da agência/cliente
       if (isPending) {
         totalAguardandoAprovacao++;
       }
@@ -509,19 +534,27 @@ export const PainelConteudo: React.FC<PainelConteudoProps> = ({
           }
         }
 
-        // 3. Gráfico por cliente (apenas publicados no período)
+        // 3. Gráfico por cliente e por formato (apenas publicados no período)
         if (isPublished) {
           const cid = post.client_id || post.clients?.id;
-          if (cid) {
-            if (!clientPublishedMap[cid]) {
-              clientPublishedMap[cid] = {
-                name: post.clients?.name || 'Cliente',
-                color: post.clients?.color || PALETTE_COLORS[0],
-                count: 0
-              };
-            }
+          if (cid && clientPublishedMap[cid]) {
             clientPublishedMap[cid].count++;
           }
+
+          // Por formato
+          const rawType = (post.type || 'Estático').trim();
+          const formatName = rawType.charAt(0).toUpperCase() + rawType.slice(1);
+          const typeKey = formatName.toLowerCase();
+
+          if (!formatPublishedMap[typeKey]) {
+            const color = FORMAT_COLORS[typeKey] || PALETTE_COLORS[Object.keys(formatPublishedMap).length % PALETTE_COLORS.length];
+            formatPublishedMap[typeKey] = {
+              name: formatName,
+              color,
+              count: 0
+            };
+          }
+          formatPublishedMap[typeKey].count++;
         }
       }
 
@@ -596,6 +629,11 @@ export const PainelConteudo: React.FC<PainelConteudoProps> = ({
     // Converter dados de clientes para o gráfico de pizza
     const pieData = Object.values(clientPublishedMap)
       .filter(c => c.count > 0)
+      .sort((a, b) => b.count - a.count);
+
+    // Converter dados de formatos para o gráfico de pizza
+    const formatPieDataArray = Object.values(formatPublishedMap)
+      .filter(f => f.count > 0)
       .sort((a, b) => b.count - a.count);
 
     const trendData = barData.map(d => ({
@@ -697,9 +735,11 @@ export const PainelConteudo: React.FC<PainelConteudoProps> = ({
       },
       monthlyBarData: barData,
       clientPieData: pieData,
+      formatPieData: formatPieDataArray,
       monthlyTrendData: trendData,
       filteredPeriodLabel: periodLabel,
-      groupedFilteredPosts: dateGroupsArray
+      groupedFilteredPosts: dateGroupsArray,
+      selectedClientObj: selectedClient
     };
   }, [posts, clients, currentYear, currentMonthNum, dashboardPeriod, filterClient, filterStatus, filterPeriod, searchQuery]);
 
@@ -873,21 +913,118 @@ export const PainelConteudo: React.FC<PainelConteudoProps> = ({
     return null;
   };
 
+  // Custom Tooltip para o Gráfico de Pizza (Por Formato/Tipo)
+  const CustomFormatPieTooltip = ({ active, payload }: any) => {
+    if (active && payload && payload.length) {
+      const data = payload[0];
+      const totalPubs = formatPieData.reduce((acc, f) => acc + f.count, 0);
+      const pct = totalPubs > 0 ? Math.round((Number(data.value) / totalPubs) * 100) : 0;
+      return (
+        <div className="bg-stone-900 text-white p-3.5 rounded-2xl shadow-2xl border border-stone-700/80 text-xs min-w-[170px] space-y-2 z-50">
+          <div className="flex items-center gap-2 font-bold text-xs text-white border-b border-stone-800 pb-1.5">
+            <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: data.payload?.color || '#059669' }}></span>
+            <span className="truncate text-white font-bold">{data.name}</span>
+          </div>
+          <div className="flex items-center justify-between gap-3 font-mono pt-0.5">
+            <span className="text-stone-300 text-xs font-sans">Total no formato:</span>
+            <span className="text-emerald-400 font-bold">{data.value} {data.value === 1 ? 'post' : 'posts'} <span className="text-stone-400 font-normal">({pct}%)</span></span>
+          </div>
+        </div>
+      );
+    }
+    return null;
+  };
+
+  // Opções estruturadas para os seletores CustomDropdown (sem emojis)
+  const clientDropdownOptions: CustomDropdownOption[] = useMemo(() => {
+    return [
+      {
+        value: 'all',
+        label: 'Todos os clientes',
+        icon: <Building2 size={14} className="text-stone-400" />
+      },
+      ...clients.map(c => ({
+        value: c.id,
+        label: c.name,
+        badgeLogoUrl: c.logo_url,
+        badgeColor: c.color || '#1A1A1A',
+        badgeInitials: c.initials || c.name.substring(0, 2).toUpperCase()
+      }))
+    ];
+  }, [clients]);
+
+  const statusDropdownOptions: CustomDropdownOption[] = useMemo(() => [
+    { value: 'all', label: 'Todos os status', icon: <Filter size={14} className="text-stone-400" /> },
+    { value: 'draft', label: 'Rascunho', badgeColor: '#9CA3AF' },
+    { value: 'pending_approval', label: 'Aguardando Aprovação', badgeColor: '#F59E0B' },
+    { value: 'approved', label: 'Aprovado', badgeColor: '#3B82F6' },
+    { value: 'changes_requested', label: 'Alteração Solicitada', badgeColor: '#EA580C' },
+    { value: 'rejected', label: 'Reprovado', badgeColor: '#EF4444' },
+    { value: 'published', label: 'Publicado', badgeColor: '#10B981' },
+  ], []);
+
+  const periodDropdownOptions: CustomDropdownOption[] = useMemo(() => [
+    { value: 'hoje', label: 'Hoje', icon: <Calendar size={14} className="text-stone-400" /> },
+    { value: 'esta_semana', label: 'Esta semana', icon: <Calendar size={14} className="text-stone-400" /> },
+    { value: 'este_mes', label: 'Este mês', icon: <Calendar size={14} className="text-stone-400" /> },
+    { value: 'proximos_30', label: 'Próximos 30 dias', icon: <Calendar size={14} className="text-stone-400" /> },
+    { value: 'todos', label: `Todo o ano (${currentYear})`, icon: <Calendar size={14} className="text-stone-400" /> },
+  ], [currentYear]);
+
   return (
     <div className="space-y-8 pb-20">
       
       {/* CABEÇALHO UNIFICADO */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 pt-6 px-2">
         <div className="space-y-1">
-          <div className="flex items-center gap-2 text-xs font-black uppercase tracking-[0.25em] text-stone-400">
-            <Sparkles size={14} className="text-brand-dark" /> Visão Agência Unificada
-          </div>
-          <h1 className="text-3xl sm:text-4xl font-serif font-bold italic tracking-tight text-brand-dark">
-            Painel de Conteúdo
-          </h1>
-          <p className="text-xs sm:text-sm text-stone-500 max-w-xl font-medium">
-            Visão da agência unificada — métricas, publicações e calendário de todos os clientes
-          </p>
+          {filterClient !== 'all' && selectedClientObj ? (
+            <div className="flex items-center gap-3">
+              {selectedClientObj.logo_url ? (
+                <img
+                  src={selectedClientObj.logo_url}
+                  alt={selectedClientObj.name}
+                  className="w-10 h-10 rounded-xl object-cover border border-stone-200/80 shadow-2xs shrink-0"
+                />
+              ) : (
+                <div
+                  className="w-10 h-10 rounded-xl flex items-center justify-center font-bold text-white text-sm shadow-2xs shrink-0"
+                  style={{ backgroundColor: selectedClientObj.color || '#1A1A1A' }}
+                >
+                  {selectedClientObj.initials || selectedClientObj.name.substring(0, 2).toUpperCase()}
+                </div>
+              )}
+              <div>
+                <div className="flex items-center gap-2.5 flex-wrap">
+                  <h1 className="text-2xl sm:text-3xl font-serif font-bold italic tracking-tight text-brand-dark">
+                    Dashboard · {selectedClientObj.name}
+                  </h1>
+                  <button
+                    onClick={() => setFilterClient('all')}
+                    className="inline-flex items-center gap-1.5 px-3 py-1 bg-stone-100 hover:bg-stone-200/80 text-stone-700 hover:text-stone-900 rounded-xl text-xs font-bold transition-all cursor-pointer border border-stone-200/60 active:scale-95"
+                    title="Voltar para a visão geral"
+                  >
+                    <span>Ver tudo</span>
+                    <RotateCcw size={12} className="text-stone-500" />
+                  </button>
+                </div>
+                <p className="text-xs text-stone-500 font-medium mt-0.5">
+                  Métricas e visão de publicações individuais do cliente
+                </p>
+              </div>
+            </div>
+          ) : (
+            <>
+              <div className="flex items-center gap-2 text-xs font-black uppercase tracking-[0.25em] text-stone-400">
+                <Sparkles size={14} className="text-brand-dark" /> Visão Agência Unificada
+              </div>
+              <h1 className="text-3xl sm:text-4xl font-serif font-bold italic tracking-tight text-brand-dark">
+                Painel de Conteúdo
+              </h1>
+              <p className="text-xs sm:text-sm text-stone-500 max-w-xl font-medium">
+                Visão da agência unificada — métricas, publicações e calendário de todos os clientes
+              </p>
+            </>
+          )}
         </div>
 
         <div className="flex items-center gap-3">
@@ -937,33 +1074,59 @@ export const PainelConteudo: React.FC<PainelConteudoProps> = ({
           transition={{ duration: 0.25 }}
           className="space-y-8"
         >
-          {/* FILTRO DE PERÍODO (DASHBOARD) */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-stone-200/40">
-            <div className="flex items-center gap-1.5 p-1 bg-stone-100/90 rounded-2xl border border-stone-200/60 shadow-2xs overflow-x-auto scrollbar-none w-fit">
-              {[
-                { id: 'este_mes', label: 'Este mês' },
-                { id: 'ultimos_2_meses', label: 'Últimos 2 meses' },
-                { id: 'ultimos_3_meses', label: 'Últimos 3 meses' },
-                { id: 'este_ano', label: 'Este ano' },
-                { id: 'todo_periodo', label: 'Todo o período' },
-              ].map((period) => (
+          {/* SELETOR DE CLIENTE + FILTRO DE PERÍODO (DASHBOARD) */}
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-4 border-b border-stone-200/40">
+            
+            {/* Seletor de Cliente Customizado */}
+            <div className="flex items-center gap-2.5 flex-wrap">
+              <CustomDropdown
+                value={filterClient}
+                onChange={setFilterClient}
+                options={clientDropdownOptions}
+                triggerIcon={<Building2 size={14} />}
+              />
+
+              {filterClient !== 'all' && (
                 <button
-                  key={period.id}
-                  onClick={() => setDashboardPeriod(period.id as DashboardPeriodType)}
-                  className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap cursor-pointer ${
-                    dashboardPeriod === period.id
-                      ? 'bg-white text-brand-dark shadow-xs border border-black/[0.04]'
-                      : 'text-stone-500 hover:text-stone-900 hover:bg-stone-200/50'
-                  }`}
+                  onClick={() => setFilterClient('all')}
+                  className="flex items-center gap-1.5 px-3 py-2 bg-stone-100 hover:bg-stone-200/80 text-stone-700 hover:text-stone-900 rounded-2xl text-xs font-bold transition-all cursor-pointer border border-stone-200/60 active:scale-95"
+                  title="Voltar para a visão geral"
                 >
-                  {period.label}
+                  <span>Ver tudo</span>
+                  <RotateCcw size={12} className="text-stone-500" />
                 </button>
-              ))}
+              )}
             </div>
 
-            <div className="text-xs font-semibold text-stone-500 bg-stone-100/80 px-3.5 py-1.5 rounded-xl border border-stone-200/40 w-fit">
-              Período ativo: <span className="font-bold text-brand-dark">{filteredPeriodLabel}</span>
+            {/* Filtros de Período */}
+            <div className="flex items-center gap-2 flex-wrap">
+              <div className="flex items-center gap-1 p-1 bg-stone-100/90 rounded-2xl border border-stone-200/60 shadow-2xs overflow-x-auto scrollbar-none">
+                {[
+                  { id: 'este_mes', label: 'Este mês' },
+                  { id: 'ultimos_2_meses', label: 'Últimos 2 meses' },
+                  { id: 'ultimos_3_meses', label: 'Últimos 3 meses' },
+                  { id: 'este_ano', label: 'Este ano' },
+                  { id: 'todo_periodo', label: 'Todo o período' },
+                ].map((period) => (
+                  <button
+                    key={period.id}
+                    onClick={() => setDashboardPeriod(period.id as DashboardPeriodType)}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap cursor-pointer ${
+                      dashboardPeriod === period.id
+                        ? 'bg-white text-brand-dark shadow-xs border border-black/[0.04]'
+                        : 'text-stone-500 hover:text-stone-900 hover:bg-stone-200/50'
+                    }`}
+                  >
+                    {period.label}
+                  </button>
+                ))}
+              </div>
+
+              <div className="text-xs font-semibold text-stone-500 bg-stone-100/80 px-3.5 py-2 rounded-xl border border-stone-200/40 hidden sm:block">
+                Período: <span className="font-bold text-brand-dark">{filteredPeriodLabel}</span>
+              </div>
             </div>
+
           </div>
 
           {/* CARDS DE RESUMO (4 CARDS) */}
@@ -1117,18 +1280,20 @@ export const PainelConteudo: React.FC<PainelConteudoProps> = ({
               </div>
             </div>
 
-            {/* GRÁFICO 2 — Publicações por Cliente (Pizza) */}
+            {/* GRÁFICO 2 — Publicações por Cliente ou por Formato (Pizza) */}
             <div className="bg-white p-6 sm:p-8 rounded-[2.5rem] border border-black/[0.03] shadow-2xs space-y-6">
               <div className="pb-3 border-b border-stone-100">
                 <h3 className="text-base font-bold text-brand-dark tracking-tight flex items-center gap-2">
-                  <PieChartIcon size={18} className="text-stone-400" /> Publicações por Cliente
+                  <PieChartIcon size={18} className="text-stone-400" /> {filterClient === 'all' ? 'Publicações por Cliente' : 'Publicações por Formato'}
                 </h3>
                 <p className="text-xs text-stone-400 font-medium">
-                  Posts publicados em {filteredPeriodLabel}
+                  {filterClient === 'all' 
+                    ? `Posts publicados em ${filteredPeriodLabel}` 
+                    : `Distribuição por formato em ${filteredPeriodLabel}`}
                 </p>
               </div>
 
-              {clientPieData.length === 0 ? (
+              {(filterClient === 'all' ? clientPieData : formatPieData).length === 0 ? (
                 <div className="h-[250px] flex flex-col items-center justify-center text-center p-4 bg-stone-50/50 rounded-2xl border border-dashed border-stone-200">
                   <p className="text-xs font-bold text-stone-600">Nenhum post publicado em {filteredPeriodLabel} ainda</p>
                   <p className="text-[10px] text-stone-400 mt-0.5">O gráfico será atualizado conforme os posts forem publicados.</p>
@@ -1139,7 +1304,7 @@ export const PainelConteudo: React.FC<PainelConteudoProps> = ({
                     <ResponsiveContainer width="100%" height="100%">
                       <PieChart>
                         <Pie
-                          data={clientPieData}
+                          data={filterClient === 'all' ? clientPieData : formatPieData}
                           dataKey="count"
                           nameKey="name"
                           cx="50%"
@@ -1148,19 +1313,20 @@ export const PainelConteudo: React.FC<PainelConteudoProps> = ({
                           outerRadius={75}
                           paddingAngle={3}
                         >
-                          {clientPieData.map((entry, index) => (
+                          {(filterClient === 'all' ? clientPieData : formatPieData).map((entry, index) => (
                             <Cell key={`cell-${index}`} fill={entry.color} />
                           ))}
                         </Pie>
-                        <Tooltip content={<CustomPieTooltip />} />
+                        <Tooltip content={filterClient === 'all' ? <CustomPieTooltip /> : <CustomFormatPieTooltip />} />
                       </PieChart>
                     </ResponsiveContainer>
                   </div>
 
                   {/* Legenda com percentuais */}
                   <div className="space-y-2 max-h-[120px] overflow-y-auto pr-1">
-                    {clientPieData.map((entry, index) => {
-                      const totalPubs = clientPieData.reduce((acc, c) => acc + c.count, 0);
+                    {(filterClient === 'all' ? clientPieData : formatPieData).map((entry, index) => {
+                      const currentList = filterClient === 'all' ? clientPieData : formatPieData;
+                      const totalPubs = currentList.reduce((acc, c) => acc + c.count, 0);
                       const pct = totalPubs > 0 ? Math.round((entry.count / totalPubs) * 100) : 0;
                       return (
                         <div key={index} className="flex items-center justify-between text-xs text-stone-600 py-0.5">
@@ -1235,57 +1401,32 @@ export const PainelConteudo: React.FC<PainelConteudoProps> = ({
           <div className="bg-white p-5 sm:p-6 rounded-[2rem] border border-black/[0.03] shadow-2xs space-y-4">
             <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-4">
               
-              {/* Filtros Dropdowns */}
+              {/* Filtros Dropdowns Customizados */}
               <div className="flex flex-wrap items-center gap-3">
                 
                 {/* 1. Cliente */}
-                <div className="flex items-center gap-2 bg-stone-50 border border-stone-200/80 rounded-2xl px-3 py-2 text-xs">
-                  <Building2 size={14} className="text-stone-400" />
-                  <select
-                    value={filterClient}
-                    onChange={(e) => setFilterClient(e.target.value)}
-                    className="bg-transparent font-bold text-stone-700 focus:outline-none cursor-pointer pr-2"
-                  >
-                    <option value="all">Todos os clientes</option>
-                    {clients.map(c => (
-                      <option key={c.id} value={c.id}>{c.name}</option>
-                    ))}
-                  </select>
-                </div>
+                <CustomDropdown
+                  value={filterClient}
+                  onChange={setFilterClient}
+                  options={clientDropdownOptions}
+                  triggerIcon={<Building2 size={14} />}
+                />
 
                 {/* 2. Status */}
-                <div className="flex items-center gap-2 bg-stone-50 border border-stone-200/80 rounded-2xl px-3 py-2 text-xs">
-                  <Filter size={14} className="text-stone-400" />
-                  <select
-                    value={filterStatus}
-                    onChange={(e) => setFilterStatus(e.target.value)}
-                    className="bg-transparent font-bold text-stone-700 focus:outline-none cursor-pointer pr-2"
-                  >
-                    <option value="all">Todos os status</option>
-                    <option value="draft">Rascunho</option>
-                    <option value="pending_approval">Aguardando Aprovação</option>
-                    <option value="approved">Aprovado</option>
-                    <option value="changes_requested">Alteração Solicitada</option>
-                    <option value="rejected">Reprovado</option>
-                    <option value="published">Publicado</option>
-                  </select>
-                </div>
+                <CustomDropdown
+                  value={filterStatus}
+                  onChange={setFilterStatus}
+                  options={statusDropdownOptions}
+                  triggerIcon={<Filter size={14} />}
+                />
 
                 {/* 3. Período */}
-                <div className="flex items-center gap-2 bg-stone-50 border border-stone-200/80 rounded-2xl px-3 py-2 text-xs">
-                  <Calendar size={14} className="text-stone-400" />
-                  <select
-                    value={filterPeriod}
-                    onChange={(e) => setFilterPeriod(e.target.value)}
-                    className="bg-transparent font-bold text-stone-700 focus:outline-none cursor-pointer pr-2"
-                  >
-                    <option value="hoje">Hoje</option>
-                    <option value="esta_semana">Esta semana</option>
-                    <option value="este_mes">Este mês</option>
-                    <option value="proximos_30">Próximos 30 dias</option>
-                    <option value="todos">Todo o ano ({currentYear})</option>
-                  </select>
-                </div>
+                <CustomDropdown
+                  value={filterPeriod}
+                  onChange={setFilterPeriod}
+                  options={periodDropdownOptions}
+                  triggerIcon={<Calendar size={14} />}
+                />
 
               </div>
 
