@@ -576,3 +576,28 @@ export interface TaskSession {
   task?: AgencyTask;
 }
 
+export interface AgencyGoal {
+  id?: string;
+  agency_id: number;
+  month_year: string; // YYYY-MM
+  revenue_goal: number;
+  new_clients_goal: number;
+  meetings_goal: number;
+  posts_goal: number;
+  notes?: string | null;
+  created_at?: string;
+}
+
+export type CommercialActionType = 'meeting' | 'proposal' | 'call' | 'follow_up';
+
+export interface AgencyCommercialAction {
+  id: string;
+  agency_id: number;
+  action_date: string; // YYYY-MM-DD
+  action_type: CommercialActionType;
+  contact_name: string;
+  result: string;
+  notes?: string | null;
+  created_at?: string;
+}
+

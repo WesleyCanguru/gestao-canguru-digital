@@ -2177,7 +2177,7 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack, ini
                                );
                             })()}
                             <h4 className="font-bold text-gray-900 mb-1">{group.theme}</h4>
-                            {group.bullets && group.bullets.length > 0 && <p className="text-xs text-gray-600 line-clamp-2">{group.bullets.join(' • ')}</p>}
+                            {group.bullets && group.bullets.length > 0 && <p className="text-xs text-gray-600 line-clamp-2">{group.bullets.join(' ')}</p>}
                          </div>
                          {userRole === 'admin' && group.status !== 'published' && (
                             <button 
@@ -2573,9 +2573,10 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack, ini
                             onChange={(e) => setFormat1(e.target.value)}
                             className="w-full bg-white border border-gray-200 rounded-xl px-4 py-2.5 text-xs text-gray-900 focus:outline-none focus:border-brand-dark focus:ring-1 focus:ring-brand-dark transition-all font-semibold"
                           >
-                            <option value="Reels">Reels</option>
                             <option value="Carrossel">Carrossel</option>
-                            <option value="Imagem Estática">Imagem Estática</option>
+                            <option value="Estático">Estático</option>
+                            <option value="Reels">Reels</option>
+                            <option value="Repost">Repost</option>
                           </select>
                         </div>
                       </div>
@@ -2616,9 +2617,10 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack, ini
                               onChange={(e) => setFormat2(e.target.value)}
                               className="w-full bg-white border border-gray-200 rounded-xl px-4 py-2.5 text-xs text-gray-900 focus:outline-none focus:border-brand-dark focus:ring-1 focus:ring-brand-dark transition-all font-semibold"
                             >
-                              <option value="Reels">Reels</option>
                               <option value="Carrossel">Carrossel</option>
-                              <option value="Imagem Estática">Imagem Estática</option>
+                              <option value="Estático">Estático</option>
+                              <option value="Reels">Reels</option>
+                              <option value="Repost">Repost</option>
                             </select>
                           </div>
                         </div>

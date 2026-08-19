@@ -88,6 +88,7 @@ export const Navigation: React.FC<SidebarProps> = ({
     { id: 'anotacoes', label: 'Anotações', icon: NotebookPen },
     { id: 'prospeccao', label: 'CRM / Prospecção', icon: Kanban },
     { id: 'financeiro', label: 'Financeiro', icon: DollarSign },
+    { id: 'metas', label: 'Metas', icon: TrendingUp },
     { id: 'onboarding', label: 'Onboarding', icon: Target },
     { id: 'contratos', label: 'Contratos', icon: FileText },
     { id: 'clientes', label: 'Clientes', icon: Users },

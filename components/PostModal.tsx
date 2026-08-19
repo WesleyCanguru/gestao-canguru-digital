@@ -21,21 +21,24 @@ interface PostModalProps {
   isMasterMap?: boolean;
 }
 
-const POST_TYPES = [
-  "Vídeo (Reel - Produto)",
-  "Vídeo (Reel - Informação)",
-  "Texto técnico",
-  "Texto analítico",
-  "Texto consultivo",
-  "Estático",
-  "Estático técnico",
-  "Estático institucional",
+export const POST_TYPES = [
   "Carrossel",
-  "Carrossel educacional",
-  "Carrossel técnico",
-  "Carrossel analítico",
+  "Estático",
+  "Reels",
   "Repost"
 ];
+
+export function normalizePostType(type?: string | null): string {
+  if (!type) return "Estático";
+  const t = type.trim();
+  if (POST_TYPES.includes(t)) return t;
+  const lower = t.toLowerCase();
+  if (lower.includes("video") || lower.includes("vídeo") || lower.includes("reel")) return "Reels";
+  if (lower.includes("repost")) return "Repost";
+  if (lower.includes("carrossel")) return "Carrossel";
+  if (lower.includes("estático") || lower.includes("estatico") || lower.includes("texto") || lower.includes("institucional")) return "Estático";
+  return "Estático";
+}
 
 import { STATUS_CONFIG } from '../constants';
 
@@ -128,7 +131,7 @@ export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, group
   
   // Structure Overrides (Shared)
   const [editedTheme, setEditedTheme] = useState(dayContent.theme);
-  const [editedType, setEditedType] = useState(dayContent.type);
+  const [editedType, setEditedType] = useState(normalizePostType(dayContent.type));
   const [editedBullets, setEditedBullets] = useState(dayContent.bullets ? dayContent.bullets.join('\n') : '');
   
   // Theme Approval Checkbox
@@ -296,7 +299,7 @@ export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, group
          setImageUrl(parsedUrl || '');
          
          setEditedTheme(primaryData.theme || dayContent.theme);
-         setEditedType(primaryData.type || dayContent.type);
+         setEditedType(normalizePostType(primaryData.type || dayContent.type));
          setEditedBullets(primaryData.bullets ? primaryData.bullets.join('\n') : (dayContent.bullets ? dayContent.bullets.join('\n') : ''));
          
          setRequireThemeApproval(['theme_pending', 'theme_approved_with_notes', 'theme_approved', 'theme_rejected'].includes(primaryData.status));
@@ -1474,15 +1477,8 @@ export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, group
                         </div>
                         {editedBullets && (
                             <div className="bg-white p-4 rounded-2xl border border-black/[0.03] shadow-sm">
-                                <span className="text-[8px] font-bold text-gray-400 uppercase tracking-widest block mb-2">Direcionamento</span>
-                                <div className="space-y-2">
-                                    {editedBullets.split('\n').filter(b => b.trim()).map((bullet, idx) => (
-                                        <div key={idx} className="flex gap-2 items-start">
-                                            <div className="w-1 h-1 rounded-full bg-brand-dark mt-1.5 flex-shrink-0" />
-                                            <p className="text-[11px] text-gray-600 leading-relaxed">{bullet}</p>
-                                        </div>
-                                    ))}
-                                </div>
+                                <span className="text-[8px] font-bold text-gray-400 uppercase tracking-widest block mb-2">Descrição da publicação</span>
+                                <p className="text-[11px] text-gray-700 leading-relaxed whitespace-pre-wrap">{editedBullets}</p>
                             </div>
                         )}
                     </div>

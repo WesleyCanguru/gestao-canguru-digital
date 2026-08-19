@@ -103,7 +103,7 @@ export const ImportThemesPdfModal: React.FC<ImportThemesPdfModalProps> = ({
 Para cada tema/ideia encontrada, retorne um objeto JSON com os seguintes campos:
 - "title": título curto e atraente do tema ou tema central (ex: "Uso consciente de água na indústria")
 - "description": descrição detalhada do tema, contexto, ideias de tópicos a abordar e direcionamentos sugeridos para a publicação
-- "format": o formato sugerido. Mapeie para um dos seguintes formatos EXATOS mais próximos: "Post Estático", "Carrossel", "Vídeo (Reel)", "Vídeo Longo", "Story", "Artigo", "Repost". Se não houver, use "Post Estático".
+- "format": o formato sugerido. Mapeie para um dos seguintes formatos EXATOS mais próximos: "Carrossel", "Estático", "Reels", "Repost". Se não houver, use "Estático".
 - "reference_links": array de strings com as URLs ou hiperlinks de referência associados se houver algum no documento; caso contrário, use um array vazio [].
 
 Retorne APENAS um array JSON válido, sem texto adicional, sem formatação markdown markdown externa, sem explicações.`;

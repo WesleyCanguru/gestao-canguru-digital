@@ -68,7 +68,7 @@ export const ImportPdfModal: React.FC<ImportPdfModalProps> = ({ monthIndex, year
 Para cada publicação encontrada, retorne um objeto JSON com os seguintes campos:
 - "date": data no formato YYYY-MM-DD (ex: "2026-04-15")
 - "theme": o tema central da publicação (texto completo)
-- "type": o formato da entrega. Mapeie para um dos seguintes valores EXATOS: "Vídeo (Reel - Produto)", "Vídeo (Reel - Informação)", "Texto técnico", "Texto analítico", "Texto consultivo", "Estático", "Estático técnico", "Estático institucional", "Carrossel", "Carrossel educacional", "Carrossel técnico", "Carrossel analítico", "Repost". Se não conseguir mapear, use o valor mais próximo da lista.
+- "type": o formato da entrega. Mapeie para um dos seguintes valores EXATOS em ordem alfabética: "Carrossel", "Estático", "Reels", "Repost". Se não conseguir mapear, use o valor mais próximo da lista.
 - "bullets": array de strings com cada bullet/direcionamento encontrado
 - "platforms": array com as plataformas da publicação. Use apenas os valores "Instagram" e/ou "LinkedIn". Se não for mencionado no documento, use ["Instagram"].
 

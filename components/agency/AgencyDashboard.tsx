@@ -26,6 +26,7 @@ import { OnboardingTab } from './OnboardingTab';
 import { ClientesTab } from './ClientesTab';
 import { AnotacoesTab } from './AnotacoesTab';
 import { PainelConteudo } from './PainelConteudo';
+import { MetasTab } from './MetasTab';
 import { Logo } from '../Logo';
 
 import { useAuth } from '../../lib/supabase';
@@ -37,7 +38,7 @@ interface AgencyDashboardProps {
   onTabChange?: (tab: string) => void;
 }
 
-type Tab = 'home' | 'tasks' | 'financeiro' | 'prospeccao' | 'contratos' | 'onboarding' | 'clientes' | 'anotacoes' | 'masterMap' | 'painelConteudo';
+type Tab = 'home' | 'tasks' | 'financeiro' | 'metas' | 'prospeccao' | 'contratos' | 'onboarding' | 'clientes' | 'anotacoes' | 'masterMap' | 'painelConteudo';
 
 export const AgencyDashboard: React.FC<AgencyDashboardProps> = ({ onBack, onSelectClient, activeTab, onTabChange }) => {
   const { userRole } = useAuth();
@@ -79,8 +80,10 @@ export const AgencyDashboard: React.FC<AgencyDashboardProps> = ({ onBack, onSele
                   onNavigateToClients={(client) => onSelectClient(client)} 
                   onNavigateToMasterMap={handleNavigateToContentPanel}
                   onNavigateToPainelConteudo={handleNavigateToContentPanel}
+                  onNavigateToMetas={() => onTabChange?.('metas')}
                 />
               )}
+              {activeTab === 'metas' && <MetasTab />}
               {(activeTab === 'masterMap' || (activeTab as string) === 'painelConteudo') && (
                 <PainelConteudo 
                   initialTab={contentPanelFilter.aba}

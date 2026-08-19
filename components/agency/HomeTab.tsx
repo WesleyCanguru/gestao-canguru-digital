@@ -34,6 +34,7 @@ import { Client, AgencyTask, AgencyCRM, AgencyLead, PostStatus, DailyContent } f
 import { parseExpenseRow, filterExpensesForMonth } from '../../lib/expenses';
 import { AgencyLogo } from '../AgencyLogo';
 import { PostModal } from '../PostModal';
+import { GoalsWidget } from './GoalsWidget';
 
 dayjs.locale('pt-br');
 
@@ -92,9 +93,10 @@ interface HomeTabProps {
   onNavigateToClients: (client: Client) => void;
   onNavigateToMasterMap?: (filter?: { aba?: 'dashboard' | 'publicacoes'; status?: string; periodo?: string; date?: string }) => void;
   onNavigateToPainelConteudo?: (filter?: { aba?: 'dashboard' | 'publicacoes'; status?: string; periodo?: string; date?: string }) => void;
+  onNavigateToMetas?: () => void;
 }
 
-export const HomeTab: React.FC<HomeTabProps> = ({ onNavigateToClients, onNavigateToMasterMap, onNavigateToPainelConteudo }) => {
+export const HomeTab: React.FC<HomeTabProps> = ({ onNavigateToClients, onNavigateToMasterMap, onNavigateToPainelConteudo, onNavigateToMetas }) => {
   const { agencyId, agencyName } = useAuth();
   const [loading, setLoading] = useState(true);
   
@@ -1070,6 +1072,9 @@ export const HomeTab: React.FC<HomeTabProps> = ({ onNavigateToClients, onNavigat
           )}
         </AnimatePresence>
       </div>
+
+      {/* WIDGET DE METAS DO MÊS */}
+      <GoalsWidget onNavigateToMetas={onNavigateToMetas || (() => {})} />
 
       {/* BLOCO 3 & 4 - TAREFAS URGENTES E FUNIS DO CRM (MANTIDOS) */}
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
