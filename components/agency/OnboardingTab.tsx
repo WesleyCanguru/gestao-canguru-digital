@@ -136,6 +136,7 @@ export const OnboardingTab: React.FC<{ onNavigateToClients: (client: Client) => 
         `)
         .eq('agency_id', agencyId)
         .eq('is_active', true)
+        .neq('is_internal', true)
         .order('name');
 
       if (clientsData) {

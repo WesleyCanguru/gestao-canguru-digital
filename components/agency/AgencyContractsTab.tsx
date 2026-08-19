@@ -447,7 +447,7 @@ export const AgencyContractsTab: React.FC = () => {
   const fetchData = async () => {
     if (!agencyId) return;
     setLoading(true);
-    let clientsQuery = supabase.from('clients').select('*').eq('agency_id', agencyId).order('name');
+    let clientsQuery = supabase.from('clients').select('*').eq('agency_id', agencyId).neq('is_internal', true).order('name');
     let contractsQuery = supabase.from('contract_forms').select('*').eq('agency_id', agencyId);
     
     const { data: clientsData } = await clientsQuery;

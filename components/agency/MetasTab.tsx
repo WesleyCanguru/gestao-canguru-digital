@@ -19,7 +19,8 @@ import {
   Clock, 
   X,
   MessageSquare,
-  FileCheck
+  FileCheck,
+  PenLine
 } from 'lucide-react';
 import { useAgencyGoals } from '../../hooks/useAgencyGoals';
 import { CommercialActionType } from '../../types';
@@ -45,6 +46,8 @@ export const MetasTab: React.FC<MetasTabProps> = () => {
     newClientsCount,
     meetingsCount,
     postsCount,
+    blogPostsCount,
+    blogPostsGoal,
 
     commercialActions,
 
@@ -52,6 +55,7 @@ export const MetasTab: React.FC<MetasTabProps> = () => {
     pctNovosClientes,
     pctReunioes,
     pctPublicacoes,
+    pctBlogPosts,
 
     weeklyGoal,
     semanaAtual,
@@ -78,6 +82,7 @@ export const MetasTab: React.FC<MetasTabProps> = () => {
   const [newClientsGoalInput, setNewClientsGoalInput] = useState<string>('');
   const [meetingsGoalInput, setMeetingsGoalInput] = useState<string>('');
   const [postsGoalInput, setPostsGoalInput] = useState<string>('');
+  const [blogPostsGoalInput, setBlogPostsGoalInput] = useState<string>('');
   const [goalNotesInput, setGoalNotesInput] = useState<string>('');
   const [isSavingGoal, setIsSavingGoal] = useState(false);
 
@@ -98,6 +103,7 @@ export const MetasTab: React.FC<MetasTabProps> = () => {
     setNewClientsGoalInput(goal?.new_clients_goal ? String(goal.new_clients_goal) : '');
     setMeetingsGoalInput(goal?.meetings_goal ? String(goal.meetings_goal) : '');
     setPostsGoalInput(goal?.posts_goal ? String(goal.posts_goal) : '');
+    setBlogPostsGoalInput(goal?.blog_posts_goal ? String(goal.blog_posts_goal) : '');
     setGoalNotesInput(goal?.notes || '');
     setShowGoalModal(true);
   };
@@ -111,6 +117,7 @@ export const MetasTab: React.FC<MetasTabProps> = () => {
         new_clients_goal: parseInt(newClientsGoalInput, 10) || 0,
         meetings_goal: parseInt(meetingsGoalInput, 10) || 0,
         posts_goal: parseInt(postsGoalInput, 10) || 0,
+        blog_posts_goal: parseInt(blogPostsGoalInput, 10) || 0,
         notes: goalNotesInput
       });
       setShowGoalModal(false);
@@ -416,8 +423,8 @@ export const MetasTab: React.FC<MetasTabProps> = () => {
             </div>
           </div>
 
-          {/* CARDS SECUNDÁRIOS (LINHA DE 3) */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          {/* CARDS SECUNDÁRIOS */}
+          <div className={`grid grid-cols-1 ${blogPostsGoal > 0 ? 'sm:grid-cols-2 lg:grid-cols-4' : 'md:grid-cols-3'} gap-6`}>
             {/* Card 1: Novos Clientes */}
             <div className="bg-white p-6 rounded-[2rem] border border-black/[0.04] shadow-2xs space-y-4 flex flex-col justify-between">
               <div className="flex items-center justify-between">
@@ -510,6 +517,39 @@ export const MetasTab: React.FC<MetasTabProps> = () => {
                 </div>
               </div>
             </div>
+
+            {/* Card 4: Posts no Blog (condicional se blogPostsGoal > 0) */}
+            {blogPostsGoal > 0 && (
+              <div className="bg-white p-6 rounded-[2rem] border border-black/[0.04] shadow-2xs space-y-4 flex flex-col justify-between">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-9 h-9 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center">
+                      <PenLine size={18} />
+                    </div>
+                    <h4 className="text-sm font-bold text-brand-dark">Posts no Blog</h4>
+                  </div>
+                  <span className="text-xs font-bold text-stone-400">{pctBlogPosts}%</span>
+                </div>
+
+                <div className="space-y-2">
+                  <div className="flex items-baseline gap-1.5">
+                    <span className="text-2xl sm:text-3xl font-extrabold text-brand-dark">
+                      {blogPostsCount}
+                    </span>
+                    <span className="text-base font-bold text-stone-400">
+                      / {blogPostsGoal}
+                    </span>
+                  </div>
+
+                  <div className="w-full h-2.5 bg-stone-100 rounded-full overflow-hidden">
+                    <div 
+                      className="h-full bg-amber-600 rounded-full transition-all duration-500" 
+                      style={{ width: `${Math.min(100, pctBlogPosts)}%` }}
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* MENSAGEM DE COACHING (DINÂMICA) */}
@@ -724,6 +764,20 @@ export const MetasTab: React.FC<MetasTabProps> = () => {
                     className="w-full px-4 py-2.5 rounded-xl border border-stone-200 bg-stone-50/50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-dark text-sm font-semibold"
                   />
                   <p className="text-[11px] text-stone-400 mt-1">Total de publicações planejadas/publicadas no mês</p>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-stone-700 mb-1">
+                    Meta de Posts no Blog (por mês)
+                  </label>
+                  <input
+                    type="number"
+                    placeholder="Ex: 9"
+                    value={blogPostsGoalInput}
+                    onChange={(e) => setBlogPostsGoalInput(e.target.value)}
+                    className="w-full px-4 py-2.5 rounded-xl border border-stone-200 bg-stone-50/50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-dark text-sm font-semibold"
+                  />
+                  <p className="text-[11px] text-stone-400 mt-1">Total de artigos/posts publicados no blog da agência</p>
                 </div>
 
                 <div>

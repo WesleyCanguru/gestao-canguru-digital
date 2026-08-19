@@ -31,36 +31,35 @@ export const MONTH_NAMES = [
 
 export const DAY_NAMES = ['','Segunda','Terça','Quarta','Quinta','Sexta','Sábado','Domingo'];
 
-export function useEditorialData() {
+export function useEditorialData(overrideClientId?: string) {
   const { activeClient } = useAuth();
+  const targetClientId = overrideClientId || activeClient?.id;
   const [monthlyPlans, setMonthlyPlans] = useState<MonthlyPlan[]>([]);
   const [weeklySchedule, setWeeklySchedule] = useState<WeeklyScheduleItem[]>([]);
   const [loading, setLoading] = useState(true);
 
   const fetchData = async () => {
-    if (!activeClient?.id) {
+    if (!targetClientId) {
       setMonthlyPlans([]);
       setWeeklySchedule([]);
       setLoading(false);
       return;
     }
     setLoading(true);
-    const startMonth = activeClient.created_at 
-      ? new Date(activeClient.created_at).getMonth() + 1 
-      : 1;
+    const startMonth = 1;
 
     const [plansRes, schedRes] = await Promise.all([
       supabase
         .from('client_monthly_plans')
         .select('*')
-        .eq('client_id', activeClient.id)
+        .eq('client_id', targetClientId)
         .eq('year', 2026)
         .gte('month', startMonth)
         .order('month'),
       supabase
         .from('client_weekly_schedules')
         .select('*')
-        .eq('client_id', activeClient.id)
+        .eq('client_id', targetClientId)
         .order('day_of_week')
     ]);
     if (plansRes.data) setMonthlyPlans(plansRes.data as MonthlyPlan[]);
@@ -68,7 +67,7 @@ export function useEditorialData() {
     setLoading(false);
   };
 
-  useEffect(() => { fetchData(); }, [activeClient?.id]);
+  useEffect(() => { fetchData(); }, [targetClientId]);
 
   const updateMonthlyPlan = async (planId: string, updates: Partial<MonthlyPlan>) => {
     const { error } = await supabase

@@ -195,6 +195,7 @@ export const HomeTab: React.FC<HomeTabProps> = ({ onNavigateToClients, onNavigat
         supabase.from('clients')
           .select('id, name, logo_url, color, initials, base_value, created_at, updated_at, client_status, service_end_date, client_type')
           .eq('agency_id', agencyId)
+          .neq('is_internal', true)
           .in('client_status', ['active', 'completed', 'cancelled']),
         supabase.from('posts')
           .select(`

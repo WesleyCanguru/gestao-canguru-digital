@@ -205,6 +205,7 @@ export const PainelConteudo: React.FC<PainelConteudoProps> = ({
         .from('clients')
         .select('*')
         .eq('agency_id', agencyId)
+        .neq('is_internal', true)
         .order('name');
 
       if (data) {

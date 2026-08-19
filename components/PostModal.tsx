@@ -21,23 +21,41 @@ interface PostModalProps {
   isMasterMap?: boolean;
 }
 
-export const POST_TYPES = [
+export const INSTAGRAM_POST_TYPES = [
   "Carrossel",
   "Estático",
   "Reels",
   "Repost"
 ];
 
-export function normalizePostType(type?: string | null): string {
-  if (!type) return "Estático";
+export const LINKEDIN_POST_TYPES = [
+  "Artigo",
+  "Carrossel",
+  "Post Texto"
+];
+
+export const POST_TYPES = [
+  "Artigo",
+  "Carrossel",
+  "Estático",
+  "Post Texto",
+  "Reels",
+  "Repost"
+];
+
+export function normalizePostType(type?: string | null, isLinkedIn?: boolean): string {
+  if (!type) return isLinkedIn ? "Post Texto" : "Estático";
   const t = type.trim();
-  if (POST_TYPES.includes(t)) return t;
+  if (LINKEDIN_POST_TYPES.includes(t) || INSTAGRAM_POST_TYPES.includes(t)) return t;
   const lower = t.toLowerCase();
+  if (lower.includes("artigo") || lower.includes("article")) return "Artigo";
+  if (lower.includes("post texto") || lower === "texto" || lower === "text") return "Post Texto";
   if (lower.includes("video") || lower.includes("vídeo") || lower.includes("reel")) return "Reels";
   if (lower.includes("repost")) return "Repost";
-  if (lower.includes("carrossel")) return "Carrossel";
-  if (lower.includes("estático") || lower.includes("estatico") || lower.includes("texto") || lower.includes("institucional")) return "Estático";
-  return "Estático";
+  if (lower.includes("carrossel") || lower.includes("carousel")) return "Carrossel";
+  if (lower.includes("estático") || lower.includes("estatico") || lower.includes("institucional")) return "Estático";
+  if (lower.includes("texto")) return isLinkedIn ? "Post Texto" : "Estático";
+  return isLinkedIn ? "Post Texto" : "Estático";
 }
 
 import { STATUS_CONFIG } from '../constants';
@@ -144,6 +162,11 @@ export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, group
   // Manual Status Change
   const [manualStatus, setManualStatus] = useState<PostStatus>('draft');
   const [newComment, setNewComment] = useState('');
+
+  // Helpers for platform-specific formats and media
+  const isLinkedInOnly = selectedPlatforms.length === 1 && selectedPlatforms[0] === 'linkedin';
+  const currentFormatOptions = isLinkedInOnly ? LINKEDIN_POST_TYPES : INSTAGRAM_POST_TYPES;
+  const isMediaRequired = !(isLinkedInOnly && ['Artigo', 'Post Texto'].includes(editedType));
 
   // Confirm Modals State
   const [confirmDeletePost, setConfirmDeletePost] = useState(false);
@@ -298,8 +321,9 @@ export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, group
          const parsedUrl = parseImageUrl(primaryData.image_url || dayContent.initialImageUrl || '');
          setImageUrl(parsedUrl || '');
          
+         const isInitialLinkedIn = platformsFound.length === 1 && platformsFound[0] === 'linkedin';
          setEditedTheme(primaryData.theme || dayContent.theme);
-         setEditedType(normalizePostType(primaryData.type || dayContent.type));
+         setEditedType(normalizePostType(primaryData.type || dayContent.type, isInitialLinkedIn));
          setEditedBullets(primaryData.bullets ? primaryData.bullets.join('\n') : (dayContent.bullets ? dayContent.bullets.join('\n') : ''));
          
          setRequireThemeApproval(['theme_pending', 'theme_approved_with_notes', 'theme_approved', 'theme_rejected'].includes(primaryData.status));
@@ -358,18 +382,32 @@ export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, group
   // --------------------------------------------------------------------------------
 
   const togglePlatform = (p: 'meta' | 'linkedin' | 'tiktok') => {
+      let newPlats: ('meta' | 'linkedin' | 'tiktok')[];
       if (selectedPlatforms.includes(p)) {
           // Prevent removing the last one
           if (selectedPlatforms.length > 1) {
-              const newPlats = selectedPlatforms.filter((x: any) => x !== p) as ('meta' | 'linkedin' | 'tiktok')[];
+              newPlats = selectedPlatforms.filter((x: any) => x !== p) as ('meta' | 'linkedin' | 'tiktok')[];
               setSelectedPlatforms(newPlats as any);
               // Switch preview if we removed the active one
               if (previewPlatform === p) {
                   setPreviewPlatform(newPlats[0] as any);
               }
+          } else {
+              return;
           }
       } else {
-          setSelectedPlatforms([...selectedPlatforms, p] as any);
+          newPlats = [...selectedPlatforms, p] as any;
+          setSelectedPlatforms(newPlats);
+      }
+
+      const wasLinkedIn = selectedPlatforms.length === 1 && selectedPlatforms[0] === 'linkedin';
+      const isNowLinkedIn = newPlats.length === 1 && newPlats[0] === 'linkedin';
+
+      if (wasLinkedIn !== isNowLinkedIn) {
+          const newOptions = isNowLinkedIn ? LINKEDIN_POST_TYPES : INSTAGRAM_POST_TYPES;
+          if (!newOptions.includes(editedType)) {
+              setEditedType('');
+          }
       }
   };
 
@@ -1048,7 +1086,7 @@ export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, group
                         </span>
                         <div className="w-1 h-1 rounded-full bg-gray-300" />
                         <span className="text-[8px] sm:text-[9px] text-gray-400 uppercase font-bold tracking-[0.2em]">
-                          {editedType.split(' ')[0]}
+                          {editedType || 'Sem Formato'}
                         </span>
                       </div>
                    </div>
@@ -1266,7 +1304,10 @@ export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, group
                             <label className="text-[9px] font-bold text-gray-400 uppercase tracking-widest block mb-2">Formato da Entrega</label>
                             <div className="relative">
                               <select value={editedType} onChange={(e) => setEditedType(e.target.value)} className="w-full appearance-none text-xs font-bold p-3 border border-black/[0.08] rounded-xl focus:ring-2 focus:ring-brand-dark/10 focus:border-brand-dark outline-none bg-white transition-all">
-                                 {POST_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+                                 {!currentFormatOptions.includes(editedType) && (
+                                   <option value="" disabled>Selecione um formato...</option>
+                                 )}
+                                 {currentFormatOptions.map(t => <option key={t} value={t}>{t}</option>)}
                               </select>
                               <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-gray-400"><ChevronDown size={14} /></div>
                             </div>
@@ -1282,7 +1323,14 @@ export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, group
 
                     {/* 4. Criativo & Legendas */}
                     <div className="bg-white p-5 rounded-2xl border border-black/[0.05] shadow-sm mb-8">
-                        <h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-[0.2em] mb-4 flex items-center gap-2"><ImageIcon size={14} className="text-brand-dark" /> Criativo & Legenda</h3>
+                        <h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-[0.2em] mb-4 flex items-center justify-between">
+                          <span className="flex items-center gap-2"><ImageIcon size={14} className="text-brand-dark" /> Criativo & Legenda</span>
+                          {!isMediaRequired && (
+                            <span className="text-[9px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-md lowercase tracking-normal">
+                              mídia opcional
+                            </span>
+                          )}
+                        </h3>
                         
                         {/* Image Upload */}
                         <label 
@@ -1307,7 +1355,7 @@ export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, group
                               </div>
                               <div className="text-center">
                                 <span className={`text-[10px] font-bold uppercase tracking-widest block ${isDragging ? 'text-brand-dark' : 'text-gray-500'}`}>
-                                    {isUploading ? 'Enviando...' : isDragging ? 'Solte os arquivos' : 'Carregar Mídia'}
+                                    {isUploading ? 'Enviando...' : isDragging ? 'Solte os arquivos' : isMediaRequired ? 'Carregar Mídia' : 'Carregar Mídia (Opcional)'}
                                 </span>
                                 <span className="text-[8px] text-gray-400 font-medium mt-1 block">Arraste ou clique para selecionar</span>
                               </div>
@@ -1401,12 +1449,21 @@ export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, group
                         {!useDifferentCaptions ? (
                             <div className="relative group/caption">
                                 <textarea 
-                                    placeholder="Escreva a legenda estratégica aqui..." 
+                                    placeholder={isLinkedInOnly ? "Escreva o conteúdo completo do post..." : "Escreva a legenda estratégica aqui..."} 
                                     value={captionMeta} 
                                     onChange={e => setCaptionMeta(e.target.value)} 
-                                    className="w-full h-56 px-4 py-3 border border-black/[0.08] rounded-2xl text-xs focus:ring-2 focus:ring-brand-dark/10 focus:border-brand-dark outline-none resize-none leading-relaxed transition-all" 
+                                    className={`w-full px-4 py-3 border border-black/[0.08] rounded-2xl text-xs focus:ring-2 focus:ring-brand-dark/10 focus:border-brand-dark outline-none resize-none leading-relaxed transition-all ${isLinkedInOnly ? 'min-h-[160px] h-56 pb-8' : 'h-56'}`} 
                                 />
-                                <div className="absolute bottom-3 right-3 text-[8px] text-gray-400 font-bold bg-white/80 backdrop-blur-sm px-2 py-1 rounded-lg border border-black/[0.05] pointer-events-none tracking-widest uppercase">Legenda Geral</div>
+                                {isLinkedInOnly ? (
+                                  <div className="flex items-center justify-between mt-1 px-1">
+                                    <span className={`text-[10px] font-bold ${captionMeta.length > 3000 ? 'text-red-500 font-extrabold' : 'text-stone-400'}`}>
+                                      {captionMeta.length} / 3.000 caracteres
+                                    </span>
+                                    <span className="text-[8px] text-[#0077B5] font-bold tracking-widest uppercase">LinkedIn</span>
+                                  </div>
+                                ) : (
+                                  <div className="absolute bottom-3 right-3 text-[8px] text-gray-400 font-bold bg-white/80 backdrop-blur-sm px-2 py-1 rounded-lg border border-black/[0.05] pointer-events-none tracking-widest uppercase">Legenda Geral</div>
+                                )}
                             </div>
                         ) : (
                             <div className="space-y-5">
@@ -1423,12 +1480,17 @@ export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, group
                                 )}
                                 {selectedPlatforms.includes('linkedin') && (
                                     <div className="relative">
-                                        <div className="flex items-center gap-2 mb-2 text-[9px] font-bold uppercase tracking-widest text-[#0077B5]"><Linkedin size={12}/> LinkedIn</div>
+                                        <div className="flex items-center justify-between mb-2">
+                                          <div className="flex items-center gap-2 text-[9px] font-bold uppercase tracking-widest text-[#0077B5]"><Linkedin size={12}/> LinkedIn</div>
+                                          <span className={`text-[10px] font-bold ${captionLinkedin.length > 3000 ? 'text-red-500 font-extrabold' : 'text-stone-400'}`}>
+                                            {captionLinkedin.length} / 3.000 caracteres
+                                          </span>
+                                        </div>
                                         <textarea 
-                                            placeholder="Legenda exclusiva para LinkedIn..." 
+                                            placeholder="Escreva o conteúdo completo do post..." 
                                             value={captionLinkedin} 
                                             onChange={e => setCaptionLinkedin(e.target.value)} 
-                                            className="w-full h-40 px-4 py-3 border border-blue-100 bg-blue-50/10 rounded-2xl text-xs focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none resize-none leading-relaxed transition-all" 
+                                            className="w-full min-h-[160px] h-48 px-4 py-3 border border-blue-100 bg-blue-50/10 rounded-2xl text-xs focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none resize-none leading-relaxed transition-all" 
                                         />
                                     </div>
                                 )}

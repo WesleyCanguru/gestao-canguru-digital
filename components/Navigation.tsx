@@ -77,6 +77,7 @@ export const Navigation: React.FC<SidebarProps> = ({
       .eq('agency_id', agencyId)
       .eq('is_active', true)
       .or('client_status.eq.active,client_status.is.null')
+      .neq('is_internal', true)
       .order('name');
     if (data) setAvailableClients(data);
   };
@@ -84,6 +85,7 @@ export const Navigation: React.FC<SidebarProps> = ({
   const agencyItems = [
     { id: 'home', label: 'Início', icon: Home },
     { id: 'masterMap', label: 'Painel de Conteúdo', icon: LayoutDashboard },
+    { id: 'nosso-conteudo', label: 'Nosso Conteúdo', icon: Building2 },
     { id: 'tasks', label: 'Processos & Tarefas', icon: ClipboardList },
     { id: 'anotacoes', label: 'Anotações', icon: NotebookPen },
     { id: 'prospeccao', label: 'CRM / Prospecção', icon: Kanban },

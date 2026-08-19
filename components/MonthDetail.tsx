@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { MonthlyDetailedPlan, DailyContent, PostStatus, PostData, PostTheme } from '../types';
 import { Instagram, Linkedin, CalendarDays, Target, BarChart3, Repeat, FileCheck, CheckCircle2, ArrowLeft, MessageCircle, List, Calendar as CalendarIcon, Plus, Loader2, Check, Edit2, Edit3, RefreshCw, Save, X, Trash, Sparkles, FileText, Clock, ChevronLeft, ChevronRight, ChevronDown, Lock } from 'lucide-react';
 import { PostModal } from './PostModal';
@@ -16,11 +16,14 @@ import { motion, AnimatePresence } from 'motion/react';
 import dayjs from 'dayjs';
 import { CustomDatePicker } from './CustomPickers';
 
+import { Client } from '../types';
+
 interface MonthDetailProps {
   monthName: string;
   onBack: () => void;
   initialViewMode?: ViewMode;
   onSelectMonth?: (month: string) => void;
+  overrideClient?: Client | null;
 }
 
 type ViewMode = 'list' | 'calendar';
@@ -39,9 +42,10 @@ interface GroupedPost {
     platformTimes?: { platform: 'meta' | 'linkedin' | 'tiktok'; time: string }[];
 }
 
-export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack, initialViewMode, onSelectMonth }) => {
-  const { userRole, activeClient, agencyId } = useAuth();
-  const { monthlyPlans, weeklySchedule, updateMonthlyPlan, loading: loadingEditorial } = useEditorialData();
+export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack, initialViewMode, onSelectMonth, overrideClient }) => {
+  const { userRole, activeClient: authActiveClient, agencyId } = useAuth();
+  const activeClient = overrideClient !== undefined ? overrideClient : authActiveClient;
+  const { monthlyPlans, weeklySchedule, updateMonthlyPlan, loading: loadingEditorial } = useEditorialData(activeClient?.id);
   
   // Modal State
   const [modalOpen, setModalOpen] = useState(false);
@@ -86,9 +90,22 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack, ini
   const [transferringTheme, setTransferringTheme] = useState<any>(null);
   const [themeBankKey, setThemeBankKey] = useState(0);
 
-  const currentPlan = monthlyPlans.find(p => MONTH_NAMES[p.month - 1].toLowerCase() === monthName.toLowerCase());
   const monthIndex = MONTH_NAMES.findIndex(m => m.toLowerCase() === monthName.toLowerCase());
   const year = 2026;
+  const currentPlan = useMemo(() => {
+    const rawPlan = monthlyPlans.find(p => MONTH_NAMES[p.month - 1]?.toLowerCase() === monthName.toLowerCase());
+    return rawPlan || {
+      id: `virtual-${monthIndex + 1}`,
+      client_id: activeClient?.id || '',
+      month: monthIndex + 1,
+      year,
+      theme: null,
+      objectives: [],
+      key_dates: [],
+      campaigns: [],
+      is_released: true
+    };
+  }, [monthlyPlans, monthName, monthIndex, activeClient?.id, year]);
 
   const [monthPickerOpen, setMonthPickerOpen] = useState(false);
   const [pickerYear, setPickerYear] = useState(year);
@@ -109,7 +126,7 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack, ini
     }
   };
 
-  const isReleased = currentPlan?.is_released;
+  const isReleased = activeClient?.is_internal ? true : (currentPlan?.is_released ?? true);
   const isLockedForClient = userRole !== 'admin' && !isReleased;
 
   // --- STATE FOR NEW THEME SYSTEM ---
@@ -277,7 +294,11 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack, ini
 
   // Fetching themes function
   const fetchThemes = useCallback(async () => {
-    if (!activeClient) return;
+    if (!activeClient?.id) {
+      setLoadingThemes(false);
+      setThemes([]);
+      return;
+    }
     setLoadingThemes(true);
     try {
       const monthNum = monthIndex + 1;
@@ -298,7 +319,7 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack, ini
     } finally {
       setLoadingThemes(false);
     }
-  }, [activeClient, monthIndex]);
+  }, [activeClient?.id, monthIndex, year]);
 
   useEffect(() => {
     fetchThemes();
@@ -740,7 +761,10 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack, ini
 
   // 2. Buscar Dados do Supabase
   const fetchMonthPosts = useCallback(async () => {
-    if (!currentPlan || !activeClient?.id) return;
+    if (!activeClient?.id) {
+      setLoadingPosts(false);
+      return;
+    }
     setLoadingPosts(true);
     
     try {
@@ -768,7 +792,7 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack, ini
     } finally {
       setLoadingPosts(false);
     }
-  }, [currentPlan, activeClient]);
+  }, [activeClient?.id, fetchRejectedCount]);
 
   useEffect(() => {
     fetchMonthPosts();
@@ -959,7 +983,7 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack, ini
 
     setGroupedPosts(groups);
 
-  }, [dbPosts, currentPlan, weeklySchedule, monthIndex]);
+  }, [dbPosts, currentPlan.month, currentPlan.year, weeklySchedule, monthIndex, year]);
 
 
   // Handlers
@@ -1378,7 +1402,7 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack, ini
 
   // --- RENDERS ---
 
-  if (loadingEditorial || loadingPosts) {
+  if (!activeClient || !activeClient.id || loadingEditorial || loadingPosts) {
     return (
       <div className="flex justify-center items-center py-20">
         <Loader2 size={32} className="animate-spin text-brand-green" />
@@ -1759,6 +1783,7 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack, ini
             dayContent={selectedPost.content} 
             dateKey={selectedPost.key} 
             groupKeys={selectedPost.groupKeys}
+            clientOverride={overrideClient || undefined}
             onClose={() => {
                 handleCloseModal();
                 setTransferringTheme(null);

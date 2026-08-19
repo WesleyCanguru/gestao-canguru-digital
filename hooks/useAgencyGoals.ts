@@ -11,6 +11,8 @@ export const MONTH_NAMES_FULL = [
   'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
 ];
 
+export const BLOG_CLIENT_ID = 'b0febf12-6d64-4754-ac4e-e2e1405e616c';
+
 export interface UseAgencyGoalsReturn {
   monthYear: string;
   monthLabel: string;
@@ -27,6 +29,7 @@ export interface UseAgencyGoalsReturn {
   newClientsCount: number;
   meetingsCount: number;
   postsCount: number;
+  blogPostsCount: number;
 
   // Commercial Actions list
   commercialActions: AgencyCommercialAction[];
@@ -36,6 +39,8 @@ export interface UseAgencyGoalsReturn {
   pctNovosClientes: number;
   pctReunioes: number;
   pctPublicacoes: number;
+  pctBlogPosts: number;
+  blogPostsGoal: number;
 
   // Pace metrics
   weeklyGoal: number;
@@ -58,6 +63,7 @@ export interface UseAgencyGoalsReturn {
     new_clients_goal: number;
     meetings_goal: number;
     posts_goal: number;
+    blog_posts_goal?: number;
     notes?: string | null;
   }) => Promise<void>;
   addCommercialAction: (actionData: {
@@ -84,6 +90,7 @@ export function useAgencyGoals(initialMonthYear?: string): UseAgencyGoalsReturn 
   const [newClientsCount, setNewClientsCount] = useState(0);
   const [meetingsCount, setMeetingsCount] = useState(0);
   const [postsCount, setPostsCount] = useState(0);
+  const [blogPostsCount, setBlogPostsCount] = useState(0);
   const [commercialActions, setCommercialActions] = useState<AgencyCommercialAction[]>([]);
 
   const currentMonthYear = dayjs().format('YYYY-MM');
@@ -218,6 +225,37 @@ export function useAgencyGoals(initialMonthYear?: string): UseAgencyGoalsReturn 
       });
       setPostsCount(pubCount);
 
+      // 6. Fetch Blog Posts for internal client
+      const { data: blogPostsData } = await supabase
+        .from('posts')
+        .select('id, date_key, status, is_deleted')
+        .eq('agency_id', agencyId)
+        .eq('client_id', BLOG_CLIENT_ID)
+        .eq('status', 'published')
+        .not('is_deleted', 'is', true)
+        .limit(1000);
+
+      const [currentYear, currentMonth] = monthYear.split('-');
+      let blogPubCount = 0;
+      (blogPostsData || []).forEach((p: any) => {
+        if (!p.date_key) return;
+        const parts = p.date_key.split('-');
+        if (parts.length >= 3) {
+          let postMonthYear = '';
+          if (parts[0].length === 4) {
+            // YYYY-MM-DD
+            postMonthYear = `${parts[0]}-${parts[1].padStart(2, '0')}`;
+          } else {
+            // DD-MM-YYYY
+            postMonthYear = `${parts[2]}-${parts[1].padStart(2, '0')}`;
+          }
+          if (postMonthYear === monthYear) {
+            blogPubCount++;
+          }
+        }
+      });
+      setBlogPostsCount(blogPubCount);
+
     } catch (err) {
       console.error('Erro ao carregar dados de metas:', err);
     } finally {
@@ -269,18 +307,28 @@ export function useAgencyGoals(initialMonthYear?: string): UseAgencyGoalsReturn 
 
   // Calculations
   const hasGoalConfigured = useMemo(() => {
-    return Boolean(goal && (goal.revenue_goal > 0 || goal.new_clients_goal > 0 || goal.meetings_goal > 0 || goal.posts_goal > 0));
+    return Boolean(
+      goal && (
+        goal.revenue_goal > 0 || 
+        goal.new_clients_goal > 0 || 
+        goal.meetings_goal > 0 || 
+        goal.posts_goal > 0 || 
+        (goal.blog_posts_goal || 0) > 0
+      )
+    );
   }, [goal]);
 
   const revenueGoal = goal?.revenue_goal || 0;
   const newClientsGoal = goal?.new_clients_goal || 0;
   const meetingsGoal = goal?.meetings_goal || 0;
   const postsGoal = goal?.posts_goal || 0;
+  const blogPostsGoal = goal?.blog_posts_goal ?? 0;
 
   const pctFaturamento = revenueGoal > 0 ? Math.round((faturamentoRecebido / revenueGoal) * 100) : 0;
   const pctNovosClientes = newClientsGoal > 0 ? Math.round((newClientsCount / newClientsGoal) * 100) : 0;
   const pctReunioes = meetingsGoal > 0 ? Math.round((meetingsCount / meetingsGoal) * 100) : 0;
   const pctPublicacoes = postsGoal > 0 ? Math.round((postsCount / postsGoal) * 100) : 0;
+  const pctBlogPosts = blogPostsGoal > 0 ? Math.round((blogPostsCount / blogPostsGoal) * 100) : 0;
 
   // Pace calculations
   const weeklyGoal = useMemo(() => (revenueGoal > 0 ? revenueGoal / 4 : 0), [revenueGoal]);
@@ -356,6 +404,7 @@ export function useAgencyGoals(initialMonthYear?: string): UseAgencyGoalsReturn 
     new_clients_goal: number;
     meetings_goal: number;
     posts_goal: number;
+    blog_posts_goal?: number;
     notes?: string | null;
   }) => {
     if (!agencyId) return;
@@ -367,6 +416,7 @@ export function useAgencyGoals(initialMonthYear?: string): UseAgencyGoalsReturn 
         new_clients_goal: Number(goalData.new_clients_goal) || 0,
         meetings_goal: Number(goalData.meetings_goal) || 0,
         posts_goal: Number(goalData.posts_goal) || 0,
+        blog_posts_goal: Number(goalData.blog_posts_goal) || 0,
         notes: goalData.notes || null,
         created_at: goal?.created_at || new Date().toISOString()
       };
@@ -445,6 +495,7 @@ export function useAgencyGoals(initialMonthYear?: string): UseAgencyGoalsReturn 
     newClientsCount,
     meetingsCount,
     postsCount,
+    blogPostsCount,
 
     commercialActions,
 
@@ -452,6 +503,8 @@ export function useAgencyGoals(initialMonthYear?: string): UseAgencyGoalsReturn 
     pctNovosClientes,
     pctReunioes,
     pctPublicacoes,
+    pctBlogPosts,
+    blogPostsGoal,
 
     weeklyGoal,
     semanaAtual,

@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { supabase, useAuth } from '../../lib/supabase';
 import { autoPublishPastScheduledPosts } from '../../lib/scheduledPostsUtils';
 import { STATUS_CONFIG } from '../../constants';
-import { PostStatus, DailyContent } from '../../types';
+import { PostStatus, DailyContent, Client } from '../../types';
 import { PostModal } from '../PostModal';
 import { MonthDetail } from '../MonthDetail';
 import { useEditorialData, MONTH_NAMES } from '../../hooks/useEditorialData';
@@ -31,7 +31,8 @@ import {
   FileText,
   Calendar,
   Lock,
-  ArrowRight
+  ArrowRight,
+  Plus
 } from 'lucide-react';
 import { CustomDropdown, CustomDropdownOption } from '../CustomDropdown';
 import { 
@@ -58,6 +59,10 @@ interface ClientPainelConteudoProps {
   initialTab?: 'dashboard' | 'publicacoes' | 'mapa';
   initialFilterStatus?: string;
   initialFilterPeriod?: string;
+  overrideClient?: Client | null;
+  titleOverride?: string;
+  subtitleOverride?: string;
+  isNossoConteudo?: boolean;
 }
 
 interface GroupedPostItem {
@@ -109,10 +114,15 @@ export const ClientPainelConteudo: React.FC<ClientPainelConteudoProps> = ({
   onBackToHome,
   initialTab,
   initialFilterStatus,
-  initialFilterPeriod
+  initialFilterPeriod,
+  overrideClient,
+  titleOverride,
+  subtitleOverride,
+  isNossoConteudo
 }) => {
-  const { activeClient, userRole } = useAuth();
-  const { monthlyPlans } = useEditorialData();
+  const { activeClient: authActiveClient, userRole } = useAuth();
+  const activeClient = overrideClient !== undefined ? overrideClient : authActiveClient;
+  const { monthlyPlans } = useEditorialData(activeClient?.id);
   const currentYear = dayjs().year();
   const currentMonthNum = dayjs().month() + 1; // 1-12
 
@@ -146,7 +156,11 @@ export const ClientPainelConteudo: React.FC<ClientPainelConteudoProps> = ({
 
   // Buscar todas as publicações do cliente
   const fetchPosts = useCallback(async () => {
-    if (!activeClient?.id) return;
+    if (!activeClient?.id) {
+      setLoading(false);
+      setPosts([]);
+      return;
+    }
     try {
       setLoading(true);
 
@@ -194,18 +208,36 @@ export const ClientPainelConteudo: React.FC<ClientPainelConteudoProps> = ({
     };
   }, [activeClient?.id, fetchPosts]);
 
-  // Normalizador de Formato / Tipo
+  // Handler para criar nova publicação (Admin / Nosso Conteúdo)
+  const handleCreateNewPost = () => {
+    if (!activeClient?.id) return;
+    const todayFormatted = dayjs().format('DD-MM-YYYY');
+    const newKey = `${todayFormatted}-meta-${activeClient.id}-${Date.now()}`;
+    setSelectedPost({
+      dayContent: {
+        day: dayjs().format('DD/MM'),
+        platform: 'meta',
+        type: 'Estático',
+        theme: 'Nova Publicação',
+        bullets: []
+      },
+      dateKey: newKey,
+      groupKeys: [newKey]
+    });
+    setModalOpen(true);
+  };
   const normalizePostType = (rawType?: string | null): string => {
     if (!rawType) return 'Estático';
     const lower = rawType.toLowerCase();
+    if (lower.includes('artigo')) return 'Artigo';
     if (lower.includes('reel')) return 'Reels';
     if (lower.includes('carrossel')) return 'Carrossel';
     if (lower.includes('story') || lower.includes('stories')) return 'Story';
     if (lower.includes('vídeo') || lower.includes('video')) return 'Vídeo';
     if (lower.includes('estático') || lower.includes('estatico')) return 'Estático';
-    if (lower.includes('texto')) return 'Texto';
+    if (lower.includes('texto')) return 'Post Texto';
     if (lower.includes('repost')) return 'Repost';
-    return 'Outro';
+    return rawType;
   };
 
   // Processamento de métricas e gráficos para o Dashboard
@@ -771,6 +803,15 @@ export const ClientPainelConteudo: React.FC<ClientPainelConteudoProps> = ({
     { value: 'todos', label: 'Todo o período', icon: <CalendarIcon size={14} className="text-stone-400" /> },
   ], []);
 
+  if (!activeClient || !activeClient.id) {
+    return (
+      <div className="py-20 text-center text-stone-400 flex flex-col items-center justify-center">
+        <RefreshCw size={28} className="animate-spin text-brand-dark mb-3" />
+        <p className="text-sm font-medium">Carregando painel de conteúdo...</p>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-8 pb-20">
       
@@ -783,10 +824,10 @@ export const ClientPainelConteudo: React.FC<ClientPainelConteudoProps> = ({
             </div>
             <div>
               <h1 className="text-2xl sm:text-3xl font-black text-brand-dark tracking-tight">
-                Painel de Conteúdo
+                {titleOverride || 'Painel de Conteúdo'}
               </h1>
               <p className="text-xs sm:text-sm text-stone-500 font-medium">
-                Métricas de performance, publicações e calendário editorial de {activeClient?.name || 'sua marca'}
+                {subtitleOverride || `Métricas de performance, publicações e calendário editorial de ${activeClient?.name || 'sua marca'}`}
               </p>
             </div>
           </div>
@@ -1178,16 +1219,28 @@ export const ClientPainelConteudo: React.FC<ClientPainelConteudoProps> = ({
               )}
             </div>
 
-            {/* Campo de Busca Textual */}
-            <div className="relative flex-1 max-w-md">
-              <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-stone-400" />
-              <input
-                type="text"
-                placeholder="Buscar por tema ou formato..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-stone-50 border border-stone-200/80 text-xs text-stone-800 placeholder-stone-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 font-medium"
-              />
+            {/* Campo de Busca Textual e Botão Nova Publicação */}
+            <div className="flex items-center gap-3 flex-1 max-w-md">
+              <div className="relative flex-1">
+                <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-stone-400" />
+                <input
+                  type="text"
+                  placeholder="Buscar por tema ou formato..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-stone-50 border border-stone-200/80 text-xs text-stone-800 placeholder-stone-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 font-medium"
+                />
+              </div>
+
+              {(userRole === 'admin' || isNossoConteudo) && (
+                <button
+                  onClick={handleCreateNewPost}
+                  className="flex items-center gap-1.5 px-4 py-2.5 bg-brand-dark text-white rounded-xl text-xs font-bold shadow-md hover:bg-stone-800 transition-all cursor-pointer whitespace-nowrap shrink-0"
+                >
+                  <Plus size={15} />
+                  <span>Nova Publicação</span>
+                </button>
+              )}
             </div>
           </div>
 
@@ -1315,6 +1368,7 @@ export const ClientPainelConteudo: React.FC<ClientPainelConteudoProps> = ({
               monthName={selectedMonth} 
               onBack={() => setActiveTab('dashboard')} 
               onSelectMonth={(m) => setSelectedMonth(m)}
+              overrideClient={activeClient}
             />
           </div>
         </motion.div>

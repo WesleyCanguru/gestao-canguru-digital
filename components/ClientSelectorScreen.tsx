@@ -33,6 +33,7 @@ export const ClientSelectorScreen: React.FC<ClientSelectorScreenProps> = ({
           .eq('agency_id', agencyId)
           .eq('is_active', true)
           .or('client_status.eq.active,client_status.is.null')
+          .neq('is_internal', true)
           .order('name');
           
         if (error) {

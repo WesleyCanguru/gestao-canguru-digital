@@ -226,6 +226,7 @@ export interface Client {
   initials: string;
   logo_url: string | null;
   is_active: boolean;
+  is_internal?: boolean;
   services: string[];
   social_networks: string[];
   traffic_platforms: string[];
@@ -584,6 +585,7 @@ export interface AgencyGoal {
   new_clients_goal: number;
   meetings_goal: number;
   posts_goal: number;
+  blog_posts_goal?: number;
   notes?: string | null;
   created_at?: string;
 }

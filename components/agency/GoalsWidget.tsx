@@ -1,5 +1,5 @@
 import React from 'react';
-import { Target, ArrowRight, Sparkles, DollarSign, PhoneCall, Users } from 'lucide-react';
+import { Target, ArrowRight, Sparkles, DollarSign, PhoneCall, Users, PenLine } from 'lucide-react';
 import { useAgencyGoals } from '../../hooks/useAgencyGoals';
 
 interface GoalsWidgetProps {
@@ -14,9 +14,12 @@ export const GoalsWidget: React.FC<GoalsWidgetProps> = ({ onNavigateToMetas }) =
     faturamentoRecebido,
     newClientsCount,
     meetingsCount,
+    blogPostsCount,
+    blogPostsGoal,
     pctFaturamento,
     pctNovosClientes,
     pctReunioes,
+    pctBlogPosts,
     coachingMessage,
     loading
   } = useAgencyGoals();
@@ -72,7 +75,7 @@ export const GoalsWidget: React.FC<GoalsWidgetProps> = ({ onNavigateToMetas }) =
                 Metas de {monthLabel} ainda não foram configuradas
               </p>
               <p className="text-[11px] text-stone-500 font-medium">
-                Defina faturamento, clientes e reuniões para acompanhar o ritmo da agência.
+                Defina faturamento, clientes, reuniões e publicações para acompanhar o ritmo da agência.
               </p>
             </div>
           </div>
@@ -87,7 +90,7 @@ export const GoalsWidget: React.FC<GoalsWidgetProps> = ({ onNavigateToMetas }) =
       ) : (
         <div className="space-y-4">
           {/* Métricas Principais em Linha */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
+          <div className={`grid grid-cols-1 ${blogPostsGoal > 0 ? 'sm:grid-cols-2 lg:grid-cols-4' : 'sm:grid-cols-3'} gap-3.5`}>
             {/* Faturamento */}
             <div className="bg-stone-50/60 border border-stone-200/60 p-3.5 rounded-2xl space-y-2">
               <div className="flex items-center justify-between text-xs">
@@ -147,6 +150,28 @@ export const GoalsWidget: React.FC<GoalsWidgetProps> = ({ onNavigateToMetas }) =
                 {newClientsCount} / {goal?.new_clients_goal || 0} novos clientes
               </p>
             </div>
+
+            {/* Posts no Blog (Condicional: se blogPostsGoal > 0) */}
+            {blogPostsGoal > 0 && (
+              <div className="bg-stone-50/60 border border-stone-200/60 p-3.5 rounded-2xl space-y-2">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="font-bold text-stone-600 flex items-center gap-1.5">
+                    <PenLine size={13} className="text-amber-600" />
+                    <span>Posts no Blog</span>
+                  </span>
+                  <span className="font-bold text-stone-800">{pctBlogPosts}%</span>
+                </div>
+                <div className="w-full h-2 bg-stone-200/70 rounded-full overflow-hidden">
+                  <div 
+                    className="h-full bg-amber-600 rounded-full transition-all"
+                    style={{ width: `${Math.min(100, pctBlogPosts)}%` }}
+                  />
+                </div>
+                <p className="text-[11px] font-semibold text-stone-500 truncate">
+                  {blogPostsCount} / {blogPostsGoal} posts
+                </p>
+              </div>
+            )}
           </div>
 
           {/* Mensagem de Coaching Compacta */}

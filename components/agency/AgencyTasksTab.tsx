@@ -30,7 +30,7 @@ import {
 } from 'lucide-react';
 import { supabase, useAuth } from '../../lib/supabase';
 import { AgencyTask, AgencyTaskPriority, AgencyTaskRecurrenceType, ProcessInstance, ProcessChecklist } from '../../types';
-import { FocusMode } from './FocusMode';
+import { useFocus } from '../../lib/FocusContext';
 import { TaskVisualizerTab } from './TaskVisualizerTab';
 import dayjs from 'dayjs';
 import 'dayjs/locale/pt-br';
@@ -276,31 +276,41 @@ const getWeeklyDaysLabel = (days: any[]) => {
 
 export const AgencyTasksTab: React.FC = () => {
   const { agencyId } = useAuth();
+  const { startFocus, openTaskSelector, setTodayTasks: setGlobalTodayTasks } = useFocus();
   const [activeTab, setActiveTab] = useState<'hoje' | 'todas' | 'processos' | 'visualizador'>('hoje');
   const [isAddingTask, setIsAddingTask] = useState(false);
   const [isAddingProcess, setIsAddingProcess] = useState(false);
   const [isConfiguringProcesses, setIsConfiguringProcesses] = useState(false);
-  const [isFocusModeOpen, setIsFocusModeOpen] = useState(false);
-  const [focusTask, setFocusTask] = useState<AgencyTask | null>(null);
   const [todayTasksForFocus, setTodayTasksForFocus] = useState<AgencyTask[]>([]);
   const [editingTask, setEditingTask] = useState<AgencyTask | null>(null);
   const [clients, setClients] = useState<any[]>([]);
   const [refreshKey, setRefreshKey] = useState(0);
 
   const handleStartFocusTask = (task: AgencyTask) => {
-    setFocusTask(task);
     setTodayTasksForFocus(prev => {
       if (!prev.some(t => t.id === task.id)) {
-        return [task, ...prev];
+        const nextList = [task, ...prev];
+        setGlobalTodayTasks(nextList);
+        return nextList;
       }
       return prev;
     });
-    setIsFocusModeOpen(true);
+    startFocus(task, todayTasksForFocus);
   };
 
   useEffect(() => {
     fetchClients();
   }, [agencyId]);
+
+  useEffect(() => {
+    const handleTaskUpdated = () => triggerRefresh();
+    window.addEventListener('focus_task_completed', handleTaskUpdated);
+    window.addEventListener('focus_session_ended', handleTaskUpdated);
+    return () => {
+      window.removeEventListener('focus_task_completed', handleTaskUpdated);
+      window.removeEventListener('focus_session_ended', handleTaskUpdated);
+    };
+  }, []);
 
   const fetchClients = async () => {
     if (!agencyId) return;
@@ -308,6 +318,7 @@ export const AgencyTasksTab: React.FC = () => {
       .from('clients')
       .select('id, name, color, initials')
       .eq('agency_id', agencyId)
+      .neq('is_internal', true)
       .order('name');
     if (data) setClients(data);
   };
@@ -353,10 +364,9 @@ export const AgencyTasksTab: React.FC = () => {
           {activeTab === 'hoje' && (
             <button
               onClick={() => {
-                setFocusTask(null);
-                setIsFocusModeOpen(true);
+                openTaskSelector(todayTasksForFocus);
               }}
-              className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white rounded-xl font-bold text-xs uppercase tracking-widest hover:shadow-lg transition-all whitespace-nowrap shadow-sm"
+              className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white rounded-xl font-bold text-xs uppercase tracking-widest hover:shadow-lg transition-all whitespace-nowrap shadow-sm cursor-pointer"
             >
               <Target size={16} /> Modo Foco
             </button>
@@ -402,12 +412,17 @@ export const AgencyTasksTab: React.FC = () => {
           clients={clients} 
           onEditTask={(t) => { setEditingTask(t); setIsAddingTask(true); }} 
           onRefresh={triggerRefresh}
-          onTasksLoaded={(tasksList) => setTodayTasksForFocus(tasksList)}
+          onTasksLoaded={(tasksList) => {
+            setTodayTasksForFocus(tasksList);
+            setGlobalTodayTasks(tasksList);
+          }}
           onStartFocus={handleStartFocusTask}
           onOpenFocusMode={(tasksList) => {
-            if (tasksList) setTodayTasksForFocus(tasksList);
-            setFocusTask(null);
-            setIsFocusModeOpen(true);
+            if (tasksList) {
+              setTodayTasksForFocus(tasksList);
+              setGlobalTodayTasks(tasksList);
+            }
+            openTaskSelector(tasksList || todayTasksForFocus);
           }}
         />
       )}
@@ -422,25 +437,6 @@ export const AgencyTasksTab: React.FC = () => {
       )}
       {activeTab === 'processos' && <ProcessosView key={`proc-${refreshKey}`} clients={clients} />}
       {activeTab === 'visualizador' && <TaskVisualizerTab clients={clients} />}
-
-      {/* Focus Mode Immersive Component */}
-      <AnimatePresence>
-        {isFocusModeOpen && (
-          <FocusMode
-            tasks={todayTasksForFocus}
-            initialTask={focusTask}
-            onClose={() => {
-              setIsFocusModeOpen(false);
-              setFocusTask(null);
-            }}
-            onTaskCompleted={triggerRefresh}
-            onOpenNewTask={() => {
-              setEditingTask(null);
-              setIsAddingTask(true);
-            }}
-          />
-        )}
-      </AnimatePresence>
 
       {/* Drawer Nova/Editar Tarefa */}
       <AnimatePresence>

@@ -32,6 +32,9 @@ import { ClientPainelConteudo } from './components/client/ClientPainelConteudo';
 
 import { AgencyHome } from './components/agency/AgencyHome';
 import { AgencyDashboard } from './components/agency/AgencyDashboard';
+import { FocusProvider } from './lib/FocusContext';
+import { FocusMiniPlayer } from './components/agency/FocusMiniPlayer';
+import { FocusMode } from './components/agency/FocusMode';
 
 dayjs.locale('pt-br');
 
@@ -67,6 +70,9 @@ const MainApp: React.FC<MainAppProps> = ({ initialView, onExitAgencyDashboard, o
     } else if (viewParam === 'painel-conteudo' || viewParam === 'mapa-master' || viewParam === 'posts') {
       setView('agencyDashboard');
       setAgencyTab('masterMap');
+    } else if (viewParam === 'nosso-conteudo' || viewParam === 'nosso_conteudo') {
+      setView('agencyDashboard');
+      setAgencyTab('nosso-conteudo');
     } else if (viewParam === 'tutorial') {
       setView('tutorials');
       if (tutorialId) {
@@ -608,7 +614,11 @@ const App: React.FC = () => {
 
   return (
     <AuthProvider>
-      <AppContent />
+      <FocusProvider>
+        <AppContent />
+        <FocusMiniPlayer />
+        <FocusMode />
+      </FocusProvider>
     </AuthProvider>
   );
 };
