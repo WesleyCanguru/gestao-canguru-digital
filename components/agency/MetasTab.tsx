@@ -321,7 +321,7 @@ export const MetasTab: React.FC<MetasTabProps> = () => {
                       • {monthLabel}
                     </span>
                   </div>
-                  <p className="text-xs text-stone-400">Faturamento já recebido neste período</p>
+                  <p className="text-xs text-stone-400">Faturamento total contratado neste período</p>
                 </div>
               </div>
 
@@ -348,7 +348,7 @@ export const MetasTab: React.FC<MetasTabProps> = () => {
                     {formatCurrency(faturamentoRecebido)}
                   </span>
                   <span className="text-xs font-bold text-stone-400 uppercase tracking-wider ml-2">
-                    recebido
+                    contratado
                   </span>
                 </div>
                 <div className="text-right">

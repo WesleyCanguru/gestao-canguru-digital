@@ -20,6 +20,7 @@ export function useClientesOverview() {
         .select('*')
         .eq('agency_id', agencyId)
         .eq('is_active', true)
+        .neq('is_internal', true)
         .order('name');
 
       const clientList = (clientsData || []) as Client[];

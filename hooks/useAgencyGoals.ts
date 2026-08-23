@@ -126,16 +126,15 @@ export function useAgencyGoals(initialMonthYear?: string): UseAgencyGoalsReturn 
       }
       setGoal(goalData || null);
 
-      // 2. Fetch Billings (Faturamento recebido no mês)
+      // 2. Fetch Billings (Faturamento total contratado no mês)
       const { data: billingsData } = await supabase
         .from('agency_billing')
-        .select('base_value, extra_value, total_value, status, paid_at')
+        .select('base_value, extra_value, total_value, status, paid_at, due_day, client:clients(is_internal)')
         .eq('agency_id', agencyId)
-        .eq('month_year', monthYear)
-        .eq('status', 'paid');
+        .eq('month_year', monthYear);
 
-      let totalRecebido = 0;
-      let recebidoEstaSemana = 0;
+      let totalContratado = 0;
+      let contratadoEstaSemana = 0;
 
       // Calcular semana atual do mês para faturamento da semana
       const now = dayjs();
@@ -145,34 +144,39 @@ export function useAgencyGoals(initialMonthYear?: string): UseAgencyGoalsReturn 
       const weekEndDay = Math.min(monthDate.daysInMonth(), currentWeekNum * 7);
 
       (billingsData || []).forEach((b: any) => {
+        if (b.client && b.client.is_internal) return;
+
         const val = Number(b.total_value) || (Number(b.base_value || 0) + Number(b.extra_value || 0));
-        totalRecebido += val;
+        totalContratado += val;
 
         if (b.paid_at) {
           const paidD = dayjs(b.paid_at);
           if (paidD.format('YYYY-MM') === monthYear) {
             const pDay = paidD.date();
             if (pDay >= weekStartDay && pDay <= weekEndDay) {
-              recebidoEstaSemana += val;
+              contratadoEstaSemana += val;
             }
+          }
+        } else if (b.due_day) {
+          if (b.due_day >= weekStartDay && b.due_day <= weekEndDay) {
+            contratadoEstaSemana += val;
           }
         }
       });
 
-      // Se nenhum billing tem paid_at gravado com precisão mas temos recebido no mês atual,
-      // estimar de forma segura ou refletir os que bateram
-      if (recebidoEstaSemana === 0 && totalRecebido > 0 && currentWeekNum === 1) {
-        recebidoEstaSemana = totalRecebido;
+      if (contratadoEstaSemana === 0 && totalContratado > 0 && currentWeekNum === 1) {
+        contratadoEstaSemana = totalContratado;
       }
 
-      setFaturamentoRecebido(totalRecebido);
-      setFaturamentoEstaSemana(recebidoEstaSemana);
+      setFaturamentoRecebido(totalContratado);
+      setFaturamentoEstaSemana(contratadoEstaSemana);
 
-      // 3. Fetch New Clients (count created in month)
+      // 3. Fetch New Clients (count created in month, excluding internal clients)
       const { data: clientsData } = await supabase
         .from('clients')
         .select('id, created_at')
         .eq('agency_id', agencyId)
+        .neq('is_internal', true)
         .gte('created_at', `${startOfMonthStr}T00:00:00`)
         .lte('created_at', `${endOfMonthStr}T23:59:59`);
 

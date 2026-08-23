@@ -56,6 +56,7 @@ export const ActiveClientsSummary: React.FC<ActiveClientsSummaryProps> = ({ onSe
         .from('clients')
         .select('*')
         .eq('is_active', true)
+        .neq('is_internal', true)
         .or('client_status.eq.active,client_status.is.null')
         .order('name');
       

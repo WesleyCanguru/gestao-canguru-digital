@@ -34,8 +34,9 @@ export function useAgencyFinanceiro(monthYear: string) {
       // Fetch Clients for calculations (both active, completed, cancelled)
       const { data: clientsForCalcs } = await supabase
         .from('clients')
-        .select('id, base_value, created_at, updated_at, client_status, service_end_date, client_type')
+        .select('id, base_value, created_at, updated_at, client_status, service_end_date, client_type, is_internal')
         .eq('agency_id', agencyId)
+        .neq('is_internal', true)
         .in('client_status', ['active', 'completed', 'cancelled']);
 
       // Calculate Ticket Médio (only active and recurring clients)
@@ -87,9 +88,11 @@ export function useAgencyFinanceiro(monthYear: string) {
         .from('clients')
         .select('*, contract:contract_forms(contract_start_date)')
         .eq('agency_id', agencyId)
+        .neq('is_internal', true)
         .order('name');
 
       const clients = (clientsData || []).filter(c => {
+        if (c.is_internal) return false;
         if (c.client_status !== 'cancelled') return true;
         if (!c.cancelled_at) return false;
         const cancelMonthYear = dayjs(c.cancelled_at).format('YYYY-MM');
@@ -112,6 +115,7 @@ export function useAgencyFinanceiro(monthYear: string) {
       let currentBillings = ((billingsData || []) as AgencyBilling[]).filter(b => {
         if (b.is_sporadic) return true;
         const c = b.client as any;
+        if (c?.is_internal) return false;
         if (c && c.client_status === 'cancelled') {
           if (!c.cancelled_at) return false;
           const cancelMonthYear = dayjs(c.cancelled_at).format('YYYY-MM');
@@ -182,7 +186,7 @@ export function useAgencyFinanceiro(monthYear: string) {
         const mLabel = `${["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"][mDate.month()]} ${mDate.format('YY')}`;
         
         // Month billings
-        const mExplicitBillings = allYearBillings.filter(b => b.month_year === mStr);
+        const mExplicitBillings = allYearBillings.filter(b => b.month_year === mStr && (!b.client || !(b.client as any).is_internal));
         const explicitClientIds = new Set(mExplicitBillings.filter(b => !b.is_sporadic).map(b => b.client_id));
         
         const mActiveClients = clients.filter(c => {
