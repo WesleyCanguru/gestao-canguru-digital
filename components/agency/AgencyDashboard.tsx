@@ -82,6 +82,8 @@ export const AgencyDashboard: React.FC<AgencyDashboardProps> = ({ onBack, onSele
                   onNavigateToMasterMap={handleNavigateToContentPanel}
                   onNavigateToPainelConteudo={handleNavigateToContentPanel}
                   onNavigateToMetas={() => onTabChange?.('metas')}
+                  onNavigateToTasks={() => onTabChange?.('tasks')}
+                  onNavigateToCRM={() => onTabChange?.('prospeccao')}
                 />
               )}
               {activeTab === 'metas' && <MetasTab />}

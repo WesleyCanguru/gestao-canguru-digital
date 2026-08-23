@@ -44,6 +44,8 @@ interface AuthContextType {
   userType: 'agency' | 'client' | null;
   agencyId: number | null;
   agencyName: string | null;
+  userName: string | null;
+  currentUser?: { name?: string; email?: string } | null;
   logoUrl: string | null;
   login: (role: UserRole) => void;
   loginByPassword: (password: string) => Promise<{ success: boolean; error?: string }>;
@@ -59,6 +61,8 @@ const AuthContext = createContext<AuthContextType>({
   userType: null,
   agencyId: null,
   agencyName: null,
+  userName: null,
+  currentUser: null,
   logoUrl: null,
   login: () => {},
   loginByPassword: async () => ({ success: false }),
@@ -81,6 +85,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   });
   const [agencyName, setAgencyName] = useState<string | null>(() =>
     localStorage.getItem('next_app_agency_name')
+  );
+  const [userName, setUserName] = useState<string | null>(() =>
+    localStorage.getItem('next_app_user_name')
   );
   const [logoUrl, setLogoUrl] = useState<string | null>(() =>
     localStorage.getItem('next_app_logo_url')
@@ -113,10 +120,39 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
          });
     }
 
-    // Configurar OneSignal para usuário da agência persistido
+    // Refresh agency user data in background if logged in as agency
     const storedUserType = localStorage.getItem('next_app_user_type');
     const storedUserId = localStorage.getItem('next_app_user_id');
     const storedAgencyId = localStorage.getItem('next_app_agency_id');
+
+    if (storedUserType === 'agency') {
+      const query = storedUserId
+        ? supabase.from('agency_users').select('id, name, email, agency_name, logo_url, role').eq('id', storedUserId).maybeSingle()
+        : storedAgencyId
+        ? supabase.from('agency_users').select('id, name, email, agency_name, logo_url, role').eq('agency_id', parseInt(storedAgencyId, 10)).limit(1).maybeSingle()
+        : null;
+
+      if (query) {
+        query.then(({ data, error }) => {
+          if (!error && data) {
+            if (data.name) {
+              setUserName(data.name);
+              localStorage.setItem('next_app_user_name', data.name);
+            }
+            if (data.agency_name) {
+              setAgencyName(data.agency_name);
+              localStorage.setItem('next_app_agency_name', data.agency_name);
+            }
+            if (data.logo_url) {
+              setLogoUrl(data.logo_url);
+              localStorage.setItem('next_app_logo_url', data.logo_url);
+            }
+          }
+        });
+      }
+    }
+
+    // Configurar OneSignal para usuário da agência persistido
     if (storedUserType === 'agency' && storedUserId && storedAgencyId) {
       setupNotifications({
         id: storedUserId,
@@ -144,7 +180,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // 1. Tentar encontrar na tabela agency_users
       const { data: agencyUser, error: agencyError } = await supabase
         .from('agency_users')
-        .select('id, agency_id, role, agency_name, logo_url')
+        .select('id, agency_id, name, role, agency_name, logo_url')
         .eq('password_hash', hashedPassword)
         .eq('is_active', true)
         .limit(1)
@@ -155,18 +191,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
 
       if (agencyUser) {
-          console.log('Login admin bem sucedido:', agencyUser.agency_name);
+          console.log('Login admin bem sucedido:', agencyUser.name || agencyUser.agency_name);
           setUserType('agency');
           setAgencyId(agencyUser.agency_id);
           setAgencyName(agencyUser.agency_name);
+          setUserName(agencyUser.name || null);
           setLogoUrl(agencyUser.logo_url);
           
           setUserRole(agencyUser.role as UserRole);
           
           localStorage.setItem('next_app_user_type', 'agency');
-          localStorage.setItem('next_app_user_id', agencyUser.id);
+          localStorage.setItem('next_app_user_id', String(agencyUser.id));
           localStorage.setItem('next_app_agency_id', String(agencyUser.agency_id));
           localStorage.setItem('next_app_agency_name', agencyUser.agency_name || '');
+          if (agencyUser.name) {
+            localStorage.setItem('next_app_user_name', agencyUser.name);
+          } else {
+            localStorage.removeItem('next_app_user_name');
+          }
           if (agencyUser.logo_url) {
               localStorage.setItem('next_app_logo_url', agencyUser.logo_url);
           } else {
@@ -175,7 +217,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           localStorage.setItem('next_app_role', agencyUser.role);
           
           // Chamar configuração de notificações do OneSignal
-          setupNotifications({ id: agencyUser.id, agency_id: agencyUser.agency_id }).catch(err => {
+          setupNotifications({ id: String(agencyUser.id), agency_id: agencyUser.agency_id }).catch(err => {
               console.error('Erro ao configurar notificações no login:', err);
           });
           
@@ -256,6 +298,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setUserType(null);
     setAgencyId(null);
     setAgencyName(null);
+    setUserName(null);
     setLogoUrl(null);
     setActiveClientState(null);
     
@@ -264,6 +307,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     localStorage.removeItem('next_app_user_type');
     localStorage.removeItem('next_app_agency_id');
     localStorage.removeItem('next_app_agency_name');
+    localStorage.removeItem('next_app_user_name');
     localStorage.removeItem('next_app_logo_url');
     localStorage.removeItem('next_app_user_id');
     
@@ -317,7 +361,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   return React.createElement(
     AuthContext.Provider,
-    { value: { userRole, activeClient, userType, agencyId, agencyName, logoUrl, login, loginByPassword, logout, setActiveClient, refreshActiveClient, isAuthenticated: !!userRole } },
+    { value: { userRole, activeClient, userType, agencyId, agencyName, userName, currentUser: userName ? { name: userName } : null, logoUrl, login, loginByPassword, logout, setActiveClient, refreshActiveClient, isAuthenticated: !!userRole } },
     children
   );
 };
