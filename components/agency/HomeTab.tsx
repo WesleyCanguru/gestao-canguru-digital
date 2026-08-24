@@ -140,12 +140,17 @@ function isTaskPendingInCurrentCycle(task: any): boolean {
   if (task.is_deleted || task.status === 'deleted') return false;
   if (task.client && task.client.client_status === 'cancelled') return false;
 
-  if (task.recurrence_type === 'none' || !task.recurrence_type) {
-    return task.status !== 'completed' && task.status !== 'done';
+  // Se tarefa não-recorrente já foi concluída, nunca é pendente
+  if (!task.recurrence_type || task.recurrence_type === 'none') {
+    return task.status !== 'completed' && task.status !== 'done' && !task.is_completed;
+  }
+
+  if (task.status === 'completed' || task.status === 'done' || task.is_completed) {
+    if (!task.completed_at) return false;
   }
 
   if (!task.completed_at) {
-    return task.status !== 'completed' && task.status !== 'done';
+    return task.status !== 'completed' && task.status !== 'done' && !task.is_completed;
   }
 
   const lastDone = new Date(task.completed_at);

@@ -18,7 +18,7 @@ import WebsiteView from './components/WebsiteView';
 import { ContractFormScreen } from './components/ContractFormScreen';
 // import AdminView from './components/AdminView'; // Removed redundant view
 import { useEditorialData, MONTH_NAMES } from './hooks/useEditorialData';
-import { Map, ChevronRight, LogOut, Home, Building2, ClipboardList, LayoutDashboard, FileText, FolderOpen, TrendingUp, Globe, Shield } from 'lucide-react';
+import { Map, ChevronRight, LogOut, Home, Building2, ClipboardList, LayoutDashboard, FileText, FolderOpen, TrendingUp, Globe, Shield, Loader2 } from 'lucide-react';
 import { AuthProvider, useAuth } from './lib/supabase';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -50,9 +50,36 @@ interface MainAppProps {
 }
 
 const MainApp: React.FC<MainAppProps> = ({ initialView, onExitAgencyDashboard, onGoToAgencyHome, onGoToClientSelector }) => {
-  const [view, setView] = useState<ViewState>(initialView || 'dashboard');
+  const [view, setView] = useState<ViewState>(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const aba = params.get('aba');
+      const mes = params.get('mes');
+      const viewParam = params.get('view') || params.get('destino') || params.get('active_view');
+      if (aba === 'mapa' || aba === 'publicacoes' || aba === 'conteudo' || mes || viewParam === 'mapa' || viewParam === 'month-detail') {
+        return 'month-detail';
+      }
+      if (viewParam === 'briefing' || viewParam === 'strategic-briefings') return 'strategic-briefings';
+      if (viewParam === 'crm') return 'crm';
+      if (viewParam === 'tutorial') return 'tutorials';
+      if (viewParam === 'password-vault') return 'password-vault';
+    }
+    return initialView || 'dashboard';
+  });
   const [agencyTab, setAgencyTab] = useState<string>('home');
-  const [selectedMonth, setSelectedMonth] = useState<string | null>(null);
+  const [selectedMonth, setSelectedMonth] = useState<string | null>(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const mesParam = params.get('mes');
+      if (mesParam) {
+        const parsed = parseInt(mesParam, 10);
+        if (parsed >= 1 && parsed <= 12) {
+          return MONTH_NAMES[parsed - 1];
+        }
+      }
+    }
+    return null;
+  });
   const [isNavCollapsed, setIsNavCollapsed] = useState(false);
   const { userRole, logout, activeClient, setActiveClient, refreshActiveClient } = useAuth();
   const { monthlyPlans } = useEditorialData();
@@ -62,8 +89,18 @@ const MainApp: React.FC<MainAppProps> = ({ initialView, onExitAgencyDashboard, o
     const params = new URLSearchParams(window.location.search);
     const viewParam = params.get('view') || params.get('destino') || params.get('active_view');
     const tutorialId = params.get('id');
+    const aba = params.get('aba');
+    const mes = params.get('mes');
     
-    if (viewParam === 'briefing' || viewParam === 'strategic-briefings') {
+    if (aba === 'mapa' || aba === 'publicacoes' || aba === 'conteudo' || mes || viewParam === 'mapa' || viewParam === 'month-detail') {
+      setView('month-detail');
+      if (mes) {
+        const parsed = parseInt(mes, 10);
+        if (parsed >= 1 && parsed <= 12) {
+          setSelectedMonth(MONTH_NAMES[parsed - 1]);
+        }
+      }
+    } else if (viewParam === 'briefing' || viewParam === 'strategic-briefings') {
       setView('strategic-briefings');
     } else if (viewParam === 'crm') {
       setView('crm');
@@ -76,7 +113,6 @@ const MainApp: React.FC<MainAppProps> = ({ initialView, onExitAgencyDashboard, o
     } else if (viewParam === 'tutorial') {
       setView('tutorials');
       if (tutorialId) {
-        // We'll need to pass this to TutorialCenter
         localStorage.setItem('deep_link_tutorial_id', tutorialId);
       }
     } else if (viewParam === 'password-vault') {
@@ -86,6 +122,13 @@ const MainApp: React.FC<MainAppProps> = ({ initialView, onExitAgencyDashboard, o
 
   // Redirecionar cliente para briefings estratégicos se onboarding não estiver completo
   useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const hasAba = params.get('aba');
+    const hasMes = params.get('mes');
+    const hasGate = params.get('gate');
+    // Se for link direto para o mapa editorial/aba, NÃO redirecionar para briefings!
+    if (hasAba || hasMes || hasGate) return;
+
     if (userRole === 'approver' && activeClient) {
       if (!activeClient.onboarding_completed && !activeClient.briefings_waived && view !== 'strategic-briefings') {
         setView('strategic-briefings');
@@ -124,11 +167,12 @@ const MainApp: React.FC<MainAppProps> = ({ initialView, onExitAgencyDashboard, o
   const isAgencyView = view === 'agencyDashboard';
   
   // Condição para mostrar a navegação persistente:
-  // 1. Sempre para admins (seja no painel interno ou explorando cliente)
-  // 2. Para clientes em módulos internos (fora do Dashboard e Onboarding inicial)
+  const searchParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
+  const isGateActive = searchParams?.get('gate') === 'nome' && typeof window !== 'undefined' && !sessionStorage.getItem('visitor_name');
+  
   const clientDoingOnboarding = userRole === 'approver' && activeClient && !activeClient.onboarding_completed && !activeClient.briefings_waived;
-  const showClientNav = userRole === 'approver' && view !== 'dashboard' && !clientDoingOnboarding;
-  const showNav = userRole === 'admin' || userRole === 'team' || showClientNav;
+  const showClientNav = userRole === 'approver' && view !== 'dashboard' && !clientDoingOnboarding && !isGateActive;
+  const showNav = !isGateActive && (userRole === 'admin' || userRole === 'team' || showClientNav);
 
   return (
     <div className={`min-h-screen flex font-sans text-brand-dark bg-[#FDFDFD] relative overflow-x-hidden ${showNav ? (isNavCollapsed ? 'lg:pl-20' : 'lg:pl-72') : ''} transition-all duration-500 ease-[0.16,1,0.3,1]`}>
@@ -483,7 +527,24 @@ const AppContent: React.FC = () => {
   // Default to agencyHome but we'll bypass it in the render if admin
   const [adminView, setAdminView] = useState<'agencyHome' | 'clientSelector'>('agencyHome');
 
-  if (!isAuthenticated) {
+  const params = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
+  const hasClientParam = !!(params?.get('client') || params?.get('client_id') || params?.get('cliente'));
+
+  // Se a rota for pública de cliente (?client=...) e ainda estiver carregando os dados do cliente
+  if (!isAuthenticated && hasClientParam) {
+    if (!activeClient) {
+      return (
+        <div className="min-h-screen flex items-center justify-center bg-[#F4F3EF]">
+          <div className="flex flex-col items-center gap-3">
+            <Loader2 className="w-8 h-8 animate-spin text-[#13284D]" />
+            <p className="text-sm font-medium text-stone-500">Carregando painel do cliente...</p>
+          </div>
+        </div>
+      );
+    }
+  }
+
+  if (!isAuthenticated && !hasClientParam) {
     return <LoginScreen />;
   }
 

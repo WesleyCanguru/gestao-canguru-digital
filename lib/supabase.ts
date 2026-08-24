@@ -105,19 +105,52 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   });
 
   useEffect(() => {
-    // Refresh client in background on app load if we have one from localStorage
-    if (activeClient?.id) {
-       supabase
-         .from('clients')
-         .select('*')
-         .eq('id', activeClient.id)
-         .single()
-         .then(({ data, error }) => {
-            if (!error && data) {
-               setActiveClientState(data as Client);
-               localStorage.setItem('next_app_client', JSON.stringify(data));
+    // 1. Suporte a rota pública por parâmetro ?client=UUID na URL
+    const searchParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
+    const clientUrlParam = searchParams?.get('client') || searchParams?.get('client_id') || searchParams?.get('cliente');
+
+    if (clientUrlParam) {
+      const loadPublicClient = async () => {
+        try {
+          const { data, error } = await supabase
+            .from('clients')
+            .select('*')
+            .eq('id', clientUrlParam)
+            .single();
+
+          if (!error && data) {
+            setActiveClientState(data as Client);
+            localStorage.setItem('next_app_client', JSON.stringify(data));
+            
+            // Se o usuário não tiver um papel autenticado de agência/admin, definir acesso público de approver
+            const currentRole = localStorage.getItem('next_app_role');
+            if (!currentRole || currentRole === 'client' || currentRole === 'approver') {
+              setUserRole('approver');
+              setUserType('client');
+              setAgencyId(data.agency_id);
+              localStorage.setItem('next_app_role', 'approver');
+              localStorage.setItem('next_app_user_type', 'client');
+              localStorage.setItem('next_app_agency_id', String(data.agency_id));
             }
-         });
+          }
+        } catch (err) {
+          console.error('Erro ao carregar cliente público da URL:', err);
+        }
+      };
+      loadPublicClient();
+    } else if (activeClient?.id) {
+      // Refresh client in background on app load if we have one from localStorage
+      supabase
+        .from('clients')
+        .select('*')
+        .eq('id', activeClient.id)
+        .single()
+        .then(({ data, error }) => {
+          if (!error && data) {
+            setActiveClientState(data as Client);
+            localStorage.setItem('next_app_client', JSON.stringify(data));
+          }
+        });
     }
 
     // Refresh agency user data in background if logged in as agency
