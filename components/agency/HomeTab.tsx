@@ -73,14 +73,15 @@ const StatusBadge = ({ status }: { status: string }) => {
 };
 
 const PriorityDot = ({ priority }: { priority?: string }) => {
-  if (priority === 'urgente') {
+  const p = (priority || '').toLowerCase();
+  if (p === 'urgente' || p === 'urgent') {
     return (
       <span style={{ background: 'rgba(239,68,68,0.15)', color: '#dc2626', fontSize: 10, fontWeight: 700, borderRadius: 4, padding: '2px 6px', letterSpacing: '0.06em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>
         Urgente
       </span>
     );
   }
-  if (priority === 'alta') {
+  if (p === 'alta' || p === 'high') {
     return (
       <span style={{ background: 'rgba(249,115,22,0.15)', color: '#ea580c', fontSize: 10, fontWeight: 700, borderRadius: 4, padding: '2px 6px', letterSpacing: '0.06em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>
         Alta
@@ -89,6 +90,91 @@ const PriorityDot = ({ priority }: { priority?: string }) => {
   }
   return null;
 };
+
+// Funções de verificação de pendência e recorrência de tarefas
+function getLastWeeklyOccurrence(recurrenceDays: number[], from: Date): Date | null {
+  if (!recurrenceDays || recurrenceDays.length === 0) return null;
+  
+  let mostRecent: Date | null = null;
+  for (const dayOfWeek of recurrenceDays) {
+    const d = new Date(from);
+    d.setHours(0, 0, 0, 0);
+    const currentDay = d.getDay(); // 0-6
+    const diff = (currentDay - dayOfWeek + 7) % 7;
+    d.setDate(d.getDate() - diff);
+    
+    if (!mostRecent || d > mostRecent) {
+      mostRecent = d;
+    }
+  }
+  return mostRecent;
+}
+
+function getMonthlyTaskState(task: any, now = new Date()): 'pending' | 'completed' | 'not_started' {
+  const diaConfigurado = task.recurrence_days?.[0] ? parseInt(task.recurrence_days[0], 10) : null;
+  if (!diaConfigurado) return 'pending';
+
+  const inicioCicloAtual = new Date(now.getFullYear(), now.getMonth(), diaConfigurado);
+
+  if (task.completed_at) {
+    const lastDone = new Date(task.completed_at);
+    if (lastDone >= inicioCicloAtual && now >= inicioCicloAtual) {
+      return 'completed';
+    }
+    if (now < inicioCicloAtual) {
+      const inicioCicloMesAnterior = new Date(now.getFullYear(), now.getMonth() - 1, diaConfigurado);
+      if (lastDone >= inicioCicloMesAnterior) {
+        return 'completed';
+      }
+    }
+  }
+
+  if (now < inicioCicloAtual) {
+    return 'not_started';
+  }
+
+  return 'pending';
+}
+
+function isTaskPendingInCurrentCycle(task: any): boolean {
+  if (task.is_deleted || task.status === 'deleted') return false;
+  if (task.client && task.client.client_status === 'cancelled') return false;
+
+  if (task.recurrence_type === 'none' || !task.recurrence_type) {
+    return task.status !== 'completed' && task.status !== 'done';
+  }
+
+  if (!task.completed_at) {
+    return task.status !== 'completed' && task.status !== 'done';
+  }
+
+  const lastDone = new Date(task.completed_at);
+  const now = new Date();
+
+  if (task.recurrence_type === 'daily') {
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    return lastDone < todayStart;
+  }
+
+  if (task.recurrence_type === 'weekly') {
+    const days = (task.recurrence_days || []).map((d: any) => parseInt(d, 10)).filter((d: any) => !isNaN(d));
+    let cycleStart = getLastWeeklyOccurrence(days, now);
+    if (!cycleStart) {
+      const d = new Date(now);
+      d.setHours(0, 0, 0, 0);
+      const day = d.getDay();
+      const diff = d.getDate() - day + (day === 0 ? -6 : 1);
+      cycleStart = new Date(d.setDate(diff));
+    }
+    return lastDone < cycleStart;
+  }
+
+  if (task.recurrence_type === 'monthly') {
+    return getMonthlyTaskState(task, now) === 'pending';
+  }
+
+  return task.status !== 'completed' && task.status !== 'done';
+}
 
 interface MonthBarData {
   label: string;
@@ -261,10 +347,10 @@ export const HomeTab: React.FC<HomeTabProps> = ({
           .eq('agency_id', agencyId)
           .not('is_deleted', 'is', true),
         supabase.from('agency_tasks')
-          .select('*, client:clients(id, name, color, initials)')
+          .select('*, client:clients(id, name, color, initials, client_status)')
           .eq('agency_id', agencyId)
-          .neq('status', 'done')
-          .order('due_date', { ascending: false }),
+          .neq('status', 'deleted')
+          .order('due_date', { ascending: true }),
         supabase.from('agency_crms')
           .select('*')
           .eq('agency_id', agencyId)
@@ -465,16 +551,31 @@ export const HomeTab: React.FC<HomeTabProps> = ({
 
       // 5. Tarefas Urgentes
       const pTasks = (tempTasks || []) as any[];
-      const filteredTasks = pTasks.filter(t => {
-        if (t.priority === 'alta' || t.priority === 'urgente') return true;
+      const pendingTasks = pTasks.filter(t => isTaskPendingInCurrentCycle(t));
+
+      const filteredTasks = pendingTasks.filter(t => {
+        const p = (t.priority || '').toLowerCase();
+        const isHighOrUrgent = p === 'alta' || p === 'urgente' || p === 'high' || p === 'urgent';
+        if (isHighOrUrgent) return true;
         if (!t.due_date) return false;
         return dayjs(t.due_date).isBefore(dayjs().add(3, 'day'), 'day') || dayjs(t.due_date).isSame(dayjs().add(3, 'day'), 'day');
       });
+
       filteredTasks.sort((a, b) => {
-        if (!a.due_date) return 1;
-        if (!b.due_date) return -1;
-        return dayjs(a.due_date).valueOf() - dayjs(b.due_date).valueOf();
+        // Tarefas com due_date vêm primeiro ordenadas pela data (mais atrasadas ou mais próximas primeiro)
+        if (a.due_date && b.due_date) {
+          return dayjs(a.due_date).valueOf() - dayjs(b.due_date).valueOf();
+        }
+        if (a.due_date) return -1;
+        if (b.due_date) return 1;
+
+        // Se nenhuma tiver due_date, prioridade urgente vem antes de alta
+        const pOrder: Record<string, number> = { 'urgente': 1, 'urgent': 1, 'alta': 2, 'high': 2, 'normal': 3, 'media': 3, 'baixa': 4, 'low': 4 };
+        const orderA = pOrder[(a.priority || '').toLowerCase()] || 99;
+        const orderB = pOrder[(b.priority || '').toLowerCase()] || 99;
+        return orderA - orderB;
       });
+
       setTarefasUrgentes(filteredTasks.slice(0, 5));
 
       // 6. Funil CRM
@@ -931,9 +1032,21 @@ export const HomeTab: React.FC<HomeTabProps> = ({
             </p>
             <h2 style={{ color: '#13284D', fontSize: 20, fontWeight: 700 }}>Publicações</h2>
           </div>
-          <span style={{ color: '#8A8F98', fontSize: 13 }}>
-            {totalPublicacoesSemana} {totalPublicacoesSemana === 1 ? 'publicação' : 'publicações'}
-          </span>
+          <div className="flex items-center gap-3">
+            <span style={{ color: '#8A8F98', fontSize: 13 }}>
+              {totalPublicacoesSemana} {totalPublicacoesSemana === 1 ? 'publicação' : 'publicações'}
+            </span>
+            {(onNavigateToPainelConteudo || onNavigateToMasterMap) && (
+              <button
+                onClick={() => (onNavigateToPainelConteudo || onNavigateToMasterMap)?.({ aba: 'publicacoes', periodo: 'esta_semana' })}
+                style={{ color: '#13284D', fontSize: 12, fontWeight: 600, background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}
+                className="hover:underline"
+              >
+                <span>Ver todas</span>
+                <ArrowRight size={12} />
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Grupos por dia */}

@@ -151,6 +151,7 @@ export const PainelConteudo: React.FC<PainelConteudoProps> = ({
     }
     if (initialFilterPeriod) return initialFilterPeriod;
     if (initialFilterDate) return 'hoje';
+    if (initialFilterStatus) return 'todos';
     return 'este_mes';
   });
 
@@ -165,8 +166,13 @@ export const PainelConteudo: React.FC<PainelConteudoProps> = ({
     if (initialFilterStatus) {
       setFilterStatus(initialFilterStatus);
       setActiveTab('publicacoes');
+      if (initialFilterPeriod) {
+        setFilterPeriod(initialFilterPeriod);
+      } else {
+        setFilterPeriod('todos');
+      }
     }
-  }, [initialFilterStatus]);
+  }, [initialFilterStatus, initialFilterPeriod]);
 
   useEffect(() => {
     if (initialFilterPeriod) {
