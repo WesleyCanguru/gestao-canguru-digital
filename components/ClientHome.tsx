@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useAuth, supabase } from '../lib/supabase';
 import {
   Calendar,
@@ -10,26 +10,36 @@ import {
   ClipboardList,
   FolderOpen,
   Globe,
-  AlertCircle,
   Sparkles,
   BookOpen,
   Camera,
   ArrowLeft,
   Link,
-  BarChart3,
-  Kanban
+  Kanban,
+  Clock,
+  CheckCircle2,
+  Instagram,
+  Linkedin,
+  Video,
+  Layers,
+  ChevronRight,
+  ExternalLink
 } from 'lucide-react';
-import { motion } from 'motion/react';
+import { motion, AnimatePresence } from 'motion/react';
 import dayjs from 'dayjs';
+import 'dayjs/locale/pt-br';
 import { useClientOnboarding } from '../hooks/useClientOnboarding';
 import { LeadTrackerView } from './LeadTrackerView';
-import { ClientLeadConfig, Client } from '../types';
-import { AgencyLogo } from './AgencyLogo';
+import { PostModal } from './PostModal';
+import { ClientLeadConfig, Client, DailyContent, PostStatus } from '../types';
+
+dayjs.locale('pt-br');
 
 interface ClientHomeProps {
   initialActiveView?: 'dashboard' | 'leads';
   onNavigateToOnboarding: () => void;
-  onNavigateToMapa: () => void;
+  onNavigateToMapa: (tab?: 'dashboard' | 'publicacoes' | 'mapa', filterStatus?: string) => void;
+  onNavigateToPublicacoes?: (filterStatus?: string) => void;
   onNavigateToBriefings: () => void;
   onNavigateToStrategicBriefings: () => void;
   onNavigateToDocuments: () => void;
@@ -42,7 +52,7 @@ interface ClientHomeProps {
   onRefreshClient?: () => void;
 }
 
-const MONTHS = [
+const MONTHS_PT = [
   'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
   'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
 ];
@@ -51,6 +61,7 @@ export const ClientHome: React.FC<ClientHomeProps> = ({
   initialActiveView,
   onNavigateToOnboarding,
   onNavigateToMapa,
+  onNavigateToPublicacoes,
   onNavigateToBriefings,
   onNavigateToStrategicBriefings,
   onNavigateToDocuments,
@@ -63,11 +74,24 @@ export const ClientHome: React.FC<ClientHomeProps> = ({
   onRefreshClient,
 }) => {
   const { activeClient, userRole } = useAuth();
-  const [briefingMissing, setBriefingMissing] = useState(false);
   const [smartLoading, setSmartLoading] = useState(true);
   const [leadConfig, setLeadConfig] = useState<ClientLeadConfig | null>(null);
   const [monthLeadsCount, setMonthLeadsCount] = useState<number>(0);
   const [activeView, setActiveView] = useState<'dashboard' | 'leads'>(initialActiveView || 'dashboard');
+
+  // Posts states
+  const [postsParaAprovar, setPostsParaAprovar] = useState<any[]>([]);
+  const [postsEmProducao, setPostsEmProducao] = useState<any[]>([]);
+  const [postsPublicadosMes, setPostsPublicadosMes] = useState<any[]>([]);
+  const [postsLoading, setPostsLoading] = useState(true);
+
+  // Modal de edição / visualização de Post
+  const [modalOpen, setModalOpen] = useState(false);
+  const [selectedPost, setSelectedPost] = useState<{
+    dayContent: DailyContent;
+    dateKey: string;
+    groupKeys?: string[];
+  } | null>(null);
 
   useEffect(() => {
     if (initialActiveView) {
@@ -75,7 +99,7 @@ export const ClientHome: React.FC<ClientHomeProps> = ({
     }
   }, [initialActiveView]);
 
-  const { isCompleted: isOnboardingCompleted, loading: loadingOnboarding, stats } = useClientOnboarding(activeClient?.id);
+  const { isCompleted: isOnboardingCompleted, loading: loadingOnboarding, stats: onboardingStats } = useClientOnboarding(activeClient?.id);
   const isAdmin = userRole === 'admin';
 
   // Handle deep link to CRM
@@ -87,45 +111,141 @@ export const ClientHome: React.FC<ClientHomeProps> = ({
     }
   }, [activeClient, isAdmin]);
 
-  const clientName = activeClient?.name || 'Cliente';
+  // Saudação dinâmica baseada no horário
+  const getGreeting = () => {
+    const hour = dayjs().hour();
+    if (hour >= 5 && hour < 12) return 'Bom dia';
+    if (hour >= 12 && hour < 18) return 'Boa tarde';
+    return 'Boa noite';
+  };
 
-  const checkStatus = async () => {
+  // Primeiro nome do responsável ou cliente
+  const getFirstName = () => {
+    const name = activeClient?.responsible || activeClient?.name || 'Cliente';
+    return name.trim().split(' ')[0];
+  };
+
+  // Nome do mês e ano formatados
+  const getMonthYearString = () => {
+    const now = dayjs();
+    const monthName = MONTHS_PT[now.month()];
+    return `${monthName} de ${now.year()}`;
+  };
+
+  // Formatar data para exibição nos cards
+  const formatDateDisplay = (dateKey?: string) => {
+    if (!dateKey) return '';
+    const parts = dateKey.split('-');
+    if (parts.length >= 3) {
+      const d = parseInt(parts[0], 10);
+      const m = parseInt(parts[1], 10);
+      if (!isNaN(d) && !isNaN(m) && m >= 1 && m <= 12) {
+        return `${String(d).padStart(2, '0')} de ${MONTHS_PT[m - 1].toLowerCase()}`;
+      }
+    }
+    return dateKey;
+  };
+
+  // Buscar posts e métricas do cliente
+  const fetchClientPosts = useCallback(async () => {
+    if (!activeClient?.id) {
+      setPostsLoading(false);
+      return;
+    }
+
+    try {
+      setPostsLoading(true);
+      const now = dayjs();
+      const currentMonth = now.month() + 1;
+      const currentYear = now.year();
+
+      const { data, error } = await supabase
+        .from('posts')
+        .select('id, date_key, client_id, status, type, theme, theme_title, bullets, image_url, last_updated, is_deleted, platform')
+        .eq('client_id', activeClient.id)
+        .neq('status', 'deleted')
+        .limit(10000);
+
+      if (error) {
+        // Se for erro transitório de rede/fetch, registrar aviso suave sem quebrar a tela
+        const errMsg = error.message || '';
+        if (errMsg.includes('Failed to fetch') || errMsg.includes('NetworkError') || error.code === 'PGRST301') {
+          console.warn('Conexão temporariamente indisponível ao buscar publicações:', errMsg);
+          return;
+        }
+        throw error;
+      }
+
+      if (data) {
+        const activePosts = data.filter((post: any) => !post.is_deleted && post.status !== 'deleted');
+
+        // 1. Posts para aprovação
+        const paraAprovar = activePosts.filter((post: any) => {
+          const s = post.status;
+          return [
+            'waiting_approval',
+            'approval',
+            'pending_approval',
+            'changes_requested',
+            'alteracao_solicitada',
+            'theme_pending'
+          ].includes(s);
+        });
+
+        // 2. Posts em produção
+        const emProducao = activePosts.filter((post: any) => {
+          const s = post.status;
+          return ['draft', 'in_production', 'approved', 'scheduled', 'theme_approved'].includes(s);
+        });
+
+        // 3. Posts publicados este mês
+        const publicadosMes = activePosts.filter((post: any) => {
+          if (post.status !== 'published') return false;
+          const dateKey = post.date_key || '';
+          const parts = dateKey.split('-');
+          if (parts.length >= 3) {
+            const pMonth = parseInt(parts[1], 10);
+            const pYear = parseInt(parts[2], 10);
+            return pMonth === currentMonth && pYear === currentYear;
+          }
+          const dObj = dayjs(post.last_updated);
+          return dObj.isValid() && dObj.month() + 1 === currentMonth && dObj.year() === currentYear;
+        });
+
+        setPostsParaAprovar(paraAprovar);
+        setPostsEmProducao(emProducao);
+        setPostsPublicadosMes(publicadosMes);
+      }
+    } catch (err: any) {
+      const errMsg = err?.message || String(err || '');
+      if (!errMsg.includes('Failed to fetch') && !errMsg.includes('NetworkError')) {
+        console.error('Erro ao carregar publicações no ClientHome:', err);
+      } else {
+        console.warn('Falha transitória de rede ao carregar publicações no ClientHome.');
+      }
+    } finally {
+      setPostsLoading(false);
+    }
+  }, [activeClient?.id]);
+
+  // Buscar status de CRM e briefings
+  const checkStatus = useCallback(async () => {
     if (!activeClient?.id) {
       setSmartLoading(false);
       return;
     }
 
     try {
-      const now = new Date();
-      const currentMonth = now.getMonth() + 1;
-      const currentYear = now.getFullYear();
-
-      // c. Buscar briefing do mês atual
-      const { data: briefing } = await supabase
-        .from('briefings')
-        .select('id, status')
-        .eq('client_id', activeClient.id)
-        .eq('month', currentMonth)
-        .eq('year', currentYear)
-        .maybeSingle();
-
-      if (!briefing && now.getDate() >= 10) {
-        setBriefingMissing(true);
-      } else {
-        setBriefingMissing(false);
-      }
-
-      // Fetch lead config
+      // Buscar lead config
       const { data: configData } = await supabase
         .from('client_lead_configs')
         .select('*')
         .eq('client_id', activeClient.id)
         .maybeSingle();
-      
+
       if (configData) {
         setLeadConfig(configData);
-        
-        // Fetch month leads count
+
         const startOfMonth = dayjs().startOf('month').format('YYYY-MM-DD');
         const endOfMonth = dayjs().endOf('month').format('YYYY-MM-DD');
         const { count } = await supabase
@@ -134,23 +254,68 @@ export const ClientHome: React.FC<ClientHomeProps> = ({
           .eq('client_id', activeClient.id)
           .gte('lead_date', startOfMonth)
           .lte('lead_date', endOfMonth);
-        
+
         setMonthLeadsCount(count || 0);
       }
-    } catch (error) {
-      console.error('Error checking client status:', error);
+    } catch (error: any) {
+      const errMsg = error?.message || String(error || '');
+      if (!errMsg.includes('Failed to fetch') && !errMsg.includes('NetworkError')) {
+        console.error('Error checking client status:', error);
+      }
     } finally {
       setSmartLoading(false);
     }
-  };
+  }, [activeClient?.id]);
 
   useEffect(() => {
+    fetchClientPosts();
     checkStatus();
-  }, [activeClient?.id]);
+  }, [fetchClientPosts, checkStatus]);
+
+  // Realtime subscription para atualizar em tempo real quando houver novos posts ou aprovações
+  useEffect(() => {
+    if (!activeClient?.id) return;
+
+    const channel = supabase
+      .channel(`client_home_${activeClient.id}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'posts', filter: `client_id=eq.${activeClient.id}` }, () => {
+        fetchClientPosts();
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [activeClient?.id, fetchClientPosts]);
+
+  // Abrir modal de um post específico
+  const handleOpenPost = (post: any) => {
+    let dayFormatted = dayjs().format('DD/MM');
+    const parts = (post.date_key || '').split('-');
+    if (parts.length >= 2) {
+      dayFormatted = `${parts[0]}/${parts[1]}`;
+    }
+
+    const dayContent: DailyContent = {
+      day: dayFormatted,
+      platform: post.platform || 'meta',
+      type: post.type || 'Estático',
+      theme: post.theme_title || post.theme || post.description || 'Publicação',
+      bullets: Array.isArray(post.bullets) ? post.bullets : [],
+      initialImageUrl: post.image_url
+    };
+
+    setSelectedPost({
+      dayContent,
+      dateKey: post.date_key || `${dayjs().format('DD-MM-YYYY')}-${post.platform || 'meta'}-${activeClient?.id}`,
+      groupKeys: [post.date_key || post.id]
+    });
+    setModalOpen(true);
+  };
 
   const handleSetUrl = async (type: 'organic' | 'paid' | 'drive') => {
     if (!isAdmin || !activeClient) return;
-    
+
     let currentUrl = '';
     let label = '';
     let field = '';
@@ -170,14 +335,14 @@ export const ClientHome: React.FC<ClientHomeProps> = ({
     }
 
     const newUrl = window.prompt(`Digite a ${label}:`, currentUrl);
-    
+
     if (newUrl !== null) {
       try {
         const { error } = await supabase
           .from('clients')
           .update({ [field]: newUrl.trim() || null })
           .eq('id', activeClient.id);
-        
+
         if (error) throw error;
         if (onRefreshClient) onRefreshClient();
       } catch (err) {
@@ -186,6 +351,7 @@ export const ClientHome: React.FC<ClientHomeProps> = ({
     }
   };
 
+  // Permissões e features ativas
   const services = activeClient?.services || [];
   const hasService = (s: string) => services.includes(s);
   const getFeature = (feature: string, defaultVal: boolean) => activeClient?.features_settings?.[feature] ?? defaultVal;
@@ -203,327 +369,99 @@ export const ClientHome: React.FC<ClientHomeProps> = ({
 
   const isActuallyOnboardingCompleted = activeClient?.onboarding_completed || isOnboardingCompleted;
 
-  const containerVariants = {
-    hidden: { opacity: 0 },
-    visible: {
-      opacity: 1,
-      transition: {
-        staggerChildren: 0.1
-      }
-    }
-  };
-
-  const itemVariants = {
-    hidden: { opacity: 0, y: 20 },
-    visible: {
-      opacity: 1,
-      y: 0,
-      transition: {
-        duration: 0.6,
-        ease: [0.16, 1, 0.3, 1] as any
-      }
-    }
-  };
-
-  const allCards = [
+  // Lista dos módulos compactos para a grade de acesso rápido
+  const modulesList = [
     {
       id: 'mapa_editorial',
+      label: 'Painel de Conteúdo',
+      subtitle: 'Dashboard e mapa editorial',
+      icon: Calendar,
       visible: showMapa,
-      render: () => (
-        <motion.div 
-          key="mapa_editorial"
-          variants={itemVariants}
-          onClick={onNavigateToMapa}
-          className="group bg-white rounded-[2.5rem] p-10 shadow-[0_4px_25px_rgba(0,0,0,0.02)] border border-black/[0.02] hover:shadow-[0_15px_45px_rgba(0,0,0,0.05)] hover:border-brand-dark/10 transition-all duration-500 cursor-pointer flex flex-col relative"
-        >
-          <div className="flex justify-between items-start mb-8">
-            <div className="w-16 h-16 bg-gray-50 rounded-[20px] flex items-center justify-center text-brand-dark group-hover:bg-brand-dark group-hover:text-white transition-all duration-500 shadow-sm">
-              <Calendar size={32} />
-            </div>
-            <ArrowRight size={22} className="text-gray-200 group-hover:text-brand-dark transform group-hover:-rotate-45 transition-all duration-500" />
-          </div>
-          <h3 className="text-2xl font-bold text-brand-dark mb-3 tracking-tight">Painel de Conteúdo</h3>
-          <p className="text-gray-500 text-sm leading-relaxed font-medium">
-            Acesse o painel completo de conteúdo com dashboard de métricas, lista de publicações e mapa editorial da sua marca.
-          </p>
-        </motion.div>
-      )
+      action: () => onNavigateToMapa('mapa')
     },
     {
       id: 'roteiros',
+      label: 'Roteiros',
+      subtitle: 'Criação e edição colaborativa',
+      icon: BookOpen,
       visible: showRoteiros,
-      render: () => (
-        <motion.div 
-          key="roteiros"
-          variants={itemVariants}
-          onClick={onNavigateToRoteiros}
-          className="group bg-white rounded-[2.5rem] p-10 shadow-[0_4px_25px_rgba(0,0,0,0.02)] border border-black/[0.02] hover:shadow-[0_15px_45px_rgba(0,0,0,0.05)] hover:border-brand-dark/10 transition-all duration-500 cursor-pointer flex flex-col h-full"
-        >
-          <div className="flex justify-between items-start mb-8">
-            <div className="w-16 h-16 bg-emerald-50/50 rounded-[20px] flex items-center justify-center text-emerald-600 group-hover:bg-emerald-600 group-hover:text-white transition-all duration-500 shadow-sm">
-              <BookOpen size={32} />
-            </div>
-            <ArrowRight size={22} className="text-gray-200 group-hover:text-brand-dark transform group-hover:-rotate-45 transition-all duration-500" />
-          </div>
-          <h3 className="text-2xl font-bold text-brand-dark mb-3 tracking-tight">Roteiros</h3>
-          <p className="text-gray-500 text-sm leading-relaxed font-medium">
-            Criação e edição de roteiros colaborativos em tempo real para seus vídeos.
-          </p>
-        </motion.div>
-      )
+      action: onNavigateToRoteiros
     },
     {
       id: 'crm',
+      label: 'CRM',
+      subtitle: monthLeadsCount > 0 ? `${monthLeadsCount} leads este mês` : 'Gestão de oportunidades',
+      icon: Kanban,
       visible: showCrm,
-      render: () => (
-        <motion.div
-          key="crm"
-          variants={itemVariants}
-          onClick={() => setActiveView('leads')}
-          className="group bg-white rounded-[2.5rem] p-10 shadow-[0_4px_25px_rgba(0,0,0,0.02)] border border-black/[0.02] hover:shadow-[0_15px_45px_rgba(0,0,0,0.05)] hover:border-brand-dark/10 transition-all duration-500 cursor-pointer flex flex-col justify-between h-full relative"
-        >
-          <div>
-            <div className="flex justify-between items-start mb-8">
-              <div className="w-16 h-16 bg-blue-50/80 text-blue-600 rounded-[20px] flex items-center justify-center group-hover:bg-blue-600 group-hover:text-white transition-all duration-500 shadow-sm">
-                <Kanban size={32} />
-              </div>
-              <div className="flex items-center gap-2">
-                {monthLeadsCount > 0 && (
-                  <div className="text-right">
-                    <div className="text-2xl font-bold tracking-tighter text-brand-dark">{monthLeadsCount}</div>
-                    <div className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Leads mês</div>
-                  </div>
-                )}
-                <ArrowRight size={22} className="text-gray-200 group-hover:text-brand-dark transform group-hover:-rotate-45 transition-all duration-500" />
-              </div>
-            </div>
-            <h3 className="text-2xl font-bold text-brand-dark mb-3 tracking-tight">CRM</h3>
-            <p className="text-gray-500 text-sm leading-relaxed font-medium">
-              Gerencie seus leads e oportunidades de vendas em tempo real.
-            </p>
-          </div>
-          {isAdmin && (
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                const chave = window.prompt('Para gerar o link direto do CRM, preciso da senha (chave) deste cliente:');
-                if (chave) {
-                  const baseUrl = `${window.location.protocol}//${window.location.host}`;
-                  const directLink = `${baseUrl}/?chave=${chave}&destino=crm`;
-                  navigator.clipboard.writeText(directLink);
-                  alert('Link direto do CRM copiado!');
-                }
-              }}
-              className="mt-6 w-full py-2.5 bg-gray-50 text-gray-500 hover:text-brand-dark hover:bg-gray-100 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2"
-            >
-              <Link size={14} />
-              Copiar Link Direto
-            </button>
-          )}
-        </motion.div>
-      )
+      action: () => setActiveView('leads')
     },
     {
       id: 'trafego_pago',
+      label: 'Tráfego Pago',
+      subtitle: 'Campanhas e anúncios',
+      icon: Zap,
       visible: showPaidTrafficCard,
-      render: () => (
-        <motion.div 
-          key="trafego_pago"
-          variants={itemVariants}
-          onClick={onNavigateToPaidTraffic}
-          className="group bg-white rounded-[2.5rem] p-10 shadow-[0_4px_25px_rgba(0,0,0,0.02)] border border-black/[0.02] hover:shadow-[0_15px_45px_rgba(0,0,0,0.05)] hover:border-brand-dark/10 transition-all duration-500 cursor-pointer flex flex-col justify-between h-full relative"
-        >
-          <div>
-            <div className="flex justify-between items-start mb-8">
-              <div className="w-16 h-16 bg-emerald-50 text-emerald-600 rounded-[20px] flex items-center justify-center group-hover:bg-emerald-600 group-hover:text-white transition-all duration-500 shadow-sm">
-                <Zap size={32} />
-              </div>
-              <ArrowRight size={22} className="text-gray-200 group-hover:text-brand-dark transform group-hover:-rotate-45 transition-all duration-500" />
-            </div>
-            <h3 className="text-2xl font-bold text-brand-dark mb-3 tracking-tight">Tráfego Pago</h3>
-            <p className="text-gray-500 text-sm leading-relaxed font-medium">
-              Estratégias, performance de anúncios e acompanhamento de campanhas ativas.
-            </p>
-          </div>
-        </motion.div>
-      )
+      action: onNavigateToPaidTraffic
     },
     {
       id: 'ai_photos',
+      label: 'Fotos com IA',
+      subtitle: 'Ensaios fotográficos',
+      icon: Camera,
       visible: showAiPhotos,
-      render: () => (
-        <motion.div 
-          key="ai_photos"
-          variants={itemVariants}
-          onClick={onNavigateToAiPhotos}
-          className="group bg-white rounded-[2.5rem] p-10 shadow-[0_4px_25px_rgba(0,0,0,0.02)] border border-black/[0.02] hover:shadow-[0_15px_45px_rgba(0,0,0,0.05)] hover:border-brand-dark/10 transition-all duration-500 cursor-pointer flex flex-col relative h-full"
-        >
-          <div className="flex justify-between items-start mb-8">
-            <div className="w-16 h-16 bg-fuchsia-50/50 rounded-[20px] flex items-center justify-center text-fuchsia-600 group-hover:bg-fuchsia-600 group-hover:text-white transition-all duration-500 shadow-sm">
-              <Camera size={32} />
-            </div>
-            <ArrowRight size={22} className="text-gray-200 group-hover:text-brand-dark transform group-hover:-rotate-45 transition-all duration-500" />
-          </div>
-          <h3 className="text-2xl font-bold text-brand-dark mb-3 tracking-tight">Fotos com IA</h3>
-          <p className="text-gray-500 text-sm leading-relaxed font-medium">
-            Aprove e comente os ensaios fotográficos gerados por Inteligência Artificial.
-          </p>
-        </motion.div>
-      )
+      action: onNavigateToAiPhotos
     },
     {
       id: 'website',
+      label: 'Website',
+      subtitle: 'Acompanhamento do site',
+      icon: Globe,
       visible: showWebsite,
-      render: () => (
-        <motion.div 
-          key="website"
-          variants={itemVariants}
-          onClick={onNavigateToWebsite}
-          className="group bg-white rounded-[2.5rem] p-10 shadow-[0_4px_25px_rgba(0,0,0,0.02)] border border-black/[0.02] hover:shadow-[0_15px_45px_rgba(0,0,0,0.05)] hover:border-brand-dark/10 transition-all duration-500 cursor-pointer flex flex-col h-full"
-        >
-          <div className="flex justify-between items-start mb-8">
-            <div className="w-16 h-16 bg-indigo-50/50 rounded-[20px] flex items-center justify-center text-indigo-600 group-hover:bg-indigo-600 group-hover:text-white transition-all duration-500 shadow-sm">
-              <Globe size={32} />
-            </div>
-            <ArrowRight size={22} className="text-gray-200 group-hover:text-brand-dark transform group-hover:-rotate-45 transition-all duration-500" />
-          </div>
-          <h3 className="text-2xl font-bold text-brand-dark mb-3 tracking-tight">Website</h3>
-          <p className="text-gray-500 text-sm leading-relaxed font-medium">
-            Prévia e acompanhamento do desenvolvimento do seu site.
-          </p>
-        </motion.div>
-      )
+      action: onNavigateToWebsite
     },
     {
       id: 'lockbox',
+      label: 'Cofre de Senhas',
+      subtitle: 'Credenciais seguras',
+      icon: ShieldCheck,
       visible: showPasswordVault,
-      render: () => (
-        <motion.div 
-          key="lockbox"
-          variants={itemVariants}
-          onClick={onNavigateToPasswordVault}
-          className="group bg-white rounded-[2.5rem] p-10 shadow-[0_4px_25px_rgba(0,0,0,0.02)] border border-black/[0.02] hover:shadow-[0_15px_45px_rgba(0,0,0,0.05)] hover:border-brand-dark/10 transition-all duration-500 cursor-pointer flex flex-col h-full"
-        >
-          <div className="flex justify-between items-start mb-8">
-            <div className="w-16 h-16 bg-slate-50/50 rounded-[20px] flex items-center justify-center text-slate-600 group-hover:bg-slate-600 group-hover:text-white transition-all duration-500 shadow-sm">
-              <ShieldCheck size={32} />
-            </div>
-            <ArrowRight size={22} className="text-gray-200 group-hover:text-brand-dark transform group-hover:-rotate-45 transition-all duration-500" />
-          </div>
-          <h3 className="text-2xl font-bold text-brand-dark mb-3 tracking-tight">Cofre de Senhas</h3>
-          <p className="text-gray-500 text-sm leading-relaxed font-medium">
-            Acesso seguro às credenciais e senhas da sua marca.
-          </p>
-        </motion.div>
-      )
+      action: onNavigateToPasswordVault
     },
     {
       id: 'arquivos',
+      label: 'Documentos',
+      subtitle: 'Arquivos e relatórios',
+      icon: FolderOpen,
       visible: showDocuments,
-      render: () => (
-        activeClient?.drive_link ? (
-          <motion.a 
-            key="arquivos"
-            href={(activeClient as any).drive_link}
-            target="_blank"
-            rel="noopener noreferrer"
-            variants={itemVariants}
-            className="group bg-white rounded-[2.5rem] p-10 shadow-[0_4px_25px_rgba(0,0,0,0.02)] border border-black/[0.02] hover:shadow-[0_15px_45px_rgba(0,0,0,0.05)] hover:border-brand-dark/10 transition-all duration-500 cursor-pointer flex flex-col relative h-full"
-          >
-            {isAdmin && (
-              <button 
-                onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleSetUrl('drive'); }}
-                className="absolute top-10 right-20 p-2 bg-gray-50 rounded-full opacity-0 group-hover:opacity-100 transition-opacity hover:bg-gray-100"
-              >
-                <Globe size={18} className="text-gray-400" />
-              </button>
-            )}
-            <div className="flex justify-between items-start mb-8">
-              <div className="w-16 h-16 bg-teal-50/50 rounded-[20px] flex items-center justify-center text-teal-600 group-hover:bg-teal-600 group-hover:text-white transition-all duration-500 shadow-sm">
-                <FolderOpen size={32} />
-              </div>
-              <ArrowRight size={22} className="text-gray-200 group-hover:text-brand-dark transform group-hover:-rotate-45 transition-all duration-500" />
-            </div>
-            <h3 className="text-2xl font-bold text-brand-dark mb-3 tracking-tight">Documentos</h3>
-            <p className="text-gray-500 text-sm leading-relaxed font-medium">
-              Repositório de arquivos, contratos e relatórios mensais.
-            </p>
-          </motion.a>
-        ) : (
-          <motion.div 
-            key="arquivos"
-            variants={itemVariants}
-            onClick={() => isAdmin && handleSetUrl('drive')}
-            className={`group bg-white rounded-[2.5rem] p-10 shadow-[0_4px_25px_rgba(0,0,0,0.02)] border border-black/[0.02] ${isAdmin ? 'cursor-pointer hover:border-brand-dark/10' : 'opacity-60 cursor-default'} transition-all duration-500 flex flex-col relative h-full`}
-          >
-            <div className="flex justify-between items-start mb-8">
-              <div className="w-16 h-16 bg-teal-50/50 rounded-[20px] flex items-center justify-center text-teal-600 shadow-sm">
-                <FolderOpen size={32} />
-              </div>
-              <div className="flex flex-col items-end gap-1">
-                <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-gray-400">Em breve</span>
-                {isAdmin && <span className="text-[8px] text-brand-dark font-bold uppercase tracking-widest opacity-40 group-hover:opacity-100 transition-opacity">Configurar Link</span>}
-              </div>
-            </div>
-            <h3 className="text-2xl font-bold text-brand-dark mb-3 tracking-tight">Documentos</h3>
-            <p className="text-gray-500 text-sm leading-relaxed font-medium">
-              Repositório de arquivos, contratos e relatórios mensais.
-            </p>
-          </motion.div>
-        )
-      )
+      action: () => {
+        if (activeClient?.drive_link) {
+          window.open(activeClient.drive_link, '_blank');
+        } else if (isAdmin) {
+          handleSetUrl('drive');
+        }
+      }
     },
     {
       id: 'tutoriais',
+      label: 'Tutoriais',
+      subtitle: 'Guias e materiais',
+      icon: ClipboardList,
       visible: showTutorials,
-      render: () => (
-        <motion.div 
-          key="tutoriais"
-          variants={itemVariants}
-          onClick={onNavigateToTutorials}
-          className="group bg-white rounded-[2.5rem] p-10 shadow-[0_4px_25px_rgba(0,0,0,0.02)] border border-black/[0.02] hover:shadow-[0_15px_45px_rgba(0,0,0,0.05)] hover:border-brand-dark/10 transition-all duration-500 cursor-pointer flex flex-col h-full"
-        >
-          <div className="flex justify-between items-start mb-8">
-            <div className="w-16 h-16 bg-blue-50/50 rounded-[20px] flex items-center justify-center text-blue-600 group-hover:bg-blue-600 group-hover:text-white transition-all duration-500 shadow-sm">
-              <BookOpen size={32} />
-            </div>
-            <ArrowRight size={22} className="text-gray-200 group-hover:text-brand-dark transform group-hover:-rotate-45 transition-all duration-500" />
-          </div>
-          <h3 className="text-2xl font-bold text-brand-dark mb-3 tracking-tight">Tutoriais</h3>
-          <p className="text-gray-500 text-sm leading-relaxed font-medium">
-            Aprenda a gerenciar suas plataformas e aprovar conteúdos.
-          </p>
-        </motion.div>
-      )
+      action: onNavigateToTutorials
     },
     {
       id: 'strategic-briefings',
+      label: 'Briefings',
+      subtitle: 'Alinhamento estratégico',
+      icon: Target,
       visible: showBriefings,
-      render: () => (
-        <motion.div 
-          key="strategic-briefings"
-          variants={itemVariants}
-          onClick={onNavigateToStrategicBriefings}
-          className="group bg-white rounded-[2.5rem] p-10 shadow-[0_4px_25px_rgba(0,0,0,0.02)] border border-black/[0.02] hover:shadow-[0_15px_45px_rgba(0,0,0,0.05)] hover:border-brand-dark/10 transition-all duration-500 cursor-pointer flex flex-col h-full"
-        >
-          <div className="flex justify-between items-start mb-8">
-            <div className="w-16 h-16 bg-rose-50/50 rounded-[20px] flex items-center justify-center text-rose-600 group-hover:bg-rose-600 group-hover:text-white transition-all duration-500 shadow-sm">
-              <Target size={32} />
-            </div>
-            <ArrowRight size={22} className="text-gray-200 group-hover:text-brand-dark transform group-hover:-rotate-45 transition-all duration-500" />
-          </div>
-          <h3 className="text-2xl font-bold text-brand-dark mb-3 tracking-tight">Briefings</h3>
-          <p className="text-gray-500 text-sm leading-relaxed font-medium">
-            Formulários estratégicos e alinhamento de marca.
-          </p>
-        </motion.div>
-      )
+      action: onNavigateToStrategicBriefings
     }
   ];
 
   const menuOrder = activeClient?.features_settings?.menu_order;
-  const sortedCards = allCards
-    .filter(c => c.visible)
+  const visibleModules = modulesList
+    .filter(m => m.visible)
     .sort((a, b) => {
       if (!menuOrder) return 0;
       let idxA = menuOrder.indexOf(a.id);
@@ -533,6 +471,52 @@ export const ClientHome: React.FC<ClientHomeProps> = ({
       return idxA - idxB;
     });
 
+  // Estatísticas para os 3 cards de ação rápida
+  const quickActionStats = [
+    {
+      id: 'para_aprovar',
+      label: 'Para aprovar',
+      value: postsParaAprovar.length,
+      icon: CheckCircle2,
+      color: '#f59e0b', // âmbar
+      hasBadgePulse: postsParaAprovar.length > 0,
+      action: () => {
+        if (onNavigateToPublicacoes) {
+          onNavigateToPublicacoes('pending_approval');
+        } else {
+          onNavigateToMapa('publicacoes', 'pending_approval');
+        }
+      }
+    },
+    {
+      id: 'em_producao',
+      label: 'Em produção',
+      value: postsEmProducao.length,
+      icon: Clock,
+      color: '#3b82f6', // azul
+      hasBadgePulse: false,
+      action: () => {
+        if (onNavigateToPublicacoes) {
+          onNavigateToPublicacoes('draft');
+        } else {
+          onNavigateToMapa('publicacoes');
+        }
+      }
+    },
+    {
+      id: 'publicados_mes',
+      label: 'Publicados este mês',
+      value: postsPublicadosMes.length,
+      icon: TrendingUp,
+      color: '#10b981', // verde
+      hasBadgePulse: false,
+      action: () => {
+        onNavigateToMapa('mapa');
+      }
+    }
+  ];
+
+  // Se a visualização for o CRM Lead Tracker
   if (activeView === 'leads' && activeClient) {
     const isLawyer = !!activeClient.features_settings?.crm_specialty;
     const defaultConfig: ClientLeadConfig = {
@@ -557,7 +541,7 @@ export const ClientHome: React.FC<ClientHomeProps> = ({
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           <button 
             onClick={() => setActiveView('dashboard')}
-            className="flex items-center gap-2 text-gray-500 hover:text-brand-dark mb-6 transition-colors font-medium"
+            className="flex items-center gap-2 text-gray-500 hover:text-brand-dark mb-6 transition-colors font-medium cursor-pointer"
           >
             <ArrowLeft size={20} />
             Voltar ao Dashboard
@@ -575,118 +559,453 @@ export const ClientHome: React.FC<ClientHomeProps> = ({
     );
   }
 
+  const saudacao = getGreeting();
+  const primeiroNome = getFirstName();
+  const nomeMesAno = getMonthYearString();
+  const nomeEmpresa = activeClient?.name || 'Sua Empresa';
+
   return (
-    <div className="flex flex-col items-center justify-center relative pb-10">
-      
-      {/* Background Elements */}
-      <div className="absolute top-0 left-1/4 w-[500px] h-[500px] bg-blue-50/30 rounded-full blur-[120px] -z-10 animate-pulse"></div>
-      <div className="absolute bottom-1/4 right-1/4 w-[500px] h-[500px] bg-indigo-50/30 rounded-full blur-[120px] -z-10 animate-pulse delay-1000"></div>
-
-      <motion.div 
-        initial={{ opacity: 0, y: 20 }}
+    <div className="max-w-6xl mx-auto w-full pb-16">
+      {/* SEÇÃO 1 — Header de boas-vindas */}
+      <motion.div
+        initial={{ opacity: 0, y: 15 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
-        className="max-w-4xl w-full text-center mb-8 space-y-6 flex flex-col items-center"
+        transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
+        style={{
+          background: 'linear-gradient(135deg, #0F1115 0%, #13284D 60%, #20364D 100%)',
+          padding: '32px 40px',
+          borderRadius: 16,
+          marginBottom: 24,
+          position: 'relative',
+          overflow: 'hidden',
+        }}
+        className="shadow-lg"
       >
-        <div className="relative group mb-2">
-          <div className="absolute -inset-4 bg-blue-50/50 rounded-full blur-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-700"></div>
-          <AgencyLogo className="h-20 relative mix-blend-multiply" />
-        </div>
+        {/* Glow decorativo sutil */}
+        <div className="absolute top-0 right-0 w-96 h-96 bg-blue-500/10 rounded-full blur-[100px] pointer-events-none -mr-20 -mt-20"></div>
+        <div className="absolute bottom-0 right-1/3 w-64 h-64 bg-indigo-500/10 rounded-full blur-[80px] pointer-events-none"></div>
 
-        <div className="space-y-4">
-          <h1 className="text-brand-dark font-bold text-5xl md:text-7xl tracking-tighter serif italic leading-none">
-            Bolsa
+        <div className="relative z-10">
+          <p
+            style={{
+              color: '#8A8F98',
+              fontSize: 12,
+              fontWeight: 700,
+              letterSpacing: '0.12em',
+              textTransform: 'uppercase',
+              marginBottom: 8
+            }}
+          >
+            {saudacao} — {nomeMesAno}
+          </p>
+          <h1
+            style={{
+              color: '#ffffff',
+              fontSize: 28,
+              fontWeight: 700,
+              lineHeight: 1.2,
+              margin: 0
+            }}
+          >
+            {saudacao}, {primeiroNome}
           </h1>
-          <div className="w-12 h-0.5 bg-brand-dark mx-auto opacity-10"></div>
-          <p className="text-[10px] md:text-[12px] uppercase tracking-[0.4em] font-bold text-gray-400">
-            by Canguru Digital
+          <p
+            style={{
+              color: '#8A8F98',
+              fontSize: 14,
+              marginTop: 8,
+              marginBottom: 0
+            }}
+          >
+            {nomeEmpresa} · Painel do cliente
           </p>
         </div>
-        
-        <p className="text-[15px] md:text-lg text-gray-500 max-w-xl mx-auto leading-relaxed font-medium mt-4">
-          Acompanhe sua linha editorial, monitore métricas e visualize o crescimento da sua marca em tempo real.
-        </p>
       </motion.div>
 
-      {/* Dashboard Grid */}
-      <div className="max-w-6xl w-full">
-        {/* Onboarding section (separate, always top) */}
-        {!isActuallyOnboardingCompleted && !loadingOnboarding && stats && stats.total > 0 && (
-          <motion.div 
-            initial={{ opacity: 0, scale: 0.98 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="mb-8 px-4 sm:px-0"
-          >
-            <div 
-              onClick={() => isAdmin && onNavigateToOnboarding?.()}
-              className={`bg-brand-dark/5 border border-brand-dark/10 rounded-3xl p-6 flex flex-col md:flex-row md:items-center justify-between gap-6 relative overflow-hidden group transition-colors ${isAdmin ? 'cursor-pointer hover:bg-brand-dark/10' : ''}`}
+      {/* SEÇÃO 2 — Cards de ação rápida */}
+      <motion.div
+        initial={{ opacity: 0, y: 15 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5, delay: 0.1, ease: [0.16, 1, 0.3, 1] }}
+        className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 mb-6"
+      >
+        {quickActionStats.map((stat) => {
+          const Icon = stat.icon;
+          return (
+            <div
+              key={stat.id}
+              onClick={stat.action}
+              style={{
+                background: '#ffffff',
+                borderRadius: 12,
+                padding: '20px 24px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 16,
+                cursor: 'pointer',
+                border: '1.5px solid #f0f0f0',
+                transition: 'box-shadow 0.2s, border-color 0.2s, transform 0.2s',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.boxShadow = '0 6px 20px rgba(0,0,0,0.06)';
+                e.currentTarget.style.borderColor = stat.color;
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.boxShadow = 'none';
+                e.currentTarget.style.borderColor = '#f0f0f0';
+              }}
+              className="relative group select-none active:scale-[0.98]"
             >
-              <div className="absolute top-0 right-0 w-64 h-64 bg-brand-dark/5 rounded-full blur-[80px] -mr-32 -mt-32 opacity-50"></div>
-              
-              <div className="flex items-center gap-6 relative z-10 w-full md:w-auto">
-                <div className="flex-shrink-0 w-16 h-16 bg-white rounded-2xl flex items-center justify-center text-brand-dark shadow-sm">
-                  <Target size={32} />
-                </div>
-                <div className="text-left flex-1">
-                  <h3 className="text-xl font-black text-brand-dark tracking-tight">Sua jornada de onboarding</h3>
-                  {stats.currentPhaseName ? (
-                    <p className="text-sm font-bold text-gray-500 mt-1">
-                      📍 Agora estamos em: <span className="text-brand-dark">{stats.currentPhaseName}</span>
-                    </p>
-                  ) : (
-                    <p className="text-sm font-bold text-gray-500 mt-1">Quase lá!</p>
-                  )}
-                </div>
-              </div>
+              {/* Badge pulsante se for o card Para Aprovar e houver posts */}
+              {stat.hasBadgePulse && (
+                <span className="absolute top-4 right-4 flex h-3 w-3">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-3 w-3 bg-amber-500"></span>
+                </span>
+              )}
 
-              <div className="md:w-64 flex-shrink-0 relative z-10 text-left">
-                <div className="flex justify-between items-center mb-2">
-                  <span className="text-xs font-bold uppercase tracking-widest text-brand-dark/60">Progresso</span>
-                  <span className="text-sm font-black text-brand-dark">
-                    {stats.completed} / {stats.total}
-                  </span>
-                </div>
-                <div className="h-3 w-full bg-white rounded-full overflow-hidden border border-brand-dark/10 relative">
-                  <div 
-                    className="h-full bg-brand-dark rounded-full transition-all duration-1000 ease-out"
-                    style={{ width: `${(stats.completed / (stats.total || 1)) * 100}%` }}
-                  />
-                </div>
+              <div
+                style={{
+                  width: 44,
+                  height: 44,
+                  borderRadius: 12,
+                  background: `${stat.color}15`,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0
+                }}
+              >
+                <Icon size={20} color={stat.color} />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p style={{ fontSize: 28, fontWeight: 700, color: '#13284D', margin: 0, lineHeight: 1.1 }}>
+                  {postsLoading ? '...' : stat.value}
+                </p>
+                <p style={{ fontSize: 12, color: '#8A8F98', margin: '4px 0 0 0', fontWeight: 500 }}>
+                  {stat.label}
+                </p>
               </div>
             </div>
-          </motion.div>
-        )}
+          );
+        })}
+      </motion.div>
 
-        {/* Seus Módulos Section */}
-        <div className="mb-6 px-4 sm:px-0 flex items-center justify-between">
-          <h2 className="text-xs font-bold text-gray-400 uppercase tracking-widest ml-1">Seus Módulos</h2>
-        </div>
-        <motion.div 
-          variants={containerVariants}
-          initial="hidden"
-          animate="visible"
-          className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8 px-4 sm:px-0"
+      {/* SEÇÃO 3 — Publicações pendentes de aprovação (condicional) */}
+      {!postsLoading && postsParaAprovar.length > 0 && (
+        <motion.div
+          initial={{ opacity: 0, y: 15 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.2, ease: [0.16, 1, 0.3, 1] }}
+          style={{ marginBottom: 24 }}
         >
-          {sortedCards.map(card => card.render())}
-        </motion.div>
-      </div>
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              marginBottom: 16
+            }}
+          >
+            <div className="flex items-center gap-2">
+              <h2 style={{ color: '#13284D', fontSize: 16, fontWeight: 700, margin: 0 }}>
+                Aguardando sua aprovação
+              </h2>
+              <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-800">
+                {postsParaAprovar.length}
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                if (onNavigateToPublicacoes) {
+                  onNavigateToPublicacoes('pending_approval');
+                } else {
+                  onNavigateToMapa('publicacoes', 'pending_approval');
+                }
+              }}
+              style={{
+                color: '#13284D',
+                fontSize: 13,
+                fontWeight: 600,
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 4
+              }}
+              className="hover:underline transition-all"
+            >
+              Ver todas →
+            </button>
+          </div>
 
-      {/* Premium Watermark & Support */}
-      <motion.div 
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: 2, duration: 2 }}
-        className="mt-20 flex flex-col items-center gap-6"
+          {/* Listar até 3 cards simples */}
+          <div className="flex flex-col gap-2.5">
+            {postsParaAprovar.slice(0, 3).map((post) => {
+              const platform = (post.platform || 'meta').toUpperCase();
+              const displayPlatform = platform === 'META' ? 'INSTAGRAM' : platform;
+              const type = post.type || 'Estático';
+              const title = post.theme_title ?? post.theme ?? post.description ?? 'Publicação sem tema';
+              const formattedDate = formatDateDisplay(post.date_key);
+
+              return (
+                <div
+                  key={post.id}
+                  style={{
+                    background: '#ffffff',
+                    borderRadius: 10,
+                    padding: '16px 20px',
+                    border: '1.5px solid #f0f0f0',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: 16,
+                    transition: 'box-shadow 0.2s, border-color 0.2s'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.boxShadow = '0 4px 16px rgba(0,0,0,0.06)';
+                    e.currentTarget.style.borderColor = '#13284D';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.boxShadow = 'none';
+                    e.currentTarget.style.borderColor = '#f0f0f0';
+                  }}
+                  className="flex flex-col sm:flex-row sm:items-center justify-between gap-4"
+                >
+                  <div className="flex-1 min-w-0">
+                    <div style={{ display: 'flex', gap: 8, marginBottom: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+                      <span
+                        style={{
+                          fontSize: 10,
+                          fontWeight: 700,
+                          letterSpacing: '0.08em',
+                          textTransform: 'uppercase',
+                          padding: '3px 8px',
+                          borderRadius: 6,
+                          background: '#f3f4f6',
+                          color: '#374151'
+                        }}
+                      >
+                        {displayPlatform}
+                      </span>
+                      {type && (
+                        <span
+                          style={{
+                            fontSize: 10,
+                            fontWeight: 600,
+                            padding: '3px 8px',
+                            borderRadius: 6,
+                            background: '#eff6ff',
+                            color: '#1d4ed8'
+                          }}
+                        >
+                          {type}
+                        </span>
+                      )}
+                      {(post.status === 'changes_requested' || post.status === 'alteracao_solicitada') && (
+                        <span
+                          style={{
+                            fontSize: 10,
+                            fontWeight: 600,
+                            padding: '3px 8px',
+                            borderRadius: 6,
+                            background: '#fefce8',
+                            color: '#854f0b'
+                          }}
+                        >
+                          Ajustes solicitados
+                        </span>
+                      )}
+                    </div>
+                    <p style={{ color: '#13284D', fontSize: 14, fontWeight: 600, margin: 0 }} className="truncate">
+                      {title}
+                    </p>
+                    <p style={{ color: '#8A8F98', fontSize: 12, marginTop: 4, marginBottom: 0 }}>
+                      {formattedDate ? `Data prevista: ${formattedDate}` : 'Sem data definida'}
+                    </p>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => handleOpenPost(post)}
+                    style={{
+                      padding: '8px 16px',
+                      borderRadius: 8,
+                      border: '1.5px solid #13284D',
+                      background: 'none',
+                      color: '#13284D',
+                      fontSize: 13,
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      transition: 'all 0.2s',
+                      flexShrink: 0
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.background = '#13284D';
+                      e.currentTarget.style.color = '#ffffff';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.background = 'none';
+                      e.currentTarget.style.color = '#13284D';
+                    }}
+                    className="self-start sm:self-center active:scale-95"
+                  >
+                    Ver
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        </motion.div>
+      )}
+
+      {/* Jornada de Onboarding (caso não esteja concluído) */}
+      {!isActuallyOnboardingCompleted && !loadingOnboarding && onboardingStats && onboardingStats.total > 0 && (
+        <motion.div
+          initial={{ opacity: 0, scale: 0.98 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="mb-8"
+        >
+          <div
+            onClick={() => isAdmin && onNavigateToOnboarding?.()}
+            className={`bg-brand-dark/5 border border-brand-dark/10 rounded-2xl p-6 flex flex-col md:flex-row md:items-center justify-between gap-6 relative overflow-hidden group transition-colors ${isAdmin ? 'cursor-pointer hover:bg-brand-dark/10' : ''}`}
+          >
+            <div className="absolute top-0 right-0 w-64 h-64 bg-brand-dark/5 rounded-full blur-[80px] -mr-32 -mt-32 opacity-50"></div>
+
+            <div className="flex items-center gap-5 relative z-10 w-full md:w-auto">
+              <div className="flex-shrink-0 w-14 h-14 bg-white rounded-xl flex items-center justify-center text-brand-dark shadow-sm">
+                <Target size={28} />
+              </div>
+              <div className="text-left flex-1">
+                <h3 className="text-lg font-bold text-brand-dark tracking-tight">Sua jornada de onboarding</h3>
+                {onboardingStats.currentPhaseName ? (
+                  <p className="text-sm font-semibold text-gray-500 mt-1">
+                    📍 Agora estamos em: <span className="text-brand-dark">{onboardingStats.currentPhaseName}</span>
+                  </p>
+                ) : (
+                  <p className="text-sm font-semibold text-gray-500 mt-1">Quase lá!</p>
+                )}
+              </div>
+            </div>
+
+            <div className="md:w-64 flex-shrink-0 relative z-10 text-left">
+              <div className="flex justify-between items-center mb-2">
+                <span className="text-xs font-bold uppercase tracking-widest text-brand-dark/60">Progresso</span>
+                <span className="text-sm font-black text-brand-dark">
+                  {onboardingStats.completed} / {onboardingStats.total}
+                </span>
+              </div>
+              <div className="h-2.5 w-full bg-white rounded-full overflow-hidden border border-brand-dark/10 relative">
+                <div
+                  className="h-full bg-brand-dark rounded-full transition-all duration-1000 ease-out"
+                  style={{ width: `${(onboardingStats.completed / (onboardingStats.total || 1)) * 100}%` }}
+                />
+              </div>
+            </div>
+          </div>
+        </motion.div>
+      )}
+
+      {/* SEÇÃO 4 — Seus módulos (grade menor / Acesso rápido) */}
+      <motion.div
+        initial={{ opacity: 0, y: 15 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5, delay: 0.3, ease: [0.16, 1, 0.3, 1] }}
+        className="mt-6"
       >
-        <p className="text-[12px] text-gray-400 font-medium">
-          Precisa de ajuda? Nos chame no grupo de WhatsApp.
-        </p>
-        <div className="flex items-center gap-4 select-none pointer-events-none opacity-5">
-          <Sparkles size={16} />
-          <span className="text-[10px] uppercase tracking-[0.5em] font-bold">Experiência Premium Bolsa</span>
-          <Sparkles size={16} />
+        <h2
+          style={{
+            color: '#13284D',
+            fontSize: 16,
+            fontWeight: 700,
+            marginBottom: 16
+          }}
+        >
+          Acesso rápido
+        </h2>
+
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))',
+            gap: 12
+          }}
+        >
+          {visibleModules.map((modulo) => {
+            const ModIcon = modulo.icon;
+            return (
+              <div
+                key={modulo.id}
+                onClick={modulo.action}
+                style={{
+                  background: '#ffffff',
+                  border: '1.5px solid #f0f0f0',
+                  borderRadius: 12,
+                  padding: '18px 16px',
+                  cursor: 'pointer',
+                  transition: 'box-shadow 0.2s, border-color 0.2s, transform 0.2s',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  justifyContent: 'space-between'
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.boxShadow = '0 4px 16px rgba(0,0,0,0.08)';
+                  e.currentTarget.style.borderColor = '#13284D';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.boxShadow = 'none';
+                  e.currentTarget.style.borderColor = '#f0f0f0';
+                }}
+                className="group active:scale-[0.98]"
+              >
+                <div>
+                  <div style={{ marginBottom: 12 }}>
+                    <ModIcon size={20} color="#13284D" className="group-hover:scale-110 transition-transform origin-left" />
+                  </div>
+                  <p style={{ color: '#13284D', fontSize: 14, fontWeight: 700, margin: 0, lineHeight: 1.2 }}>
+                    {modulo.label}
+                  </p>
+                </div>
+                {modulo.subtitle && (
+                  <p style={{ color: '#8A8F98', fontSize: 11, marginTop: 6, margin: '6px 0 0 0', lineHeight: 1.2 }}>
+                    {modulo.subtitle}
+                  </p>
+                )}
+              </div>
+            );
+          })}
         </div>
       </motion.div>
+
+      {/* Suporte e Rodapé sutil */}
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ delay: 0.6, duration: 0.8 }}
+        className="mt-16 text-center text-xs text-gray-400 flex flex-col items-center gap-2"
+      >
+        <p className="font-medium">
+          Precisa de suporte estratégico ou tem dúvidas? Entre em contato com a equipe da Canguru Digital.
+        </p>
+      </motion.div>
+
+      {/* Modal de Publicação ao clicar em "Ver" */}
+      {modalOpen && selectedPost && (
+        <PostModal
+          dayContent={selectedPost.dayContent}
+          dateKey={selectedPost.dateKey}
+          groupKeys={selectedPost.groupKeys}
+          onClose={() => {
+            setModalOpen(false);
+            setSelectedPost(null);
+          }}
+          onUpdate={() => {
+            fetchClientPosts();
+          }}
+        />
+      )}
     </div>
   );
 };

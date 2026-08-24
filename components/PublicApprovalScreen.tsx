@@ -14,6 +14,7 @@ export const PublicApprovalScreen: React.FC = () => {
   const [counterpartPost, setCounterpartPost] = useState<PostData | null>(null);
   const [primaryContent, setPrimaryContent] = useState<DailyContent | null>(null);
   const [counterpartContent, setCounterpartContent] = useState<DailyContent | null>(null);
+  const [allGroupPosts, setAllGroupPosts] = useState<{ post: PostData; content: DailyContent; platform: 'meta' | 'linkedin' | 'tiktok' }[]>([]);
   
   // Comments State
   const [comments, setComments] = useState<PostComment[]>([]);
@@ -41,6 +42,12 @@ export const PublicApprovalScreen: React.FC = () => {
   const handleImageClick = (url: string) => {
       setLightboxImage(url);
       setLightboxOpen(true);
+  };
+
+  const getPlatformFromKey = (key: string): 'meta' | 'linkedin' | 'tiktok' => {
+      if (key.includes('linkedin')) return 'linkedin';
+      if (key.includes('tiktok')) return 'tiktok';
+      return 'meta';
   };
 
   // Get ID from URL
@@ -72,11 +79,12 @@ export const PublicApprovalScreen: React.FC = () => {
           const parsedImage = parseImageUrl(dbData.image_url);
           
           const parts = key.split('-');
+          const plat = getPlatformFromKey(key);
           
           // Existe no banco
           const content = {
                 day: `${parts[0]}/${parts[1]}`,
-                platform: (key.includes('linkedin') ? 'linkedin' : 'meta') as 'meta' | 'linkedin',
+                platform: plat,
                 type: dbData.type || 'Post',
                 theme: dbData.theme || 'Sem tema',
                 bullets: dbData.bullets || [],
@@ -101,24 +109,74 @@ export const PublicApprovalScreen: React.FC = () => {
          const primary = await fetchPostData(dateKey);
          if (!primary) throw new Error('Publicação não encontrada.');
          
+         const primaryPlat = getPlatformFromKey(primary.post.date_key);
          setPrimaryPost(primary.post);
          setPrimaryContent(primary.content);
-         setActiveTab(primary.content.platform);
+         setActiveTab(primaryPlat);
 
-         // 2. Try to Load Counterpart
-         const currentPlatform = dateKey.includes('linkedin') ? 'linkedin' : 'meta';
-         const otherPlatform = currentPlatform === 'linkedin' ? 'meta' : 'linkedin';
-         const counterpartKey = dateKey.replace(currentPlatform, otherPlatform);
-         
-         const partner = await fetchPostData(counterpartKey);
-         if (partner) {
-             setCounterpartPost(partner.post);
-             setCounterpartContent(partner.content);
+         const loadedGroup: { post: PostData; content: DailyContent; platform: 'meta' | 'linkedin' | 'tiktok' }[] = [
+             { post: primary.post, content: primary.content, platform: primaryPlat }
+         ];
+
+         // 2. Try to Load Sibling Posts / Linked Versions
+         const timestamp = primary.post.date_key.split('-').pop();
+         if (timestamp && primary.post.client_id) {
+             const { data: siblingsData } = await supabase
+                 .from('posts')
+                 .select('*')
+                 .eq('client_id', primary.post.client_id)
+                 .like('date_key', `%-${timestamp}`)
+                 .neq('date_key', primary.post.date_key)
+                 .neq('status', 'deleted');
+
+             if (siblingsData && siblingsData.length > 0) {
+                 for (const sib of siblingsData) {
+                     const sibPlat = getPlatformFromKey(sib.date_key);
+                     const parsedImage = parseImageUrl(sib.image_url);
+                     const sibParts = sib.date_key.split('-');
+                     const sibContent = {
+                         day: `${sibParts[0]}/${sibParts[1]}`,
+                         platform: sibPlat,
+                         type: sib.type || 'Post',
+                         theme: sib.theme || 'Sem tema',
+                         bullets: sib.bullets || [],
+                         initialImageUrl: (parsedImage as string | string[] | undefined)
+                     };
+                     loadedGroup.push({
+                         post: { ...sib, image_url: parsedImage } as PostData,
+                         content: sibContent,
+                         platform: sibPlat
+                     });
+                 }
+             }
          }
 
-         // 3. Load Comments (fetch for both keys to be safe)
-         const keysToFetch = [primary.post.date_key];
-         if (partner) keysToFetch.push(partner.post.date_key);
+         // Fallback legacy counterpart key
+         if (loadedGroup.length === 1) {
+             const currentPlatform = dateKey.includes('linkedin') ? 'linkedin' : (dateKey.includes('tiktok') ? 'tiktok' : 'meta');
+             const otherPlatform = currentPlatform === 'linkedin' ? 'meta' : 'linkedin';
+             const counterpartKey = dateKey.replace(currentPlatform, otherPlatform);
+             
+             const partner = await fetchPostData(counterpartKey);
+             if (partner) {
+                 loadedGroup.push({
+                     post: partner.post,
+                     content: partner.content,
+                     platform: getPlatformFromKey(partner.post.date_key)
+                 });
+             }
+         }
+
+         setAllGroupPosts(loadedGroup);
+
+         const counterpart = loadedGroup.find(p => p.post.date_key !== primary.post.date_key);
+         if (counterpart) {
+             setCounterpartPost(counterpart.post);
+             setCounterpartContent(counterpart.content);
+         }
+
+         // 3. Load Comments (fetch for all linked keys)
+         const keysToFetch = loadedGroup.map(g => g.post.date_key);
 
          const { data: commentsData } = await supabase
             .from('comments')
@@ -193,6 +251,7 @@ export const PublicApprovalScreen: React.FC = () => {
      setSubmitting(true);
      try {
         const approvedStatus = isThemeMode ? 'theme_approved' : 'approved';
+        const hasLinked = allGroupPosts.length > 1 || !!counterpartPost;
         
         // 1. Salvar Comentário Primeiro
         const newCommentObj = {
@@ -200,7 +259,7 @@ export const PublicApprovalScreen: React.FC = () => {
            agency_id: primaryPost.agency_id || agencyId || 1,
            author_role: 'approver',
            author_name: name,
-           content: isThemeMode ? `✅ APROVOU o tema${counterpartPost ? ' (e a versão vinculada)' : ''}.` : `✅ APROVOU a publicação${counterpartPost ? ' (e a versão vinculada)' : ''}.`,
+           content: isThemeMode ? `✅ APROVOU o tema${hasLinked ? ' (e a versão vinculada)' : ''}.` : `✅ APROVOU a publicação${hasLinked ? ' (e a versão vinculada)' : ''}.`,
            visible_to_admin: true
         };
         const { data: insertedComment, error: commentError } = await supabase.from('comments').insert(newCommentObj).select().single();
@@ -210,23 +269,45 @@ export const PublicApprovalScreen: React.FC = () => {
              return;
         }
 
-        // 2. Aprovar Principal e Contraparte
+        // 2. Aprovar Post Principal
         await savePostStatus(primaryPost, primaryContent, approvedStatus);
-        if (counterpartPost && counterpartContent) {
-            await savePostStatus(counterpartPost, counterpartContent, approvedStatus);
+
+        // 3. Atualizar também todas as versões vinculadas (mesmo timestamp, mesmo client)
+        const timestamp = primaryPost.date_key.split('-').pop();
+        if (timestamp && primaryPost.client_id) {
+            await supabase
+              .from('posts')
+              .update({ status: approvedStatus, last_updated: new Date().toISOString() })
+              .eq('client_id', primaryPost.client_id)
+              .like('date_key', `%-${timestamp}`)
+              .neq('id', primaryPost.id)
+              .neq('status', 'published')
+              .neq('status', 'deleted');
+        }
+
+        // Se houver itens adicionais em memória (ex: fallback sem timestamp), atualiza-os também
+        for (const item of allGroupPosts) {
+            if (item.post.date_key !== primaryPost.date_key) {
+                await savePostStatus(item.post, item.content, approvedStatus);
+            }
         }
 
         if (insertedComment) {
             setComments(prev => [...prev, insertedComment as PostComment]);
         }
 
-        // Atualizar estado local
+        // Atualizar estado local (UI)
         setPrimaryPost(prev => prev ? ({...prev, status: approvedStatus}) : null);
         if (counterpartPost) setCounterpartPost(prev => prev ? ({...prev, status: approvedStatus}) : null);
+        setAllGroupPosts(prev => prev.map(item => ({
+            ...item,
+            post: { ...item.post, status: approvedStatus }
+        })));
         
         setSuccessMessage(isThemeMode ? 'Tema aprovado com sucesso!' : 'Publicação aprovada com sucesso!');
         setPendingAction(null);
      } catch (err) {
+        console.error('Erro ao aprovar:', err);
         alert('Erro ao aprovar.');
      } finally {
         setSubmitting(false);
@@ -276,18 +357,43 @@ export const PublicApprovalScreen: React.FC = () => {
                  }, { onConflict: 'date_key' });
         };
 
-        // 2. Marcar rejected Principal e Contraparte
+        // 2. Marcar rejected no Post Principal
         await saveRejectedStatus(primaryPost, primaryContent!);
-        if (counterpartPost && counterpartContent) {
-            await saveRejectedStatus(counterpartPost, counterpartContent);
+
+        // 3. Atualizar versões vinculadas (mesmo timestamp, mesmo client)
+        const timestamp = primaryPost.date_key.split('-').pop();
+        if (timestamp && primaryPost.client_id) {
+            await supabase
+              .from('posts')
+              .update({ 
+                status: rejectedStatus, 
+                last_updated: new Date().toISOString(),
+                ...extraFields 
+              })
+              .eq('client_id', primaryPost.client_id)
+              .like('date_key', `%-${timestamp}`)
+              .neq('id', primaryPost.id)
+              .neq('status', 'published')
+              .neq('status', 'deleted');
+        }
+
+        for (const item of allGroupPosts) {
+            if (item.post.date_key !== primaryPost.date_key) {
+                await saveRejectedStatus(item.post, item.content);
+            }
         }
 
         if (insertedComment) {
             setComments(prev => [...prev, insertedComment as PostComment]);
         }
 
+        // Atualizar estado local (UI)
         setPrimaryPost(prev => prev ? ({...prev, status: rejectedStatus, ...extraFields}) : null);
         if (counterpartPost) setCounterpartPost(prev => prev ? ({...prev, status: rejectedStatus, ...extraFields}) : null);
+        setAllGroupPosts(prev => prev.map(item => ({
+            ...item,
+            post: { ...item.post, status: rejectedStatus, ...extraFields }
+        })));
 
         setSuccessMessage(isThemeMode ? 'Tema reprovado com sucesso!' : 'Publicação reprovada com sucesso!');
         setShowCommentBox(false);
@@ -295,6 +401,7 @@ export const PublicApprovalScreen: React.FC = () => {
         setPendingAction(null);
 
      } catch (err) {
+        console.error('Erro ao reprovar:', err);
         alert('Erro ao enviar reprovação.');
      } finally {
         setSubmitting(false);
@@ -344,18 +451,43 @@ export const PublicApprovalScreen: React.FC = () => {
                  }, { onConflict: 'date_key' });
         };
 
-        // 2. Marcar changes_requested Principal e Contraparte
+        // 2. Marcar changes_requested no Post Principal
         await saveChangesStatus(primaryPost, primaryContent!);
-        if (counterpartPost && counterpartContent) {
-            await saveChangesStatus(counterpartPost, counterpartContent);
+
+        // 3. Atualizar versões vinculadas (mesmo timestamp, mesmo client)
+        const timestamp = primaryPost.date_key.split('-').pop();
+        if (timestamp && primaryPost.client_id) {
+            await supabase
+              .from('posts')
+              .update({ 
+                status: changesStatus, 
+                last_updated: new Date().toISOString(),
+                ...extraFields 
+              })
+              .eq('client_id', primaryPost.client_id)
+              .like('date_key', `%-${timestamp}`)
+              .neq('id', primaryPost.id)
+              .neq('status', 'published')
+              .neq('status', 'deleted');
+        }
+
+        for (const item of allGroupPosts) {
+            if (item.post.date_key !== primaryPost.date_key) {
+                await saveChangesStatus(item.post, item.content);
+            }
         }
 
         if (insertedComment) {
             setComments(prev => [...prev, insertedComment as PostComment]);
         }
 
+        // Atualizar estado local (UI)
         setPrimaryPost(prev => prev ? ({...prev, status: changesStatus, ...extraFields}) : null);
         if (counterpartPost) setCounterpartPost(prev => prev ? ({...prev, status: changesStatus, ...extraFields}) : null);
+        setAllGroupPosts(prev => prev.map(item => ({
+            ...item,
+            post: { ...item.post, status: changesStatus, ...extraFields }
+        })));
 
         setSuccessMessage(isThemeMode ? 'Tema aprovado com observação!' : 'Solicitação de ajuste enviada!');
         setShowCommentBox(false);
@@ -363,6 +495,7 @@ export const PublicApprovalScreen: React.FC = () => {
         setPendingAction(null);
 
      } catch (err) {
+        console.error('Erro ao enviar solicitação:', err);
         alert('Erro ao enviar solicitação.');
      } finally {
         setSubmitting(false);
@@ -382,13 +515,14 @@ export const PublicApprovalScreen: React.FC = () => {
   // --- RENDER HELPERS ---
 
   // Determine which data to show based on active tab
-  const activePost = activeTab === 'meta' 
+  const currentGroupItem = allGroupPosts.find(p => p.platform === activeTab);
+  const activePost = currentGroupItem?.post || (activeTab === 'meta' 
       ? (primaryContent.platform === 'meta' ? primaryPost : counterpartPost) 
-      : (primaryContent.platform === 'linkedin' ? primaryPost : counterpartPost);
+      : (primaryContent.platform === 'linkedin' ? primaryPost : counterpartPost));
 
-  const activeContent = activeTab === 'meta'
+  const activeContent = currentGroupItem?.content || (activeTab === 'meta'
       ? (primaryContent.platform === 'meta' ? primaryContent : counterpartContent)
-      : (primaryContent.platform === 'linkedin' ? primaryContent : counterpartContent);
+      : (primaryContent.platform === 'linkedin' ? primaryContent : counterpartContent));
 
   // Safe checks incase tab switch is weird
   const safePost = activePost || primaryPost;
@@ -428,7 +562,8 @@ export const PublicApprovalScreen: React.FC = () => {
     return map[s || 'draft'] || s;
   };
 
-  const hasMultiple = !!counterpartPost;
+  const availablePlatforms = Array.from(new Set(allGroupPosts.map(p => p.platform)));
+  const hasMultiple = availablePlatforms.length > 1 || !!counterpartPost;
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col font-sans">
@@ -497,24 +632,30 @@ export const PublicApprovalScreen: React.FC = () => {
                    {/* Platform Tabs (if multiple) */}
                    {hasMultiple && (
                        <div className="flex gap-2 mb-4 bg-white p-1.5 rounded-lg border border-gray-200 shadow-sm self-center">
-                           <button 
-                               onClick={() => setActiveTab('meta')}
-                               className={`px-4 py-2 rounded-md text-sm font-bold flex items-center gap-2 transition-all ${activeTab === 'meta' ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-sm' : 'text-gray-500 hover:bg-gray-50'}`}
-                           >
-                               <Instagram size={16} /> Instagram
-                           </button>
-                           <button 
-                               onClick={() => setActiveTab('linkedin')}
-                               className={`px-4 py-2 rounded-md text-sm font-bold flex items-center gap-2 transition-all ${activeTab === 'linkedin' ? 'bg-[#0077B5] text-white shadow-sm' : 'text-gray-500 hover:bg-gray-50'}`}
-                           >
-                               <Linkedin size={16} /> LinkedIn
-                           </button>
-                           <button 
-                               onClick={() => setActiveTab('tiktok')}
-                               className={`px-4 py-2 rounded-md text-sm font-bold flex items-center gap-2 transition-all ${activeTab === 'tiktok' ? 'bg-black text-white shadow-sm' : 'text-gray-500 hover:bg-gray-50'}`}
-                           >
-                               <span className="font-bold">♪</span> TikTok
-                           </button>
+                           {(availablePlatforms.length > 0 ? availablePlatforms.includes('meta') : true) && (
+                               <button 
+                                   onClick={() => setActiveTab('meta')}
+                                   className={`px-4 py-2 rounded-md text-sm font-bold flex items-center gap-2 transition-all ${activeTab === 'meta' ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-sm' : 'text-gray-500 hover:bg-gray-50'}`}
+                               >
+                                   <Instagram size={16} /> Instagram
+                               </button>
+                           )}
+                           {(availablePlatforms.length > 0 ? availablePlatforms.includes('linkedin') : true) && (
+                               <button 
+                                   onClick={() => setActiveTab('linkedin')}
+                                   className={`px-4 py-2 rounded-md text-sm font-bold flex items-center gap-2 transition-all ${activeTab === 'linkedin' ? 'bg-[#0077B5] text-white shadow-sm' : 'text-gray-500 hover:bg-gray-50'}`}
+                               >
+                                   <Linkedin size={16} /> LinkedIn
+                               </button>
+                           )}
+                           {availablePlatforms.includes('tiktok') && (
+                               <button 
+                                   onClick={() => setActiveTab('tiktok')}
+                                   className={`px-4 py-2 rounded-md text-sm font-bold flex items-center gap-2 transition-all ${activeTab === 'tiktok' ? 'bg-black text-white shadow-sm' : 'text-gray-500 hover:bg-gray-50'}`}
+                               >
+                                   <span className="font-bold">♪</span> TikTok
+                               </button>
+                           )}
                        </div>
                    )}
 
@@ -596,12 +737,12 @@ export const PublicApprovalScreen: React.FC = () => {
                       {hasMultiple ? (
                           <div className="mb-6 p-3 bg-blue-50 border border-blue-100 rounded-lg text-xs text-blue-700 font-medium text-center flex items-center justify-center gap-2">
                               <CheckCircle2 size={14} />
-                              Esta aprovação se aplica a ambas as plataformas (Instagram e LinkedIn).
+                              Esta aprovação se aplica a todas as versões vinculadas da publicação.
                           </div>
                       ) : (
-                          <div className={`mb-6 p-3 border rounded-lg text-xs font-bold text-center flex items-center justify-center gap-2 ${primaryContent.platform === 'meta' ? 'bg-purple-50 border-purple-100 text-purple-700' : 'bg-blue-50 border-blue-100 text-blue-700'}`}>
-                              {primaryContent.platform === 'meta' ? <Instagram size={14} /> : <Linkedin size={14} />}
-                              Publicação exclusiva para {primaryContent.platform === 'meta' ? 'Instagram' : 'LinkedIn'}.
+                          <div className={`mb-6 p-3 border rounded-lg text-xs font-bold text-center flex items-center justify-center gap-2 ${primaryContent.platform === 'meta' ? 'bg-purple-50 border-purple-100 text-purple-700' : (primaryContent.platform === 'tiktok' ? 'bg-black text-white border-black' : 'bg-blue-50 border-blue-100 text-blue-700')}`}>
+                              <CheckCircle2 size={14} />
+                              {primaryContent.platform === 'meta' ? 'Publicação exclusiva do Instagram' : (primaryContent.platform === 'tiktok' ? 'Publicação exclusiva do TikTok' : 'Publicação exclusiva do LinkedIn')}
                           </div>
                       )}
 

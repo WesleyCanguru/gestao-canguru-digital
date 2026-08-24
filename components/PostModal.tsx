@@ -242,7 +242,29 @@ export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, group
 
          let fetchedGroupPostRecords: any[] = [];
 
-         if (groupKeys && groupKeys.length > 0) {
+         // 1. Try search by timestamp if available
+         const keyTimestamp = dateKey.split('-').pop();
+         if (keyTimestamp && keyTimestamp.length >= 8 && activeClient?.id) {
+             const { data: timestampPosts } = await supabase
+                 .from('posts')
+                 .select('*')
+                 .eq('client_id', activeClient.id)
+                 .like('date_key', `%-${keyTimestamp}`)
+                 .neq('status', 'deleted');
+
+             if (timestampPosts && timestampPosts.length > 0) {
+                 fetchedGroupPostRecords = timestampPosts;
+                 foundKeys = timestampPosts.map(p => p.date_key);
+                 timestampPosts.forEach(p => {
+                     const plat = p.date_key.includes('linkedin') ? 'linkedin' : (p.date_key.includes('tiktok') ? 'tiktok' : 'meta');
+                     if (!platformsFound.includes(plat as any)) platformsFound.push(plat as any);
+                     capsMap[plat] = p.caption || '';
+                     timesMap[plat] = p.scheduled_time || '';
+                 });
+             }
+         }
+
+         if (fetchedGroupPostRecords.length === 0 && groupKeys && groupKeys.length > 0) {
              const { data: groupPosts } = await supabase
                  .from('posts')
                  .select('*')
@@ -261,7 +283,7 @@ export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, group
                      timesMap[plat] = p.scheduled_time || '';
                  });
              }
-         } else {
+         } else if (fetchedGroupPostRecords.length === 0) {
              // Fallback to sibling key search
              const baseKey = `${currentD}-${currentM}-${currentY}`;
              const siblingPlatforms: ('meta' | 'linkedin' | 'tiktok')[] = ['meta', 'linkedin', 'tiktok'];
@@ -758,6 +780,24 @@ export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, group
               ...extraFields
           }, { onConflict: 'date_key' });
       }
+
+      // Update all linked versions sharing the same timestamp in date_key
+      const currentPostKey = post?.date_key === 'temp' ? dateKey : post?.date_key || dateKey;
+      const timestamp = currentPostKey ? currentPostKey.split('-').pop() : null;
+      if (timestamp && activeClient?.id && timestamp.length >= 8) {
+          await supabase
+            .from('posts')
+            .update({ 
+                status: newStatus, 
+                last_updated: new Date().toISOString(),
+                ...extraFields 
+            })
+            .eq('client_id', activeClient.id)
+            .like('date_key', `%-${timestamp}`)
+            .neq('status', 'published')
+            .neq('status', 'deleted');
+      }
+
       setPost(prev => ({ ...prev!, status: newStatus, ...extraFields }));
       if (onUpdate) onUpdate();
   };

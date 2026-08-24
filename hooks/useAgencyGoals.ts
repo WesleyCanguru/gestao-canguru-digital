@@ -106,162 +106,192 @@ export function useAgencyGoals(initialMonthYear?: string): UseAgencyGoalsReturn 
   }, [monthDate]);
 
   const fetchData = useCallback(async () => {
-    if (!agencyId) return;
+    if (!agencyId) {
+      setLoading(false);
+      return;
+    }
+
     try {
       setLoading(true);
 
       const startOfMonthStr = monthDate.startOf('month').format('YYYY-MM-DD');
       const endOfMonthStr = monthDate.endOf('month').format('YYYY-MM-DD');
 
-      // 1. Fetch Goal for this month
-      const { data: goalData, error: goalErr } = await supabase
-        .from('agency_goals')
-        .select('*')
-        .eq('agency_id', agencyId)
-        .eq('month_year', monthYear)
-        .maybeSingle();
+      // Executar buscas em paralelo para máxima performance e resiliência
+      const [
+        goalResult,
+        billingsResult,
+        clientsResult,
+        actionsResult,
+        postsResult,
+        blogPostsResult
+      ] = await Promise.allSettled([
+        // 1. Fetch Goal for this month
+        supabase
+          .from('agency_goals')
+          .select('*')
+          .eq('agency_id', agencyId)
+          .eq('month_year', monthYear)
+          .maybeSingle(),
 
-      if (goalErr && goalErr.code !== 'PGRST116') {
-        console.error('Erro ao buscar metas:', goalErr);
+        // 2. Fetch Billings
+        supabase
+          .from('agency_billing')
+          .select('base_value, extra_value, total_value, status, paid_at, due_day, client:clients(is_internal)')
+          .eq('agency_id', agencyId)
+          .eq('month_year', monthYear),
+
+        // 3. Fetch New Clients
+        supabase
+          .from('clients')
+          .select('id, created_at')
+          .eq('agency_id', agencyId)
+          .neq('is_internal', true)
+          .gte('created_at', `${startOfMonthStr}T00:00:00`)
+          .lte('created_at', `${endOfMonthStr}T23:59:59`),
+
+        // 4. Fetch Commercial Actions
+        supabase
+          .from('agency_commercial_actions')
+          .select('*')
+          .eq('agency_id', agencyId)
+          .gte('action_date', startOfMonthStr)
+          .lte('action_date', endOfMonthStr)
+          .order('action_date', { ascending: false }),
+
+        // 5. Fetch Published Posts
+        supabase
+          .from('posts')
+          .select('id, date_key, status')
+          .eq('agency_id', agencyId)
+          .eq('status', 'published')
+          .limit(10000),
+
+        // 6. Fetch Blog Posts
+        supabase
+          .from('posts')
+          .select('id, date_key, status')
+          .eq('agency_id', agencyId)
+          .eq('client_id', BLOG_CLIENT_ID)
+          .eq('status', 'published')
+          .limit(1000)
+      ]);
+
+      // 1. Process Goal
+      if (goalResult.status === 'fulfilled') {
+        const { data: goalData, error: goalErr } = goalResult.value;
+        if (!goalErr) {
+          setGoal(goalData || null);
+        } else if (goalErr.code !== 'PGRST116') {
+          console.warn('Aviso ao buscar metas (usando padrão):', goalErr.message || goalErr);
+        }
       }
-      setGoal(goalData || null);
 
-      // 2. Fetch Billings (Faturamento total contratado no mês)
-      const { data: billingsData } = await supabase
-        .from('agency_billing')
-        .select('base_value, extra_value, total_value, status, paid_at, due_day, client:clients(is_internal)')
-        .eq('agency_id', agencyId)
-        .eq('month_year', monthYear);
+      // 2. Process Billings
+      if (billingsResult.status === 'fulfilled') {
+        const { data: billingsData } = billingsResult.value;
+        let totalContratado = 0;
+        let contratadoEstaSemana = 0;
 
-      let totalContratado = 0;
-      let contratadoEstaSemana = 0;
+        const now = dayjs();
+        const currentDay = isCurrentMonth ? now.date() : (isPastMonth ? monthDate.daysInMonth() : 1);
+        const currentWeekNum = Math.min(4, Math.max(1, Math.ceil(currentDay / 7)));
+        const weekStartDay = (currentWeekNum - 1) * 7 + 1;
+        const weekEndDay = Math.min(monthDate.daysInMonth(), currentWeekNum * 7);
 
-      // Calcular semana atual do mês para faturamento da semana
-      const now = dayjs();
-      const currentDay = isCurrentMonth ? now.date() : (isPastMonth ? monthDate.daysInMonth() : 1);
-      const currentWeekNum = Math.min(4, Math.max(1, Math.ceil(currentDay / 7)));
-      const weekStartDay = (currentWeekNum - 1) * 7 + 1;
-      const weekEndDay = Math.min(monthDate.daysInMonth(), currentWeekNum * 7);
+        (billingsData || []).forEach((b: any) => {
+          if (b.client && b.client.is_internal) return;
 
-      (billingsData || []).forEach((b: any) => {
-        if (b.client && b.client.is_internal) return;
+          const val = Number(b.total_value) || (Number(b.base_value || 0) + Number(b.extra_value || 0));
+          totalContratado += val;
 
-        const val = Number(b.total_value) || (Number(b.base_value || 0) + Number(b.extra_value || 0));
-        totalContratado += val;
-
-        if (b.paid_at) {
-          const paidD = dayjs(b.paid_at);
-          if (paidD.format('YYYY-MM') === monthYear) {
-            const pDay = paidD.date();
-            if (pDay >= weekStartDay && pDay <= weekEndDay) {
+          if (b.paid_at) {
+            const paidD = dayjs(b.paid_at);
+            if (paidD.format('YYYY-MM') === monthYear) {
+              const pDay = paidD.date();
+              if (pDay >= weekStartDay && pDay <= weekEndDay) {
+                contratadoEstaSemana += val;
+              }
+            }
+          } else if (b.due_day) {
+            if (b.due_day >= weekStartDay && b.due_day <= weekEndDay) {
               contratadoEstaSemana += val;
             }
           }
-        } else if (b.due_day) {
-          if (b.due_day >= weekStartDay && b.due_day <= weekEndDay) {
-            contratadoEstaSemana += val;
-          }
-        }
-      });
+        });
 
-      if (contratadoEstaSemana === 0 && totalContratado > 0 && currentWeekNum === 1) {
-        contratadoEstaSemana = totalContratado;
+        if (contratadoEstaSemana === 0 && totalContratado > 0 && currentWeekNum === 1) {
+          contratadoEstaSemana = totalContratado;
+        }
+
+        setFaturamentoRecebido(totalContratado);
+        setFaturamentoEstaSemana(contratadoEstaSemana);
       }
 
-      setFaturamentoRecebido(totalContratado);
-      setFaturamentoEstaSemana(contratadoEstaSemana);
+      // 3. Process New Clients
+      if (clientsResult.status === 'fulfilled') {
+        const { data: clientsData } = clientsResult.value;
+        setNewClientsCount((clientsData || []).length);
+      }
 
-      // 3. Fetch New Clients (count created in month, excluding internal clients)
-      const { data: clientsData } = await supabase
-        .from('clients')
-        .select('id, created_at')
-        .eq('agency_id', agencyId)
-        .neq('is_internal', true)
-        .gte('created_at', `${startOfMonthStr}T00:00:00`)
-        .lte('created_at', `${endOfMonthStr}T23:59:59`);
+      // 4. Process Commercial Actions
+      if (actionsResult.status === 'fulfilled') {
+        const { data: actionsData } = actionsResult.value;
+        const actions = (actionsData || []) as AgencyCommercialAction[];
+        setCommercialActions(actions);
 
-      setNewClientsCount((clientsData || []).length);
+        const countMeetings = actions.filter(
+          a => a.action_type === 'meeting' || a.action_type === 'call'
+        ).length;
+        setMeetingsCount(countMeetings);
+      }
 
-      // 4. Fetch Commercial Actions
-      const { data: actionsData } = await supabase
-        .from('agency_commercial_actions')
-        .select('*')
-        .eq('agency_id', agencyId)
-        .gte('action_date', startOfMonthStr)
-        .lte('action_date', endOfMonthStr)
-        .order('action_date', { ascending: false });
-
-      const actions = (actionsData || []) as AgencyCommercialAction[];
-      setCommercialActions(actions);
-
-      // Reuniões: action_type IN ('meeting', 'call')
-      const countMeetings = actions.filter(
-        a => a.action_type === 'meeting' || a.action_type === 'call'
-      ).length;
-      setMeetingsCount(countMeetings);
-
-      // 5. Fetch Published Posts for this month
-      const { data: postsData } = await supabase
-        .from('posts')
-        .select('id, date_key, status, is_deleted')
-        .eq('agency_id', agencyId)
-        .eq('status', 'published')
-        .not('is_deleted', 'is', true)
-        .limit(10000);
-
-      let pubCount = 0;
-      (postsData || []).forEach((p: any) => {
-        if (!p.date_key) return;
-        const parts = p.date_key.split('-');
-        if (parts.length >= 3) {
-          let postMonthYear = '';
-          if (parts[0].length === 4) {
-            // YYYY-MM-DD
-            postMonthYear = `${parts[0]}-${parts[1].padStart(2, '0')}`;
-          } else {
-            // DD-MM-YYYY
-            postMonthYear = `${parts[2]}-${parts[1].padStart(2, '0')}`;
+      // 5. Process Published Posts
+      if (postsResult.status === 'fulfilled') {
+        const { data: postsData } = postsResult.value;
+        let pubCount = 0;
+        (postsData || []).forEach((p: any) => {
+          if (!p.date_key) return;
+          const parts = p.date_key.split('-');
+          if (parts.length >= 3) {
+            let postMonthYear = '';
+            if (parts[0].length === 4) {
+              postMonthYear = `${parts[0]}-${parts[1].padStart(2, '0')}`;
+            } else {
+              postMonthYear = `${parts[2]}-${parts[1].padStart(2, '0')}`;
+            }
+            if (postMonthYear === monthYear) {
+              pubCount++;
+            }
           }
-          if (postMonthYear === monthYear) {
-            pubCount++;
-          }
-        }
-      });
-      setPostsCount(pubCount);
+        });
+        setPostsCount(pubCount);
+      }
 
-      // 6. Fetch Blog Posts for internal client
-      const { data: blogPostsData } = await supabase
-        .from('posts')
-        .select('id, date_key, status, is_deleted')
-        .eq('agency_id', agencyId)
-        .eq('client_id', BLOG_CLIENT_ID)
-        .eq('status', 'published')
-        .not('is_deleted', 'is', true)
-        .limit(1000);
-
-      const [currentYear, currentMonth] = monthYear.split('-');
-      let blogPubCount = 0;
-      (blogPostsData || []).forEach((p: any) => {
-        if (!p.date_key) return;
-        const parts = p.date_key.split('-');
-        if (parts.length >= 3) {
-          let postMonthYear = '';
-          if (parts[0].length === 4) {
-            // YYYY-MM-DD
-            postMonthYear = `${parts[0]}-${parts[1].padStart(2, '0')}`;
-          } else {
-            // DD-MM-YYYY
-            postMonthYear = `${parts[2]}-${parts[1].padStart(2, '0')}`;
+      // 6. Process Blog Posts
+      if (blogPostsResult.status === 'fulfilled') {
+        const { data: blogPostsData } = blogPostsResult.value;
+        let blogPubCount = 0;
+        (blogPostsData || []).forEach((p: any) => {
+          if (!p.date_key) return;
+          const parts = p.date_key.split('-');
+          if (parts.length >= 3) {
+            let postMonthYear = '';
+            if (parts[0].length === 4) {
+              postMonthYear = `${parts[0]}-${parts[1].padStart(2, '0')}`;
+            } else {
+              postMonthYear = `${parts[2]}-${parts[1].padStart(2, '0')}`;
+            }
+            if (postMonthYear === monthYear) {
+              blogPubCount++;
+            }
           }
-          if (postMonthYear === monthYear) {
-            blogPubCount++;
-          }
-        }
-      });
-      setBlogPostsCount(blogPubCount);
+        });
+        setBlogPostsCount(blogPubCount);
+      }
 
-    } catch (err) {
-      console.error('Erro ao carregar dados de metas:', err);
+    } catch (err: any) {
+      console.warn('Aviso ao carregar dados de metas:', err?.message || err);
     } finally {
       setLoading(false);
     }

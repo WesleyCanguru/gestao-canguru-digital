@@ -68,6 +68,8 @@ const MainApp: React.FC<MainAppProps> = ({ initialView, onExitAgencyDashboard, o
     return initialView || 'dashboard';
   });
   const [agencyTab, setAgencyTab] = useState<string>('home');
+  const [painelTab, setPainelTab] = useState<'dashboard' | 'publicacoes' | 'mapa'>('dashboard');
+  const [painelFilterStatus, setPainelFilterStatus] = useState<string>('all');
   const [selectedMonth, setSelectedMonth] = useState<string | null>(() => {
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search);
@@ -153,6 +155,24 @@ const MainApp: React.FC<MainAppProps> = ({ initialView, onExitAgencyDashboard, o
   const handleBackToHome = () => {
     setView('dashboard');
     setSelectedMonth(null);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleNavigateToMapa = (tab?: 'dashboard' | 'publicacoes' | 'mapa', filterStatus?: string) => {
+    const currentMonthName = MONTH_NAMES[dayjs().month()];
+    setSelectedMonth(currentMonthName);
+    setPainelTab(tab || 'mapa');
+    if (filterStatus) setPainelFilterStatus(filterStatus);
+    setView('month-detail');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleNavigateToPublicacoes = (filterStatus?: string) => {
+    const currentMonthName = MONTH_NAMES[dayjs().month()];
+    setSelectedMonth(currentMonthName);
+    setPainelTab('publicacoes');
+    setPainelFilterStatus(filterStatus || 'all');
+    setView('month-detail');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -360,12 +380,8 @@ const MainApp: React.FC<MainAppProps> = ({ initialView, onExitAgencyDashboard, o
                   <ClientHome
                     initialActiveView="leads"
                     onNavigateToOnboarding={() => setView('onboarding')}
-                    onNavigateToMapa={() => {
-                      const currentMonthName = MONTH_NAMES[dayjs().month()];
-                      setSelectedMonth(currentMonthName);
-                      setView('month-detail');
-                      window.scrollTo({ top: 0, behavior: 'smooth' });
-                    }}
+                    onNavigateToMapa={handleNavigateToMapa}
+                    onNavigateToPublicacoes={handleNavigateToPublicacoes}
                     onNavigateToBriefings={() => setView('briefings')}
                     onNavigateToStrategicBriefings={() => setView('strategic-briefings')}
                     onNavigateToDocuments={() => {}} // Redirection handled in ClientHome
@@ -458,12 +474,8 @@ const MainApp: React.FC<MainAppProps> = ({ initialView, onExitAgencyDashboard, o
                   <ClientHome
                     initialActiveView="dashboard"
                     onNavigateToOnboarding={() => setView('onboarding')}
-                    onNavigateToMapa={() => {
-                      const currentMonthName = MONTH_NAMES[dayjs().month()];
-                      setSelectedMonth(currentMonthName);
-                      setView('month-detail');
-                      window.scrollTo({ top: 0, behavior: 'smooth' });
-                    }}
+                    onNavigateToMapa={handleNavigateToMapa}
+                    onNavigateToPublicacoes={handleNavigateToPublicacoes}
                     onNavigateToBriefings={() => setView('briefings')}
                     onNavigateToStrategicBriefings={() => setView('strategic-briefings')}
                     onNavigateToDocuments={() => {}} // Redirection handled in ClientHome
@@ -493,7 +505,11 @@ const MainApp: React.FC<MainAppProps> = ({ initialView, onExitAgencyDashboard, o
                 ) : view === 'home' ? (
                   <AnnualOverview onSelectMonth={handleSelectMonth} />
                 ) : (
-                  <ClientPainelConteudo onBackToHome={handleBackToHome} />
+                  <ClientPainelConteudo 
+                    onBackToHome={handleBackToHome} 
+                    initialTab={painelTab}
+                    initialFilterStatus={painelFilterStatus}
+                  />
                 )}
               </motion.div>
             </AnimatePresence>

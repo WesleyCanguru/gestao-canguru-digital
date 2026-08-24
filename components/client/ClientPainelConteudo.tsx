@@ -168,6 +168,18 @@ export const ClientPainelConteudo: React.FC<ClientPainelConteudoProps> = ({
   const [filterPeriod, setFilterPeriod] = useState<string>(initialFilterPeriod || 'este_mes');
   const [searchQuery, setSearchQuery] = useState<string>('');
 
+  useEffect(() => {
+    if (initialTab) {
+      setActiveTab(initialTab);
+    }
+  }, [initialTab]);
+
+  useEffect(() => {
+    if (initialFilterStatus) {
+      setFilterStatus(initialFilterStatus);
+    }
+  }, [initialFilterStatus]);
+
   // Dados
   const [posts, setPosts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
