@@ -29,6 +29,7 @@ import { PhotosApprovalPublic } from './components/PhotosApprovalPublic';
 import { RoteirosSection } from './components/anotacoes/RoteirosSection';
 import { ScriptApprovalPublic } from './components/anotacoes/ScriptApprovalPublic';
 import { ClientPainelConteudo } from './components/client/ClientPainelConteudo';
+import { PublicMonthPage } from './components/PublicMonthPage';
 
 import { AgencyHome } from './components/agency/AgencyHome';
 import { AgencyDashboard } from './components/agency/AgencyDashboard';
@@ -648,6 +649,27 @@ const App: React.FC = () => {
       setFotosClientId(fotosMatch[1]);
     }
   }, []);
+
+  const searchParams = new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '');
+  const clientIdParam = searchParams.get('client') || searchParams.get('client_id') || searchParams.get('cliente');
+  const abaParam = searchParams.get('aba');
+  const gateParam = searchParams.get('gate');
+  const mesParam = searchParams.get('mes');
+  const anoParam = searchParams.get('ano');
+
+  const isPublicMonthLink = !!clientIdParam && (abaParam === 'mapa' || gateParam === 'nome');
+
+  if (isPublicMonthLink && clientIdParam) {
+    const mesNum = parseInt(mesParam ?? String(new Date().getMonth() + 1), 10);
+    const anoNum = parseInt(anoParam ?? String(new Date().getFullYear()), 10);
+    return (
+      <PublicMonthPage
+        clientId={clientIdParam}
+        mes={isNaN(mesNum) || mesNum < 1 || mesNum > 12 ? (new Date().getMonth() + 1) : mesNum}
+        ano={isNaN(anoNum) ? new Date().getFullYear() : anoNum}
+      />
+    );
+  }
 
   if (contractToken) {
     return <ContractFormScreen formToken={contractToken} />;

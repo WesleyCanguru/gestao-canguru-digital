@@ -19,11 +19,17 @@ import { CustomDatePicker } from './CustomPickers';
 import { Client } from '../types';
 
 interface MonthDetailProps {
-  monthName: string;
-  onBack: () => void;
+  monthName?: string;
+  onBack?: () => void;
   initialViewMode?: ViewMode;
   onSelectMonth?: (month: string) => void;
   overrideClient?: Client | null;
+  initialMonth?: number;
+  initialYear?: number;
+  visitorName?: string | null;
+  isPublicView?: boolean;
+  showShareButton?: boolean;
+  agencyId?: number | string;
 }
 
 type ViewMode = 'list' | 'calendar';
@@ -42,9 +48,22 @@ interface GroupedPost {
     platformTimes?: { platform: 'meta' | 'linkedin' | 'tiktok'; time: string }[];
 }
 
-export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack, initialViewMode, onSelectMonth, overrideClient }) => {
-  const { userRole, activeClient: authActiveClient, agencyId } = useAuth();
+export const MonthDetail: React.FC<MonthDetailProps> = ({ 
+  monthName: propMonthName, 
+  onBack, 
+  initialViewMode, 
+  onSelectMonth, 
+  overrideClient,
+  initialMonth,
+  initialYear,
+  visitorName,
+  isPublicView = false,
+  showShareButton = true,
+  agencyId: propAgencyId
+}) => {
+  const { userRole, activeClient: authActiveClient, agencyId: authAgencyId } = useAuth();
   const activeClient = overrideClient !== undefined ? overrideClient : authActiveClient;
+  const agencyId = propAgencyId !== undefined ? propAgencyId : authAgencyId;
   const { monthlyPlans, weeklySchedule, updateMonthlyPlan, loading: loadingEditorial } = useEditorialData(activeClient?.id);
   
   // Modal State
@@ -93,8 +112,9 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack, ini
   const searchParams = new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '');
   const anoUrlParam = searchParams.get('ano');
 
+  const monthName = propMonthName || (initialMonth !== undefined ? MONTH_NAMES[initialMonth] : 'Janeiro');
   const monthIndex = MONTH_NAMES.findIndex(m => m.toLowerCase() === monthName.toLowerCase());
-  const year = anoUrlParam ? parseInt(anoUrlParam, 10) : 2026;
+  const year = initialYear || (anoUrlParam ? parseInt(anoUrlParam, 10) : 2026);
   const currentPlan = useMemo(() => {
     const rawPlan = monthlyPlans.find(p => MONTH_NAMES[p.month - 1]?.toLowerCase() === monthName.toLowerCase());
     return rawPlan || {
@@ -111,7 +131,7 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack, ini
   }, [monthlyPlans, monthName, monthIndex, activeClient?.id, year]);
 
   const [monthPickerOpen, setMonthPickerOpen] = useState(false);
-  const [pickerYear, setPickerYear] = useState(anoUrlParam ? parseInt(anoUrlParam, 10) : year);
+  const [pickerYear, setPickerYear] = useState(initialYear || (anoUrlParam ? parseInt(anoUrlParam, 10) : year));
   const [copiadoMesLink, setCopiadoMesLink] = useState(false);
 
   const handleCopyMonthLink = () => {
@@ -1876,16 +1896,18 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack, ini
 
       {/* Navigation */}
       <div className="flex flex-wrap items-center justify-between gap-4 sm:gap-6 mb-8 sm:mb-10">
-        <motion.button 
-          whileHover={{ x: -4 }}
-          onClick={onBack} 
-          className="flex items-center gap-2 sm:gap-4 text-gray-400 hover:text-brand-dark transition-all font-bold text-[10px] sm:text-[11px] uppercase tracking-[0.3em] group"
-        >
-          <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full border border-black/[0.05] flex items-center justify-center group-hover:border-brand-dark group-hover:bg-brand-dark group-hover:text-white transition-all duration-300">
-            <ArrowLeft size={14} className="sm:w-4 sm:h-4" />
-          </div>
-          <span className="hidden sm:inline">Voltar</span>
-        </motion.button>
+        {onBack && !isPublicView ? (
+          <motion.button 
+            whileHover={{ x: -4 }}
+            onClick={onBack} 
+            className="flex items-center gap-2 sm:gap-4 text-gray-400 hover:text-brand-dark transition-all font-bold text-[10px] sm:text-[11px] uppercase tracking-[0.3em] group"
+          >
+            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full border border-black/[0.05] flex items-center justify-center group-hover:border-brand-dark group-hover:bg-brand-dark group-hover:text-white transition-all duration-300">
+              <ArrowLeft size={14} className="sm:w-4 sm:h-4" />
+            </div>
+            <span className="hidden sm:inline">Voltar</span>
+          </motion.button>
+        ) : <div />}
 
         <div className="flex flex-wrap items-center gap-2 sm:gap-4">
             {loadingPosts && (
@@ -1898,7 +1920,7 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack, ini
               </motion.div>
             )}
             
-            {userRole === 'admin' && selectedPosts.size > 0 && (
+            {!isPublicView && userRole === 'admin' && selectedPosts.size > 0 && (
                 <motion.button 
                   initial={{ scale: 0.9, opacity: 0 }}
                   animate={{ scale: 1, opacity: 1 }}
@@ -1911,7 +1933,7 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack, ini
                 </motion.button>
             )}
 
-            {userRole === 'admin' && (
+            {!isPublicView && userRole === 'admin' && (
                 <motion.button 
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
@@ -1936,7 +1958,7 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack, ini
                 </motion.button>
             )}
 
-            {userRole === 'admin' && (
+            {!isPublicView && userRole === 'admin' && (
                 <motion.button 
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
@@ -2075,7 +2097,7 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack, ini
               </div>
 
               {/* Botão Copiar Link do Mês (Painel da Agência) */}
-              {userRole === 'admin' && (
+              {!isPublicView && showShareButton && userRole === 'admin' && (
                 <button
                   type="button"
                   onClick={handleCopyMonthLink}
@@ -2113,7 +2135,7 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack, ini
 
             {/* Right: Actions */}
             <div className="flex flex-wrap items-center gap-2">
-              {userRole === 'admin' && (
+              {!isPublicView && userRole === 'admin' && (
                 <button 
                   type="button"
                   onClick={() => setShowImportPdf(true)}
@@ -2123,16 +2145,18 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack, ini
                 </button>
               )}
 
-              <button 
-                type="button"
-                onClick={() => setShowRejectedModal(true)}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-white/10 hover:bg-white/20 rounded-xl text-[10px] sm:text-[11px] font-bold uppercase tracking-wider transition-all backdrop-blur-md border border-white/10 text-white cursor-pointer active:scale-95"
-                title="Ver histórico de publicações reprovadas pelo cliente"
-              >
-                <span>📋</span> {rejectedPostsCount} Reprovadas
-              </button>
+              {!isPublicView && (
+                <button 
+                  type="button"
+                  onClick={() => setShowRejectedModal(true)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-white/10 hover:bg-white/20 rounded-xl text-[10px] sm:text-[11px] font-bold uppercase tracking-wider transition-all backdrop-blur-md border border-white/10 text-white cursor-pointer active:scale-95"
+                  title="Ver histórico de publicações reprovadas pelo cliente"
+                >
+                  <span>📋</span> {rejectedPostsCount} Reprovadas
+                </button>
+              )}
 
-              {userRole === 'admin' && !isEditingPlan && (
+              {!isPublicView && userRole === 'admin' && !isEditingPlan && (
                 <button 
                   type="button"
                   onClick={handleEditPlan}
@@ -2508,7 +2532,7 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack, ini
       {showRejectedModal && activeClient && (
         <RejectedPostsModal
           clientId={activeClient.id}
-          agencyId={agencyId}
+          agencyId={typeof agencyId === 'number' ? agencyId : (agencyId ? Number(agencyId) : undefined)}
           isOpen={showRejectedModal}
           onClose={() => {
             setShowRejectedModal(false);
