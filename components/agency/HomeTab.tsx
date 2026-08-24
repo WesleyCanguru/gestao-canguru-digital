@@ -833,11 +833,29 @@ export const HomeTab: React.FC<HomeTabProps> = ({
                   {formatCurrency(totalContratado)}
                 </p>
                 <p style={{ color: '#8A8F98', fontSize: 12, marginTop: 8 }}>
-                  META: {formatCurrency(metaFaturamento)}
+                  META:{' '}
+                  <span style={{
+                    filter: hideFinanceiro ? 'blur(8px)' : 'none',
+                    userSelect: hideFinanceiro ? 'none' : 'auto',
+                    transition: 'filter 0.3s'
+                  }}>
+                    {formatCurrency(metaFaturamento)}
+                  </span>
                   {metaFaturamento > 0 && (
                     totalContratado >= metaFaturamento
                       ? ' · ✓ Meta atingida'
-                      : ` · faltam ${formatCurrency(Math.max(0, metaFaturamento - totalContratado))}`
+                      : (
+                        <>
+                          {' · faltam '}
+                          <span style={{
+                            filter: hideFinanceiro ? 'blur(8px)' : 'none',
+                            userSelect: hideFinanceiro ? 'none' : 'auto',
+                            transition: 'filter 0.3s'
+                          }}>
+                            {formatCurrency(Math.max(0, metaFaturamento - totalContratado))}
+                          </span>
+                        </>
+                      )
                   )}
                 </p>
               </div>
@@ -948,10 +966,23 @@ export const HomeTab: React.FC<HomeTabProps> = ({
                 Faturamento
               </p>
               <div className="flex items-baseline gap-3" style={{ marginTop: 4 }}>
-                <span style={{ color: '#13284D', fontSize: 24, fontWeight: 700 }}>
+                <span style={{
+                  color: '#13284D',
+                  fontSize: 24,
+                  fontWeight: 700,
+                  filter: hideFinanceiro ? 'blur(8px)' : 'none',
+                  userSelect: hideFinanceiro ? 'none' : 'auto',
+                  transition: 'filter 0.3s ease',
+                }}>
                   {formatCurrency(totalContratado)}
                 </span>
-                <span style={{ color: '#8A8F98', fontSize: 14 }}>
+                <span style={{
+                  color: '#8A8F98',
+                  fontSize: 14,
+                  filter: hideFinanceiro ? 'blur(8px)' : 'none',
+                  userSelect: hideFinanceiro ? 'none' : 'auto',
+                  transition: 'filter 0.3s ease',
+                }}>
                   de {formatCurrency(metaFaturamento)}
                 </span>
               </div>
