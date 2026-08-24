@@ -768,12 +768,15 @@ export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, group
     // Garantir que estamos enviando o comentário para a chave correta
     // Se for um post novo ainda não salvo, usamos a data_key que será gerada
     const currentPostKey = post?.date_key === 'temp' ? dateKey : post?.date_key || dateKey;
+    const authorName = sessionStorage.getItem('visitor_name') 
+      ?? (userRole === 'admin' ? 'Canguru' : (activeClient?.responsible || activeClient?.name || 'Cliente'));
 
     const newCommentObj = { 
         post_id: currentPostKey, 
         agency_id: agencyId,
-        author_role: userRole, 
-        author_name: userRole === 'admin' ? 'Canguru' : userRole === 'approver' ? (activeClient?.responsible || 'Wesley') : 'Equipe', 
+        client_id: activeClient?.id,
+        author_role: userRole === 'admin' ? 'admin' : (userRole === 'approver' ? 'approver' : 'client'), 
+        author_name: authorName, 
         content: newComment, 
         visible_to_admin: true 
     };
@@ -796,11 +799,51 @@ export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, group
   };
 
   const handleApprove = async () => {
+      const currentPostKey = post?.date_key === 'temp' ? dateKey : post?.date_key || dateKey;
+      const authorName = sessionStorage.getItem('visitor_name') 
+        ?? (userRole === 'admin' ? 'Canguru' : (activeClient?.responsible || activeClient?.name || 'Cliente'));
+      
+      const newCommentObj = { 
+          post_id: currentPostKey, 
+          agency_id: agencyId,
+          client_id: activeClient?.id,
+          author_role: userRole === 'admin' ? 'admin' : 'approver', 
+          author_name: authorName, 
+          content: '✅ APROVOU a publicação.', 
+          visible_to_admin: true 
+      };
+      try {
+        const { data } = await supabase.from('comments').insert(newCommentObj).select().single();
+        if (data) setComments(prev => [...prev, data as PostComment]);
+      } catch (e) {
+        console.warn('Erro ao inserir auditoria de aprovação:', e);
+      }
+
       await changeStatus('approved');
       onClose();
   };
 
   const handleApproveTheme = async () => {
+      const currentPostKey = post?.date_key === 'temp' ? dateKey : post?.date_key || dateKey;
+      const authorName = sessionStorage.getItem('visitor_name') 
+        ?? (userRole === 'admin' ? 'Canguru' : (activeClient?.responsible || activeClient?.name || 'Cliente'));
+
+      const newCommentObj = { 
+          post_id: currentPostKey, 
+          agency_id: agencyId,
+          client_id: activeClient?.id,
+          author_role: userRole === 'admin' ? 'admin' : 'approver', 
+          author_name: authorName, 
+          content: '✅ APROVOU a sugestão de tema.', 
+          visible_to_admin: true 
+      };
+      try {
+        const { data } = await supabase.from('comments').insert(newCommentObj).select().single();
+        if (data) setComments(prev => [...prev, data as PostComment]);
+      } catch (e) {
+        console.warn('Erro ao inserir auditoria de aprovação de tema:', e);
+      }
+
       await changeStatus('theme_approved');
       onClose();
   };
@@ -809,12 +852,16 @@ export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, group
       if (!themeNoteText.trim()) return alert("A observação é obrigatória.");
       
       const currentPostKey = post?.date_key === 'temp' ? dateKey : post?.date_key || dateKey;
+      const authorName = sessionStorage.getItem('visitor_name') 
+        ?? (userRole === 'admin' ? 'Canguru' : (activeClient?.responsible || activeClient?.name || 'Cliente'));
+
       const newCommentObj = { 
           post_id: currentPostKey, 
           agency_id: agencyId,
-          author_role: userRole, 
-          author_name: userRole === 'admin' ? 'Canguru' : userRole === 'approver' ? (activeClient?.responsible || 'Wesley') : 'Equipe', 
-          content: `⚠️ APROVOU O TEMA com observação: ${themeNoteText}`, 
+          client_id: activeClient?.id,
+          author_role: userRole === 'admin' ? 'admin' : 'approver', 
+          author_name: authorName, 
+          content: `⚠️ APROVOU O TEMA com observação: "${themeNoteText}"`, 
           visible_to_admin: true 
       };
       
@@ -837,12 +884,16 @@ export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, group
       if (!themeNoteText.trim()) return alert("O motivo da reprovação é obrigatório.");
       
       const currentPostKey = post?.date_key === 'temp' ? dateKey : post?.date_key || dateKey;
+      const authorName = sessionStorage.getItem('visitor_name') 
+        ?? (userRole === 'admin' ? 'Canguru' : (activeClient?.responsible || activeClient?.name || 'Cliente'));
+
       const newCommentObj = { 
           post_id: currentPostKey, 
           agency_id: agencyId,
-          author_role: userRole, 
-          author_name: userRole === 'admin' ? 'Canguru' : userRole === 'approver' ? (activeClient?.responsible || 'Wesley') : 'Equipe', 
-          content: `❌ REPROVOU o tema. Justificativa: ${themeNoteText}`, 
+          client_id: activeClient?.id,
+          author_role: userRole === 'admin' ? 'admin' : 'approver', 
+          author_name: authorName, 
+          content: `❌ REJEITOU a sugestão de tema. Motivo: "${themeNoteText}"`, 
           visible_to_admin: true 
       };
 
@@ -868,11 +919,16 @@ export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, group
           return;
       }
       
+      const currentPostKey = post?.date_key === 'temp' ? dateKey : post?.date_key || dateKey;
+      const authorName = sessionStorage.getItem('visitor_name') 
+        ?? (userRole === 'admin' ? 'Canguru' : (activeClient?.responsible || activeClient?.name || 'Cliente'));
+
       const newCommentObj = { 
-          post_id: post?.date_key === 'temp' ? dateKey : post?.date_key || dateKey, 
+          post_id: currentPostKey, 
           agency_id: agencyId,
-          author_role: userRole, 
-          author_name: userRole === 'admin' ? 'Canguru' : userRole === 'approver' ? (activeClient?.responsible || 'Wesley') : 'Equipe', 
+          client_id: activeClient?.id,
+          author_role: userRole === 'admin' ? 'admin' : 'approver', 
+          author_name: authorName, 
           content: `❌ REPROVOU a publicação. Justificativa: ${justification}`, 
           visible_to_admin: true 
       };

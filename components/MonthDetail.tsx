@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { MonthlyDetailedPlan, DailyContent, PostStatus, PostData, PostTheme } from '../types';
-import { Instagram, Linkedin, CalendarDays, Target, BarChart3, Repeat, FileCheck, CheckCircle2, ArrowLeft, MessageCircle, List, Calendar as CalendarIcon, Plus, Loader2, Check, Edit2, Edit3, RefreshCw, Save, X, Trash, Sparkles, FileText, Clock, ChevronLeft, ChevronRight, ChevronDown, Lock } from 'lucide-react';
+import { Instagram, Linkedin, CalendarDays, Target, BarChart3, Repeat, FileCheck, CheckCircle2, ArrowLeft, MessageCircle, List, Calendar as CalendarIcon, Plus, Loader2, Check, Edit2, Edit3, RefreshCw, Save, X, Trash, Sparkles, FileText, Clock, ChevronLeft, ChevronRight, ChevronDown, Lock, Link2 } from 'lucide-react';
 import { PostModal } from './PostModal';
 import { PostIdeasModal } from './PostIdeasModal';
 import { ImportPdfModal } from './ImportPdfModal';
@@ -90,8 +90,11 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack, ini
   const [transferringTheme, setTransferringTheme] = useState<any>(null);
   const [themeBankKey, setThemeBankKey] = useState(0);
 
+  const searchParams = new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '');
+  const anoUrlParam = searchParams.get('ano');
+
   const monthIndex = MONTH_NAMES.findIndex(m => m.toLowerCase() === monthName.toLowerCase());
-  const year = 2026;
+  const year = anoUrlParam ? parseInt(anoUrlParam, 10) : 2026;
   const currentPlan = useMemo(() => {
     const rawPlan = monthlyPlans.find(p => MONTH_NAMES[p.month - 1]?.toLowerCase() === monthName.toLowerCase());
     return rawPlan || {
@@ -108,7 +111,21 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack, ini
   }, [monthlyPlans, monthName, monthIndex, activeClient?.id, year]);
 
   const [monthPickerOpen, setMonthPickerOpen] = useState(false);
-  const [pickerYear, setPickerYear] = useState(year);
+  const [pickerYear, setPickerYear] = useState(anoUrlParam ? parseInt(anoUrlParam, 10) : year);
+  const [copiadoMesLink, setCopiadoMesLink] = useState(false);
+
+  const handleCopyMonthLink = () => {
+    const mesFormatado = String(monthIndex + 1).padStart(2, '0'); // 01-12
+    const anoAtual = pickerYear || year;
+    const clientParam = activeClient?.id ? `client=${activeClient.id}&` : '';
+    const baseUrl = `${window.location.protocol}//${window.location.host}`;
+    const url = `${baseUrl}/?${clientParam}aba=mapa&mes=${mesFormatado}&ano=${anoAtual}&gate=nome`;
+
+    navigator.clipboard.writeText(url).then(() => {
+      setCopiadoMesLink(true);
+      setTimeout(() => setCopiadoMesLink(false), 2000);
+    });
+  };
 
   const MONTH_SHORT_NAMES = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
 
@@ -490,7 +507,9 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack, ini
     if (!selectedTheme) return;
     setIsSavingTheme(true);
     try {
-      const userName = userRole === 'admin' ? 'Agência' : (activeClient?.name || 'Cliente');
+      const authorName = sessionStorage.getItem('visitor_name') 
+        ?? (userRole === 'admin' ? 'Canguru' : (activeClient?.responsible || activeClient?.name || 'Cliente'));
+      const userName = authorName;
       
       let finalStatus: 'pending' | 'approved' | 'rejected' | 'revision' = 'pending';
       const s1 = updatedState.status_1;
@@ -571,6 +590,40 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack, ini
         .eq('id', selectedTheme.id);
 
       if (error) throw error;
+
+      // Auditoria na tabela comments
+      try {
+        let auditText = '';
+        if (stateToSave.status_1 === 'approved' && stateToSave.status_2 === 'approved') {
+          auditText = stateToSave.chosen_theme === 2 
+            ? `✅ APROVOU as sugestões de tema e escolheu o Tema 2: "${selectedTheme.theme_2}".`
+            : `✅ APROVOU as sugestões de tema e escolheu o Tema 1: "${selectedTheme.theme_1}".`;
+        } else if (stateToSave.status_1 === 'approved') {
+          auditText = `✅ APROVOU a sugestão de tema: "${selectedTheme.theme_1}".`;
+        } else if (stateToSave.status_2 === 'approved') {
+          auditText = `✅ APROVOU a sugestão de tema 2: "${selectedTheme.theme_2}".`;
+        } else if (stateToSave.status_1 === 'revision' || stateToSave.status_2 === 'revision') {
+          const revReason = stateToSave.comment_1 || stateToSave.comment_2 || actionReason;
+          auditText = `⚠️ SOLICITOU ALTERAÇÃO na sugestão de tema. Observação: "${revReason}"`;
+        } else if (stateToSave.status_1 === 'rejected' && (stateToSave.status_2 === 'rejected' || !selectedTheme.theme_2)) {
+          const rejReason = stateToSave.comment_1 || stateToSave.comment_2 || actionReason;
+          auditText = `❌ REJEITOU a sugestão de tema. Motivo: "${rejReason}"`;
+        }
+
+        if (auditText) {
+          await supabase.from('comments').insert({
+            post_id: selectedTheme.id,
+            agency_id: agencyId,
+            client_id: activeClient?.id,
+            author_role: userRole === 'admin' ? 'admin' : 'approver',
+            author_name: authorName,
+            content: auditText,
+            visible_to_admin: true
+          });
+        }
+      } catch (auditErr) {
+        console.warn('Aviso ao registrar auditoria de tema em comments:', auditErr);
+      }
 
       await fetchThemes();
       
@@ -2020,6 +2073,34 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({ monthName, onBack, ini
                   <ChevronRight size={18} />
                 </button>
               </div>
+
+              {/* Botão Copiar Link do Mês (Painel da Agência) */}
+              {userRole === 'admin' && (
+                <button
+                  type="button"
+                  onClick={handleCopyMonthLink}
+                  title="Copiar link do mês"
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    padding: '6px 12px',
+                    borderRadius: 12,
+                    border: '1px solid rgba(255,255,255,0.15)',
+                    background: copiadoMesLink ? '#f0fdf4' : 'rgba(255,255,255,0.1)',
+                    color: copiadoMesLink ? '#16a34a' : '#ffffff',
+                    fontSize: 12,
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    transition: 'all 0.2s',
+                    backdropFilter: 'blur(8px)'
+                  }}
+                  className="hover:bg-white/20 active:scale-95 transition-all cursor-pointer shadow-sm select-none"
+                >
+                  {copiadoMesLink ? <Check size={14} /> : <Link2 size={14} />}
+                  <span>{copiadoMesLink ? 'Link copiado!' : 'Copiar link do mês'}</span>
+                </button>
+              )}
 
               {/* Theme badge */}
               {currentPlan?.theme && (

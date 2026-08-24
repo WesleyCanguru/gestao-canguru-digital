@@ -6,6 +6,7 @@ import { STATUS_CONFIG } from '../../constants';
 import { PostStatus, DailyContent, Client } from '../../types';
 import { PostModal } from '../PostModal';
 import { MonthDetail } from '../MonthDetail';
+import { NameGateScreen } from '../NameGateScreen';
 import { useEditorialData, MONTH_NAMES } from '../../hooks/useEditorialData';
 import { 
   LayoutDashboard, 
@@ -126,11 +127,36 @@ export const ClientPainelConteudo: React.FC<ClientPainelConteudoProps> = ({
   const currentYear = dayjs().year();
   const currentMonthNum = dayjs().month() + 1; // 1-12
 
+  const searchParams = new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '');
+  const abaParam = searchParams.get('aba');
+  const mesParam = searchParams.get('mes');
+  const anoParam = searchParams.get('ano');
+  const gateParam = searchParams.get('gate');
+
+  // Portão de Nome
+  const [showGate, setShowGate] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    const hasGate = gateParam === 'nome';
+    const hasVisitor = !!sessionStorage.getItem('visitor_name');
+    return hasGate && !hasVisitor;
+  });
+
   // Tab State
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'publicacoes' | 'mapa'>(initialTab || 'dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'publicacoes' | 'mapa'>(() => {
+    if (abaParam === 'mapa') return 'mapa';
+    if (abaParam === 'publicacoes') return 'publicacoes';
+    if (abaParam === 'dashboard') return 'dashboard';
+    return initialTab || 'dashboard';
+  });
 
   // Month for Mapa Editorial
   const [selectedMonth, setSelectedMonth] = useState<string>(() => {
+    if (mesParam) {
+      const parsed = parseInt(mesParam, 10);
+      if (parsed >= 1 && parsed <= 12) {
+        return MONTH_NAMES[parsed - 1];
+      }
+    }
     return MONTH_NAMES[dayjs().month()];
   });
 
@@ -802,6 +828,22 @@ export const ClientPainelConteudo: React.FC<ClientPainelConteudoProps> = ({
     { value: 'este_ano', label: 'Este ano', icon: <CalendarIcon size={14} className="text-stone-400" /> },
     { value: 'todos', label: 'Todo o período', icon: <CalendarIcon size={14} className="text-stone-400" /> },
   ], []);
+
+  if (showGate) {
+    const monthNum = mesParam ? parseInt(mesParam, 10) : currentMonthNum;
+    const yearNum = anoParam ? parseInt(anoParam, 10) : currentYear;
+    return (
+      <NameGateScreen
+        monthNumber={monthNum}
+        year={yearNum}
+        clientName={activeClient?.name}
+        onEnter={(_name) => {
+          setShowGate(false);
+          setActiveTab('mapa');
+        }}
+      />
+    );
+  }
 
   if (!activeClient || !activeClient.id) {
     return (
