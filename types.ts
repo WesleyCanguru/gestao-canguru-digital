@@ -582,9 +582,13 @@ export interface AgencyGoal {
   agency_id: number;
   month_year: string; // YYYY-MM
   revenue_goal: number;
-  new_clients_goal: number;
-  meetings_goal: number;
-  posts_goal: number;
+  churn_goal?: number | null;
+  client_posts_goal?: number | null;
+  own_posts_goal?: number | null;
+  proposals_goal?: number | null;
+  new_clients_goal?: number;
+  meetings_goal?: number;
+  posts_goal?: number;
   blog_posts_goal?: number;
   notes?: string | null;
   created_at?: string;

@@ -26,21 +26,40 @@ export interface UseAgencyGoalsReturn {
   // Real values
   faturamentoRecebido: number;
   faturamentoEstaSemana: number;
-  newClientsCount: number;
-  meetingsCount: number;
+  churnRealizado: number;
+  saldoLiquido: number;
+  clientPostsCount: number;
+  ownPostsCount: number;
   postsCount: number;
   blogPostsCount: number;
+  meetingsCount: number;
+  proposalsCount: number;
+  newClientsCount: number;
 
   // Commercial Actions list
   commercialActions: AgencyCommercialAction[];
 
+  // Goals
+  revenueGoal: number;
+  churnGoal: number;
+  clientPostsGoal: number;
+  ownPostsGoal: number;
+  blogPostsGoal: number;
+  meetingsGoal: number;
+  proposalsGoal: number;
+  newClientsGoal: number;
+  postsGoal: number;
+
   // Progress calculations
   pctFaturamento: number;
-  pctNovosClientes: number;
-  pctReunioes: number;
-  pctPublicacoes: number;
+  pctChurn: number;
+  pctClientPosts: number;
+  pctOwnPosts: number;
   pctBlogPosts: number;
-  blogPostsGoal: number;
+  pctReunioes: number;
+  pctPropostas: number;
+  pctNovosClientes: number;
+  pctPublicacoes: number;
 
   // Pace metrics
   weeklyGoal: number;
@@ -60,10 +79,14 @@ export interface UseAgencyGoalsReturn {
   goToCurrentMonth: () => void;
   saveGoal: (goalData: {
     revenue_goal: number;
-    new_clients_goal: number;
-    meetings_goal: number;
-    posts_goal: number;
-    blog_posts_goal?: number;
+    churn_goal?: number | null;
+    client_posts_goal?: number | null;
+    own_posts_goal?: number | null;
+    proposals_goal?: number | null;
+    new_clients_goal?: number | null;
+    meetings_goal?: number | null;
+    posts_goal?: number | null;
+    blog_posts_goal?: number | null;
     notes?: string | null;
   }) => Promise<void>;
   addCommercialAction: (actionData: {
@@ -87,8 +110,12 @@ export function useAgencyGoals(initialMonthYear?: string): UseAgencyGoalsReturn 
   const [goal, setGoal] = useState<AgencyGoal | null>(null);
   const [faturamentoRecebido, setFaturamentoRecebido] = useState(0);
   const [faturamentoEstaSemana, setFaturamentoEstaSemana] = useState(0);
+  const [churnRealizado, setChurnRealizado] = useState(0);
   const [newClientsCount, setNewClientsCount] = useState(0);
   const [meetingsCount, setMeetingsCount] = useState(0);
+  const [proposalsCount, setProposalsCount] = useState(0);
+  const [clientPostsCount, setClientPostsCount] = useState(0);
+  const [ownPostsCount, setOwnPostsCount] = useState(0);
   const [postsCount, setPostsCount] = useState(0);
   const [blogPostsCount, setBlogPostsCount] = useState(0);
   const [commercialActions, setCommercialActions] = useState<AgencyCommercialAction[]>([]);
@@ -141,14 +168,11 @@ export function useAgencyGoals(initialMonthYear?: string): UseAgencyGoalsReturn 
           .eq('agency_id', agencyId)
           .eq('month_year', monthYear),
 
-        // 3. Fetch New Clients
+        // 3. Fetch All Clients to separate internal/own from client posts and calculate new clients
         supabase
           .from('clients')
-          .select('id, created_at')
-          .eq('agency_id', agencyId)
-          .neq('is_internal', true)
-          .gte('created_at', `${startOfMonthStr}T00:00:00`)
-          .lte('created_at', `${endOfMonthStr}T23:59:59`),
+          .select('id, name, is_internal, created_at, client_status, cancelled_at')
+          .eq('agency_id', agencyId),
 
         // 4. Fetch Commercial Actions
         supabase
@@ -162,7 +186,7 @@ export function useAgencyGoals(initialMonthYear?: string): UseAgencyGoalsReturn 
         // 5. Fetch Published Posts
         supabase
           .from('posts')
-          .select('id, date_key, status')
+          .select('id, client_id, date_key, status')
           .eq('agency_id', agencyId)
           .eq('status', 'published')
           .limit(10000),
@@ -228,10 +252,29 @@ export function useAgencyGoals(initialMonthYear?: string): UseAgencyGoalsReturn 
         setFaturamentoEstaSemana(contratadoEstaSemana);
       }
 
-      // 3. Process New Clients
+      // 3. Process Clients & Churn
+      const internalClientIds = new Set<string>([BLOG_CLIENT_ID, 'b0febf12-6d64-4754-ac4e-e2e1405e616c']);
       if (clientsResult.status === 'fulfilled') {
         const { data: clientsData } = clientsResult.value;
-        setNewClientsCount((clientsData || []).length);
+        const allClients = (clientsData || []) as any[];
+
+        // Build internal clients set
+        allClients.forEach(c => {
+          if (c.is_internal) {
+            internalClientIds.add(c.id);
+          }
+        });
+
+        // Novos clientes no mês (não internos)
+        const newClients = allClients.filter(c => {
+          if (c.is_internal) return false;
+          if (!c.created_at) return false;
+          return c.created_at >= `${startOfMonthStr}T00:00:00` && c.created_at <= `${endOfMonthStr}T23:59:59`;
+        });
+        setNewClientsCount(newClients.length);
+
+        // Churn realizado (clientes cancelados no mês com valor ou 0)
+        setChurnRealizado(0);
       }
 
       // 4. Process Commercial Actions
@@ -244,12 +287,19 @@ export function useAgencyGoals(initialMonthYear?: string): UseAgencyGoalsReturn 
           a => a.action_type === 'meeting' || a.action_type === 'call'
         ).length;
         setMeetingsCount(countMeetings);
+
+        const countProposals = actions.filter(
+          a => a.action_type === 'proposal'
+        ).length;
+        setProposalsCount(countProposals);
       }
 
-      // 5. Process Published Posts
+      // 5. Process Published Posts (Dividindo entre clientes e próprio)
       if (postsResult.status === 'fulfilled') {
         const { data: postsData } = postsResult.value;
-        let pubCount = 0;
+        let cPostsCount = 0;
+        let oPostsCount = 0;
+
         (postsData || []).forEach((p: any) => {
           if (!p.date_key) return;
           const parts = p.date_key.split('-');
@@ -261,11 +311,18 @@ export function useAgencyGoals(initialMonthYear?: string): UseAgencyGoalsReturn 
               postMonthYear = `${parts[2]}-${parts[1].padStart(2, '0')}`;
             }
             if (postMonthYear === monthYear) {
-              pubCount++;
+              if (internalClientIds.has(p.client_id)) {
+                oPostsCount++;
+              } else {
+                cPostsCount++;
+              }
             }
           }
         });
-        setPostsCount(pubCount);
+
+        setClientPostsCount(cPostsCount);
+        setOwnPostsCount(oPostsCount);
+        setPostsCount(cPostsCount + oPostsCount);
       }
 
       // 6. Process Blog Posts
@@ -343,26 +400,40 @@ export function useAgencyGoals(initialMonthYear?: string): UseAgencyGoalsReturn 
   const hasGoalConfigured = useMemo(() => {
     return Boolean(
       goal && (
-        goal.revenue_goal > 0 || 
-        goal.new_clients_goal > 0 || 
-        goal.meetings_goal > 0 || 
-        goal.posts_goal > 0 || 
+        (goal.revenue_goal || 0) > 0 ||
+        (goal.churn_goal || 0) > 0 ||
+        (goal.client_posts_goal || 0) > 0 ||
+        (goal.own_posts_goal || 0) > 0 ||
+        (goal.proposals_goal || 0) > 0 ||
+        (goal.new_clients_goal || 0) > 0 ||
+        (goal.meetings_goal || 0) > 0 ||
+        (goal.posts_goal || 0) > 0 ||
         (goal.blog_posts_goal || 0) > 0
       )
     );
   }, [goal]);
 
   const revenueGoal = goal?.revenue_goal || 0;
-  const newClientsGoal = goal?.new_clients_goal || 0;
-  const meetingsGoal = goal?.meetings_goal || 0;
-  const postsGoal = goal?.posts_goal || 0;
+  const churnGoal = goal?.churn_goal ?? 0;
+  const clientPostsGoal = goal?.client_posts_goal ?? goal?.posts_goal ?? 0;
+  const ownPostsGoal = goal?.own_posts_goal ?? 0;
   const blogPostsGoal = goal?.blog_posts_goal ?? 0;
+  const meetingsGoal = goal?.meetings_goal ?? 0;
+  const proposalsGoal = goal?.proposals_goal ?? 0;
+  const newClientsGoal = goal?.new_clients_goal ?? 0;
+  const postsGoal = goal?.posts_goal ?? (clientPostsGoal + ownPostsGoal);
+
+  const saldoLiquido = Math.max(0, faturamentoRecebido - churnRealizado);
 
   const pctFaturamento = revenueGoal > 0 ? Math.round((faturamentoRecebido / revenueGoal) * 100) : 0;
-  const pctNovosClientes = newClientsGoal > 0 ? Math.round((newClientsCount / newClientsGoal) * 100) : 0;
-  const pctReunioes = meetingsGoal > 0 ? Math.round((meetingsCount / meetingsGoal) * 100) : 0;
-  const pctPublicacoes = postsGoal > 0 ? Math.round((postsCount / postsGoal) * 100) : 0;
+  const pctChurn = churnGoal > 0 ? Math.round((churnRealizado / churnGoal) * 100) : 0;
+  const pctClientPosts = clientPostsGoal > 0 ? Math.round((clientPostsCount / clientPostsGoal) * 100) : 0;
+  const pctOwnPosts = ownPostsGoal > 0 ? Math.round((ownPostsCount / ownPostsGoal) * 100) : 0;
   const pctBlogPosts = blogPostsGoal > 0 ? Math.round((blogPostsCount / blogPostsGoal) * 100) : 0;
+  const pctReunioes = meetingsGoal > 0 ? Math.round((meetingsCount / meetingsGoal) * 100) : 0;
+  const pctPropostas = proposalsGoal > 0 ? Math.round((proposalsCount / proposalsGoal) * 100) : 0;
+  const pctNovosClientes = newClientsGoal > 0 ? Math.round((newClientsCount / newClientsGoal) * 100) : 0;
+  const pctPublicacoes = postsGoal > 0 ? Math.round((postsCount / postsGoal) * 100) : 0;
 
   // Pace calculations
   const weeklyGoal = useMemo(() => (revenueGoal > 0 ? revenueGoal / 4 : 0), [revenueGoal]);
@@ -435,22 +506,36 @@ export function useAgencyGoals(initialMonthYear?: string): UseAgencyGoalsReturn 
   // Mutations
   const saveGoal = useCallback(async (goalData: {
     revenue_goal: number;
-    new_clients_goal: number;
-    meetings_goal: number;
-    posts_goal: number;
-    blog_posts_goal?: number;
+    churn_goal?: number | null;
+    client_posts_goal?: number | null;
+    own_posts_goal?: number | null;
+    proposals_goal?: number | null;
+    new_clients_goal?: number | null;
+    meetings_goal?: number | null;
+    posts_goal?: number | null;
+    blog_posts_goal?: number | null;
     notes?: string | null;
   }) => {
     if (!agencyId) return;
     try {
+      const cPosts = goalData.client_posts_goal !== undefined && goalData.client_posts_goal !== null ? Number(goalData.client_posts_goal) : null;
+      const oPosts = goalData.own_posts_goal !== undefined && goalData.own_posts_goal !== null ? Number(goalData.own_posts_goal) : null;
+      const legacyPosts = goalData.posts_goal !== undefined && goalData.posts_goal !== null 
+        ? Number(goalData.posts_goal) 
+        : ((cPosts || 0) + (oPosts || 0) || null);
+
       const payload = {
         agency_id: agencyId,
         month_year: monthYear,
         revenue_goal: Number(goalData.revenue_goal) || 0,
-        new_clients_goal: Number(goalData.new_clients_goal) || 0,
-        meetings_goal: Number(goalData.meetings_goal) || 0,
-        posts_goal: Number(goalData.posts_goal) || 0,
-        blog_posts_goal: Number(goalData.blog_posts_goal) || 0,
+        churn_goal: goalData.churn_goal !== undefined && goalData.churn_goal !== null ? Number(goalData.churn_goal) : null,
+        client_posts_goal: cPosts,
+        own_posts_goal: oPosts,
+        proposals_goal: goalData.proposals_goal !== undefined && goalData.proposals_goal !== null ? Number(goalData.proposals_goal) : null,
+        new_clients_goal: goalData.new_clients_goal !== undefined && goalData.new_clients_goal !== null ? Number(goalData.new_clients_goal) : null,
+        meetings_goal: goalData.meetings_goal !== undefined && goalData.meetings_goal !== null ? Number(goalData.meetings_goal) : null,
+        posts_goal: legacyPosts,
+        blog_posts_goal: goalData.blog_posts_goal !== undefined && goalData.blog_posts_goal !== null ? Number(goalData.blog_posts_goal) : null,
         notes: goalData.notes || null,
         created_at: goal?.created_at || new Date().toISOString()
       };
@@ -526,19 +611,37 @@ export function useAgencyGoals(initialMonthYear?: string): UseAgencyGoalsReturn 
 
     faturamentoRecebido,
     faturamentoEstaSemana,
-    newClientsCount,
-    meetingsCount,
+    churnRealizado,
+    saldoLiquido,
+    clientPostsCount,
+    ownPostsCount,
     postsCount,
     blogPostsCount,
+    meetingsCount,
+    proposalsCount,
+    newClientsCount,
 
     commercialActions,
 
-    pctFaturamento,
-    pctNovosClientes,
-    pctReunioes,
-    pctPublicacoes,
-    pctBlogPosts,
+    revenueGoal,
+    churnGoal,
+    clientPostsGoal,
+    ownPostsGoal,
     blogPostsGoal,
+    meetingsGoal,
+    proposalsGoal,
+    newClientsGoal,
+    postsGoal,
+
+    pctFaturamento,
+    pctChurn,
+    pctClientPosts,
+    pctOwnPosts,
+    pctBlogPosts,
+    pctReunioes,
+    pctPropostas,
+    pctNovosClientes,
+    pctPublicacoes,
 
     weeklyGoal,
     semanaAtual,
