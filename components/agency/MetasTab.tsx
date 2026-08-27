@@ -731,7 +731,7 @@ export const MetasTab: React.FC<MetasTabProps> = () => {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
               {/* Card 1: Reuniões & Calls */}
               <div className="bg-white p-6 rounded-[2rem] border border-black/[0.04] shadow-2xs space-y-4 flex flex-col justify-between">
                 <div className="flex items-center justify-between">
@@ -797,37 +797,6 @@ export const MetasTab: React.FC<MetasTabProps> = () => {
                       style={{ width: `${Math.min(100, pctPropostas)}%` }}
                     />
                   </div>
-                </div>
-              </div>
-
-              {/* Card 3: Novos Clientes */}
-              <div className="bg-white p-6 rounded-[2rem] border border-black/[0.04] shadow-2xs space-y-4 flex flex-col justify-between">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2.5">
-                    <div className="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center">
-                      <Users size={18} />
-                    </div>
-                    <div>
-                      <h4 className="text-sm font-bold text-[#13284D]">Novos Clientes</h4>
-                      <p className="text-[11px] text-stone-400">Fechamentos no mês</p>
-                    </div>
-                  </div>
-                  <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">
-                    Ativos
-                  </span>
-                </div>
-
-                <div className="space-y-2">
-                  <div className="flex items-baseline gap-1.5">
-                    <span className="text-2xl sm:text-3xl font-extrabold text-[#13284D]">
-                      {newClientsCount}
-                    </span>
-                    <span className="text-xs text-stone-400 font-medium">novos clientes contratados</span>
-                  </div>
-
-                  <p className="text-[11px] text-stone-500 font-medium pt-1">
-                    Clientes cadastrados durante o mês corrente.
-                  </p>
                 </div>
               </div>
             </div>

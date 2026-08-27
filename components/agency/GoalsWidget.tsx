@@ -90,7 +90,7 @@ export const GoalsWidget: React.FC<GoalsWidgetProps> = ({ onNavigateToMetas }) =
       ) : (
         <div className="space-y-4">
           {/* Métricas Principais em Linha */}
-          <div className={`grid grid-cols-1 ${blogPostsGoal > 0 ? 'sm:grid-cols-2 lg:grid-cols-4' : 'sm:grid-cols-3'} gap-3.5`}>
+          <div className={`grid grid-cols-1 ${blogPostsGoal > 0 ? 'sm:grid-cols-3' : 'sm:grid-cols-2'} gap-3.5`}>
             {/* Faturamento */}
             <div className="bg-stone-50/60 border border-stone-200/60 p-3.5 rounded-2xl space-y-2">
               <div className="flex items-center justify-between text-xs">
@@ -128,26 +128,6 @@ export const GoalsWidget: React.FC<GoalsWidgetProps> = ({ onNavigateToMetas }) =
               </div>
               <p className="text-[11px] font-semibold text-stone-500 truncate">
                 {meetingsCount} / {goal?.meetings_goal || 0} reuniões
-              </p>
-            </div>
-
-            {/* Novos Clientes */}
-            <div className="bg-stone-50/60 border border-stone-200/60 p-3.5 rounded-2xl space-y-2">
-              <div className="flex items-center justify-between text-xs">
-                <span className="font-bold text-stone-600 flex items-center gap-1.5">
-                  <Users size={13} className="text-purple-600" />
-                  <span>Novos Clientes</span>
-                </span>
-                <span className="font-bold text-stone-800">{pctNovosClientes}%</span>
-              </div>
-              <div className="w-full h-2 bg-stone-200/70 rounded-full overflow-hidden">
-                <div 
-                  className="h-full bg-purple-600 rounded-full transition-all"
-                  style={{ width: `${Math.min(100, pctNovosClientes)}%` }}
-                />
-              </div>
-              <p className="text-[11px] font-semibold text-stone-500 truncate">
-                {newClientsCount} / {goal?.new_clients_goal || 0} novos clientes
               </p>
             </div>
 

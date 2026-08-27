@@ -1018,10 +1018,9 @@ export const HomeTab: React.FC<HomeTabProps> = ({
           </p>
         </div>
 
-        {/* Grid 2x2 das metas secundárias */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+        {/* Grid das metas secundárias */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           {[
-            { label: 'Novos Clientes', atual: newClientsCount, meta: metaClientes, icon: <Users size={16} /> },
             { label: 'Reuniões', atual: meetingsCount, meta: metaReunioes, icon: <Calendar size={16} /> },
             { label: 'Publicações', atual: postsCount, meta: metaPublicacoes, icon: <ImageIcon size={16} /> },
             { label: 'Posts no Blog', atual: blogPostsCount, meta: metaBlogPosts, icon: <FileText size={16} /> },
