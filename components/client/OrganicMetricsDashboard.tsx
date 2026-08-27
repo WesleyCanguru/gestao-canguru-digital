@@ -13,7 +13,6 @@ import {
   Bookmark, 
   MousePointer, 
   Video, 
-  Download, 
   Filter, 
   Calendar, 
   Sparkles, 
@@ -27,7 +26,8 @@ import {
   Layers,
   ArrowUpRight,
   ArrowDownRight,
-  Minus
+  Minus,
+  Link2
 } from 'lucide-react';
 import { 
   ResponsiveContainer, 
@@ -51,6 +51,9 @@ interface OrganicMetricsDashboardProps {
 
 type PeriodType = '7d' | '30d' | '90d' | 'este_mes' | 'mes_anterior' | 'este_ano';
 
+const PLATFORMS_WITHOUT_REACH = ['tiktok', 'linkedin'];
+const PLATFORMS_WITHOUT_ENGAGEMENT = ['linkedin'];
+
 const PLATFORM_CONFIG: Record<string, { label: string; icon: any; color: string; bgColor: string }> = {
   instagram: { label: 'Instagram', icon: Instagram, color: '#E1306C', bgColor: '#FDF2F8' },
   facebook: { label: 'Facebook', icon: Facebook, color: '#1877F2', bgColor: '#EFF6FF' },
@@ -66,9 +69,52 @@ export const OrganicMetricsDashboard: React.FC<OrganicMetricsDashboardProps> = (
   const { userRole } = useAuth();
   const [metrics, setMetrics] = useState<SocialMetric[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedPlatform, setSelectedPlatform] = useState<string>('all');
-  const [selectedPeriod, setSelectedPeriod] = useState<PeriodType>('30d');
+
+  // Inicializar estado de plataforma e período a partir de parâmetros da URL
+  const [selectedPlatform, setSelectedPlatform] = useState<string>(() => {
+    if (typeof window === 'undefined') return 'all';
+    const params = new URLSearchParams(window.location.search);
+    return params.get('platform') || 'all';
+  });
+
+  const [selectedPeriod, setSelectedPeriod] = useState<PeriodType>(() => {
+    if (typeof window === 'undefined') return '30d';
+    const params = new URLSearchParams(window.location.search);
+    const p = params.get('period');
+    const validPeriods: PeriodType[] = ['7d', '30d', '90d', 'este_mes', 'mes_anterior', 'este_ano'];
+    return (validPeriods.includes(p as PeriodType) ? p : '30d') as PeriodType;
+  });
+
   const [activeChartMetric, setActiveChartMetric] = useState<'reach' | 'impressions' | 'engagement' | 'followers'>('reach');
+  const [linkCopied, setLinkCopied] = useState(false);
+
+  const showReachCard = !PLATFORMS_WITHOUT_REACH.includes(selectedPlatform);
+  const showEngagementCard = !PLATFORMS_WITHOUT_ENGAGEMENT.includes(selectedPlatform);
+
+  // Auto-trocar métrica do gráfico ao selecionar LinkedIn ou TikTok
+  useEffect(() => {
+    if (PLATFORMS_WITHOUT_REACH.includes(selectedPlatform) && activeChartMetric === 'reach') {
+      setActiveChartMetric('impressions');
+    }
+    if (PLATFORMS_WITHOUT_ENGAGEMENT.includes(selectedPlatform) && activeChartMetric === 'engagement') {
+      setActiveChartMetric('impressions');
+    }
+  }, [selectedPlatform, activeChartMetric]);
+
+  // Handler para copiar link com filtros aplicados (Admin only)
+  const handleCopyLink = () => {
+    const params = new URLSearchParams();
+    params.set('view', 'organico');
+    if (selectedPlatform !== 'all') {
+      params.set('platform', selectedPlatform);
+    }
+    params.set('period', selectedPeriod);
+    const url = `${window.location.origin}/?${params.toString()}`;
+    navigator.clipboard.writeText(url).then(() => {
+      setLinkCopied(true);
+      setTimeout(() => setLinkCopied(false), 2500);
+    });
+  };
 
   // Buscar dados da tabela social_metrics
   const fetchMetrics = useCallback(async () => {
@@ -162,7 +208,7 @@ export const OrganicMetricsDashboard: React.FC<OrganicMetricsDashboardProps> = (
       const twoMonthsAgo = today.subtract(2, 'month');
       prevStart = twoMonthsAgo.startOf('month');
       prevEnd = twoMonthsAgo.endOf('month');
-      label = `Mês passado (${lastMonth.format('MMMM')})`;
+      label = `Mês anterior (${lastMonth.format('MMMM')})`;
     } else {
       // este_ano
       curStart = today.startOf('year');
@@ -317,61 +363,19 @@ export const OrganicMetricsDashboard: React.FC<OrganicMetricsDashboardProps> = (
     return Object.values(map);
   }, [currentMetrics, currentStartDate, currentEndDate]);
 
-  // Exportar dados para CSV
-  const handleExportCSV = () => {
-    if (currentMetrics.length === 0) {
-      alert('Não há dados no período selecionado para exportar.');
-      return;
-    }
-
-    const headers = [
-      'Data',
-      'Plataforma',
-      'Alcance',
-      'Impressões',
-      'Curtidas',
-      'Comentários',
-      'Compartilhamentos',
-      'Salvamentos',
-      'Engajamento Total',
-      'Seguidores Ganhos',
-      'Total de Seguidores',
-      'Visitas ao Perfil',
-      'Cliques no Site',
-      'Visualizações de Vídeo'
-    ];
-
-    const rows = currentMetrics.map(m => {
-      const eng = (Number(m.likes) || 0) + (Number(m.comments) || 0) + (Number(m.shares) || 0) + (Number(m.saves) || 0);
-      return [
-        m.date,
-        m.platform || '',
-        m.reach ?? 0,
-        m.impressions ?? 0,
-        m.likes ?? 0,
-        m.comments ?? 0,
-        m.shares ?? 0,
-        m.saves ?? 0,
-        eng,
-        m.followers_gained ?? 0,
-        m.followers_count ?? '',
-        m.profile_visits ?? 0,
-        m.website_clicks ?? 0,
-        m.video_views ?? 0
-      ].join(';');
+  // Tabs do gráfico temporal filtrando métricas não suportadas
+  const chartMetricTabs = useMemo(() => {
+    return [
+      { id: 'reach', label: 'Alcance' },
+      { id: 'impressions', label: 'Impressões' },
+      { id: 'engagement', label: 'Engajamento' },
+      { id: 'followers', label: 'Seguidores' },
+    ].filter(tab => {
+      if (tab.id === 'reach' && PLATFORMS_WITHOUT_REACH.includes(selectedPlatform)) return false;
+      if (tab.id === 'engagement' && PLATFORMS_WITHOUT_ENGAGEMENT.includes(selectedPlatform)) return false;
+      return true;
     });
-
-    const csvContent = '\uFEFF' + [headers.join(';'), ...rows].join('\n');
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    const cleanClient = (clientName || 'cliente').replace(/[^a-zA-Z0-9_-]/g, '_');
-    link.setAttribute('href', url);
-    link.setAttribute('download', `metricas_organicas_${cleanClient}_${selectedPeriod}_${dayjs().format('YYYY-MM-DD')}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  };
+  }, [selectedPlatform]);
 
   // Helper para renderizar indicador de variação
   const renderVariation = (variation: number, hasPrev: boolean) => {
@@ -419,7 +423,7 @@ export const OrganicMetricsDashboard: React.FC<OrganicMetricsDashboardProps> = (
     followers: { stroke: '#7C3AED', fill: '#7C3AED', label: 'Seguidores Ganhos' },
   };
 
-  const currentChartConfig = chartColorMap[activeChartMetric];
+  const currentChartConfig = chartColorMap[activeChartMetric] || chartColorMap.impressions;
 
   // Custom Tooltip do gráfico de tendência
   const CustomChartTooltip = ({ active, payload, label }: any) => {
@@ -436,13 +440,13 @@ export const OrganicMetricsDashboard: React.FC<OrganicMetricsDashboardProps> = (
               <span className="text-stone-300 font-sans">{currentChartConfig.label}:</span>
               <span className="font-bold text-emerald-400 text-sm">{formatNumber(dataPoint.value)}</span>
             </div>
-            {dateItem && activeChartMetric !== 'reach' && (
+            {dateItem && activeChartMetric !== 'reach' && showReachCard && (
               <div className="flex items-center justify-between gap-3 text-[11px] text-stone-300 font-sans">
                 <span>Alcance:</span>
                 <span className="font-mono text-white">{formatNumber(dateItem.reach)}</span>
               </div>
             )}
-            {dateItem && activeChartMetric !== 'engagement' && (
+            {dateItem && activeChartMetric !== 'engagement' && showEngagementCard && (
               <div className="flex items-center justify-between gap-3 text-[11px] text-stone-300 font-sans">
                 <span>Engajamento:</span>
                 <span className="font-mono text-white">{formatNumber(dateItem.engagement)}</span>
@@ -493,63 +497,84 @@ export const OrganicMetricsDashboard: React.FC<OrganicMetricsDashboardProps> = (
   const sharesPct = Math.round((processedData.shares / totalEng) * 100);
   const savesPct = Math.round((processedData.saves / totalEng) * 100);
 
+  const periods: { id: PeriodType; label: string }[] = [
+    { id: '7d', label: 'Últimos 7 dias' },
+    { id: '30d', label: 'Últimos 30 dias' },
+    { id: '90d', label: 'Últimos 90 dias' },
+    { id: 'este_mes', label: 'Este mês' },
+    { id: 'mes_anterior', label: 'Mês anterior' },
+    { id: 'este_ano', label: 'Este ano' },
+  ];
+
   return (
     <div className="space-y-6">
       
       {/* ========================================================================= */}
-      {/* CONTROLES SUPERIORES: PLATAFORMAS, PERÍODOS E EXPORTAÇÃO CSV */}
+      {/* CONTROLES SUPERIORES: PLATAFORMAS, PERÍODOS E COPIAR LINK */}
       {/* ========================================================================= */}
-      <div className="bg-white rounded-2xl p-3 sm:p-4 border border-stone-200/70 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="bg-white rounded-2xl p-3 sm:p-4 border border-stone-200/70 shadow-xs flex flex-col gap-3 w-full">
         
-        {/* Pílulas de Plataforma (Apenas plataformas que possuem dados gravados) */}
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 md:pb-0 scrollbar-none">
-          <button
-            onClick={() => setSelectedPlatform('all')}
-            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap flex items-center gap-2 ${
-              selectedPlatform === 'all'
-                ? 'bg-[#13284D] text-white shadow-xs'
-                : 'bg-stone-50 hover:bg-stone-100 text-stone-600 border border-stone-200/60'
-            }`}
-          >
-            <Layers size={14} />
-            <span>Todas as Redes</span>
-          </button>
+        {/* Linha Superior: Pílulas de Plataforma + Botão Copiar Link (Admin) */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          {/* Pílulas de Plataforma (Apenas plataformas que possuem dados gravados) */}
+          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0 scrollbar-none flex-nowrap">
+            <button
+              onClick={() => setSelectedPlatform('all')}
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap flex items-center gap-2 ${
+                selectedPlatform === 'all'
+                  ? 'bg-[#13284D] text-white shadow-xs'
+                  : 'bg-stone-50 hover:bg-stone-100 text-stone-600 border border-stone-200/60'
+              }`}
+            >
+              <Layers size={14} />
+              <span>Todas as Redes</span>
+            </button>
 
-          {availablePlatforms.map((plat) => {
-            const config = PLATFORM_CONFIG[plat] || { label: plat, icon: Activity, color: '#13284D', bgColor: '#F4F4F5' };
-            const Icon = config.icon;
-            const isSelected = selectedPlatform === plat;
-            return (
-              <button
-                key={plat}
-                onClick={() => setSelectedPlatform(plat)}
-                className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap flex items-center gap-2 ${
-                  isSelected
-                    ? 'bg-[#13284D] text-white shadow-xs'
-                    : 'bg-stone-50 hover:bg-stone-100 text-stone-600 border border-stone-200/60'
-                }`}
-              >
-                <Icon size={14} style={{ color: isSelected ? '#ffffff' : config.color }} />
-                <span>{config.label}</span>
-              </button>
-            );
-          })}
+            {availablePlatforms.map((plat) => {
+              const config = PLATFORM_CONFIG[plat] || { label: plat, icon: Activity, color: '#13284D', bgColor: '#F4F4F5' };
+              const Icon = config.icon;
+              const isSelected = selectedPlatform === plat;
+              return (
+                <button
+                  key={plat}
+                  onClick={() => setSelectedPlatform(plat)}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap flex items-center gap-2 ${
+                    isSelected
+                      ? 'bg-[#13284D] text-white shadow-xs'
+                      : 'bg-stone-50 hover:bg-stone-100 text-stone-600 border border-stone-200/60'
+                  }`}
+                >
+                  <Icon size={14} style={{ color: isSelected ? '#ffffff' : config.color }} />
+                  <span>{config.label}</span>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Botão Copiar Link (Visível apenas para Admin) */}
+          {userRole === 'admin' && (
+            <button
+              onClick={handleCopyLink}
+              className={`flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-xl text-[11px] font-semibold transition-all cursor-pointer whitespace-nowrap self-start sm:self-auto ${
+                linkCopied
+                  ? 'bg-green-50 text-green-600 border border-green-200'
+                  : 'bg-gray-50 text-gray-500 hover:bg-gray-100 hover:text-gray-700 border border-gray-200/60'
+              }`}
+              title="Copiar link direto para esta visualização"
+            >
+              <Link2 size={13} />
+              <span>{linkCopied ? 'Link copiado!' : 'Copiar link'}</span>
+            </button>
+          )}
         </div>
 
-        {/* Seletores de Período e Botão de Exportar CSV */}
-        <div className="flex items-center gap-2 self-start md:self-auto flex-wrap">
-          <div className="flex items-center gap-1 p-1 bg-stone-100/90 rounded-xl border border-stone-200/60 overflow-x-auto scrollbar-none">
-            {[
-              { id: '7d', label: '7D' },
-              { id: '30d', label: '30D' },
-              { id: '90d', label: '90D' },
-              { id: 'este_mes', label: 'Este Mês' },
-              { id: 'mes_anterior', label: 'Mês Ant.' },
-              { id: 'este_ano', label: 'Este Ano' },
-            ].map((p) => (
+        {/* Linha Inferior: Seletores de Período com scroll horizontal */}
+        <div className="flex gap-1.5 overflow-x-auto scrollbar-none flex-nowrap pb-1 pt-1 border-t border-stone-100">
+          <div className="flex items-center gap-1 p-1 bg-stone-100/90 rounded-xl border border-stone-200/60 overflow-x-auto scrollbar-none flex-nowrap">
+            {periods.map((p) => (
               <button
                 key={p.id}
-                onClick={() => setSelectedPeriod(p.id as PeriodType)}
+                onClick={() => setSelectedPeriod(p.id)}
                 className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap cursor-pointer ${
                   selectedPeriod === p.id
                     ? 'bg-white text-[#13284D] shadow-xs'
@@ -560,126 +585,121 @@ export const OrganicMetricsDashboard: React.FC<OrganicMetricsDashboardProps> = (
               </button>
             ))}
           </div>
-
-          <button
-            onClick={handleExportCSV}
-            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-stone-50 hover:bg-stone-100 border border-stone-200/70 text-xs font-bold text-[#13284D] transition-all cursor-pointer active:scale-95 shadow-2xs"
-            title="Exportar dados do período em CSV"
-          >
-            <Download size={13} />
-            <span className="hidden sm:inline">Exportar CSV</span>
-          </button>
         </div>
 
       </div>
 
       {/* ========================================================================= */}
-      {/* 4 CARDS PRINCIPAIS DE MÉTRICAS */}
+      {/* CARDS PRINCIPAIS DE MÉTRICAS */}
       {/* ========================================================================= */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         
-        {/* 1. ALCANCE (REACH) */}
-        <div className="bg-white rounded-2xl p-5 sm:p-6 border border-stone-200/70 shadow-xs hover:border-[#13284D]/30 transition-all flex flex-col justify-between">
-          <div>
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-xs font-bold uppercase tracking-wider text-stone-500">
-                Alcance Único
-              </span>
-              <div className="w-8 h-8 rounded-xl bg-blue-50 text-blue-700 flex items-center justify-center">
-                <Users size={16} />
+        {/* 1. ALCANCE (REACH) — Oculto para TikTok e LinkedIn */}
+        {showReachCard && (
+          <div className="bg-white rounded-2xl p-4 sm:p-5 border border-stone-200/70 shadow-xs hover:border-[#13284D]/30 transition-all flex flex-col justify-between">
+            <div>
+              <div className="flex items-center justify-between mb-2 sm:mb-3">
+                <span className="text-[10px] sm:text-xs font-bold uppercase tracking-wider text-stone-500">
+                  Alcance Único
+                </span>
+                <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-blue-50 text-blue-700 flex items-center justify-center">
+                  <Users size={15} />
+                </div>
               </div>
+              <div className="text-2xl sm:text-3xl font-black text-[#13284D] font-mono tracking-tight">
+                {formatNumber(processedData.reach)}
+              </div>
+              <p className="text-[10px] sm:text-[11px] text-stone-400 font-medium mt-0.5">
+                Contas alcançadas
+              </p>
             </div>
-            <div className="text-2xl sm:text-3xl font-black text-[#13284D] font-mono tracking-tight">
-              {formatNumber(processedData.reach)}
+            <div className="mt-3 pt-2.5 sm:mt-4 sm:pt-3 border-t border-stone-100 flex items-center justify-between">
+              {renderVariation(processedData.reachVariation, processedData.hasPreviousData)}
             </div>
-            <p className="text-[11px] text-stone-400 font-medium mt-0.5">
-              Contas alcançadas no período
-            </p>
           </div>
-          <div className="mt-4 pt-3 border-t border-stone-100 flex items-center justify-between">
-            {renderVariation(processedData.reachVariation, processedData.hasPreviousData)}
-          </div>
-        </div>
+        )}
 
         {/* 2. IMPRESSÕES (IMPRESSIONS) */}
-        <div className="bg-white rounded-2xl p-5 sm:p-6 border border-stone-200/70 shadow-xs hover:border-[#13284D]/30 transition-all flex flex-col justify-between">
+        <div className="bg-white rounded-2xl p-4 sm:p-5 border border-stone-200/70 shadow-xs hover:border-[#13284D]/30 transition-all flex flex-col justify-between">
           <div>
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-xs font-bold uppercase tracking-wider text-stone-500">
+            <div className="flex items-center justify-between mb-2 sm:mb-3">
+              <span className="text-[10px] sm:text-xs font-bold uppercase tracking-wider text-stone-500">
                 Impressões
               </span>
-              <div className="w-8 h-8 rounded-xl bg-indigo-50 text-indigo-700 flex items-center justify-center">
-                <Eye size={16} />
+              <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-indigo-50 text-indigo-700 flex items-center justify-center">
+                <Eye size={15} />
               </div>
             </div>
             <div className="text-2xl sm:text-3xl font-black text-[#13284D] font-mono tracking-tight">
               {formatNumber(processedData.impressions)}
             </div>
-            <p className="text-[11px] text-stone-400 font-medium mt-0.5">
-              Visualizações totais dos conteúdos
+            <p className="text-[10px] sm:text-[11px] text-stone-400 font-medium mt-0.5">
+              Visualizações totais
             </p>
           </div>
-          <div className="mt-4 pt-3 border-t border-stone-100 flex items-center justify-between">
+          <div className="mt-3 pt-2.5 sm:mt-4 sm:pt-3 border-t border-stone-100 flex items-center justify-between">
             {renderVariation(processedData.impressionsVariation, processedData.hasPreviousData)}
           </div>
         </div>
 
-        {/* 3. ENGAJAMENTO TOTAL & TAXA DE ENGAJAMENTO */}
-        <div className="bg-white rounded-2xl p-5 sm:p-6 border border-stone-200/70 shadow-xs hover:border-[#13284D]/30 transition-all flex flex-col justify-between">
-          <div>
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-xs font-bold uppercase tracking-wider text-stone-500">
-                Engajamento Total
-              </span>
-              <div className="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center">
-                <Heart size={16} />
-              </div>
-            </div>
-            <div className="flex items-baseline gap-2">
-              <span className="text-2xl sm:text-3xl font-black text-[#13284D] font-mono tracking-tight">
-                {formatNumber(processedData.totalEngagement)}
-              </span>
-              {processedData.engagementRate > 0 && (
-                <span className="text-xs font-bold bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-md font-mono">
-                  {processedData.engagementRate.toFixed(2)}% taxa
+        {/* 3. ENGAJAMENTO TOTAL & TAXA DE ENGAJAMENTO — Oculto para LinkedIn */}
+        {showEngagementCard && (
+          <div className="bg-white rounded-2xl p-4 sm:p-5 border border-stone-200/70 shadow-xs hover:border-[#13284D]/30 transition-all flex flex-col justify-between">
+            <div>
+              <div className="flex items-center justify-between mb-2 sm:mb-3">
+                <span className="text-[10px] sm:text-xs font-bold uppercase tracking-wider text-stone-500">
+                  Engajamento Total
                 </span>
-              )}
+                <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center">
+                  <Heart size={15} />
+                </div>
+              </div>
+              <div className="flex flex-wrap items-baseline gap-1.5 sm:gap-2">
+                <span className="text-2xl sm:text-3xl font-black text-[#13284D] font-mono tracking-tight">
+                  {formatNumber(processedData.totalEngagement)}
+                </span>
+                {processedData.engagementRate > 0 && (
+                  <span className="text-[10px] sm:text-xs font-bold bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded-md font-mono">
+                    {processedData.engagementRate.toFixed(2)}%
+                  </span>
+                )}
+              </div>
+              <p className="text-[10px] sm:text-[11px] text-stone-400 font-medium mt-0.5">
+                Curtidas, comentários e salvos
+              </p>
             </div>
-            <p className="text-[11px] text-stone-400 font-medium mt-0.5">
-              Curtidas, comentários, salvos e shares
-            </p>
+            <div className="mt-3 pt-2.5 sm:mt-4 sm:pt-3 border-t border-stone-100 flex items-center justify-between">
+              {renderVariation(processedData.engagementVariation, processedData.hasPreviousData)}
+            </div>
           </div>
-          <div className="mt-4 pt-3 border-t border-stone-100 flex items-center justify-between">
-            {renderVariation(processedData.engagementVariation, processedData.hasPreviousData)}
-          </div>
-        </div>
+        )}
 
         {/* 4. SEGUIDORES GANHOS & TOTAL */}
-        <div className="bg-white rounded-2xl p-5 sm:p-6 border border-stone-200/70 shadow-xs hover:border-[#13284D]/30 transition-all flex flex-col justify-between">
+        <div className="bg-white rounded-2xl p-4 sm:p-5 border border-stone-200/70 shadow-xs hover:border-[#13284D]/30 transition-all flex flex-col justify-between">
           <div>
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-xs font-bold uppercase tracking-wider text-stone-500">
+            <div className="flex items-center justify-between mb-2 sm:mb-3">
+              <span className="text-[10px] sm:text-xs font-bold uppercase tracking-wider text-stone-500">
                 Novos Seguidores
               </span>
-              <div className="w-8 h-8 rounded-xl bg-purple-50 text-purple-700 flex items-center justify-center">
-                <TrendingUp size={16} />
+              <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-purple-50 text-purple-700 flex items-center justify-center">
+                <TrendingUp size={15} />
               </div>
             </div>
-            <div className="flex items-baseline gap-2">
+            <div className="flex flex-wrap items-baseline gap-1.5 sm:gap-2">
               <span className="text-2xl sm:text-3xl font-black text-[#13284D] font-mono tracking-tight">
                 {processedData.followersGained >= 0 ? `+${formatNumber(processedData.followersGained)}` : formatNumber(processedData.followersGained)}
               </span>
               {latestFollowersCount > 0 && (
-                <span className="text-xs text-stone-500 font-semibold">
-                  ({formatNumber(latestFollowersCount)} total)
+                <span className="text-[10px] sm:text-xs text-stone-500 font-semibold">
+                  ({formatNumber(latestFollowersCount)})
                 </span>
               )}
             </div>
-            <p className="text-[11px] text-stone-400 font-medium mt-0.5">
-              Saldo de crescimento no período
+            <p className="text-[10px] sm:text-[11px] text-stone-400 font-medium mt-0.5">
+              Saldo de crescimento
             </p>
           </div>
-          <div className="mt-4 pt-3 border-t border-stone-100 flex items-center justify-between">
+          <div className="mt-3 pt-2.5 sm:mt-4 sm:pt-3 border-t border-stone-100 flex items-center justify-between">
             {renderVariation(processedData.followersVariation, processedData.hasPreviousData)}
           </div>
         </div>
@@ -689,8 +709,8 @@ export const OrganicMetricsDashboard: React.FC<OrganicMetricsDashboardProps> = (
       {/* ========================================================================= */}
       {/* GRÁFICO DE TENDÊNCIA TEMPORAL (AREA CHART) */}
       {/* ========================================================================= */}
-      <div className="bg-white rounded-3xl p-6 sm:p-7 border border-stone-200/70 shadow-xs">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+      <div className="bg-white rounded-3xl p-4 sm:p-7 border border-stone-200/70 shadow-xs">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
           <div>
             <h3 className="text-base sm:text-lg font-bold text-[#13284D] tracking-tight">
               Evolução Temporal ({periodLabel})
@@ -701,13 +721,8 @@ export const OrganicMetricsDashboard: React.FC<OrganicMetricsDashboardProps> = (
           </div>
 
           {/* Switch de Métricas no Gráfico */}
-          <div className="flex items-center gap-1 p-1 bg-stone-100/90 rounded-xl border border-stone-200/60 self-start sm:self-auto overflow-x-auto scrollbar-none">
-            {[
-              { id: 'reach', label: 'Alcance' },
-              { id: 'impressions', label: 'Impressões' },
-              { id: 'engagement', label: 'Engajamento' },
-              { id: 'followers', label: 'Seguidores' },
-            ].map((m) => (
+          <div className="flex items-center gap-1 p-1 bg-stone-100/90 rounded-xl border border-stone-200/60 self-start sm:self-auto overflow-x-auto scrollbar-none flex-nowrap">
+            {chartMetricTabs.map((m) => (
               <button
                 key={m.id}
                 onClick={() => setActiveChartMetric(m.id as any)}
@@ -723,7 +738,7 @@ export const OrganicMetricsDashboard: React.FC<OrganicMetricsDashboardProps> = (
           </div>
         </div>
 
-        <div className="h-[280px] sm:h-[320px] w-full">
+        <div className="h-[260px] sm:h-[320px] w-full">
           <ResponsiveContainer width="100%" height="100%">
             <AreaChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
               <defs>
@@ -768,7 +783,7 @@ export const OrganicMetricsDashboard: React.FC<OrganicMetricsDashboardProps> = (
           Detalhamento de Interações & Atividades
         </h3>
 
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
           
           {/* Curtidas */}
           {processedData.likes > 0 && (
@@ -777,7 +792,7 @@ export const OrganicMetricsDashboard: React.FC<OrganicMetricsDashboardProps> = (
                 <Heart size={15} />
                 <span className="text-xs font-bold text-stone-600">Curtidas</span>
               </div>
-              <div className="text-xl font-bold text-[#13284D] font-mono">
+              <div className="text-lg sm:text-xl font-bold text-[#13284D] font-mono">
                 {formatNumber(processedData.likes)}
               </div>
             </div>
@@ -790,7 +805,7 @@ export const OrganicMetricsDashboard: React.FC<OrganicMetricsDashboardProps> = (
                 <MessageCircle size={15} />
                 <span className="text-xs font-bold text-stone-600">Comentários</span>
               </div>
-              <div className="text-xl font-bold text-[#13284D] font-mono">
+              <div className="text-lg sm:text-xl font-bold text-[#13284D] font-mono">
                 {formatNumber(processedData.comments)}
               </div>
             </div>
@@ -803,7 +818,7 @@ export const OrganicMetricsDashboard: React.FC<OrganicMetricsDashboardProps> = (
                 <Share2 size={15} />
                 <span className="text-xs font-bold text-stone-600">Compartilhados</span>
               </div>
-              <div className="text-xl font-bold text-[#13284D] font-mono">
+              <div className="text-lg sm:text-xl font-bold text-[#13284D] font-mono">
                 {formatNumber(processedData.shares)}
               </div>
             </div>
@@ -816,7 +831,7 @@ export const OrganicMetricsDashboard: React.FC<OrganicMetricsDashboardProps> = (
                 <Bookmark size={15} />
                 <span className="text-xs font-bold text-stone-600">Salvamentos</span>
               </div>
-              <div className="text-xl font-bold text-[#13284D] font-mono">
+              <div className="text-lg sm:text-xl font-bold text-[#13284D] font-mono">
                 {formatNumber(processedData.saves)}
               </div>
             </div>
@@ -829,7 +844,7 @@ export const OrganicMetricsDashboard: React.FC<OrganicMetricsDashboardProps> = (
                 <Users size={15} />
                 <span className="text-xs font-bold text-stone-600">Visitas ao Perfil</span>
               </div>
-              <div className="text-xl font-bold text-[#13284D] font-mono">
+              <div className="text-lg sm:text-xl font-bold text-[#13284D] font-mono">
                 {formatNumber(processedData.profileVisits)}
               </div>
             </div>
@@ -842,7 +857,7 @@ export const OrganicMetricsDashboard: React.FC<OrganicMetricsDashboardProps> = (
                 <MousePointer size={15} />
                 <span className="text-xs font-bold text-stone-600">Cliques no Link</span>
               </div>
-              <div className="text-xl font-bold text-[#13284D] font-mono">
+              <div className="text-lg sm:text-xl font-bold text-[#13284D] font-mono">
                 {formatNumber(processedData.websiteClicks)}
               </div>
             </div>
@@ -855,7 +870,7 @@ export const OrganicMetricsDashboard: React.FC<OrganicMetricsDashboardProps> = (
                 <Video size={15} />
                 <span className="text-xs font-bold text-stone-600">Views de Vídeo</span>
               </div>
-              <div className="text-xl font-bold text-[#13284D] font-mono">
+              <div className="text-lg sm:text-xl font-bold text-[#13284D] font-mono">
                 {formatNumber(processedData.videoViews)}
               </div>
             </div>
@@ -868,7 +883,7 @@ export const OrganicMetricsDashboard: React.FC<OrganicMetricsDashboardProps> = (
       {/* DISTRIBUIÇÃO DO ENGAJAMENTO & PROPORÇÃO */}
       {/* ========================================================================= */}
       {processedData.totalEngagement > 0 && (
-        <div className="bg-white rounded-3xl p-6 border border-stone-200/70 shadow-xs">
+        <div className="bg-white rounded-3xl p-4 sm:p-6 border border-stone-200/70 shadow-xs">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
             <div>
               <h4 className="text-sm font-bold text-[#13284D]">
@@ -920,3 +935,4 @@ export const OrganicMetricsDashboard: React.FC<OrganicMetricsDashboardProps> = (
     </div>
   );
 };
+
