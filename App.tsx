@@ -29,6 +29,7 @@ import { PhotosApprovalPublic } from './components/PhotosApprovalPublic';
 import { RoteirosSection } from './components/anotacoes/RoteirosSection';
 import { ScriptApprovalPublic } from './components/anotacoes/ScriptApprovalPublic';
 import { ClientPainelConteudo } from './components/client/ClientPainelConteudo';
+import { OrganicMetricsDashboard } from './components/client/OrganicMetricsDashboard';
 import { PublicMonthPage } from './components/PublicMonthPage';
 
 import { AgencyHome } from './components/agency/AgencyHome';
@@ -41,7 +42,7 @@ dayjs.locale('pt-br');
 
 import { Navigation } from './components/Navigation';
 
-type ViewState = 'home' | 'month-detail' | 'onboarding' | 'dashboard' | 'briefings' | 'strategic-briefings' | 'paid-traffic' | 'website' | 'password-vault' | 'tutorials' | 'ai-photos' | 'agencyDashboard' | 'crm' | 'roteiros';
+type ViewState = 'home' | 'month-detail' | 'onboarding' | 'dashboard' | 'briefings' | 'strategic-briefings' | 'paid-traffic' | 'website' | 'password-vault' | 'tutorials' | 'ai-photos' | 'agencyDashboard' | 'crm' | 'roteiros' | 'organico';
 
 interface MainAppProps {
   initialView?: ViewState;
@@ -107,6 +108,8 @@ const MainApp: React.FC<MainAppProps> = ({ initialView, onExitAgencyDashboard, o
       setView('strategic-briefings');
     } else if (viewParam === 'crm') {
       setView('crm');
+    } else if (viewParam === 'organico' || viewParam === 'social_metrics' || viewParam === 'metricas-organicas' || aba === 'organico') {
+      setView('organico');
     } else if (viewParam === 'painel-conteudo' || viewParam === 'mapa-master' || viewParam === 'posts') {
       setView('agencyDashboard');
       setAgencyTab('masterMap');
@@ -391,6 +394,7 @@ const MainApp: React.FC<MainAppProps> = ({ initialView, onExitAgencyDashboard, o
                     onNavigateToTutorials={() => setView('tutorials')}
                     onNavigateToAiPhotos={() => setView('ai-photos')}
                     onNavigateToRoteiros={() => setView('roteiros')}
+                    onNavigateToOrganico={() => setView('organico')}
                     onRefreshClient={refreshActiveClient}
                   />
                 ) : view === 'briefings' ? (
@@ -470,6 +474,27 @@ const MainApp: React.FC<MainAppProps> = ({ initialView, onExitAgencyDashboard, o
                     )}
                     {activeClient && <RoteirosSection clientId={activeClient.id} clientName={activeClient.name} />}
                   </div>
+                ) : view === 'organico' ? (
+                  <div className="space-y-6">
+                    {!showNav && (
+                      <div className="bg-white rounded-2xl p-4 border border-stone-200/70 shadow-xs flex items-center justify-between mb-4">
+                        <button 
+                          onClick={() => setView('dashboard')}
+                          className="flex items-center gap-2 text-sm font-bold text-[#13284D] hover:opacity-80 transition-opacity cursor-pointer"
+                        >
+                          <ChevronRight className="w-5 h-5 rotate-180" />
+                          <span>Voltar ao Início</span>
+                        </button>
+                      </div>
+                    )}
+                    {activeClient && (
+                      <OrganicMetricsDashboard 
+                        clientId={activeClient.id} 
+                        agencyId={activeClient.agency_id} 
+                        clientName={activeClient.name} 
+                      />
+                    )}
+                  </div>
                 ) : view === 'dashboard' ? (
                   <ClientHome
                     initialActiveView="dashboard"
@@ -485,6 +510,7 @@ const MainApp: React.FC<MainAppProps> = ({ initialView, onExitAgencyDashboard, o
                     onNavigateToTutorials={() => setView('tutorials')}
                     onNavigateToAiPhotos={() => setView('ai-photos')}
                     onNavigateToRoteiros={() => setView('roteiros')}
+                    onNavigateToOrganico={() => setView('organico')}
                     onRefreshClient={refreshActiveClient}
                   />
                 ) : view === 'onboarding' ? (

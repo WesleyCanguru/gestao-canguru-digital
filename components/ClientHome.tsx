@@ -49,6 +49,7 @@ interface ClientHomeProps {
   onNavigateToTutorials: () => void;
   onNavigateToAiPhotos: () => void;
   onNavigateToRoteiros: () => void;
+  onNavigateToOrganico?: () => void;
   onRefreshClient?: () => void;
 }
 
@@ -71,6 +72,7 @@ export const ClientHome: React.FC<ClientHomeProps> = ({
   onNavigateToTutorials,
   onNavigateToAiPhotos,
   onNavigateToRoteiros,
+  onNavigateToOrganico,
   onRefreshClient,
 }) => {
   const { activeClient, userRole } = useAuth();
@@ -78,6 +80,13 @@ export const ClientHome: React.FC<ClientHomeProps> = ({
   const [leadConfig, setLeadConfig] = useState<ClientLeadConfig | null>(null);
   const [monthLeadsCount, setMonthLeadsCount] = useState<number>(0);
   const [activeView, setActiveView] = useState<'dashboard' | 'leads'>(initialActiveView || 'dashboard');
+
+  // Organic metrics preview state
+  const [organicPreview, setOrganicPreview] = useState<{
+    alcance7d: number;
+    taxaEngajamento: string;
+    seguidoresGanhos7d: number;
+  } | null>(null);
 
   // Posts states
   const [postsParaAprovar, setPostsParaAprovar] = useState<any[]>([]);
@@ -267,10 +276,68 @@ export const ClientHome: React.FC<ClientHomeProps> = ({
     }
   }, [activeClient?.id]);
 
+  // Buscar métricas orgânicas dos últimos 7 dias para o card de preview
+  const fetchOrganicMetrics = useCallback(async () => {
+    if (!activeClient?.id) {
+      setOrganicPreview(null);
+      return;
+    }
+
+    try {
+      const today = dayjs().endOf('day');
+      const start7d = today.subtract(6, 'day').startOf('day').format('YYYY-MM-DD');
+      const end7d = today.format('YYYY-MM-DD');
+
+      const { data, error } = await supabase
+        .from('social_metrics')
+        .select('*')
+        .eq('client_id', activeClient.id)
+        .gte('date', start7d)
+        .lte('date', end7d);
+
+      if (error) {
+        setOrganicPreview(null);
+        return;
+      }
+
+      if (data && data.length > 0) {
+        let reach = 0;
+        let likes = 0;
+        let comments = 0;
+        let shares = 0;
+        let saves = 0;
+        let followersGained = 0;
+
+        data.forEach((m: any) => {
+          reach += Number(m.reach) || 0;
+          likes += Number(m.likes) || 0;
+          comments += Number(m.comments) || 0;
+          shares += Number(m.shares) || 0;
+          saves += Number(m.saves) || 0;
+          followersGained += Number(m.followers_gained) || 0;
+        });
+
+        const totalEng = likes + comments + shares + saves;
+        const taxa = reach > 0 ? ((totalEng / reach) * 100).toFixed(1) : '0';
+
+        setOrganicPreview({
+          alcance7d: reach,
+          taxaEngajamento: taxa,
+          seguidoresGanhos7d: followersGained
+        });
+      } else {
+        setOrganicPreview(null);
+      }
+    } catch {
+      setOrganicPreview(null);
+    }
+  }, [activeClient?.id]);
+
   useEffect(() => {
     fetchClientPosts();
     checkStatus();
-  }, [fetchClientPosts, checkStatus]);
+    fetchOrganicMetrics();
+  }, [fetchClientPosts, checkStatus, fetchOrganicMetrics]);
 
   // Realtime subscription para atualizar em tempo real quando houver novos posts ou aprovações
   useEffect(() => {
@@ -378,6 +445,20 @@ export const ClientHome: React.FC<ClientHomeProps> = ({
       icon: Calendar,
       visible: showMapa,
       action: () => onNavigateToMapa('mapa')
+    },
+    {
+      id: 'organico',
+      label: 'Redes Sociais',
+      subtitle: 'Métricas de desempenho',
+      icon: TrendingUp,
+      visible: getFeature('organico', hasService('Social Media')),
+      action: () => {
+        if (onNavigateToOrganico) {
+          onNavigateToOrganico();
+        } else {
+          onNavigateToMapa('mapa');
+        }
+      }
     },
     {
       id: 'roteiros',
@@ -690,6 +771,71 @@ export const ClientHome: React.FC<ClientHomeProps> = ({
           );
         })}
       </motion.div>
+
+      {/* Card de preview orgânico — mostrar apenas se houver dados em social_metrics */}
+      {organicPreview && (
+        <motion.div
+          initial={{ opacity: 0, y: 15 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.15, ease: [0.16, 1, 0.3, 1] }}
+          style={{
+            background: '#ffffff',
+            borderRadius: 12,
+            padding: '20px 24px',
+            border: '1.5px solid #f0f0f0',
+            marginTop: 16,
+            marginBottom: 24
+          }}
+          className="shadow-xs hover:border-[#13284D]/30 transition-all"
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+            <div>
+              <p style={{ color: '#8A8F98', fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 4 }}>
+                Redes Sociais · Últimos 7 dias
+              </p>
+              <h3 style={{ color: '#13284D', fontSize: 15, fontWeight: 700, margin: 0 }}>
+                Métricas das redes sociais
+              </h3>
+            </div>
+            <button 
+              type="button"
+              onClick={() => {
+                if (onNavigateToOrganico) {
+                  onNavigateToOrganico();
+                } else {
+                  onNavigateToMapa('mapa');
+                }
+              }}
+              style={{ color: '#13284D', fontSize: 13, fontWeight: 600, background: 'none', border: 'none', cursor: 'pointer' }}
+              className="hover:underline transition-all"
+            >
+              Ver tudo →
+            </button>
+          </div>
+
+          {/* 3 mini-cards: Alcance | Engajamento | Seguidores */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
+            <div style={{ textAlign: 'center' }}>
+              <p style={{ color: '#13284D', fontSize: 22, fontWeight: 700, margin: 0 }}>
+                {organicPreview.alcance7d.toLocaleString('pt-BR')}
+              </p>
+              <p style={{ color: '#8A8F98', fontSize: 11, margin: '4px 0 0' }}>Alcance</p>
+            </div>
+            <div style={{ textAlign: 'center' }}>
+              <p style={{ color: '#13284D', fontSize: 22, fontWeight: 700, margin: 0 }}>
+                {organicPreview.taxaEngajamento}%
+              </p>
+              <p style={{ color: '#8A8F98', fontSize: 11, margin: '4px 0 0' }}>Engajamento</p>
+            </div>
+            <div style={{ textAlign: 'center' }}>
+              <p style={{ color: '#10b981', fontSize: 22, fontWeight: 700, margin: 0 }}>
+                {organicPreview.seguidoresGanhos7d >= 0 ? `+${organicPreview.seguidoresGanhos7d}` : organicPreview.seguidoresGanhos7d}
+              </p>
+              <p style={{ color: '#8A8F98', fontSize: 11, margin: '4px 0 0' }}>Seguidores</p>
+            </div>
+          </div>
+        </motion.div>
+      )}
 
       {/* SEÇÃO 3 — Publicações pendentes de aprovação (condicional) */}
       {!postsLoading && postsParaAprovar.length > 0 && (

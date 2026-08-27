@@ -577,6 +577,26 @@ export interface TaskSession {
   task?: AgencyTask;
 }
 
+export interface SocialMetric {
+  id: string;
+  client_id: string;
+  agency_id: number;
+  platform: 'instagram' | 'facebook' | 'tiktok' | 'linkedin';
+  date: string; // 'YYYY-MM-DD'
+  reach?: number;
+  impressions?: number;
+  likes?: number;
+  comments?: number;
+  shares?: number;
+  saves?: number;
+  followers_count?: number;   // total acumulado
+  followers_gained?: number;  // ganhos no dia
+  profile_visits?: number;
+  website_clicks?: number;
+  video_views?: number;
+  created_at?: string;
+}
+
 export interface AgencyGoal {
   id?: string;
   agency_id: number;
