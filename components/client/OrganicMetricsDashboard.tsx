@@ -51,8 +51,8 @@ interface OrganicMetricsDashboardProps {
 
 type PeriodType = '7d' | '30d' | '90d' | 'este_mes' | 'mes_anterior' | 'este_ano';
 
-const PLATFORMS_WITHOUT_REACH = ['tiktok', 'linkedin'];
-const PLATFORMS_WITHOUT_ENGAGEMENT = ['linkedin'];
+const PLATFORMS_WITHOUT_REACH = ['tiktok'];
+const PLATFORMS_WITHOUT_ENGAGEMENT: string[] = [];
 
 const PLATFORM_CONFIG: Record<string, { label: string; icon: any; color: string; bgColor: string }> = {
   instagram: { label: 'Instagram', icon: Instagram, color: '#E1306C', bgColor: '#FDF2F8' },
@@ -594,7 +594,7 @@ export const OrganicMetricsDashboard: React.FC<OrganicMetricsDashboardProps> = (
       {/* ========================================================================= */}
       <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         
-        {/* 1. ALCANCE (REACH) — Oculto para TikTok e LinkedIn */}
+        {/* 1. ALCANCE (REACH) — Oculto para TikTok */}
         {showReachCard && (
           <div className="bg-white rounded-2xl p-4 sm:p-5 border border-stone-200/70 shadow-xs hover:border-[#13284D]/30 transition-all flex flex-col justify-between">
             <div>
@@ -609,8 +609,11 @@ export const OrganicMetricsDashboard: React.FC<OrganicMetricsDashboardProps> = (
               <div className="text-2xl sm:text-3xl font-black text-[#13284D] font-mono tracking-tight">
                 {formatNumber(processedData.reach)}
               </div>
+              {selectedPlatform === 'linkedin' && processedData.reach === 0 && (
+                <p className="text-[10px] text-amber-500 mt-1">Coleta expandida a partir de ago/2026</p>
+              )}
               <p className="text-[10px] sm:text-[11px] text-stone-400 font-medium mt-0.5">
-                Contas alcançadas
+                {selectedPlatform === 'linkedin' ? 'Membros únicos alcançados' : 'Contas alcançadas'}
               </p>
             </div>
             <div className="mt-3 pt-2.5 sm:mt-4 sm:pt-3 border-t border-stone-100 flex items-center justify-between">
@@ -642,7 +645,7 @@ export const OrganicMetricsDashboard: React.FC<OrganicMetricsDashboardProps> = (
           </div>
         </div>
 
-        {/* 3. ENGAJAMENTO TOTAL & TAXA DE ENGAJAMENTO — Oculto para LinkedIn */}
+        {/* 3. ENGAJAMENTO TOTAL & TAXA DE ENGAJAMENTO */}
         {showEngagementCard && (
           <div className="bg-white rounded-2xl p-4 sm:p-5 border border-stone-200/70 shadow-xs hover:border-[#13284D]/30 transition-all flex flex-col justify-between">
             <div>
@@ -664,8 +667,11 @@ export const OrganicMetricsDashboard: React.FC<OrganicMetricsDashboardProps> = (
                   </span>
                 )}
               </div>
+              {selectedPlatform === 'linkedin' && processedData.totalEngagement === 0 && (
+                <p className="text-[10px] text-amber-500 mt-1">Coleta expandida a partir de ago/2026</p>
+              )}
               <p className="text-[10px] sm:text-[11px] text-stone-400 font-medium mt-0.5">
-                Curtidas, comentários e salvos
+                {selectedPlatform === 'linkedin' ? 'Reações, comentários e republicações' : 'Curtidas, comentários e salvos'}
               </p>
             </div>
             <div className="mt-3 pt-2.5 sm:mt-4 sm:pt-3 border-t border-stone-100 flex items-center justify-between">
@@ -785,12 +791,14 @@ export const OrganicMetricsDashboard: React.FC<OrganicMetricsDashboardProps> = (
 
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
           
-          {/* Curtidas */}
+          {/* Curtidas / Reações */}
           {processedData.likes > 0 && (
             <div className="bg-white rounded-2xl p-4 border border-stone-200/70 shadow-xs">
               <div className="flex items-center gap-2 text-rose-600 mb-2">
                 <Heart size={15} />
-                <span className="text-xs font-bold text-stone-600">Curtidas</span>
+                <span className="text-xs font-bold text-stone-600">
+                  {selectedPlatform === 'linkedin' ? 'Reações' : 'Curtidas'}
+                </span>
               </div>
               <div className="text-lg sm:text-xl font-bold text-[#13284D] font-mono">
                 {formatNumber(processedData.likes)}
@@ -811,12 +819,14 @@ export const OrganicMetricsDashboard: React.FC<OrganicMetricsDashboardProps> = (
             </div>
           )}
 
-          {/* Compartilhamentos */}
+          {/* Compartilhamentos / Republicações */}
           {processedData.shares > 0 && (
             <div className="bg-white rounded-2xl p-4 border border-stone-200/70 shadow-xs">
               <div className="flex items-center gap-2 text-indigo-600 mb-2">
                 <Share2 size={15} />
-                <span className="text-xs font-bold text-stone-600">Compartilhados</span>
+                <span className="text-xs font-bold text-stone-600">
+                  {selectedPlatform === 'linkedin' ? 'Republicações' : 'Compartilhados'}
+                </span>
               </div>
               <div className="text-lg sm:text-xl font-bold text-[#13284D] font-mono">
                 {formatNumber(processedData.shares)}
@@ -837,12 +847,14 @@ export const OrganicMetricsDashboard: React.FC<OrganicMetricsDashboardProps> = (
             </div>
           )}
 
-          {/* Visitas ao Perfil */}
+          {/* Visitas ao Perfil / Página */}
           {processedData.profileVisits > 0 && (
             <div className="bg-white rounded-2xl p-4 border border-stone-200/70 shadow-xs">
               <div className="flex items-center gap-2 text-purple-600 mb-2">
                 <Users size={15} />
-                <span className="text-xs font-bold text-stone-600">Visitas ao Perfil</span>
+                <span className="text-xs font-bold text-stone-600">
+                  {selectedPlatform === 'linkedin' ? 'Visitas à Página' : 'Visitas ao Perfil'}
+                </span>
               </div>
               <div className="text-lg sm:text-xl font-bold text-[#13284D] font-mono">
                 {formatNumber(processedData.profileVisits)}
@@ -900,9 +912,9 @@ export const OrganicMetricsDashboard: React.FC<OrganicMetricsDashboardProps> = (
 
           {/* Barra de Proporção Colorida */}
           <div className="h-3 w-full bg-stone-100 rounded-full overflow-hidden flex mb-4">
-            {likesPct > 0 && <div style={{ width: `${likesPct}%` }} className="bg-rose-500 h-full" title={`Curtidas: ${likesPct}%`} />}
+            {likesPct > 0 && <div style={{ width: `${likesPct}%` }} className="bg-rose-500 h-full" title={`${selectedPlatform === 'linkedin' ? 'Reações' : 'Curtidas'}: ${likesPct}%`} />}
             {commentsPct > 0 && <div style={{ width: `${commentsPct}%` }} className="bg-blue-500 h-full" title={`Comentários: ${commentsPct}%`} />}
-            {sharesPct > 0 && <div style={{ width: `${sharesPct}%` }} className="bg-indigo-500 h-full" title={`Compartilhamentos: ${sharesPct}%`} />}
+            {sharesPct > 0 && <div style={{ width: `${sharesPct}%` }} className="bg-indigo-500 h-full" title={`${selectedPlatform === 'linkedin' ? 'Republicações' : 'Compartilhamentos'}: ${sharesPct}%`} />}
             {savesPct > 0 && <div style={{ width: `${savesPct}%` }} className="bg-amber-500 h-full" title={`Salvamentos: ${savesPct}%`} />}
           </div>
 
@@ -910,7 +922,7 @@ export const OrganicMetricsDashboard: React.FC<OrganicMetricsDashboardProps> = (
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
             <div className="flex items-center gap-2">
               <span className="w-2.5 h-2.5 rounded-full bg-rose-500 shrink-0" />
-              <span className="text-stone-600 font-medium">Curtidas:</span>
+              <span className="text-stone-600 font-medium">{selectedPlatform === 'linkedin' ? 'Reações:' : 'Curtidas:'}</span>
               <span className="font-bold text-[#13284D] font-mono">{likesPct}% ({formatNumber(processedData.likes)})</span>
             </div>
             <div className="flex items-center gap-2">
@@ -920,14 +932,16 @@ export const OrganicMetricsDashboard: React.FC<OrganicMetricsDashboardProps> = (
             </div>
             <div className="flex items-center gap-2">
               <span className="w-2.5 h-2.5 rounded-full bg-indigo-500 shrink-0" />
-              <span className="text-stone-600 font-medium">Shares:</span>
+              <span className="text-stone-600 font-medium">{selectedPlatform === 'linkedin' ? 'Republicações:' : 'Shares:'}</span>
               <span className="font-bold text-[#13284D] font-mono">{sharesPct}% ({formatNumber(processedData.shares)})</span>
             </div>
-            <div className="flex items-center gap-2">
-              <span className="w-2.5 h-2.5 rounded-full bg-amber-500 shrink-0" />
-              <span className="text-stone-600 font-medium">Salvos:</span>
-              <span className="font-bold text-[#13284D] font-mono">{savesPct}% ({formatNumber(processedData.saves)})</span>
-            </div>
+            {savesPct > 0 && (
+              <div className="flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-amber-500 shrink-0" />
+                <span className="text-stone-600 font-medium">Salvos:</span>
+                <span className="font-bold text-[#13284D] font-mono">{savesPct}% ({formatNumber(processedData.saves)})</span>
+              </div>
+            )}
           </div>
         </div>
       )}

@@ -159,6 +159,13 @@ export interface PostData {
   // Campos de exclusão / arquivamento de histórico
   is_deleted?: boolean;
   deleted_at?: string | null;
+
+  // Métricas do TikTok
+  tiktok_views?: number | null;
+  tiktok_likes?: number | null;
+  tiktok_comments?: number | null;
+  tiktok_shares?: number | null;
+  tiktok_metrics_updated_at?: string | null;
 }
 
 export interface TrafficStrategyData {
