@@ -156,15 +156,80 @@ export const OrganicMetricsDashboard: React.FC<OrganicMetricsDashboardProps> = (
     metrics.forEach(m => {
       if (m.platform) set.add(m.platform.toLowerCase());
     });
+    if (selectedPlatform !== 'all') {
+      set.add(selectedPlatform.toLowerCase());
+    }
     return Array.from(set);
-  }, [metrics]);
+  }, [metrics, selectedPlatform]);
 
   // Se a plataforma selecionada não estiver disponível, redefinir para 'all'
   useEffect(() => {
-    if (selectedPlatform !== 'all' && !availablePlatforms.includes(selectedPlatform)) {
+    if (!loading && availablePlatforms.length > 0 && selectedPlatform !== 'all' && !availablePlatforms.includes(selectedPlatform)) {
+      if (selectedPlatform === 'tiktok') return;
       setSelectedPlatform('all');
     }
-  }, [availablePlatforms, selectedPlatform]);
+  }, [availablePlatforms, selectedPlatform, loading]);
+
+  // State e busca para Publicações do TikTok
+  const [tiktokPosts, setTiktokPosts] = useState<any[]>([]);
+  const [loadingTiktokPosts, setLoadingTiktokPosts] = useState(false);
+
+  const fetchTiktokPosts = useCallback(async () => {
+    if (!clientId) return;
+    try {
+      setLoadingTiktokPosts(true);
+      const { data, error } = await supabase
+        .from('posts')
+        .select('id, date_key, caption, theme, video_thumbnail_url, image_url, tiktok_views, tiktok_likes, tiktok_comments, tiktok_shares, tiktok_metrics_updated_at, status')
+        .eq('client_id', clientId)
+        .ilike('date_key', '%tiktok%')
+        .eq('is_deleted', false)
+        .or('status.eq.published,status.eq.publicado');
+
+      if (error) {
+        console.warn('Aviso ao buscar posts do TikTok:', error.message);
+        setTiktokPosts([]);
+      } else if (data) {
+        // Parse da data do date_key para ordenação descrescente (mais recente primeiro)
+        const parseTikTokDateKey = (dateKey: string): Date => {
+          if (!dateKey) return new Date(0);
+          const parts = dateKey.split('-');
+          if (parts.length >= 3) {
+            const day = parseInt(parts[0], 10);
+            const month = parseInt(parts[1], 10);
+            const year = parseInt(parts[2], 10);
+            if (!isNaN(day) && !isNaN(month) && !isNaN(year)) {
+              const lastPart = parts[parts.length - 1];
+              const ts = parseInt(lastPart, 10);
+              if (!isNaN(ts) && ts > 1000000000000) {
+                return new Date(ts);
+              }
+              return new Date(year, month - 1, day);
+            }
+          }
+          return new Date(0);
+        };
+
+        const sorted = [...data].sort((a, b) => {
+          const dateA = parseTikTokDateKey(a.date_key);
+          const dateB = parseTikTokDateKey(b.date_key);
+          return dateB.getTime() - dateA.getTime();
+        });
+        setTiktokPosts(sorted);
+      }
+    } catch (err) {
+      console.error('Erro ao buscar posts do TikTok:', err);
+      setTiktokPosts([]);
+    } finally {
+      setLoadingTiktokPosts(false);
+    }
+  }, [clientId]);
+
+  useEffect(() => {
+    if (selectedPlatform === 'tiktok') {
+      fetchTiktokPosts();
+    }
+  }, [selectedPlatform, fetchTiktokPosts]);
 
   // Calcular intervalos de data (Período Atual vs Período Anterior)
   const { currentStartDate, currentEndDate, prevStartDate, prevEndDate, periodLabel } = useMemo(() => {
@@ -942,6 +1007,140 @@ export const OrganicMetricsDashboard: React.FC<OrganicMetricsDashboardProps> = (
                 <span className="font-bold text-[#13284D] font-mono">{savesPct}% ({formatNumber(processedData.saves)})</span>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* SEÇÃO PUBLICAÇÕES TIKTOK (Estilo TikTok Studio - Exibida apenas no TikTok) */}
+      {/* ========================================================================= */}
+      {selectedPlatform === 'tiktok' && (
+        <div className="bg-white rounded-3xl p-4 sm:p-6 border border-stone-200/70 shadow-xs space-y-4">
+          <div className="flex items-center justify-between pb-1 border-b border-stone-100">
+            <div>
+              <h4 className="text-base font-bold text-[#13284D] flex items-center gap-2">
+                <span>Publicações</span>
+                {tiktokPosts.length > 0 && (
+                  <span className="text-xs font-mono bg-stone-100 text-stone-600 px-2 py-0.5 rounded-full border border-stone-200/60 font-medium">
+                    {tiktokPosts.length}
+                  </span>
+                )}
+              </h4>
+              <p className="text-xs text-stone-400 font-medium mt-0.5">
+                Desempenho das publicações do TikTok do cliente
+              </p>
+            </div>
+            {loadingTiktokPosts && (
+              <RefreshCw size={16} className="animate-spin text-stone-400" />
+            )}
+          </div>
+
+          {/* Tabela de Publicações estilo TikTok Studio */}
+          <div className="w-full overflow-x-auto">
+            <div className="min-w-[640px]">
+              {/* Cabeçalho Estático da Tabela */}
+              <div className="grid grid-cols-12 px-3 py-2.5 bg-stone-50/90 rounded-xl text-xs font-semibold text-stone-500 border border-stone-200/50 mb-2 sticky top-0 z-10 backdrop-blur-md">
+                <div className="col-span-6 text-left font-medium">Conteúdo</div>
+                <div className="col-span-2 text-center font-medium">Visualizações</div>
+                <div className="col-span-1 text-center font-medium">Curtidas</div>
+                <div className="col-span-1 text-center font-medium">Comentários</div>
+                <div className="col-span-2 text-center font-medium">Compartilhamentos</div>
+              </div>
+
+              {/* Lista de Publicações */}
+              {loadingTiktokPosts ? (
+                <div className="py-12 text-center text-xs text-stone-400 animate-pulse">
+                  Carregando publicações do TikTok...
+                </div>
+              ) : tiktokPosts.length === 0 ? (
+                <div className="py-12 text-center text-xs text-stone-400">
+                  Nenhuma publicação do TikTok encontrada para este cliente.
+                </div>
+              ) : (
+                <div className="divide-y divide-stone-100">
+                  {tiktokPosts.map((post) => {
+                    const thumb = post.video_thumbnail_url || (typeof post.image_url === 'string' ? post.image_url : (Array.isArray(post.image_url) ? post.image_url[0] : null));
+                    // Prioriza o tema da publicação e trunca se for longo
+                    const displayTitle = post.theme || post.caption || 'Sem título';
+                    
+                    // Formatação da data: DD-MM-YYYY-tiktok -> "24 de ago, 2026"
+                    const formatTikTokDate = (dateKey: string): string => {
+                      if (!dateKey) return '';
+                      const parts = dateKey.split('-');
+                      if (parts.length >= 3) {
+                        const day = parts[0];
+                        const monthIndex = parseInt(parts[1], 10) - 1;
+                        const year = parts[2];
+                        const monthsPt = [
+                          'jan', 'fev', 'mar', 'abr', 'mai', 'jun',
+                          'jul', 'ago', 'set', 'out', 'nov', 'dez'
+                        ];
+                        if (monthIndex >= 0 && monthIndex < 12) {
+                          return `${parseInt(day, 10)} de ${monthsPt[monthIndex]}, ${year}`;
+                        }
+                      }
+                      return dateKey;
+                    };
+
+                    const formattedDate = formatTikTokDate(post.date_key);
+                    const hasMetrics = post.tiktok_views !== null && post.tiktok_views !== undefined;
+
+                    return (
+                      <div key={post.id || post.date_key} className="grid grid-cols-12 items-center px-3 py-2.5 hover:bg-stone-50/70 rounded-xl transition-colors">
+                        
+                        {/* Coluna Conteúdo: Thumbnail + Tema reduzido + Data */}
+                        <div className="col-span-6 flex items-center gap-3 pr-4 min-w-0">
+                          <div className="w-12 h-14 rounded-lg overflow-hidden shrink-0 bg-stone-900 border border-stone-200/80 relative flex items-center justify-center">
+                            {thumb ? (
+                              <img
+                                src={thumb}
+                                alt={displayTitle}
+                                className="w-full h-full object-cover"
+                                referrerPolicy="no-referrer"
+                              />
+                            ) : (
+                              <Video size={18} className="text-stone-400" />
+                            )}
+                          </div>
+
+                          <div className="min-w-0 flex-1">
+                            <p className="text-xs font-semibold text-stone-800 line-clamp-2 leading-snug">
+                              {displayTitle}
+                            </p>
+                            {formattedDate && (
+                              <p className="text-[11px] text-stone-400 font-normal mt-0.5">
+                                {formattedDate}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Coluna Visualizações */}
+                        <div className="col-span-2 text-center text-xs font-semibold text-stone-800 font-mono">
+                          {hasMetrics ? formatNumber(post.tiktok_views) : '-'}
+                        </div>
+
+                        {/* Coluna Curtidas */}
+                        <div className="col-span-1 text-center text-xs font-semibold text-stone-800 font-mono">
+                          {hasMetrics ? formatNumber(post.tiktok_likes ?? 0) : '-'}
+                        </div>
+
+                        {/* Coluna Comentários */}
+                        <div className="col-span-1 text-center text-xs font-semibold text-stone-800 font-mono">
+                          {hasMetrics ? formatNumber(post.tiktok_comments ?? 0) : '-'}
+                        </div>
+
+                        {/* Coluna Compartilhamentos */}
+                        <div className="col-span-2 text-center text-xs font-semibold text-stone-800 font-mono">
+                          {hasMetrics ? formatNumber(post.tiktok_shares ?? 0) : '-'}
+                        </div>
+
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}

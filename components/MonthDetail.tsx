@@ -1696,37 +1696,6 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({
                       </div>
                     );
                   })()}
-                  {/* Linha discreta de Métricas do TikTok */}
-                  {(() => {
-                    const tiktokPost = group.keys
-                      .map(k => dbPosts[k])
-                      .find(p => p && p.date_key && p.date_key.includes('tiktok') && p.tiktok_views !== null && p.tiktok_views !== undefined);
-
-                    if (!tiktokPost || tiktokPost.tiktok_views === null || tiktokPost.tiktok_views === undefined) return null;
-
-                    const hasExtraInteractions = (tiktokPost.tiktok_comments ?? 0) > 0 || (tiktokPost.tiktok_shares ?? 0) > 0;
-
-                    return (
-                      <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-2 pt-1.5 border-t border-black/[0.06] text-[9px] text-gray-700 font-medium">
-                        <span className="inline-flex items-center gap-1" title="Visualizações">
-                          <span>👁</span> <span>{Number(tiktokPost.tiktok_views).toLocaleString('pt-BR')} visualizações</span>
-                        </span>
-                        <span className="inline-flex items-center gap-1" title="Curtidas">
-                          <span>❤</span> <span>{Number(tiktokPost.tiktok_likes ?? 0).toLocaleString('pt-BR')} curtidas</span>
-                        </span>
-                        {hasExtraInteractions && (
-                          <>
-                            <span className="inline-flex items-center gap-1" title="Comentários">
-                              <span>💬</span> <span>{Number(tiktokPost.tiktok_comments ?? 0).toLocaleString('pt-BR')} comentários</span>
-                            </span>
-                            <span className="inline-flex items-center gap-1" title="Compartilhamentos">
-                              <span>↗</span> <span>{Number(tiktokPost.tiktok_shares ?? 0).toLocaleString('pt-BR')} compartilhamentos</span>
-                            </span>
-                          </>
-                        )}
-                      </div>
-                    );
-                  })()}
                   <div className="flex items-center justify-between mt-2 h-6">
                       <span className="text-[7px] font-bold uppercase tracking-widest text-gray-500 border border-black/[0.05] px-1.5 py-0.5 rounded-md bg-white/50 backdrop-blur-sm">
                          {getStatusLabel(group.status)}
@@ -2339,37 +2308,6 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({
                             })()}
                             <h4 className="font-bold text-gray-900 mb-1">{group.theme}</h4>
                             {group.bullets && group.bullets.length > 0 && <p className="text-xs text-gray-600 line-clamp-2">{group.bullets.join(' ')}</p>}
-                            {/* Linha discreta de Métricas do TikTok */}
-                            {(() => {
-                              const tiktokPost = group.keys
-                                .map(k => dbPosts[k])
-                                .find(p => p && p.date_key && p.date_key.includes('tiktok') && p.tiktok_views !== null && p.tiktok_views !== undefined);
-
-                              if (!tiktokPost || tiktokPost.tiktok_views === null || tiktokPost.tiktok_views === undefined) return null;
-
-                              const hasExtraInteractions = (tiktokPost.tiktok_comments ?? 0) > 0 || (tiktokPost.tiktok_shares ?? 0) > 0;
-
-                              return (
-                                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-2.5 pt-2 border-t border-black/[0.06] text-xs text-gray-700 font-medium">
-                                  <span className="inline-flex items-center gap-1" title="Visualizações">
-                                    <span>👁</span> <span>{Number(tiktokPost.tiktok_views).toLocaleString('pt-BR')} visualizações</span>
-                                  </span>
-                                  <span className="inline-flex items-center gap-1" title="Curtidas">
-                                    <span>❤</span> <span>{Number(tiktokPost.tiktok_likes ?? 0).toLocaleString('pt-BR')} curtidas</span>
-                                  </span>
-                                  {hasExtraInteractions && (
-                                    <>
-                                      <span className="inline-flex items-center gap-1" title="Comentários">
-                                        <span>💬</span> <span>{Number(tiktokPost.tiktok_comments ?? 0).toLocaleString('pt-BR')} comentários</span>
-                                      </span>
-                                      <span className="inline-flex items-center gap-1" title="Compartilhamentos">
-                                        <span>↗</span> <span>{Number(tiktokPost.tiktok_shares ?? 0).toLocaleString('pt-BR')} compartilhamentos</span>
-                                      </span>
-                                    </>
-                                  )}
-                                </div>
-                              );
-                            })()}
                          </div>
                          {userRole === 'admin' && group.status !== 'published' && (
                             <button 

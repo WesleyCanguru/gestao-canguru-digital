@@ -1382,35 +1382,6 @@ export const ClientPainelConteudo: React.FC<ClientPainelConteudoProps> = ({
                               <p className="text-sm font-bold text-stone-800 mt-1 truncate group-hover:text-emerald-700 transition-colors">
                                 Tema: "{item.theme}"
                               </p>
-
-                              {/* Linha discreta de Métricas do TikTok */}
-                              {(() => {
-                                const tiktokPost = item.rawPosts?.find((p: any) => p && p.date_key && p.date_key.includes('tiktok') && p.tiktok_views !== null && p.tiktok_views !== undefined);
-                                if (!tiktokPost || tiktokPost.tiktok_views === null || tiktokPost.tiktok_views === undefined) return null;
-
-                                const hasExtraInteractions = (tiktokPost.tiktok_comments ?? 0) > 0 || (tiktokPost.tiktok_shares ?? 0) > 0;
-
-                                return (
-                                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-2 pt-1.5 border-t border-stone-100 text-xs text-stone-600 font-medium">
-                                    <span className="inline-flex items-center gap-1" title="Visualizações">
-                                      <span>👁</span> <span>{Number(tiktokPost.tiktok_views).toLocaleString('pt-BR')} visualizações</span>
-                                    </span>
-                                    <span className="inline-flex items-center gap-1" title="Curtidas">
-                                      <span>❤</span> <span>{Number(tiktokPost.tiktok_likes ?? 0).toLocaleString('pt-BR')} curtidas</span>
-                                    </span>
-                                    {hasExtraInteractions && (
-                                      <>
-                                        <span className="inline-flex items-center gap-1" title="Comentários">
-                                          <span>💬</span> <span>{Number(tiktokPost.tiktok_comments ?? 0).toLocaleString('pt-BR')} comentários</span>
-                                        </span>
-                                        <span className="inline-flex items-center gap-1" title="Compartilhamentos">
-                                          <span>↗</span> <span>{Number(tiktokPost.tiktok_shares ?? 0).toLocaleString('pt-BR')} compartilhamentos</span>
-                                        </span>
-                                      </>
-                                    )}
-                                  </div>
-                                );
-                              })()}
                             </div>
                           </div>
 

@@ -110,6 +110,8 @@ const MainApp: React.FC<MainAppProps> = ({ initialView, onExitAgencyDashboard, o
       setView('crm');
     } else if (viewParam === 'organico' || viewParam === 'social_metrics' || viewParam === 'metricas-organicas' || aba === 'organico') {
       setView('organico');
+    } else if (viewParam === 'paid-traffic' || viewParam === 'trafego' || viewParam === 'trafego-pago' || viewParam === 'paid_traffic' || aba === 'trafego' || aba === 'trafego-pago' || aba === 'paid-traffic') {
+      setView('paid-traffic');
     } else if (viewParam === 'painel-conteudo' || viewParam === 'mapa-master' || viewParam === 'posts') {
       setView('agencyDashboard');
       setAgencyTab('masterMap');
