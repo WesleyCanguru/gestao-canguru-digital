@@ -26,7 +26,8 @@ import {
   ChevronUp,
   ShieldCheck,
   Building2,
-  FileCheck
+  FileCheck,
+  Lock
 } from 'lucide-react';
 import { useAgencyGoals } from '../../hooks/useAgencyGoals';
 import { useAuth } from '../../lib/supabase';
@@ -51,6 +52,7 @@ export const MetasTab: React.FC<MetasTabProps> = () => {
     isCurrentMonth,
     isPastMonth,
     isFutureMonth,
+    isMonthLocked,
     loading,
     goal,
     hasGoalConfigured,
@@ -77,6 +79,7 @@ export const MetasTab: React.FC<MetasTabProps> = () => {
     meetingsGoal,
     proposalsGoal,
     newClientsGoal,
+    postsGoal,
 
     pctFaturamento,
     pctChurn,
@@ -86,6 +89,7 @@ export const MetasTab: React.FC<MetasTabProps> = () => {
     pctReunioes,
     pctPropostas,
     pctNovosClientes,
+    pctPublicacoes,
 
     weeklyGoal,
     semanaAtual,
@@ -98,15 +102,22 @@ export const MetasTab: React.FC<MetasTabProps> = () => {
     nextMonth,
     prevMonth,
     goToCurrentMonth,
+    lockCurrentMonth,
+    copyPreviousMonthGoals,
     refresh,
     saveGoal,
     addCommercialAction,
     deleteCommercialAction
   } = useAgencyGoals();
 
-  // Modals state
+  // Modals & Lock/Copy state
   const [showGoalModal, setShowGoalModal] = useState(false);
   const [showActionModal, setShowActionModal] = useState(false);
+  const [showLockModal, setShowLockModal] = useState(false);
+  const [isLocking, setIsLocking] = useState(false);
+  const [isCopying, setIsCopying] = useState(false);
+  const [copyFeedback, setCopyFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+
   const [showProspeccaoSection, setShowProspeccaoSection] = useState(true);
   const [isProspeccaoAccordionOpen, setIsProspeccaoAccordionOpen] = useState(false);
 
@@ -170,7 +181,134 @@ export const MetasTab: React.FC<MetasTabProps> = () => {
     return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
   };
 
+  // Resumo de metas para meses fechados
+  const summaryGoalsList = React.useMemo(() => {
+    const list = [];
+
+    // Faturamento
+    if (revenueGoal > 0) {
+      list.push({
+        key: 'revenue',
+        title: 'Faturamento',
+        icon: '💰',
+        goalText: formatCurrency(revenueGoal),
+        realizedText: formatCurrency(faturamentoRecebido),
+        pct: pctFaturamento,
+      });
+    }
+
+    // Reuniões
+    if (meetingsGoal > 0) {
+      list.push({
+        key: 'meetings',
+        title: 'Reuniões',
+        icon: '🤝',
+        goalText: String(meetingsGoal),
+        realizedText: String(meetingsCount),
+        pct: pctReunioes,
+      });
+    }
+
+    // Posts publicados
+    if (postsGoal > 0) {
+      list.push({
+        key: 'posts',
+        title: 'Posts publicados',
+        icon: '📲',
+        goalText: String(postsGoal),
+        realizedText: String(postsCount),
+        pct: pctPublicacoes,
+      });
+    }
+
+    // Propostas enviadas
+    if (proposalsGoal > 0) {
+      list.push({
+        key: 'proposals',
+        title: 'Propostas enviadas',
+        icon: '📄',
+        goalText: String(proposalsGoal),
+        realizedText: String(proposalsCount),
+        pct: pctPropostas,
+      });
+    }
+
+    // Churn
+    if (churnGoal > 0) {
+      list.push({
+        key: 'churn',
+        title: 'Churn',
+        icon: '📉',
+        goalText: formatCurrency(churnGoal),
+        realizedText: formatCurrency(churnRealizado),
+        pct: pctChurn,
+      });
+    }
+
+    // Novos clientes (se definido)
+    if (newClientsGoal > 0) {
+      list.push({
+        key: 'new_clients',
+        title: 'Novos clientes',
+        icon: '👥',
+        goalText: String(newClientsGoal),
+        realizedText: String(newClientsCount),
+        pct: pctNovosClientes,
+      });
+    }
+
+    return list;
+  }, [
+    revenueGoal, faturamentoRecebido, pctFaturamento,
+    meetingsGoal, meetingsCount, pctReunioes,
+    postsGoal, postsCount, pctPublicacoes,
+    proposalsGoal, proposalsCount, pctPropostas,
+    churnGoal, churnRealizado, pctChurn,
+    newClientsGoal, newClientsCount, pctNovosClientes
+  ]);
+
+  const handleConfirmLock = async () => {
+    try {
+      setIsLocking(true);
+      await lockCurrentMonth();
+      setShowLockModal(false);
+    } catch (err) {
+      console.error(err);
+      alert('Erro ao fechar o mês. Tente novamente.');
+    } finally {
+      setIsLocking(false);
+    }
+  };
+
+  const handleCopyPreviousGoals = async () => {
+    setIsCopying(true);
+    setCopyFeedback(null);
+    try {
+      const res = await copyPreviousMonthGoals();
+      if (!res.success) {
+        setCopyFeedback({
+          type: 'error',
+          message: res.message || 'Nenhuma meta encontrada no mês anterior.'
+        });
+      } else {
+        setCopyFeedback({
+          type: 'success',
+          message: 'Metas do mês anterior mantidas com sucesso!'
+        });
+      }
+    } catch (err) {
+      console.error('Erro ao copiar metas:', err);
+      setCopyFeedback({
+        type: 'error',
+        message: 'Erro ao copiar metas do mês anterior.'
+      });
+    } finally {
+      setIsCopying(false);
+    }
+  };
+
   const abrirFormulario = () => {
+    if (isMonthLocked) return;
     if (goal) {
       setForm({
         revenue_goal: goal.revenue_goal ? String(goal.revenue_goal) : '',
@@ -334,14 +472,50 @@ export const MetasTab: React.FC<MetasTabProps> = () => {
           )}
         </div>
 
-        <button 
-          onClick={abrirFormulario} 
-          className="ml-auto flex items-center gap-2 px-4 py-2.5 bg-[#13284D] text-white rounded-xl text-sm font-bold hover:bg-[#13284D]/90 transition-all shadow-xs cursor-pointer active:scale-95"
-          type="button"
-        >
-          <span>✏️</span>
-          <span>{hasGoals ? 'Editar metas' : 'Definir metas'}</span>
-        </button>
+        <div className="ml-auto flex items-center gap-2.5 flex-wrap">
+          {/* Botão "Manter metas do mês passado" */}
+          {isCurrentMonth && (!hasGoals || !hasGoalConfigured) && !isMonthLocked && (
+            <button
+              onClick={handleCopyPreviousGoals}
+              disabled={isCopying}
+              className="flex items-center gap-2 px-4 py-2.5 bg-amber-500 text-white rounded-xl text-sm font-bold hover:bg-amber-600 transition-all shadow-xs cursor-pointer active:scale-95 disabled:opacity-50"
+              type="button"
+            >
+              <Sparkles size={16} />
+              <span>{isCopying ? 'Copiando...' : 'Manter metas do mês passado'}</span>
+            </button>
+          )}
+
+          {/* Botão "Fechar mês" (apenas no mês atual e se não estiver bloqueado) */}
+          {isCurrentMonth && !isMonthLocked && (
+            <button
+              onClick={() => setShowLockModal(true)}
+              className="flex items-center gap-2 px-4 py-2.5 bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200/80 rounded-xl text-sm font-bold transition-all shadow-xs cursor-pointer active:scale-95"
+              type="button"
+              title="Encerrar o mês e bloquear edições"
+            >
+              <Lock size={16} />
+              <span>Fechar mês</span>
+            </button>
+          )}
+
+          {/* Indicador de Mês Bloqueado / Botão Editar Metas */}
+          {isMonthLocked ? (
+            <div className="flex items-center gap-1.5 px-3 py-2 bg-stone-100 border border-stone-200/80 rounded-xl text-xs font-bold text-stone-600">
+              <Lock size={14} className="text-stone-500" />
+              <span>Mês Bloqueado</span>
+            </div>
+          ) : (
+            <button 
+              onClick={abrirFormulario} 
+              className="flex items-center gap-2 px-4 py-2.5 bg-[#13284D] text-white rounded-xl text-sm font-bold hover:bg-[#13284D]/90 transition-all shadow-xs cursor-pointer active:scale-95"
+              type="button"
+            >
+              <span>✏️</span>
+              <span>{hasGoals ? 'Editar metas' : 'Definir metas'}</span>
+            </button>
+          )}
+        </div>
       </div>
 
       {/* AVISO DE MÊS PASSADO (HISTÓRICO) */}
@@ -350,7 +524,7 @@ export const MetasTab: React.FC<MetasTabProps> = () => {
           <div className="flex items-center gap-2">
             <Clock size={16} className="text-stone-500" />
             <span className="font-bold text-stone-800">{nomeMes} de {ano} — Mês Encerrado</span>
-            <span className="text-stone-400 hidden sm:inline">• Visualização em modo histórico consolidado</span>
+            <span className="text-stone-400 hidden sm:inline">• Visualização em modo histórico consolidado (somente leitura)</span>
           </div>
           <span className="font-semibold text-[11px] bg-stone-200/70 text-stone-700 px-2.5 py-0.5 rounded-full">
             Histórico
@@ -358,8 +532,94 @@ export const MetasTab: React.FC<MetasTabProps> = () => {
         </div>
       )}
 
+      {/* CARD DE RESUMO EM MESES FECHADOS */}
+      {isMonthLocked && (
+        <div className="bg-slate-50 border border-slate-200/90 rounded-[2.5rem] p-6 sm:p-8 space-y-6 shadow-xs relative overflow-hidden">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-200/70">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-2xl bg-[#13284D] text-white flex items-center justify-center font-bold shadow-xs">
+                <Target size={24} />
+              </div>
+              <div>
+                <h3 className="text-xl font-bold text-[#13284D]">
+                  Resultado de {nomeMes} {ano}
+                </h3>
+                <p className="text-xs text-stone-500 font-medium">
+                  Resumo consolidado do desempenho e atingimento de metas
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-stone-200/80 text-stone-700 rounded-full text-xs font-bold">
+                <Lock size={14} />
+                Mês Fechado
+              </span>
+            </div>
+          </div>
+
+          {/* Lista de Metas Definidas */}
+          {summaryGoalsList.length > 0 ? (
+            <div className="space-y-4">
+              {summaryGoalsList.map((item) => {
+                let barColor = 'bg-rose-500';
+                let textColor = 'text-rose-700';
+                let badgeBg = 'bg-rose-50 border-rose-200/80';
+
+                if (item.pct >= 100) {
+                  barColor = 'bg-emerald-500';
+                  textColor = 'text-emerald-700';
+                  badgeBg = 'bg-emerald-50 border-emerald-200/80';
+                } else if (item.pct >= 70) {
+                  barColor = 'bg-amber-500';
+                  textColor = 'text-amber-700';
+                  badgeBg = 'bg-amber-50 border-amber-200/80';
+                }
+
+                return (
+                  <div key={item.key} className="bg-white p-4.5 rounded-2xl border border-slate-200/70 shadow-2xs space-y-2.5">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-sm font-bold text-[#13284D]">
+                      <div className="flex items-center gap-2">
+                        <span className="text-base">{item.icon}</span>
+                        <span>{item.title}</span>
+                      </div>
+                      <div className={`self-start sm:self-auto px-3 py-1 rounded-full text-xs font-bold border ${badgeBg} ${textColor}`}>
+                        {item.realizedText} de {item.goalText} ({item.pct}%)
+                      </div>
+                    </div>
+
+                    <div className="relative w-full h-3 bg-stone-100 rounded-full overflow-hidden">
+                      <div 
+                        className={`h-full rounded-full transition-all duration-700 ${barColor}`} 
+                        style={{ width: `${Math.min(100, item.pct)}%` }} 
+                      />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <p className="text-xs text-stone-500 italic text-center py-4">
+              Nenhuma meta foi configurada para este mês.
+            </p>
+          )}
+
+          {/* Rodapé conclusivo */}
+          <div className="pt-2 flex items-center justify-between text-xs text-stone-500 border-t border-slate-200/70">
+            <span className="flex items-center gap-1.5 font-medium text-stone-600">
+              <Clock size={14} className="text-stone-400" />
+              {goal?.locked_at 
+                ? `Mês encerrado em ${dayjs(goal.locked_at).format('DD/MM/YYYY [às] HH:mm')}`
+                : `Mês encerrado`
+              }
+            </span>
+            <span className="font-semibold text-stone-400">Somente Leitura</span>
+          </div>
+        </div>
+      )}
+
       {/* 2. ESTADO VAZIO (MÊS SEM METAS) */}
-      {!hasGoals ? (
+      {!hasGoals && !isMonthLocked ? (
         <div className="text-center py-20 px-6 bg-white rounded-[2rem] border border-black/[0.04] shadow-2xs max-w-2xl mx-auto my-4 space-y-6">
           <div className="w-16 h-16 rounded-2xl bg-[#13284D]/5 text-[#13284D] flex items-center justify-center mx-auto">
             <Target size={32} />
@@ -372,13 +632,36 @@ export const MetasTab: React.FC<MetasTabProps> = () => {
               Defina as metas financeiras (MRR, Churn) e de entregas de conteúdo para alinhar o ritmo da agência.
             </p>
           </div>
-          <button 
-            onClick={abrirFormulario}
-            className="bg-[#13284D] text-white px-6 py-3 rounded-xl text-sm font-bold hover:bg-[#13284D]/90 transition-all shadow-sm active:scale-95 cursor-pointer inline-flex items-center gap-2"
-            type="button"
-          >
-            <span>Definir metas do mês</span>
-          </button>
+
+          {copyFeedback && (
+            <div className={`p-3.5 rounded-xl text-xs font-semibold max-w-md mx-auto ${
+              copyFeedback.type === 'error' ? 'bg-rose-50 text-rose-700 border border-rose-200' : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+            }`}>
+              {copyFeedback.message}
+            </div>
+          )}
+
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
+            {isCurrentMonth && (
+              <button
+                onClick={handleCopyPreviousGoals}
+                disabled={isCopying}
+                className="w-full sm:w-auto bg-amber-500 hover:bg-amber-600 text-white px-6 py-3 rounded-xl text-sm font-bold transition-all shadow-sm active:scale-95 cursor-pointer inline-flex items-center justify-center gap-2 disabled:opacity-50"
+                type="button"
+              >
+                <Sparkles size={18} />
+                <span>{isCopying ? 'Copiando...' : 'Manter metas do mês passado'}</span>
+              </button>
+            )}
+
+            <button 
+              onClick={abrirFormulario}
+              className="w-full sm:w-auto bg-[#13284D] text-white px-6 py-3 rounded-xl text-sm font-bold hover:bg-[#13284D]/90 transition-all shadow-sm active:scale-95 cursor-pointer inline-flex items-center justify-center gap-2"
+              type="button"
+            >
+              <span>Definir metas do mês</span>
+            </button>
+          </div>
         </div>
       ) : (
         /* 3. DASHBOARD DE PROGRESSO - NOVA ESTRUTURA DE KPIS */
@@ -1291,6 +1574,59 @@ export const MetasTab: React.FC<MetasTabProps> = () => {
                   </button>
                 </div>
               </form>
+            </motion.div>
+          </div>
+        )}
+
+        {/* Modal de Confirmação: Fechar Mês */}
+        {showLockModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white rounded-3xl max-w-md w-full p-6 shadow-xl border border-stone-200 space-y-5"
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-2xl bg-rose-50 text-rose-600 flex items-center justify-center font-bold">
+                  <Lock size={22} />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-[#13284D]">Fechar {nomeMes}?</h3>
+                  <p className="text-xs text-stone-500 font-medium">Bloqueio de edições para o mês atual</p>
+                </div>
+              </div>
+
+              <div className="p-4 rounded-2xl bg-amber-50/80 border border-amber-200/70 text-amber-900 text-xs leading-relaxed space-y-1">
+                <p className="font-bold">Tem certeza?</p>
+                <p>Após fechar, o mês não poderá mais ser editado nem ter novas ações comerciais registradas.</p>
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowLockModal(false)}
+                  disabled={isLocking}
+                  className="px-4 py-2.5 rounded-xl text-xs font-bold text-stone-600 hover:bg-stone-100 transition-colors cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirmLock}
+                  disabled={isLocking}
+                  className="px-5 py-2.5 rounded-xl text-xs font-bold bg-rose-600 text-white hover:bg-rose-700 transition-all shadow-xs flex items-center gap-2 cursor-pointer disabled:opacity-50"
+                >
+                  {isLocking ? (
+                    <span>Fechando...</span>
+                  ) : (
+                    <>
+                      <Lock size={14} />
+                      <span>Sim, Fechar Mês</span>
+                    </>
+                  )}
+                </button>
+              </div>
             </motion.div>
           </div>
         )}

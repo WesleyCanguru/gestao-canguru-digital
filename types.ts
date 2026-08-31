@@ -618,6 +618,8 @@ export interface AgencyGoal {
   posts_goal?: number;
   blog_posts_goal?: number;
   notes?: string | null;
+  is_locked?: boolean;
+  locked_at?: string | null;
   created_at?: string;
 }
 

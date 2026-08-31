@@ -19,6 +19,7 @@ export interface UseAgencyGoalsReturn {
   isCurrentMonth: boolean;
   isPastMonth: boolean;
   isFutureMonth: boolean;
+  isMonthLocked: boolean;
   loading: boolean;
   goal: AgencyGoal | null;
   hasGoalConfigured: boolean;
@@ -77,6 +78,8 @@ export interface UseAgencyGoalsReturn {
   nextMonth: () => void;
   prevMonth: () => void;
   goToCurrentMonth: () => void;
+  lockCurrentMonth: () => Promise<void>;
+  copyPreviousMonthGoals: () => Promise<{ success: boolean; message?: string }>;
   saveGoal: (goalData: {
     revenue_goal: number;
     churn_goal?: number | null;
@@ -124,6 +127,7 @@ export function useAgencyGoals(initialMonthYear?: string): UseAgencyGoalsReturn 
   const isCurrentMonth = monthYear === currentMonthYear;
   const isPastMonth = monthYear < currentMonthYear;
   const isFutureMonth = monthYear > currentMonthYear;
+  const isMonthLocked = isPastMonth || Boolean(goal?.is_locked);
 
   const monthDate = useMemo(() => dayjs(monthYear, 'YYYY-MM'), [monthYear]);
   const monthLabel = useMemo(() => {
@@ -504,6 +508,104 @@ export function useAgencyGoals(initialMonthYear?: string): UseAgencyGoalsReturn 
   }, [hasGoalConfigured, pctFaturamento, isPaceOnTrack, faturamentoRecebido, faltamFaturamento]);
 
   // Mutations
+  const lockCurrentMonth = useCallback(async () => {
+    if (!agencyId) return;
+    try {
+      const nowIso = new Date().toISOString();
+      const payload = {
+        agency_id: agencyId,
+        month_year: monthYear,
+        revenue_goal: Number(goal?.revenue_goal || 0),
+        churn_goal: goal?.churn_goal !== undefined && goal?.churn_goal !== null ? Number(goal.churn_goal) : null,
+        client_posts_goal: goal?.client_posts_goal !== undefined && goal?.client_posts_goal !== null ? Number(goal.client_posts_goal) : null,
+        own_posts_goal: goal?.own_posts_goal !== undefined && goal?.own_posts_goal !== null ? Number(goal.own_posts_goal) : null,
+        proposals_goal: goal?.proposals_goal !== undefined && goal?.proposals_goal !== null ? Number(goal.proposals_goal) : null,
+        new_clients_goal: goal?.new_clients_goal !== undefined && goal?.new_clients_goal !== null ? Number(goal.new_clients_goal) : null,
+        meetings_goal: goal?.meetings_goal !== undefined && goal?.meetings_goal !== null ? Number(goal.meetings_goal) : null,
+        posts_goal: goal?.posts_goal !== undefined && goal?.posts_goal !== null ? Number(goal.posts_goal) : null,
+        blog_posts_goal: goal?.blog_posts_goal !== undefined && goal?.blog_posts_goal !== null ? Number(goal.blog_posts_goal) : null,
+        notes: goal?.notes || null,
+        is_locked: true,
+        locked_at: nowIso,
+        created_at: goal?.created_at || nowIso
+      };
+
+      const { error } = await supabase
+        .from('agency_goals')
+        .upsert(payload, { onConflict: 'agency_id,month_year' });
+
+      if (error) throw error;
+      await fetchData();
+    } catch (err) {
+      console.error('Erro ao fechar mês:', err);
+      throw err;
+    }
+  }, [agencyId, monthYear, goal, fetchData]);
+
+  const copyPreviousMonthGoals = useCallback(async (): Promise<{ success: boolean; message?: string }> => {
+    if (!agencyId) return { success: false, message: 'Agência não identificada.' };
+
+    const prevMonthStr = dayjs(monthYear, 'YYYY-MM').subtract(1, 'month').format('YYYY-MM');
+
+    const { data: prevGoal, error } = await supabase
+      .from('agency_goals')
+      .select('*')
+      .eq('agency_id', agencyId)
+      .eq('month_year', prevMonthStr)
+      .maybeSingle();
+
+    if (error || !prevGoal) {
+      return { success: false, message: 'Nenhuma meta encontrada no mês anterior.' };
+    }
+
+    const hasPrevValues = Boolean(
+      (prevGoal.revenue_goal || 0) > 0 ||
+      (prevGoal.churn_goal || 0) > 0 ||
+      (prevGoal.client_posts_goal || 0) > 0 ||
+      (prevGoal.own_posts_goal || 0) > 0 ||
+      (prevGoal.proposals_goal || 0) > 0 ||
+      (prevGoal.new_clients_goal || 0) > 0 ||
+      (prevGoal.meetings_goal || 0) > 0 ||
+      (prevGoal.posts_goal || 0) > 0 ||
+      (prevGoal.blog_posts_goal || 0) > 0
+    );
+
+    if (!hasPrevValues) {
+      return { success: false, message: 'Nenhuma meta encontrada no mês anterior.' };
+    }
+
+    const nowIso = new Date().toISOString();
+    const payload = {
+      agency_id: agencyId,
+      month_year: monthYear,
+      revenue_goal: prevGoal.revenue_goal || 0,
+      churn_goal: prevGoal.churn_goal ?? null,
+      client_posts_goal: prevGoal.client_posts_goal ?? null,
+      own_posts_goal: prevGoal.own_posts_goal ?? null,
+      proposals_goal: prevGoal.proposals_goal ?? null,
+      new_clients_goal: prevGoal.new_clients_goal ?? null,
+      meetings_goal: prevGoal.meetings_goal ?? null,
+      posts_goal: prevGoal.posts_goal ?? null,
+      blog_posts_goal: prevGoal.blog_posts_goal ?? null,
+      notes: null, // notes NÃO copiar
+      is_locked: false,
+      locked_at: null,
+      created_at: nowIso
+    };
+
+    const { error: upsertErr } = await supabase
+      .from('agency_goals')
+      .upsert(payload, { onConflict: 'agency_id,month_year' });
+
+    if (upsertErr) {
+      console.error('Erro ao copiar metas do mês passado:', upsertErr);
+      throw upsertErr;
+    }
+
+    await fetchData();
+    return { success: true };
+  }, [agencyId, monthYear, fetchData]);
+
   const saveGoal = useCallback(async (goalData: {
     revenue_goal: number;
     churn_goal?: number | null;
@@ -517,6 +619,9 @@ export function useAgencyGoals(initialMonthYear?: string): UseAgencyGoalsReturn 
     notes?: string | null;
   }) => {
     if (!agencyId) return;
+    if (isMonthLocked) {
+      throw new Error('Este mês está bloqueado para edições.');
+    }
     try {
       const cPosts = goalData.client_posts_goal !== undefined && goalData.client_posts_goal !== null ? Number(goalData.client_posts_goal) : null;
       const oPosts = goalData.own_posts_goal !== undefined && goalData.own_posts_goal !== null ? Number(goalData.own_posts_goal) : null;
@@ -537,6 +642,8 @@ export function useAgencyGoals(initialMonthYear?: string): UseAgencyGoalsReturn 
         posts_goal: legacyPosts,
         blog_posts_goal: goalData.blog_posts_goal !== undefined && goalData.blog_posts_goal !== null ? Number(goalData.blog_posts_goal) : null,
         notes: goalData.notes || null,
+        is_locked: false,
+        locked_at: null,
         created_at: goal?.created_at || new Date().toISOString()
       };
 
@@ -550,7 +657,7 @@ export function useAgencyGoals(initialMonthYear?: string): UseAgencyGoalsReturn 
       console.error('Erro ao salvar metas:', err);
       throw err;
     }
-  }, [agencyId, monthYear, goal, fetchData]);
+  }, [agencyId, monthYear, goal, isMonthLocked, fetchData]);
 
   const addCommercialAction = useCallback(async (actionData: {
     action_date: string;
@@ -560,6 +667,9 @@ export function useAgencyGoals(initialMonthYear?: string): UseAgencyGoalsReturn 
     notes?: string | null;
   }) => {
     if (!agencyId) return;
+    if (isMonthLocked) {
+      throw new Error('Este mês está bloqueado para edições.');
+    }
     try {
       const payload = {
         agency_id: agencyId,
@@ -580,10 +690,13 @@ export function useAgencyGoals(initialMonthYear?: string): UseAgencyGoalsReturn 
       console.error('Erro ao adicionar ação comercial:', err);
       throw err;
     }
-  }, [agencyId, fetchData]);
+  }, [agencyId, isMonthLocked, fetchData]);
 
   const deleteCommercialAction = useCallback(async (id: string) => {
     if (!agencyId) return;
+    if (isMonthLocked) {
+      throw new Error('Este mês está bloqueado para edições.');
+    }
     try {
       const { error } = await supabase
         .from('agency_commercial_actions')
@@ -597,7 +710,7 @@ export function useAgencyGoals(initialMonthYear?: string): UseAgencyGoalsReturn 
       console.error('Erro ao excluir ação comercial:', err);
       throw err;
     }
-  }, [agencyId, fetchData]);
+  }, [agencyId, isMonthLocked, fetchData]);
 
   return {
     monthYear,
@@ -605,6 +718,7 @@ export function useAgencyGoals(initialMonthYear?: string): UseAgencyGoalsReturn 
     isCurrentMonth,
     isPastMonth,
     isFutureMonth,
+    isMonthLocked,
     loading,
     goal,
     hasGoalConfigured,
@@ -656,6 +770,8 @@ export function useAgencyGoals(initialMonthYear?: string): UseAgencyGoalsReturn 
     nextMonth,
     prevMonth,
     goToCurrentMonth,
+    lockCurrentMonth,
+    copyPreviousMonthGoals,
     saveGoal,
     addCommercialAction,
     deleteCommercialAction,
