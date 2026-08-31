@@ -22,6 +22,7 @@ import { Client, AgencyTask, AgencyCRM, AgencyLead, PostStatus, DailyContent } f
 import { parseExpenseRow, filterExpensesForMonth } from '../../lib/expenses';
 import { PostModal } from '../PostModal';
 import { CircuitLines } from './CircuitLines';
+import { PendenciasPanel } from './PendenciasPanel';
 import { useAgencyGoals } from '../../hooks/useAgencyGoals';
 
 dayjs.locale('pt-br');
@@ -768,6 +769,14 @@ export const HomeTab: React.FC<HomeTabProps> = ({
           </div>
         </div>
       </div>
+
+      {/* PAINEL DE PENDÊNCIAS OPERACIONAIS */}
+      <PendenciasPanel
+        onNavigateToClients={onNavigateToClients}
+        onNavigateToPainelConteudo={onNavigateToPainelConteudo}
+        onNavigateToMasterMap={onNavigateToMasterMap}
+        onNavigateToMetas={onNavigateToMetas}
+      />
 
       {/* SEÇÃO 2 — PAINEL FINANCEIRO */}
       <div style={{ padding: '0 32px' }}>
