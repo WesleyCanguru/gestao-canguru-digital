@@ -38,7 +38,9 @@ import {
   FileText,
   PieChart as PieChartIcon,
   ShieldCheck,
-  Scale
+  Scale,
+  Users,
+  Award
 } from 'lucide-react';
 import { 
   ResponsiveContainer, 
@@ -55,6 +57,8 @@ import {
   Cell 
 } from 'recharts';
 import { useAgencyFinanceiro } from '../../hooks/useAgencyFinanceiro';
+import { useReferralProgram } from '../../hooks/useReferralProgram';
+import { ReferralProgramSection } from './ReferralProgramSection';
 import { parseCurrencyInput } from '../../lib/currencyUtils';
 import dayjs from 'dayjs';
 
@@ -104,7 +108,8 @@ export const FinanceiroTab: React.FC = () => {
   const labelPeriodo = `Jan–${monthNames[dayjs().month()]} de ${dayjs().year()}`;
   const currentMonthFormatted = `${monthFullNames[dayjs(currentMonthYear).month()]} de ${dayjs(currentMonthYear).year()}`;
   
-  const [activeSubTab, setActiveSubTab] = useState<'overview' | 'faturamento' | 'despesas'>('overview');
+  const { commissions, generateCommissionForBilling } = useReferralProgram();
+  const [activeSubTab, setActiveSubTab] = useState<'overview' | 'faturamento' | 'despesas' | 'indicacao'>('overview');
   const [expenseFilterStatus, setExpenseFilterStatus] = useState<'all' | 'pending' | 'paid'>('all');
   const [showExpenseModal, setShowExpenseModal] = useState(false);
   const [showSporadicModal, setShowSporadicModal] = useState(false);
@@ -333,6 +338,9 @@ export const FinanceiroTab: React.FC = () => {
         status: 'paid',
         paid_at: new Date().toISOString()
       });
+      if (billing.client_id) {
+        await generateCommissionForBilling(billing);
+      }
     } catch (error) {
       console.error('Error marking billing as paid:', error);
     } finally {
@@ -734,6 +742,19 @@ export const FinanceiroTab: React.FC = () => {
           >
             <Receipt size={15} />
             <span>Despesas</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveSubTab('indicacao')}
+            className={`flex items-center gap-2 px-5 py-2.5 rounded-full text-xs font-bold transition-all ${
+              activeSubTab === 'indicacao'
+                ? 'bg-white text-brand-dark shadow-sm'
+                : 'text-gray-500 hover:text-brand-dark hover:bg-white/50'
+            }`}
+          >
+            <Users size={15} />
+            <span>Indicações</span>
           </button>
         </div>
       </div>
@@ -1717,7 +1738,12 @@ export const FinanceiroTab: React.FC = () => {
         </div>
       )}
 
-      {/* Expense Modal */}
+      {/* ========================================================================= */}
+      {/* ABA 4: INDICAÇÕES & COMISSÕES */}
+      {/* ========================================================================= */}
+      {activeSubTab === 'indicacao' && (
+        <ReferralProgramSection formatCurrency={formatCurrency} />
+      )}
       {showExpenseModal && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-brand-dark/20 backdrop-blur-sm">
           <motion.div 

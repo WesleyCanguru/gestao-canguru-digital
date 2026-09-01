@@ -27,7 +27,9 @@ import {
   ShieldCheck,
   Building2,
   FileCheck,
-  Lock
+  Lock,
+  Zap,
+  Loader2
 } from 'lucide-react';
 import { useAgencyGoals } from '../../hooks/useAgencyGoals';
 import { useAuth } from '../../lib/supabase';
@@ -58,6 +60,8 @@ export const MetasTab: React.FC<MetasTabProps> = () => {
     hasGoalConfigured,
 
     faturamentoRecebido,
+    recurringFaturamentoRecebido,
+    oneTimeFaturamentoRecebido,
     faturamentoEstaSemana,
     churnRealizado,
     saldoLiquido,
@@ -69,9 +73,16 @@ export const MetasTab: React.FC<MetasTabProps> = () => {
     proposalsCount,
     newClientsCount,
 
+    rawMeetingsCount,
+    rawProposalsCount,
+    rawBlogPostsCount,
+
     commercialActions,
 
     revenueGoal,
+    recurringRevenueGoal,
+    oneTimeRevenueGoal,
+    mrrGoal,
     churnGoal,
     clientPostsGoal,
     ownPostsGoal,
@@ -81,7 +92,13 @@ export const MetasTab: React.FC<MetasTabProps> = () => {
     newClientsGoal,
     postsGoal,
 
+    meetingsActual,
+    proposalsActual,
+    blogPostsActual,
+
     pctFaturamento,
+    pctRecurringRevenue,
+    pctOneTimeRevenue,
     pctChurn,
     pctClientPosts,
     pctOwnPosts,
@@ -92,10 +109,14 @@ export const MetasTab: React.FC<MetasTabProps> = () => {
     pctPublicacoes,
 
     weeklyGoal,
+    weeklyMRRGoal,
     semanaAtual,
     isPaceOnTrack,
+    isMRRPaceOnTrack,
     faltamFaturamento,
     superouFaturamento,
+    faltamMRR,
+    superouMRR,
 
     coachingMessage,
 
@@ -118,11 +139,19 @@ export const MetasTab: React.FC<MetasTabProps> = () => {
   const [isCopying, setIsCopying] = useState(false);
   const [copyFeedback, setCopyFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
+  // Manual Actual Override Modal state
+  const [actualModalMetric, setActualModalMetric] = useState<'meetings' | 'proposals' | 'blog_posts' | null>(null);
+  const [actualInputValue, setActualInputValue] = useState<string>('');
+  const [isSavingActual, setIsSavingActual] = useState(false);
+  const [deletingActionId, setDeletingActionId] = useState<string | null>(null);
+
   const [showProspeccaoSection, setShowProspeccaoSection] = useState(true);
   const [isProspeccaoAccordionOpen, setIsProspeccaoAccordionOpen] = useState(false);
 
   // Form states for Goal
   const [form, setForm] = useState({
+    recurring_revenue_goal: '',
+    one_time_revenue_goal: '',
     revenue_goal: '',
     churn_goal: '',
     client_posts_goal: '',
@@ -138,6 +167,8 @@ export const MetasTab: React.FC<MetasTabProps> = () => {
   useEffect(() => {
     if (goal) {
       setForm({
+        recurring_revenue_goal: goal.recurring_revenue_goal !== null && goal.recurring_revenue_goal !== undefined ? String(goal.recurring_revenue_goal) : '',
+        one_time_revenue_goal: goal.one_time_revenue_goal !== null && goal.one_time_revenue_goal !== undefined ? String(goal.one_time_revenue_goal) : '',
         revenue_goal: goal.revenue_goal ? String(goal.revenue_goal) : '',
         churn_goal: goal.churn_goal !== null && goal.churn_goal !== undefined ? String(goal.churn_goal) : '',
         client_posts_goal: goal.client_posts_goal !== null && goal.client_posts_goal !== undefined 
@@ -151,6 +182,8 @@ export const MetasTab: React.FC<MetasTabProps> = () => {
       });
     } else {
       setForm({
+        recurring_revenue_goal: '',
+        one_time_revenue_goal: '',
         revenue_goal: '',
         churn_goal: '',
         client_posts_goal: '',
@@ -185,8 +218,29 @@ export const MetasTab: React.FC<MetasTabProps> = () => {
   const summaryGoalsList = React.useMemo(() => {
     const list = [];
 
-    // Faturamento
-    if (revenueGoal > 0) {
+    // Faturamento split ou unificado
+    if ((recurringRevenueGoal || 0) > 0 || (oneTimeRevenueGoal || 0) > 0) {
+      if ((recurringRevenueGoal || 0) > 0) {
+        list.push({
+          key: 'recurring_revenue',
+          title: 'Receita recorrente (MRR)',
+          icon: '🔄',
+          goalText: formatCurrency(recurringRevenueGoal || 0),
+          realizedText: formatCurrency(recurringFaturamentoRecebido),
+          pct: pctRecurringRevenue,
+        });
+      }
+      if ((oneTimeRevenueGoal || 0) > 0) {
+        list.push({
+          key: 'one_time_revenue',
+          title: 'Serviço pontual',
+          icon: '⚡',
+          goalText: formatCurrency(oneTimeRevenueGoal || 0),
+          realizedText: formatCurrency(oneTimeFaturamentoRecebido),
+          pct: pctOneTimeRevenue,
+        });
+      }
+    } else if (revenueGoal > 0) {
       list.push({
         key: 'revenue',
         title: 'Faturamento',
@@ -259,7 +313,9 @@ export const MetasTab: React.FC<MetasTabProps> = () => {
 
     return list;
   }, [
-    revenueGoal, faturamentoRecebido, pctFaturamento,
+    revenueGoal, recurringRevenueGoal, oneTimeRevenueGoal,
+    faturamentoRecebido, recurringFaturamentoRecebido, oneTimeFaturamentoRecebido,
+    pctFaturamento, pctRecurringRevenue, pctOneTimeRevenue,
     meetingsGoal, meetingsCount, pctReunioes,
     postsGoal, postsCount, pctPublicacoes,
     proposalsGoal, proposalsCount, pctPropostas,
@@ -307,10 +363,45 @@ export const MetasTab: React.FC<MetasTabProps> = () => {
     }
   };
 
+  const openActualModal = (metric: 'meetings' | 'proposals' | 'blog_posts') => {
+    if (isMonthLocked) return;
+    setActualModalMetric(metric);
+    if (metric === 'meetings') {
+      setActualInputValue(meetingsActual !== null ? String(meetingsActual) : String(rawMeetingsCount));
+    } else if (metric === 'proposals') {
+      setActualInputValue(proposalsActual !== null ? String(proposalsActual) : String(rawProposalsCount));
+    } else if (metric === 'blog_posts') {
+      setActualInputValue(blogPostsActual !== null ? String(blogPostsActual) : String(rawBlogPostsCount));
+    }
+  };
+
+  const handleSaveActualOverride = async (resetAuto = false) => {
+    if (!actualModalMetric || isMonthLocked) return;
+    setIsSavingActual(true);
+    try {
+      const val = resetAuto ? null : (actualInputValue !== '' ? parseInt(actualInputValue, 10) : null);
+      if (actualModalMetric === 'meetings') {
+        await saveGoal({ meetings_actual: val });
+      } else if (actualModalMetric === 'proposals') {
+        await saveGoal({ proposals_actual: val });
+      } else if (actualModalMetric === 'blog_posts') {
+        await saveGoal({ blog_posts_actual: val });
+      }
+      setActualModalMetric(null);
+    } catch (err) {
+      console.error('Erro ao salvar realizado manual:', err);
+      alert('Erro ao salvar o valor realizado.');
+    } finally {
+      setIsSavingActual(false);
+    }
+  };
+
   const abrirFormulario = () => {
     if (isMonthLocked) return;
     if (goal) {
       setForm({
+        recurring_revenue_goal: goal.recurring_revenue_goal !== null && goal.recurring_revenue_goal !== undefined ? String(goal.recurring_revenue_goal) : '',
+        one_time_revenue_goal: goal.one_time_revenue_goal !== null && goal.one_time_revenue_goal !== undefined ? String(goal.one_time_revenue_goal) : '',
         revenue_goal: goal.revenue_goal ? String(goal.revenue_goal) : '',
         churn_goal: goal.churn_goal !== null && goal.churn_goal !== undefined ? String(goal.churn_goal) : '',
         client_posts_goal: goal.client_posts_goal !== null && goal.client_posts_goal !== undefined 
@@ -339,8 +430,14 @@ export const MetasTab: React.FC<MetasTabProps> = () => {
     setSalvando(true);
 
     try {
+      const recVal = form.recurring_revenue_goal !== '' ? parseFloat(form.recurring_revenue_goal) : null;
+      const oneVal = form.one_time_revenue_goal !== '' ? parseFloat(form.one_time_revenue_goal) : null;
+      const legacyTotal = form.revenue_goal !== '' ? parseFloat(form.revenue_goal) : 0;
+
       await saveGoal({
-        revenue_goal: parseFloat(form.revenue_goal) || 0,
+        recurring_revenue_goal: recVal,
+        one_time_revenue_goal: oneVal,
+        revenue_goal: (recVal !== null || oneVal !== null) ? ((recVal || 0) + (oneVal || 0)) : legacyTotal,
         churn_goal: form.churn_goal ? parseFloat(form.churn_goal) : null,
         client_posts_goal: form.client_posts_goal ? parseInt(form.client_posts_goal, 10) : null,
         own_posts_goal: form.own_posts_goal ? parseInt(form.own_posts_goal, 10) : null,
@@ -349,8 +446,7 @@ export const MetasTab: React.FC<MetasTabProps> = () => {
         proposals_goal: form.proposals_goal ? parseInt(form.proposals_goal, 10) : null,
         notes: form.notes ? form.notes.trim() : null,
       });
-
-      fecharFormulario();
+      setShowGoalModal(false);
     } catch (err) {
       console.error('Erro ao salvar metas:', err);
       alert('Erro ao salvar metas. Por favor, tente novamente.');
@@ -385,6 +481,21 @@ export const MetasTab: React.FC<MetasTabProps> = () => {
       console.error('Erro ao salvar ação comercial:', err);
     } finally {
       setIsSavingAction(false);
+    }
+  };
+
+  const handleDeleteAction = async (actionId: string) => {
+    const confirmed = window.confirm('Excluir esta ação? Esta operação não pode ser desfeita.');
+    if (!confirmed) return;
+
+    try {
+      setDeletingActionId(actionId);
+      await deleteCommercialAction(actionId);
+    } catch (err: any) {
+      console.error('Erro ao excluir ação comercial:', err);
+      alert(err?.message || 'Erro ao excluir a ação comercial. Tente novamente.');
+    } finally {
+      setDeletingActionId(null);
     }
   };
 
@@ -680,7 +791,7 @@ export const MetasTab: React.FC<MetasTabProps> = () => {
               </div>
             </div>
 
-            {/* CARD PRINCIPAL — MRR / FATURAMENTO */}
+            {/* CARD PRINCIPAL — MRR / RECEITA RECORRENTE */}
             <div className="bg-white p-6 sm:p-8 rounded-[2.5rem] border border-black/[0.04] shadow-2xs space-y-6 relative overflow-hidden">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2">
                 <div className="flex items-center gap-3">
@@ -696,19 +807,19 @@ export const MetasTab: React.FC<MetasTabProps> = () => {
                         • {nomeMes} de {ano}
                       </span>
                     </div>
-                    <p className="text-xs text-stone-400">Faturamento contratado no mês</p>
+                    <p className="text-xs text-stone-400">Receita recorrente dos clientes ativos</p>
                   </div>
                 </div>
 
                 <div className="self-start sm:self-auto">
-                  {pctFaturamento >= 100 ? (
+                  {pctRecurringRevenue >= 100 ? (
                     <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-50 text-emerald-700 border border-emerald-200/80 rounded-full text-xs font-bold">
                       <CheckCircle2 size={14} />
-                      <span>Meta Batida ({pctFaturamento}%)</span>
+                      <span>Meta Batida ({pctRecurringRevenue}%)</span>
                     </span>
                   ) : (
                     <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-stone-100 text-stone-700 border border-stone-200/70 rounded-full text-xs font-bold">
-                      <span>{pctFaturamento}% atingido</span>
+                      <span>{pctRecurringRevenue}% atingido</span>
                     </span>
                   )}
                 </div>
@@ -719,10 +830,10 @@ export const MetasTab: React.FC<MetasTabProps> = () => {
                 <div className="flex flex-wrap items-baseline justify-between gap-2">
                   <div>
                     <span className="text-3xl sm:text-4xl font-extrabold text-[#13284D] tracking-tight">
-                      {formatCurrency(faturamentoRecebido)}
+                      {formatCurrency(recurringFaturamentoRecebido)}
                     </span>
                     <span className="text-xs font-bold text-stone-400 uppercase tracking-wider ml-2">
-                      realizado
+                      realizado MRR
                     </span>
                   </div>
                   <div className="text-right">
@@ -730,7 +841,7 @@ export const MetasTab: React.FC<MetasTabProps> = () => {
                       meta MRR
                     </span>
                     <span className="text-xl sm:text-2xl font-bold text-stone-700">
-                      {formatCurrency(revenueGoal)}
+                      {formatCurrency(mrrGoal)}
                     </span>
                   </div>
                 </div>
@@ -738,12 +849,12 @@ export const MetasTab: React.FC<MetasTabProps> = () => {
                 <div className="relative w-full h-4 bg-stone-100 rounded-full overflow-hidden">
                   <motion.div
                     initial={{ width: 0 }}
-                    animate={{ width: `${Math.min(100, pctFaturamento)}%` }}
+                    animate={{ width: `${Math.min(100, pctRecurringRevenue)}%` }}
                     transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
                     className={`h-full rounded-full transition-all ${
-                      pctFaturamento >= 100 
+                      pctRecurringRevenue >= 100 
                         ? 'bg-emerald-500' 
-                        : pctFaturamento >= 70 
+                        : pctRecurringRevenue >= 70 
                           ? 'bg-emerald-600' 
                           : 'bg-[#13284D]'
                     }`}
@@ -752,15 +863,15 @@ export const MetasTab: React.FC<MetasTabProps> = () => {
 
                 <div className="flex items-center justify-between text-xs pt-1">
                   <span className="font-semibold text-stone-600">
-                    {pctFaturamento >= 100 ? (
+                    {pctRecurringRevenue >= 100 ? (
                       <span className="text-emerald-600 font-bold">
-                        🎉 Meta superada em {formatCurrency(superouFaturamento)}!
+                        🎉 Meta superada em {formatCurrency(superouMRR)}!
                       </span>
                     ) : (
-                      <span>Falta <strong className="text-[#13284D]">{formatCurrency(faltamFaturamento)}</strong> para a meta de MRR</span>
+                      <span>Falta <strong className="text-[#13284D]">{formatCurrency(faltamMRR)}</strong> para a meta de MRR</span>
                     )}
                   </span>
-                  <span className="font-bold text-stone-400">{pctFaturamento}%</span>
+                  <span className="font-bold text-stone-400">{pctRecurringRevenue}%</span>
                 </div>
               </div>
 
@@ -768,7 +879,7 @@ export const MetasTab: React.FC<MetasTabProps> = () => {
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pt-1 bg-stone-50/70 p-4 rounded-2xl border border-stone-200/60">
                 <div className="space-y-0.5">
                   <p className="text-xs text-stone-500 font-medium">
-                    Meta semanal: <strong className="text-[#13284D]">{formatCurrency(weeklyGoal)}/semana</strong>
+                    Meta semanal MRR: <strong className="text-[#13284D]">{formatCurrency(weeklyMRRGoal)}/semana</strong>
                   </p>
                   <p className="text-xs text-stone-600 font-medium">
                     Esta semana: <strong className="text-[#13284D]">{formatCurrency(faturamentoEstaSemana)}</strong>{' '}
@@ -777,7 +888,7 @@ export const MetasTab: React.FC<MetasTabProps> = () => {
                 </div>
 
                 <div>
-                  {isPaceOnTrack ? (
+                  {isMRRPaceOnTrack ? (
                     <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 text-emerald-700 border border-emerald-200/80 rounded-xl text-xs font-bold">
                       <CheckCircle2 size={15} />
                       <span>No ritmo</span>
@@ -792,8 +903,54 @@ export const MetasTab: React.FC<MetasTabProps> = () => {
               </div>
             </div>
 
-            {/* CARDS SECUNDÁRIOS FINANCEIROS: CHURN & SALDO LÍQUIDO */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+            {/* CARDS SECUNDÁRIOS FINANCEIROS: SERVIÇO PONTUAL, CHURN & SALDO LÍQUIDO */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+              {/* Card Serviço Pontual */}
+              <div className="bg-white p-6 rounded-[2rem] border border-black/[0.04] shadow-2xs space-y-4 flex flex-col justify-between">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-9 h-9 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center">
+                      <Zap size={18} />
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-bold text-[#13284D]">Serviço Pontual</h4>
+                      <p className="text-[11px] text-stone-400">Projetos & serviços avulsos</p>
+                    </div>
+                  </div>
+                  <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200/80">
+                    {(oneTimeRevenueGoal || 0) > 0 ? `${pctOneTimeRevenue}%` : 'Pontual'}
+                  </span>
+                </div>
+
+                <div className="space-y-2">
+                  <div className="flex items-baseline justify-between">
+                    <div>
+                      <span className="text-2xl sm:text-3xl font-extrabold text-[#13284D]">
+                        {formatCurrency(oneTimeFaturamentoRecebido)}
+                      </span>
+                    </div>
+                    {(oneTimeRevenueGoal || 0) > 0 && (
+                      <div className="text-right text-xs text-stone-500 font-semibold">
+                        Meta: <span className="text-stone-700">{formatCurrency(oneTimeRevenueGoal || 0)}</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {(oneTimeRevenueGoal || 0) > 0 ? (
+                    <div className="w-full h-2.5 bg-stone-100 rounded-full overflow-hidden">
+                      <div 
+                        className="h-full rounded-full transition-all duration-500 bg-amber-500" 
+                        style={{ width: `${Math.min(100, pctOneTimeRevenue)}%` }}
+                      />
+                    </div>
+                  ) : (
+                    <p className="text-[11px] text-stone-400 font-medium pt-1">
+                      Faturamento de serviços pontuais no mês.
+                    </p>
+                  )}
+                </div>
+              </div>
+
               {/* Card Churn */}
               <div className="bg-white p-6 rounded-[2rem] border border-black/[0.04] shadow-2xs space-y-4 flex flex-col justify-between">
                 <div className="flex items-center justify-between">
@@ -980,14 +1137,32 @@ export const MetasTab: React.FC<MetasTabProps> = () => {
                 </div>
 
                 <div className="space-y-2">
-                  <div className="flex items-baseline gap-1.5">
-                    <span className="text-2xl sm:text-3xl font-extrabold text-[#13284D]">
-                      {blogPostsCount}
-                    </span>
-                    <span className="text-base font-bold text-stone-400">
-                      / {blogPostsGoal || 0}
-                    </span>
-                    <span className="text-xs text-stone-400 ml-1 font-medium">artigos</span>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-baseline gap-1.5">
+                      <span className="text-2xl sm:text-3xl font-extrabold text-[#13284D]">
+                        {blogPostsCount}
+                      </span>
+                      <span className="text-base font-bold text-stone-400">
+                        / {blogPostsGoal || 0}
+                      </span>
+                      <span className="text-xs text-stone-400 ml-1 font-medium">artigos</span>
+                    </div>
+
+                    {!isMonthLocked && (
+                      <button
+                        type="button"
+                        onClick={() => openActualModal('blog_posts')}
+                        className="flex items-center gap-1 text-xs text-stone-400 hover:text-[#13284D] px-2 py-1 rounded-lg hover:bg-stone-100 transition-colors cursor-pointer"
+                        title="Editar realizado manualmente"
+                      >
+                        <Edit3 size={14} />
+                        {blogPostsActual !== null && (
+                          <span className="text-[10px] font-bold text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded-md border border-amber-200">
+                            Manual
+                          </span>
+                        )}
+                      </button>
+                    )}
                   </div>
 
                   <div className="w-full h-2.5 bg-stone-100 rounded-full overflow-hidden">
@@ -1031,13 +1206,31 @@ export const MetasTab: React.FC<MetasTabProps> = () => {
                 </div>
 
                 <div className="space-y-2">
-                  <div className="flex items-baseline gap-1.5">
-                    <span className="text-2xl sm:text-3xl font-extrabold text-[#13284D]">
-                      {meetingsCount}
-                    </span>
-                    <span className="text-base font-bold text-stone-400">
-                      / {meetingsGoal || 0}
-                    </span>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-baseline gap-1.5">
+                      <span className="text-2xl sm:text-3xl font-extrabold text-[#13284D]">
+                        {meetingsCount}
+                      </span>
+                      <span className="text-base font-bold text-stone-400">
+                        / {meetingsGoal || 0}
+                      </span>
+                    </div>
+
+                    {!isMonthLocked && (
+                      <button
+                        type="button"
+                        onClick={() => openActualModal('meetings')}
+                        className="flex items-center gap-1 text-xs text-stone-400 hover:text-[#13284D] px-2 py-1 rounded-lg hover:bg-stone-100 transition-colors cursor-pointer"
+                        title="Editar realizado manualmente"
+                      >
+                        <Edit3 size={14} />
+                        {meetingsActual !== null && (
+                          <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded-md border border-blue-200">
+                            Manual
+                          </span>
+                        )}
+                      </button>
+                    )}
                   </div>
 
                   <div className="w-full h-2.5 bg-stone-100 rounded-full overflow-hidden">
@@ -1065,13 +1258,31 @@ export const MetasTab: React.FC<MetasTabProps> = () => {
                 </div>
 
                 <div className="space-y-2">
-                  <div className="flex items-baseline gap-1.5">
-                    <span className="text-2xl sm:text-3xl font-extrabold text-[#13284D]">
-                      {proposalsCount}
-                    </span>
-                    <span className="text-base font-bold text-stone-400">
-                      / {proposalsGoal || 0}
-                    </span>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-baseline gap-1.5">
+                      <span className="text-2xl sm:text-3xl font-extrabold text-[#13284D]">
+                        {proposalsCount}
+                      </span>
+                      <span className="text-base font-bold text-stone-400">
+                        / {proposalsGoal || 0}
+                      </span>
+                    </div>
+
+                    {!isMonthLocked && (
+                      <button
+                        type="button"
+                        onClick={() => openActualModal('proposals')}
+                        className="flex items-center gap-1 text-xs text-stone-400 hover:text-[#13284D] px-2 py-1 rounded-lg hover:bg-stone-100 transition-colors cursor-pointer"
+                        title="Editar realizado manualmente"
+                      >
+                        <Edit3 size={14} />
+                        {proposalsActual !== null && (
+                          <span className="text-[10px] font-bold text-purple-600 bg-purple-50 px-1.5 py-0.5 rounded-md border border-purple-200">
+                            Manual
+                          </span>
+                        )}
+                      </button>
+                    )}
                   </div>
 
                   <div className="w-full h-2.5 bg-stone-100 rounded-full overflow-hidden">
@@ -1196,16 +1407,17 @@ export const MetasTab: React.FC<MetasTabProps> = () => {
                       {/* Botão de Excluir */}
                       {!isPastMonth && (
                         <button
-                          onClick={() => {
-                            if (window.confirm(`Excluir ação com "${action.contact_name}"?`)) {
-                              deleteCommercialAction(action.id);
-                            }
-                          }}
-                          className="opacity-0 group-hover:opacity-100 transition-opacity text-stone-300 hover:text-rose-600 p-1.5 rounded-lg hover:bg-rose-50 self-end sm:self-center cursor-pointer"
+                          onClick={() => handleDeleteAction(action.id)}
+                          disabled={deletingActionId === action.id}
+                          className="text-stone-400 hover:text-rose-600 p-1.5 rounded-lg hover:bg-rose-50 transition-colors self-end sm:self-center cursor-pointer disabled:opacity-50"
                           title="Excluir ação"
                           type="button"
                         >
-                          <Trash2 size={16} />
+                          {deletingActionId === action.id ? (
+                            <Loader2 size={16} className="animate-spin text-rose-600" />
+                          ) : (
+                            <Trash2 size={16} />
+                          )}
                         </button>
                       )}
                     </div>
@@ -1262,22 +1474,37 @@ export const MetasTab: React.FC<MetasTabProps> = () => {
                     </h4>
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    {/* Meta MRR */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    {/* Receita Recorrente (MRR) */}
                     <div>
                       <label className="block text-xs font-bold text-[#13284D] mb-1.5">
-                        Meta de MRR (R$) *
+                        Receita recorrente (MRR)
                       </label>
                       <input
                         type="number"
                         step="any"
-                        value={form.revenue_goal}
-                        onChange={(e) => setForm(f => ({ ...f, revenue_goal: e.target.value }))}
-                        placeholder="Ex: 15000"
-                        required
+                        value={form.recurring_revenue_goal}
+                        onChange={(e) => setForm(f => ({ ...f, recurring_revenue_goal: e.target.value }))}
+                        placeholder="Ex: 12000"
                         className="w-full px-3.5 py-2.5 rounded-xl border border-stone-200 bg-white focus:outline-none focus:ring-1 focus:ring-[#13284D] text-sm font-semibold text-[#13284D]"
                       />
-                      <p className="text-[10px] text-stone-400 mt-1">Faturamento total contratado</p>
+                      <p className="text-[10px] text-stone-400 mt-1">Contratos recorrentes</p>
+                    </div>
+
+                    {/* Serviço Pontual */}
+                    <div>
+                      <label className="block text-xs font-bold text-[#13284D] mb-1.5">
+                        Serviço pontual (R$)
+                      </label>
+                      <input
+                        type="number"
+                        step="any"
+                        value={form.one_time_revenue_goal}
+                        onChange={(e) => setForm(f => ({ ...f, one_time_revenue_goal: e.target.value }))}
+                        placeholder="Ex: 3000"
+                        className="w-full px-3.5 py-2.5 rounded-xl border border-stone-200 bg-white focus:outline-none focus:ring-1 focus:ring-[#13284D] text-sm font-semibold text-[#13284D]"
+                      />
+                      <p className="text-[10px] text-stone-400 mt-1">Projetos/Serviços isolados</p>
                     </div>
 
                     {/* Meta Churn Máximo */}
@@ -1293,7 +1520,7 @@ export const MetasTab: React.FC<MetasTabProps> = () => {
                         placeholder="Ex: 1500"
                         className="w-full px-3.5 py-2.5 rounded-xl border border-stone-200 bg-white focus:outline-none focus:ring-1 focus:ring-[#13284D] text-sm font-semibold text-[#13284D]"
                       />
-                      <p className="text-[10px] text-stone-400 mt-1">Teto máximo de cancelamento</p>
+                      <p className="text-[10px] text-stone-400 mt-1">Teto de cancelamentos</p>
                     </div>
                   </div>
                 </div>
@@ -1574,6 +1801,87 @@ export const MetasTab: React.FC<MetasTabProps> = () => {
                   </button>
                 </div>
               </form>
+            </motion.div>
+          </div>
+        )}
+
+        {/* Modal de Sobrescrita de Realizado Manual */}
+        {actualModalMetric && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white rounded-3xl max-w-md w-full p-6 shadow-xl border border-stone-200 space-y-5"
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center font-bold">
+                    <Edit3 size={20} />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-bold text-[#13284D]">
+                      Editar Realizado: {
+                        actualModalMetric === 'meetings' ? 'Reuniões' :
+                        actualModalMetric === 'proposals' ? 'Propostas' : 'Posts no Blog'
+                      }
+                    </h3>
+                    <p className="text-xs text-stone-500 font-medium">Ajuste manual do valor realizado</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setActualModalMetric(null)}
+                  className="text-stone-400 hover:text-stone-700 p-1.5 rounded-xl hover:bg-stone-100 transition-colors cursor-pointer"
+                  type="button"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              <div className="space-y-3">
+                <label className="block text-xs font-bold text-[#13284D]">
+                  Valor Realizado (Manual)
+                </label>
+                <input
+                  type="number"
+                  value={actualInputValue}
+                  onChange={(e) => setActualInputValue(e.target.value)}
+                  placeholder="Digite o número realizado"
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-stone-200 bg-white focus:outline-none focus:ring-1 focus:ring-[#13284D] text-sm font-semibold text-[#13284D]"
+                />
+                <p className="text-[11px] text-stone-400 leading-relaxed">
+                  Insira o valor manual desejado ou clique em "Restaurar automático" para voltar ao cálculo automático do sistema.
+                </p>
+              </div>
+
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-2 pt-3 border-t border-stone-100">
+                <button
+                  type="button"
+                  onClick={() => handleSaveActualOverride(true)}
+                  disabled={isSavingActual}
+                  className="w-full sm:w-auto px-3.5 py-2 rounded-xl text-xs font-bold text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200 transition-colors cursor-pointer disabled:opacity-50"
+                >
+                  Restaurar automático
+                </button>
+                <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+                  <button
+                    type="button"
+                    onClick={() => setActualModalMetric(null)}
+                    disabled={isSavingActual}
+                    className="px-4 py-2 rounded-xl text-xs font-bold text-stone-600 hover:bg-stone-100 transition-colors cursor-pointer"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleSaveActualOverride(false)}
+                    disabled={isSavingActual}
+                    className="px-5 py-2 rounded-xl text-xs font-bold bg-[#13284D] text-white hover:bg-[#13284D]/90 transition-all shadow-xs cursor-pointer disabled:opacity-50"
+                  >
+                    {isSavingActual ? 'Salvando...' : 'Salvar Realizado'}
+                  </button>
+                </div>
+              </div>
             </motion.div>
           </div>
         )}

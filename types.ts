@@ -255,6 +255,40 @@ export interface Client {
   cancelled_at?: string | null;
   last_payment_date?: string | null;
   last_payment_value?: number | null;
+  referral_partner_id?: string | null;
+}
+
+export interface ReferralPartner {
+  id: string;
+  agency_id: number;
+  name: string;
+  contact?: string | null;
+  commission_rate: number;
+  notes?: string | null;
+  is_active: boolean;
+  created_at?: string;
+  // Computed helpers for UI
+  linked_clients_count?: number;
+  total_paid_history?: number;
+}
+
+export interface ReferralCommission {
+  id: string;
+  agency_id: number;
+  partner_id: string;
+  client_id?: string | null;
+  billing_id?: string | null;
+  commission_amount: number;
+  client_paid_at?: string | null;
+  partner_due_date: string;
+  paid_to_partner: boolean;
+  paid_to_partner_at?: string | null;
+  notes?: string | null;
+  created_at?: string;
+  // Joined fields for display
+  partner?: ReferralPartner;
+  client?: Client;
+  billing?: AgencyBilling;
 }
 
 export interface PostTheme {
@@ -609,6 +643,8 @@ export interface AgencyGoal {
   agency_id: number;
   month_year: string; // YYYY-MM
   revenue_goal: number;
+  recurring_revenue_goal?: number | null;
+  one_time_revenue_goal?: number | null;
   churn_goal?: number | null;
   client_posts_goal?: number | null;
   own_posts_goal?: number | null;
@@ -617,6 +653,9 @@ export interface AgencyGoal {
   meetings_goal?: number;
   posts_goal?: number;
   blog_posts_goal?: number;
+  meetings_actual?: number | null;
+  proposals_actual?: number | null;
+  blog_posts_actual?: number | null;
   notes?: string | null;
   is_locked?: boolean;
   locked_at?: string | null;

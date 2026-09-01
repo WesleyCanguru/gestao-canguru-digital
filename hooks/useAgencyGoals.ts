@@ -26,6 +26,8 @@ export interface UseAgencyGoalsReturn {
   
   // Real values
   faturamentoRecebido: number;
+  recurringFaturamentoRecebido: number;
+  oneTimeFaturamentoRecebido: number;
   faturamentoEstaSemana: number;
   churnRealizado: number;
   saldoLiquido: number;
@@ -37,11 +39,19 @@ export interface UseAgencyGoalsReturn {
   proposalsCount: number;
   newClientsCount: number;
 
+  // Raw calculated actuals (without override)
+  rawMeetingsCount: number;
+  rawProposalsCount: number;
+  rawBlogPostsCount: number;
+
   // Commercial Actions list
   commercialActions: AgencyCommercialAction[];
 
   // Goals
   revenueGoal: number;
+  recurringRevenueGoal: number | null;
+  oneTimeRevenueGoal: number | null;
+  mrrGoal: number;
   churnGoal: number;
   clientPostsGoal: number;
   ownPostsGoal: number;
@@ -51,8 +61,15 @@ export interface UseAgencyGoalsReturn {
   newClientsGoal: number;
   postsGoal: number;
 
+  // Manual Actuals
+  meetingsActual: number | null;
+  proposalsActual: number | null;
+  blogPostsActual: number | null;
+
   // Progress calculations
   pctFaturamento: number;
+  pctRecurringRevenue: number;
+  pctOneTimeRevenue: number;
   pctChurn: number;
   pctClientPosts: number;
   pctOwnPosts: number;
@@ -64,11 +81,16 @@ export interface UseAgencyGoalsReturn {
 
   // Pace metrics
   weeklyGoal: number;
+  weeklyMRRGoal: number;
   semanaAtual: number;
   receitaEsperadaAteAgora: number;
+  receitaEsperadaMRRAteAgora: number;
   isPaceOnTrack: boolean;
+  isMRRPaceOnTrack: boolean;
   faltamFaturamento: number;
   superouFaturamento: number;
+  faltamMRR: number;
+  superouMRR: number;
 
   // Coaching
   coachingMessage: string;
@@ -81,7 +103,9 @@ export interface UseAgencyGoalsReturn {
   lockCurrentMonth: () => Promise<void>;
   copyPreviousMonthGoals: () => Promise<{ success: boolean; message?: string }>;
   saveGoal: (goalData: {
-    revenue_goal: number;
+    revenue_goal?: number;
+    recurring_revenue_goal?: number | null;
+    one_time_revenue_goal?: number | null;
     churn_goal?: number | null;
     client_posts_goal?: number | null;
     own_posts_goal?: number | null;
@@ -90,6 +114,9 @@ export interface UseAgencyGoalsReturn {
     meetings_goal?: number | null;
     posts_goal?: number | null;
     blog_posts_goal?: number | null;
+    meetings_actual?: number | null;
+    proposals_actual?: number | null;
+    blog_posts_actual?: number | null;
     notes?: string | null;
   }) => Promise<void>;
   addCommercialAction: (actionData: {
@@ -112,15 +139,17 @@ export function useAgencyGoals(initialMonthYear?: string): UseAgencyGoalsReturn 
   const [loading, setLoading] = useState(true);
   const [goal, setGoal] = useState<AgencyGoal | null>(null);
   const [faturamentoRecebido, setFaturamentoRecebido] = useState(0);
+  const [recurringFaturamentoRecebido, setRecurringFaturamentoRecebido] = useState(0);
+  const [oneTimeFaturamentoRecebido, setOneTimeFaturamentoRecebido] = useState(0);
   const [faturamentoEstaSemana, setFaturamentoEstaSemana] = useState(0);
   const [churnRealizado, setChurnRealizado] = useState(0);
   const [newClientsCount, setNewClientsCount] = useState(0);
-  const [meetingsCount, setMeetingsCount] = useState(0);
-  const [proposalsCount, setProposalsCount] = useState(0);
+  const [rawMeetingsCount, setRawMeetingsCount] = useState(0);
+  const [rawProposalsCount, setRawProposalsCount] = useState(0);
   const [clientPostsCount, setClientPostsCount] = useState(0);
   const [ownPostsCount, setOwnPostsCount] = useState(0);
   const [postsCount, setPostsCount] = useState(0);
-  const [blogPostsCount, setBlogPostsCount] = useState(0);
+  const [rawBlogPostsCount, setRawBlogPostsCount] = useState(0);
   const [commercialActions, setCommercialActions] = useState<AgencyCommercialAction[]>([]);
 
   const currentMonthYear = dayjs().format('YYYY-MM');
@@ -168,14 +197,14 @@ export function useAgencyGoals(initialMonthYear?: string): UseAgencyGoalsReturn 
         // 2. Fetch Billings
         supabase
           .from('agency_billing')
-          .select('base_value, extra_value, total_value, status, paid_at, due_day, client:clients(is_internal)')
+          .select('base_value, extra_value, total_value, status, paid_at, due_day, is_sporadic, client_id, client:clients(is_internal, client_type, base_value, client_status, cancelled_at, created_at)')
           .eq('agency_id', agencyId)
           .eq('month_year', monthYear),
 
-        // 3. Fetch All Clients to separate internal/own from client posts and calculate new clients
+        // 3. Fetch All Clients
         supabase
           .from('clients')
-          .select('id, name, is_internal, created_at, client_status, cancelled_at')
+          .select('id, name, is_internal, created_at, client_status, cancelled_at, base_value, due_day, client_type')
           .eq('agency_id', agencyId),
 
         // 4. Fetch Commercial Actions
@@ -215,10 +244,56 @@ export function useAgencyGoals(initialMonthYear?: string): UseAgencyGoalsReturn 
         }
       }
 
-      // 2. Process Billings
+      // 2. Process Clients & Churn
+      const internalClientIds = new Set<string>([BLOG_CLIENT_ID, 'b0febf12-6d64-4754-ac4e-e2e1405e616c']);
+      const activeClients: any[] = [];
+      if (clientsResult.status === 'fulfilled') {
+        const { data: clientsData } = clientsResult.value;
+        const allClients = (clientsData || []) as any[];
+
+        // Build internal clients set and active clients list
+        allClients.forEach(c => {
+          if (c.is_internal) {
+            internalClientIds.add(c.id);
+          } else {
+            // Check if active in this month
+            let isCancelled = false;
+            if (c.client_status === 'cancelled') {
+              if (c.cancelled_at) {
+                const cancelMY = dayjs(c.cancelled_at).format('YYYY-MM');
+                if (monthYear > cancelMY) isCancelled = true;
+              } else {
+                isCancelled = true;
+              }
+            }
+
+            let isCreatedAfter = false;
+            if (c.created_at) {
+              const createMY = dayjs(c.created_at).format('YYYY-MM');
+              if (createMY > monthYear) isCreatedAfter = true;
+            }
+
+            if (!isCancelled && !isCreatedAfter) {
+              activeClients.push(c);
+            }
+          }
+        });
+
+        // Novos clientes no mês (não internos)
+        const newClients = allClients.filter(c => {
+          if (c.is_internal) return false;
+          if (!c.created_at) return false;
+          return c.created_at >= `${startOfMonthStr}T00:00:00` && c.created_at <= `${endOfMonthStr}T23:59:59`;
+        });
+        setNewClientsCount(newClients.length);
+        setChurnRealizado(0);
+      }
+
+      // 3. Process Billings
       if (billingsResult.status === 'fulfilled') {
         const { data: billingsData } = billingsResult.value;
-        let totalContratado = 0;
+        let recurringFaturamento = 0;
+        let oneTimeFaturamento = 0;
         let contratadoEstaSemana = 0;
 
         const now = dayjs();
@@ -227,11 +302,19 @@ export function useAgencyGoals(initialMonthYear?: string): UseAgencyGoalsReturn 
         const weekStartDay = (currentWeekNum - 1) * 7 + 1;
         const weekEndDay = Math.min(monthDate.daysInMonth(), currentWeekNum * 7);
 
+        const clientsWithBillingRow = new Set<string>();
+
         (billingsData || []).forEach((b: any) => {
           if (b.client && b.client.is_internal) return;
 
           const val = Number(b.total_value) || (Number(b.base_value || 0) + Number(b.extra_value || 0));
-          totalContratado += val;
+
+          if (b.is_sporadic || b.client?.client_type === 'one_time') {
+            oneTimeFaturamento += val;
+          } else {
+            recurringFaturamento += val;
+            if (b.client_id) clientsWithBillingRow.add(b.client_id);
+          }
 
           if (b.paid_at) {
             const paidD = dayjs(b.paid_at);
@@ -248,37 +331,25 @@ export function useAgencyGoals(initialMonthYear?: string): UseAgencyGoalsReturn 
           }
         });
 
+        // Include active recurring clients without a billing row for this month
+        activeClients.forEach((c: any) => {
+          if (c.client_type === 'one_time') return;
+          if (!clientsWithBillingRow.has(c.id)) {
+            const val = Number(c.base_value || 0);
+            recurringFaturamento += val;
+          }
+        });
+
+        const totalContratado = recurringFaturamento + oneTimeFaturamento;
+
         if (contratadoEstaSemana === 0 && totalContratado > 0 && currentWeekNum === 1) {
           contratadoEstaSemana = totalContratado;
         }
 
         setFaturamentoRecebido(totalContratado);
+        setRecurringFaturamentoRecebido(recurringFaturamento);
+        setOneTimeFaturamentoRecebido(oneTimeFaturamento);
         setFaturamentoEstaSemana(contratadoEstaSemana);
-      }
-
-      // 3. Process Clients & Churn
-      const internalClientIds = new Set<string>([BLOG_CLIENT_ID, 'b0febf12-6d64-4754-ac4e-e2e1405e616c']);
-      if (clientsResult.status === 'fulfilled') {
-        const { data: clientsData } = clientsResult.value;
-        const allClients = (clientsData || []) as any[];
-
-        // Build internal clients set
-        allClients.forEach(c => {
-          if (c.is_internal) {
-            internalClientIds.add(c.id);
-          }
-        });
-
-        // Novos clientes no mês (não internos)
-        const newClients = allClients.filter(c => {
-          if (c.is_internal) return false;
-          if (!c.created_at) return false;
-          return c.created_at >= `${startOfMonthStr}T00:00:00` && c.created_at <= `${endOfMonthStr}T23:59:59`;
-        });
-        setNewClientsCount(newClients.length);
-
-        // Churn realizado (clientes cancelados no mês com valor ou 0)
-        setChurnRealizado(0);
       }
 
       // 4. Process Commercial Actions
@@ -290,12 +361,12 @@ export function useAgencyGoals(initialMonthYear?: string): UseAgencyGoalsReturn 
         const countMeetings = actions.filter(
           a => a.action_type === 'meeting' || a.action_type === 'call'
         ).length;
-        setMeetingsCount(countMeetings);
+        setRawMeetingsCount(countMeetings);
 
         const countProposals = actions.filter(
           a => a.action_type === 'proposal'
         ).length;
-        setProposalsCount(countProposals);
+        setRawProposalsCount(countProposals);
       }
 
       // 5. Process Published Posts (Dividindo entre clientes e próprio)
@@ -348,7 +419,7 @@ export function useAgencyGoals(initialMonthYear?: string): UseAgencyGoalsReturn 
             }
           }
         });
-        setBlogPostsCount(blogPubCount);
+        setRawBlogPostsCount(blogPubCount);
       }
 
     } catch (err: any) {
@@ -405,6 +476,8 @@ export function useAgencyGoals(initialMonthYear?: string): UseAgencyGoalsReturn 
     return Boolean(
       goal && (
         (goal.revenue_goal || 0) > 0 ||
+        (goal.recurring_revenue_goal || 0) > 0 ||
+        (goal.one_time_revenue_goal || 0) > 0 ||
         (goal.churn_goal || 0) > 0 ||
         (goal.client_posts_goal || 0) > 0 ||
         (goal.own_posts_goal || 0) > 0 ||
@@ -417,7 +490,28 @@ export function useAgencyGoals(initialMonthYear?: string): UseAgencyGoalsReturn 
     );
   }, [goal]);
 
-  const revenueGoal = goal?.revenue_goal || 0;
+  const recurringRevenueGoal = goal?.recurring_revenue_goal !== undefined && goal?.recurring_revenue_goal !== null
+    ? Number(goal.recurring_revenue_goal)
+    : null;
+
+  const oneTimeRevenueGoal = goal?.one_time_revenue_goal !== undefined && goal?.one_time_revenue_goal !== null
+    ? Number(goal.one_time_revenue_goal)
+    : null;
+
+  const mrrGoal = useMemo(() => {
+    if (recurringRevenueGoal !== null && recurringRevenueGoal !== undefined) {
+      return recurringRevenueGoal;
+    }
+    return goal?.revenue_goal || 0;
+  }, [recurringRevenueGoal, goal?.revenue_goal]);
+
+  const revenueGoal = useMemo(() => {
+    if (recurringRevenueGoal !== null || oneTimeRevenueGoal !== null) {
+      return (recurringRevenueGoal || 0) + (oneTimeRevenueGoal || 0);
+    }
+    return goal?.revenue_goal || 0;
+  }, [recurringRevenueGoal, oneTimeRevenueGoal, goal?.revenue_goal]);
+
   const churnGoal = goal?.churn_goal ?? 0;
   const clientPostsGoal = goal?.client_posts_goal ?? goal?.posts_goal ?? 0;
   const ownPostsGoal = goal?.own_posts_goal ?? 0;
@@ -427,19 +521,48 @@ export function useAgencyGoals(initialMonthYear?: string): UseAgencyGoalsReturn 
   const newClientsGoal = goal?.new_clients_goal ?? 0;
   const postsGoal = goal?.posts_goal ?? (clientPostsGoal + ownPostsGoal);
 
-  const saldoLiquido = Math.max(0, faturamentoRecebido - churnRealizado);
+  // Manual Actuals
+  const meetingsActual = goal?.meetings_actual !== undefined && goal?.meetings_actual !== null
+    ? Number(goal.meetings_actual)
+    : null;
+
+  const proposalsActual = goal?.proposals_actual !== undefined && goal?.proposals_actual !== null
+    ? Number(goal.proposals_actual)
+    : null;
+
+  const blogPostsActual = goal?.blog_posts_actual !== undefined && goal?.blog_posts_actual !== null
+    ? Number(goal.blog_posts_actual)
+    : null;
+
+  // Effective Realized Counts
+  const meetingsCount = useMemo(() => {
+    return meetingsActual !== null ? meetingsActual : rawMeetingsCount;
+  }, [meetingsActual, rawMeetingsCount]);
+
+  const proposalsCount = useMemo(() => {
+    return proposalsActual !== null ? proposalsActual : rawProposalsCount;
+  }, [proposalsActual, rawProposalsCount]);
+
+  const blogPostsCount = useMemo(() => {
+    return blogPostsActual !== null ? blogPostsActual : rawBlogPostsCount;
+  }, [blogPostsActual, rawBlogPostsCount]);
+
+  const saldoLiquido = Math.max(0, recurringFaturamentoRecebido - churnRealizado);
 
   const pctFaturamento = revenueGoal > 0 ? Math.round((faturamentoRecebido / revenueGoal) * 100) : 0;
+  const pctRecurringRevenue = mrrGoal > 0 ? Math.round((recurringFaturamentoRecebido / mrrGoal) * 100) : 0;
+  const pctOneTimeRevenue = (oneTimeRevenueGoal && oneTimeRevenueGoal > 0) ? Math.round((oneTimeFaturamentoRecebido / oneTimeRevenueGoal) * 100) : 0;
   const pctChurn = churnGoal > 0 ? Math.round((churnRealizado / churnGoal) * 100) : 0;
   const pctClientPosts = clientPostsGoal > 0 ? Math.round((clientPostsCount / clientPostsGoal) * 100) : 0;
   const pctOwnPosts = ownPostsGoal > 0 ? Math.round((ownPostsCount / ownPostsGoal) * 100) : 0;
-  const pctBlogPosts = blogPostsGoal > 0 ? Math.round((blogPostsCount / blogPostsGoal) * 100) : 0;
+  const pctBlogPosts = blogPostsGoal > 0 ? Math.round((blogPostsGoal / blogPostsGoal) * 100) : 0;
   const pctReunioes = meetingsGoal > 0 ? Math.round((meetingsCount / meetingsGoal) * 100) : 0;
   const pctPropostas = proposalsGoal > 0 ? Math.round((proposalsCount / proposalsGoal) * 100) : 0;
   const pctNovosClientes = newClientsGoal > 0 ? Math.round((newClientsCount / newClientsGoal) * 100) : 0;
   const pctPublicacoes = postsGoal > 0 ? Math.round((postsCount / postsGoal) * 100) : 0;
 
   // Pace calculations
+  const weeklyMRRGoal = useMemo(() => (mrrGoal > 0 ? mrrGoal / 4 : 0), [mrrGoal]);
   const weeklyGoal = useMemo(() => (revenueGoal > 0 ? revenueGoal / 4 : 0), [revenueGoal]);
   
   const currentDay = useMemo(() => {
@@ -452,14 +575,31 @@ export function useAgencyGoals(initialMonthYear?: string): UseAgencyGoalsReturn 
     return Math.min(4, Math.max(1, Math.ceil(currentDay / 7)));
   }, [currentDay]);
 
+  const receitaEsperadaMRRAteAgora = useMemo(() => {
+    return weeklyMRRGoal * semanaAtual;
+  }, [weeklyMRRGoal, semanaAtual]);
+
   const receitaEsperadaAteAgora = useMemo(() => {
     return weeklyGoal * semanaAtual;
   }, [weeklyGoal, semanaAtual]);
+
+  const isMRRPaceOnTrack = useMemo(() => {
+    if (!hasGoalConfigured || mrrGoal === 0) return true;
+    return recurringFaturamentoRecebido >= receitaEsperadaMRRAteAgora;
+  }, [hasGoalConfigured, mrrGoal, recurringFaturamentoRecebido, receitaEsperadaMRRAteAgora]);
 
   const isPaceOnTrack = useMemo(() => {
     if (!hasGoalConfigured || revenueGoal === 0) return true;
     return faturamentoRecebido >= receitaEsperadaAteAgora;
   }, [hasGoalConfigured, revenueGoal, faturamentoRecebido, receitaEsperadaAteAgora]);
+
+  const faltamMRR = useMemo(() => {
+    return Math.max(0, mrrGoal - recurringFaturamentoRecebido);
+  }, [mrrGoal, recurringFaturamentoRecebido]);
+
+  const superouMRR = useMemo(() => {
+    return Math.max(0, recurringFaturamentoRecebido - mrrGoal);
+  }, [mrrGoal, recurringFaturamentoRecebido]);
 
   const faltamFaturamento = useMemo(() => {
     return Math.max(0, revenueGoal - faturamentoRecebido);
@@ -478,34 +618,33 @@ export function useAgencyGoals(initialMonthYear?: string): UseAgencyGoalsReturn 
     const formatCurrency = (val: number) =>
       new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
 
-    if (pctFaturamento >= 100) {
-      return `🎯 Meta batida! Você faturou ${formatCurrency(faturamentoRecebido)} este mês. Já definiu a meta do próximo?`;
+    if (pctRecurringRevenue >= 100) {
+      return `🎯 Meta de MRR batida! Seu MRR faturado é de ${formatCurrency(recurringFaturamentoRecebido)} este mês. Já definiu a meta do próximo?`;
     }
 
-    if (pctFaturamento === 0) {
+    if (pctRecurringRevenue === 0) {
       return 'Mês novo, meta nova. Primeira venda define o ritmo — qual é o próximo passo hoje?';
     }
 
-    if (pctFaturamento <= 30) {
-      if (isPaceOnTrack) {
+    if (pctRecurringRevenue <= 30) {
+      if (isMRRPaceOnTrack) {
         return 'Início de mês, estamos bem. Continue prospectando e o mês fecha forte.';
       }
-      return 'Atenção: o mês está avançando mais rápido que o faturamento. Hora de ligar para alguém.';
+      return 'Atenção: o mês está avançando mais rápido que o faturamento de MRR.';
     }
 
-    if (pctFaturamento <= 70) {
-      if (isPaceOnTrack) {
+    if (pctRecurringRevenue <= 70) {
+      if (isMRRPaceOnTrack) {
         return 'No caminho certo. Mantenha o ritmo de reuniões e o mês fecha.';
       }
-      return 'Você está abaixo do esperado para esta altura do mês. Que ação comercial você pode fazer hoje?';
+      return 'Você está abaixo do esperado para a meta de MRR. Que ação comercial você pode fazer hoje?';
     }
 
-    // 71% a 99%
-    if (isPaceOnTrack) {
-      return `Reta final. Faltam ${formatCurrency(faltamFaturamento)} — uma reunião pode fechar isso.`;
+    if (isMRRPaceOnTrack) {
+      return `Reta final. Faltam ${formatCurrency(faltamMRR)} em MRR — uma reunião pode fechar isso.`;
     }
-    return 'Você está abaixo do esperado para esta altura do mês. Que ação comercial você pode fazer hoje?';
-  }, [hasGoalConfigured, pctFaturamento, isPaceOnTrack, faturamentoRecebido, faltamFaturamento]);
+    return 'Você está abaixo do esperado para a meta de MRR. Que ação comercial você pode fazer hoje?';
+  }, [hasGoalConfigured, pctRecurringRevenue, recurringFaturamentoRecebido, isMRRPaceOnTrack, faltamMRR]);
 
   // Mutations
   const lockCurrentMonth = useCallback(async () => {
@@ -515,7 +654,9 @@ export function useAgencyGoals(initialMonthYear?: string): UseAgencyGoalsReturn 
       const payload = {
         agency_id: agencyId,
         month_year: monthYear,
-        revenue_goal: Number(goal?.revenue_goal || 0),
+        recurring_revenue_goal: goal?.recurring_revenue_goal ?? null,
+        one_time_revenue_goal: goal?.one_time_revenue_goal ?? null,
+        revenue_goal: Number(revenueGoal || 0),
         churn_goal: goal?.churn_goal !== undefined && goal?.churn_goal !== null ? Number(goal.churn_goal) : null,
         client_posts_goal: goal?.client_posts_goal !== undefined && goal?.client_posts_goal !== null ? Number(goal.client_posts_goal) : null,
         own_posts_goal: goal?.own_posts_goal !== undefined && goal?.own_posts_goal !== null ? Number(goal.own_posts_goal) : null,
@@ -524,6 +665,9 @@ export function useAgencyGoals(initialMonthYear?: string): UseAgencyGoalsReturn 
         meetings_goal: goal?.meetings_goal !== undefined && goal?.meetings_goal !== null ? Number(goal.meetings_goal) : null,
         posts_goal: goal?.posts_goal !== undefined && goal?.posts_goal !== null ? Number(goal.posts_goal) : null,
         blog_posts_goal: goal?.blog_posts_goal !== undefined && goal?.blog_posts_goal !== null ? Number(goal.blog_posts_goal) : null,
+        meetings_actual: goal?.meetings_actual ?? null,
+        proposals_actual: goal?.proposals_actual ?? null,
+        blog_posts_actual: goal?.blog_posts_actual ?? null,
         notes: goal?.notes || null,
         is_locked: true,
         locked_at: nowIso,
@@ -540,7 +684,7 @@ export function useAgencyGoals(initialMonthYear?: string): UseAgencyGoalsReturn 
       console.error('Erro ao fechar mês:', err);
       throw err;
     }
-  }, [agencyId, monthYear, goal, fetchData]);
+  }, [agencyId, monthYear, goal, revenueGoal, fetchData]);
 
   const copyPreviousMonthGoals = useCallback(async (): Promise<{ success: boolean; message?: string }> => {
     if (!agencyId) return { success: false, message: 'Agência não identificada.' };
@@ -560,6 +704,8 @@ export function useAgencyGoals(initialMonthYear?: string): UseAgencyGoalsReturn 
 
     const hasPrevValues = Boolean(
       (prevGoal.revenue_goal || 0) > 0 ||
+      (prevGoal.recurring_revenue_goal || 0) > 0 ||
+      (prevGoal.one_time_revenue_goal || 0) > 0 ||
       (prevGoal.churn_goal || 0) > 0 ||
       (prevGoal.client_posts_goal || 0) > 0 ||
       (prevGoal.own_posts_goal || 0) > 0 ||
@@ -578,6 +724,8 @@ export function useAgencyGoals(initialMonthYear?: string): UseAgencyGoalsReturn 
     const payload = {
       agency_id: agencyId,
       month_year: monthYear,
+      recurring_revenue_goal: prevGoal.recurring_revenue_goal ?? null,
+      one_time_revenue_goal: prevGoal.one_time_revenue_goal ?? null,
       revenue_goal: prevGoal.revenue_goal || 0,
       churn_goal: prevGoal.churn_goal ?? null,
       client_posts_goal: prevGoal.client_posts_goal ?? null,
@@ -587,6 +735,9 @@ export function useAgencyGoals(initialMonthYear?: string): UseAgencyGoalsReturn 
       meetings_goal: prevGoal.meetings_goal ?? null,
       posts_goal: prevGoal.posts_goal ?? null,
       blog_posts_goal: prevGoal.blog_posts_goal ?? null,
+      meetings_actual: null,
+      proposals_actual: null,
+      blog_posts_actual: null,
       notes: null, // notes NÃO copiar
       is_locked: false,
       locked_at: null,
@@ -607,7 +758,9 @@ export function useAgencyGoals(initialMonthYear?: string): UseAgencyGoalsReturn 
   }, [agencyId, monthYear, fetchData]);
 
   const saveGoal = useCallback(async (goalData: {
-    revenue_goal: number;
+    revenue_goal?: number;
+    recurring_revenue_goal?: number | null;
+    one_time_revenue_goal?: number | null;
     churn_goal?: number | null;
     client_posts_goal?: number | null;
     own_posts_goal?: number | null;
@@ -616,6 +769,9 @@ export function useAgencyGoals(initialMonthYear?: string): UseAgencyGoalsReturn 
     meetings_goal?: number | null;
     posts_goal?: number | null;
     blog_posts_goal?: number | null;
+    meetings_actual?: number | null;
+    proposals_actual?: number | null;
+    blog_posts_actual?: number | null;
     notes?: string | null;
   }) => {
     if (!agencyId) return;
@@ -623,6 +779,23 @@ export function useAgencyGoals(initialMonthYear?: string): UseAgencyGoalsReturn 
       throw new Error('Este mês está bloqueado para edições.');
     }
     try {
+      const recGoal = goalData.recurring_revenue_goal !== undefined 
+        ? (goalData.recurring_revenue_goal !== null ? Number(goalData.recurring_revenue_goal) : null)
+        : (goal?.recurring_revenue_goal ?? null);
+
+      const oneGoal = goalData.one_time_revenue_goal !== undefined 
+        ? (goalData.one_time_revenue_goal !== null ? Number(goalData.one_time_revenue_goal) : null)
+        : (goal?.one_time_revenue_goal ?? null);
+
+      let totalRev = 0;
+      if (recGoal !== null || oneGoal !== null) {
+        totalRev = (recGoal || 0) + (oneGoal || 0);
+      } else if (goalData.revenue_goal !== undefined && goalData.revenue_goal !== null) {
+        totalRev = Number(goalData.revenue_goal) || 0;
+      } else {
+        totalRev = goal?.revenue_goal || 0;
+      }
+
       const cPosts = goalData.client_posts_goal !== undefined && goalData.client_posts_goal !== null ? Number(goalData.client_posts_goal) : null;
       const oPosts = goalData.own_posts_goal !== undefined && goalData.own_posts_goal !== null ? Number(goalData.own_posts_goal) : null;
       const legacyPosts = goalData.posts_goal !== undefined && goalData.posts_goal !== null 
@@ -632,16 +805,21 @@ export function useAgencyGoals(initialMonthYear?: string): UseAgencyGoalsReturn 
       const payload = {
         agency_id: agencyId,
         month_year: monthYear,
-        revenue_goal: Number(goalData.revenue_goal) || 0,
-        churn_goal: goalData.churn_goal !== undefined && goalData.churn_goal !== null ? Number(goalData.churn_goal) : null,
+        recurring_revenue_goal: recGoal,
+        one_time_revenue_goal: oneGoal,
+        revenue_goal: totalRev,
+        churn_goal: goalData.churn_goal !== undefined ? (goalData.churn_goal !== null ? Number(goalData.churn_goal) : null) : (goal?.churn_goal ?? null),
         client_posts_goal: cPosts,
         own_posts_goal: oPosts,
-        proposals_goal: goalData.proposals_goal !== undefined && goalData.proposals_goal !== null ? Number(goalData.proposals_goal) : null,
-        new_clients_goal: goalData.new_clients_goal !== undefined && goalData.new_clients_goal !== null ? Number(goalData.new_clients_goal) : null,
-        meetings_goal: goalData.meetings_goal !== undefined && goalData.meetings_goal !== null ? Number(goalData.meetings_goal) : null,
+        proposals_goal: goalData.proposals_goal !== undefined ? (goalData.proposals_goal !== null ? Number(goalData.proposals_goal) : null) : (goal?.proposals_goal ?? null),
+        new_clients_goal: goalData.new_clients_goal !== undefined ? (goalData.new_clients_goal !== null ? Number(goalData.new_clients_goal) : null) : (goal?.new_clients_goal ?? null),
+        meetings_goal: goalData.meetings_goal !== undefined ? (goalData.meetings_goal !== null ? Number(goalData.meetings_goal) : null) : (goal?.meetings_goal ?? null),
         posts_goal: legacyPosts,
-        blog_posts_goal: goalData.blog_posts_goal !== undefined && goalData.blog_posts_goal !== null ? Number(goalData.blog_posts_goal) : null,
-        notes: goalData.notes || null,
+        blog_posts_goal: goalData.blog_posts_goal !== undefined ? (goalData.blog_posts_goal !== null ? Number(goalData.blog_posts_goal) : null) : (goal?.blog_posts_goal ?? null),
+        meetings_actual: goalData.meetings_actual !== undefined ? (goalData.meetings_actual !== null ? Number(goalData.meetings_actual) : null) : (goal?.meetings_actual ?? null),
+        proposals_actual: goalData.proposals_actual !== undefined ? (goalData.proposals_actual !== null ? Number(goalData.proposals_actual) : null) : (goal?.proposals_actual ?? null),
+        blog_posts_actual: goalData.blog_posts_actual !== undefined ? (goalData.blog_posts_actual !== null ? Number(goalData.blog_posts_actual) : null) : (goal?.blog_posts_actual ?? null),
+        notes: goalData.notes !== undefined ? (goalData.notes ? goalData.notes.trim() : null) : (goal?.notes ?? null),
         is_locked: false,
         locked_at: null,
         created_at: goal?.created_at || new Date().toISOString()
@@ -704,7 +882,18 @@ export function useAgencyGoals(initialMonthYear?: string): UseAgencyGoalsReturn 
         .eq('agency_id', agencyId)
         .eq('id', id);
 
-      if (error) throw error;
+      if (error) {
+        console.warn('Erro ao excluir com agency_id, tentando apenas por ID:', error);
+        const { error: error2 } = await supabase
+          .from('agency_commercial_actions')
+          .delete()
+          .eq('id', id);
+
+        if (error2) throw error2;
+      }
+
+      // Optimistic update to immediately reflect removal
+      setCommercialActions(prev => prev.filter(a => a.id !== id));
       await fetchData();
     } catch (err) {
       console.error('Erro ao excluir ação comercial:', err);
@@ -724,6 +913,8 @@ export function useAgencyGoals(initialMonthYear?: string): UseAgencyGoalsReturn 
     hasGoalConfigured,
 
     faturamentoRecebido,
+    recurringFaturamentoRecebido,
+    oneTimeFaturamentoRecebido,
     faturamentoEstaSemana,
     churnRealizado,
     saldoLiquido,
@@ -735,9 +926,16 @@ export function useAgencyGoals(initialMonthYear?: string): UseAgencyGoalsReturn 
     proposalsCount,
     newClientsCount,
 
+    rawMeetingsCount,
+    rawProposalsCount,
+    rawBlogPostsCount,
+
     commercialActions,
 
     revenueGoal,
+    recurringRevenueGoal,
+    oneTimeRevenueGoal,
+    mrrGoal,
     churnGoal,
     clientPostsGoal,
     ownPostsGoal,
@@ -747,7 +945,13 @@ export function useAgencyGoals(initialMonthYear?: string): UseAgencyGoalsReturn 
     newClientsGoal,
     postsGoal,
 
+    meetingsActual,
+    proposalsActual,
+    blogPostsActual,
+
     pctFaturamento,
+    pctRecurringRevenue,
+    pctOneTimeRevenue,
     pctChurn,
     pctClientPosts,
     pctOwnPosts,
@@ -758,11 +962,16 @@ export function useAgencyGoals(initialMonthYear?: string): UseAgencyGoalsReturn 
     pctPublicacoes,
 
     weeklyGoal,
+    weeklyMRRGoal,
     semanaAtual,
     receitaEsperadaAteAgora,
+    receitaEsperadaMRRAteAgora,
     isPaceOnTrack,
+    isMRRPaceOnTrack,
     faltamFaturamento,
     superouFaturamento,
+    faltamMRR,
+    superouMRR,
 
     coachingMessage,
 
