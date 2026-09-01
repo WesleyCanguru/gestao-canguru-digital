@@ -38,7 +38,7 @@ export function useReferralProgram() {
       // 3. Try fetching referral_commissions from Supabase
       const { data: commissionsData, error: commissionsErr } = await supabase
         .from('referral_commissions')
-        .select('*, partner:referral_partners(*), client:clients(*), billing:agency_billing(*)')
+        .select('*, partner:referral_partners(*), client:clients(*)')
         .eq('agency_id', agencyId)
         .order('created_at', { ascending: false });
 
