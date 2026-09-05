@@ -280,16 +280,23 @@ export const HomeTab: React.FC<HomeTabProps> = ({
     meetingsCount,
     postsCount,
     blogPostsCount,
-    pctFaturamento: pctFaturamentoHook
+    pctFaturamento: pctFaturamentoHook,
+    recurringFaturamentoRecebido,
+    faturamentoRecebido,
+    mrrGoal,
+    recurringRevenueGoal,
+    revenueGoal
   } = useAgencyGoals();
 
-  const metaFaturamento = goal?.revenue_goal || 0;
+  const metaFaturamento = revenueGoal || goal?.revenue_goal || 0;
+  const metaMRR = mrrGoal || (goal?.recurring_revenue_goal !== null && goal?.recurring_revenue_goal !== undefined ? Number(goal.recurring_revenue_goal) : goal?.revenue_goal || 0);
   const metaClientes = goal?.new_clients_goal || 0;
   const metaReunioes = goal?.meetings_goal || 0;
   const metaPublicacoes = goal?.posts_goal || 0;
   const metaBlogPosts = goal?.blog_posts_goal || 0;
 
-  const pctFaturamento = metaFaturamento > 0 ? Math.round((totalContratado / metaFaturamento) * 100) : (pctFaturamentoHook || 0);
+  const realFaturamentoTotal = faturamentoRecebido > 0 ? faturamentoRecebido : totalContratado;
+  const pctFaturamento = metaFaturamento > 0 ? Math.round((realFaturamentoTotal / metaFaturamento) * 100) : (pctFaturamentoHook || 0);
 
   const formatCurrency = (val: number) => {
     return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
@@ -839,7 +846,7 @@ export const HomeTab: React.FC<HomeTabProps> = ({
                   userSelect: hideFinanceiro ? 'none' : 'auto',
                   transition: 'filter 0.3s'
                 }}>
-                  {formatCurrency(totalContratado)}
+                  {formatCurrency(recurringFaturamentoRecebido)}
                 </p>
                 <p style={{ color: '#8A8F98', fontSize: 12, marginTop: 8 }}>
                   META:{' '}
@@ -848,10 +855,10 @@ export const HomeTab: React.FC<HomeTabProps> = ({
                     userSelect: hideFinanceiro ? 'none' : 'auto',
                     transition: 'filter 0.3s'
                   }}>
-                    {formatCurrency(metaFaturamento)}
+                    {formatCurrency(metaMRR)}
                   </span>
-                  {metaFaturamento > 0 && (
-                    totalContratado >= metaFaturamento
+                  {metaMRR > 0 && (
+                    recurringFaturamentoRecebido >= metaMRR
                       ? ' · ✓ Meta atingida'
                       : (
                         <>
@@ -861,7 +868,7 @@ export const HomeTab: React.FC<HomeTabProps> = ({
                             userSelect: hideFinanceiro ? 'none' : 'auto',
                             transition: 'filter 0.3s'
                           }}>
-                            {formatCurrency(Math.max(0, metaFaturamento - totalContratado))}
+                            {formatCurrency(Math.max(0, metaMRR - recurringFaturamentoRecebido))}
                           </span>
                         </>
                       )
@@ -983,7 +990,7 @@ export const HomeTab: React.FC<HomeTabProps> = ({
                   userSelect: hideFinanceiro ? 'none' : 'auto',
                   transition: 'filter 0.3s ease',
                 }}>
-                  {formatCurrency(totalContratado)}
+                  {formatCurrency(realFaturamentoTotal)}
                 </span>
                 <span style={{
                   color: '#8A8F98',
