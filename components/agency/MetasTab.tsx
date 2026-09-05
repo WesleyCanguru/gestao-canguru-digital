@@ -202,6 +202,8 @@ export const MetasTab: React.FC<MetasTabProps> = () => {
   const [contactName, setContactName] = useState<string>('');
   const [actionResult, setActionResult] = useState<string>('');
   const [actionNotes, setActionNotes] = useState<string>('');
+  const [meetingVideoUrl, setMeetingVideoUrl] = useState<string>('');
+  const [meetingSummaryUrl, setMeetingSummaryUrl] = useState<string>('');
   const [isSavingAction, setIsSavingAction] = useState(false);
 
   // Formatação de data e mês para o cabeçalho
@@ -461,6 +463,8 @@ export const MetasTab: React.FC<MetasTabProps> = () => {
     setContactName('');
     setActionResult('');
     setActionNotes('');
+    setMeetingVideoUrl('');
+    setMeetingSummaryUrl('');
     setShowActionModal(true);
   };
 
@@ -474,7 +478,9 @@ export const MetasTab: React.FC<MetasTabProps> = () => {
         action_type: actionType,
         contact_name: contactName.trim(),
         result: actionResult.trim() || 'Em andamento',
-        notes: actionNotes.trim() || null
+        notes: actionNotes.trim() || null,
+        meeting_video_url: meetingVideoUrl.trim() || null,
+        meeting_summary_url: meetingSummaryUrl.trim() || null,
       });
       setShowActionModal(false);
     } catch (err) {
@@ -1394,13 +1400,35 @@ export const MetasTab: React.FC<MetasTabProps> = () => {
                         </span>
 
                         {/* Contato & Resultado */}
-                        <div className="min-w-0 flex-1 flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4">
+                        <div className="min-w-0 flex-1 flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 flex-wrap">
                           <span className="text-sm font-bold text-[#13284D] truncate">
                             {action.contact_name}
                           </span>
                           <span className="text-xs text-stone-500 truncate">
                             {action.result}
                           </span>
+                          {action.meeting_video_url && (
+                            <a
+                              href={action.meeting_video_url}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="inline-flex items-center gap-1 text-[11px] font-bold text-red-600 bg-red-50 hover:bg-red-100 border border-red-200/60 px-2.5 py-1 rounded-lg transition-all"
+                              title="Ver Vídeo Gravado (Google Drive)"
+                            >
+                              🎥 Vídeo Gravado
+                            </a>
+                          )}
+                          {action.meeting_summary_url && (
+                            <a
+                              href={action.meeting_summary_url}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="inline-flex items-center gap-1 text-[11px] font-bold text-purple-600 bg-purple-50 hover:bg-purple-100 border border-purple-200/60 px-2.5 py-1 rounded-lg transition-all"
+                              title="Ver Resumo da Reunião (Gemini)"
+                            >
+                              📝 Resumo Gemini
+                            </a>
+                          )}
                         </div>
                       </div>
 
@@ -1770,6 +1798,40 @@ export const MetasTab: React.FC<MetasTabProps> = () => {
                     className="w-full px-3.5 py-2.5 rounded-xl border border-stone-200 bg-stone-50/50 focus:bg-white focus:outline-none focus:ring-1 focus:ring-[#13284D] text-xs font-semibold text-[#13284D]"
                   />
                 </div>
+
+                {actionType === 'meeting' && (
+                  <div className="bg-stone-50 border border-stone-200/80 p-4 rounded-2xl space-y-3">
+                    <p className="text-xs font-bold text-[#13284D] flex items-center gap-1.5">
+                      <span>📹</span> Links da Reunião (Opcional)
+                    </p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-[11px] font-bold text-stone-600 mb-1">
+                          Link do Vídeo Gravado (Google Drive)
+                        </label>
+                        <input
+                          type="url"
+                          placeholder="https://drive.google.com/..."
+                          value={meetingVideoUrl}
+                          onChange={(e) => setMeetingVideoUrl(e.target.value)}
+                          className="w-full px-3 py-2 rounded-xl border border-stone-200 bg-white focus:outline-none focus:ring-1 focus:ring-[#13284D] text-xs font-medium text-[#13284D]"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-bold text-stone-600 mb-1">
+                          Link do Resumo Gerado (Gemini)
+                        </label>
+                        <input
+                          type="url"
+                          placeholder="https://..."
+                          value={meetingSummaryUrl}
+                          onChange={(e) => setMeetingSummaryUrl(e.target.value)}
+                          className="w-full px-3 py-2 rounded-xl border border-stone-200 bg-white focus:outline-none focus:ring-1 focus:ring-[#13284D] text-xs font-medium text-[#13284D]"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 <div>
                   <label className="block text-xs font-bold text-[#13284D] mb-1">

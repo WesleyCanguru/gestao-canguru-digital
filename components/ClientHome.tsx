@@ -32,6 +32,7 @@ import { useClientOnboarding } from '../hooks/useClientOnboarding';
 import { LeadTrackerView } from './LeadTrackerView';
 import { PostModal } from './PostModal';
 import { ClientLeadConfig, Client, DailyContent, PostStatus } from '../types';
+import { ClientNpsSection } from './nps/ClientNpsSection';
 
 dayjs.locale('pt-br');
 
@@ -1124,6 +1125,18 @@ export const ClientHome: React.FC<ClientHomeProps> = ({
           })}
         </div>
       </motion.div>
+
+      {/* SEÇÃO 5 — Pesquisa de Satisfação NPS (para Administrador) */}
+      {isAdmin && activeClient && (
+        <motion.div
+          initial={{ opacity: 0, y: 15 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.35, ease: [0.16, 1, 0.3, 1] }}
+          className="mt-10"
+        >
+          <ClientNpsSection client={activeClient} />
+        </motion.div>
+      )}
 
       {/* Suporte e Rodapé sutil */}
       <motion.div

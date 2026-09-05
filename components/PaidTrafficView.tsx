@@ -4,6 +4,9 @@ import { processTrafficStrategyPdf } from '../src/services/geminiService';
 import { TrafficStrategyData } from '../types';
 import dayjs from 'dayjs';
 import 'dayjs/locale/pt-br';
+import { useMediaBudgets } from '../hooks/useMediaBudgets';
+import { MediaBudgetProgressBar } from './client/MediaBudgetProgressBar';
+import { ClientMediaBudgetSection } from './client/ClientMediaBudgetSection';
 import {
   ResponsiveContainer,
   AreaChart,
@@ -207,6 +210,20 @@ export const PaidTrafficView: React.FC<PaidTrafficViewProps> = ({ onBack }) => {
   const [isProcessingPdf, setIsProcessingPdf] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [showStrategyModal, setShowStrategyModal] = useState(false);
+
+  // Verba de Mídia
+  const [showBudgetModal, setShowBudgetModal] = useState(false);
+  const currentMonthYearStr = useMemo(() => dayjs().format('YYYY-MM'), []);
+  const { fetchClientConsumption, consumptions } = useMediaBudgets(activeClient?.id, currentMonthYearStr);
+
+  useEffect(() => {
+    if (activeClient?.id) {
+      const activePlatforms = activeClient.traffic_platforms && activeClient.traffic_platforms.length > 0
+        ? activeClient.traffic_platforms
+        : ['meta', 'google'];
+      fetchClientConsumption(activePlatforms);
+    }
+  }, [activeClient, currentMonthYearStr, fetchClientConsumption]);
 
   // Atualizar URL params se o usuário navegar
   useEffect(() => {
@@ -850,6 +867,21 @@ export const PaidTrafficView: React.FC<PaidTrafficViewProps> = ({ onBack }) => {
               </button>
             )}
 
+            {/* Gerenciar Verba de Mídia (Admin) */}
+            {userRole === 'admin' && activeClient && (
+              <button
+                onClick={() => setShowBudgetModal(!showBudgetModal)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[11px] font-semibold transition-all cursor-pointer whitespace-nowrap ${
+                  showBudgetModal
+                    ? 'bg-emerald-700 text-white shadow-xs'
+                    : 'bg-emerald-50 text-emerald-800 hover:bg-emerald-100 border border-emerald-200/80'
+                }`}
+              >
+                <DollarSign size={13} className="text-emerald-600" />
+                <span>{showBudgetModal ? 'Ocultar Verbas' : 'Verba de Mídia'}</span>
+              </button>
+            )}
+
             {/* Botão Copiar Link (Admin) */}
             {userRole === 'admin' && (
               <button
@@ -888,6 +920,32 @@ export const PaidTrafficView: React.FC<PaidTrafficViewProps> = ({ onBack }) => {
         </div>
 
       </div>
+
+      {/* ========================================================================= */}
+      {/* PAINEL DE EDIÇÃO DE VERBA DE MÍDIA */}
+      {/* ========================================================================= */}
+      <AnimatePresence>
+        {showBudgetModal && activeClient && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            className="overflow-hidden"
+          >
+            <div className="bg-white rounded-3xl p-6 border border-emerald-200/80 shadow-xs">
+              <ClientMediaBudgetSection
+                client={activeClient}
+                onSaved={() => {
+                  const activePlatforms = activeClient.traffic_platforms && activeClient.traffic_platforms.length > 0
+                    ? activeClient.traffic_platforms
+                    : ['meta', 'google'];
+                  fetchClientConsumption(activePlatforms);
+                }}
+              />
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* ========================================================================= */}
       {/* PAINEL DE ESTRATÉGIA (OPCIONAL/COLAPSÁVEL) */}
@@ -1239,6 +1297,22 @@ export const PaidTrafficView: React.FC<PaidTrafficViewProps> = ({ onBack }) => {
                     <span className="font-bold text-[#13284D] font-mono">{formatCurrency(processedData.metaCpm)}</span>
                   </div>
                 </div>
+
+                {/* Barra de Consumo de Verba Meta Ads */}
+                {consumptions['meta'] && (
+                  <div className="mt-4 pt-3 border-t border-stone-100">
+                    <MediaBudgetProgressBar
+                      platformLabel="Meta Ads"
+                      investedAmount={consumptions['meta'].investedAmount}
+                      budgetAmount={consumptions['meta'].budgetAmount}
+                      percentage={consumptions['meta'].percentage}
+                      remainingAmount={consumptions['meta'].remainingAmount}
+                      exceededAmount={consumptions['meta'].exceededAmount}
+                      isOverBudget={consumptions['meta'].isOverBudget}
+                      statusColor={consumptions['meta'].statusColor}
+                    />
+                  </div>
+                )}
               </div>
             </div>
 
@@ -1304,6 +1378,22 @@ export const PaidTrafficView: React.FC<PaidTrafficViewProps> = ({ onBack }) => {
                     <span className="font-bold text-[#13284D] font-mono">{formatCurrency(processedData.googleCpm)}</span>
                   </div>
                 </div>
+
+                {/* Barra de Consumo de Verba Google Ads */}
+                {consumptions['google'] && (
+                  <div className="mt-4 pt-3 border-t border-stone-100">
+                    <MediaBudgetProgressBar
+                      platformLabel="Google Ads"
+                      investedAmount={consumptions['google'].investedAmount}
+                      budgetAmount={consumptions['google'].budgetAmount}
+                      percentage={consumptions['google'].percentage}
+                      remainingAmount={consumptions['google'].remainingAmount}
+                      exceededAmount={consumptions['google'].exceededAmount}
+                      isOverBudget={consumptions['google'].isOverBudget}
+                      statusColor={consumptions['google'].statusColor}
+                    />
+                  </div>
+                )}
               </div>
             </div>
 

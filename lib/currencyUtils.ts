@@ -54,3 +54,11 @@ export function formatValueForInput(value: number | string | null | undefined): 
   // Se for número inteiro, retorna direto; se tiver decimais, formata com vírgula
   return value.toString().replace('.', ',');
 }
+
+export function formatCurrency(value: number | string | null | undefined): string {
+  const num = parseCurrencyInput(value);
+  return new Intl.NumberFormat('pt-BR', {
+    style: 'currency',
+    currency: 'BRL',
+  }).format(num);
+}

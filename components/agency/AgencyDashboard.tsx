@@ -49,6 +49,12 @@ export const AgencyDashboard: React.FC<AgencyDashboardProps> = ({ onBack, onSele
     periodo?: string;
     date?: string;
   }>({});
+  const [financeiroFilter, setFinanceiroFilter] = useState<{
+    subTab?: 'overview' | 'faturamento' | 'despesas' | 'indicacao';
+    monthYear?: string;
+    clientId?: string;
+    clientName?: string;
+  }>({});
 
   if (userRole !== 'admin') {
     return null;
@@ -61,6 +67,20 @@ export const AgencyDashboard: React.FC<AgencyDashboardProps> = ({ onBack, onSele
       setContentPanelFilter({});
     }
     onTabChange?.('masterMap');
+  };
+
+  const handleNavigateToFinanceiro = (filter?: {
+    subTab?: 'overview' | 'faturamento' | 'despesas' | 'indicacao';
+    monthYear?: string;
+    clientId?: string;
+    clientName?: string;
+  }) => {
+    if (filter) {
+      setFinanceiroFilter(filter);
+    } else {
+      setFinanceiroFilter({ subTab: 'faturamento' });
+    }
+    onTabChange?.('financeiro');
   };
 
   return (
@@ -84,6 +104,7 @@ export const AgencyDashboard: React.FC<AgencyDashboardProps> = ({ onBack, onSele
                   onNavigateToMetas={() => onTabChange?.('metas')}
                   onNavigateToTasks={() => onTabChange?.('tasks')}
                   onNavigateToCRM={() => onTabChange?.('prospeccao')}
+                  onNavigateToFinanceiro={handleNavigateToFinanceiro}
                 />
               )}
               {activeTab === 'metas' && <MetasTab />}
@@ -101,7 +122,14 @@ export const AgencyDashboard: React.FC<AgencyDashboardProps> = ({ onBack, onSele
               {activeTab === 'contratos' && <AgencyContractsTab />}
               {activeTab === 'onboarding' && <OnboardingTab onNavigateToClients={(client) => onSelectClient(client)} />}
               {activeTab === 'tasks' && <AgencyTasksTab />}
-              {activeTab === 'financeiro' && <FinanceiroTab />}
+              {activeTab === 'financeiro' && (
+                <FinanceiroTab 
+                  initialSubTab={financeiroFilter.subTab}
+                  initialMonthYear={financeiroFilter.monthYear}
+                  initialClientFilter={financeiroFilter.clientName || financeiroFilter.clientId}
+                  onNavigateToContracts={() => onTabChange?.('contratos')}
+                />
+              )}
               {activeTab === 'clientes' && <ClientesTab onBack={() => onTabChange?.('home')} />}
               {activeTab === 'anotacoes' && (
                 <div className="h-[calc(100vh-8rem)] flex flex-col relative overflow-hidden">

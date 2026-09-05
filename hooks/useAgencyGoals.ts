@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { supabase, useAuth } from '../lib/supabase';
 import { AgencyGoal, AgencyCommercialAction, CommercialActionType } from '../types';
+import { getLastActiveMonthYear } from './useAgencyFinanceiro';
 import dayjs from 'dayjs';
 import 'dayjs/locale/pt-br';
 
@@ -125,6 +126,8 @@ export interface UseAgencyGoalsReturn {
     contact_name: string;
     result: string;
     notes?: string | null;
+    meeting_video_url?: string | null;
+    meeting_summary_url?: string | null;
   }) => Promise<void>;
   deleteCommercialAction: (id: string) => Promise<void>;
   refresh: () => Promise<void>;
@@ -259,10 +262,10 @@ export function useAgencyGoals(initialMonthYear?: string): UseAgencyGoalsReturn 
             // Check if active in this month
             let isCancelled = false;
             if (c.client_status === 'cancelled') {
-              if (c.cancelled_at) {
-                const cancelMY = dayjs(c.cancelled_at).format('YYYY-MM');
-                if (monthYear > cancelMY) isCancelled = true;
-              } else {
+              const lastActiveMY = getLastActiveMonthYear(c);
+              if (lastActiveMY && monthYear > lastActiveMY) {
+                isCancelled = true;
+              } else if (!lastActiveMY) {
                 isCancelled = true;
               }
             }
@@ -843,6 +846,8 @@ export function useAgencyGoals(initialMonthYear?: string): UseAgencyGoalsReturn 
     contact_name: string;
     result: string;
     notes?: string | null;
+    meeting_video_url?: string | null;
+    meeting_summary_url?: string | null;
   }) => {
     if (!agencyId) return;
     if (isMonthLocked) {
@@ -855,7 +860,9 @@ export function useAgencyGoals(initialMonthYear?: string): UseAgencyGoalsReturn 
         action_type: actionData.action_type,
         contact_name: actionData.contact_name,
         result: actionData.result,
-        notes: actionData.notes || null
+        notes: actionData.notes || null,
+        meeting_video_url: actionData.meeting_video_url || null,
+        meeting_summary_url: actionData.meeting_summary_url || null
       };
 
       const { error } = await supabase

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase, useAuth } from '../../lib/supabase';
-import { X, Plus, GripVertical, Settings2, Trash2, Image as ImageIcon, Video, Megaphone, Search, BarChart3 } from 'lucide-react';
+import { X, Plus, GripVertical, Settings2, Trash2, Image as ImageIcon, Video, Megaphone, Search, BarChart3, Clock } from 'lucide-react';
 import {
   DndContext,
   closestCenter,
@@ -24,7 +24,7 @@ interface Props {
 }
 
 const PROCESS_TYPES = [
-  { id: 'carrossel', name: 'Publicação', icon: ImageIcon, color: 'text-purple-500 bg-purple-50 border-purple-100' },
+  { id: 'carrossel', name: 'Publicação / Carrossel', icon: ImageIcon, color: 'text-purple-500 bg-purple-50 border-purple-100' },
   { id: 'reels', name: 'Reels', icon: Video, color: 'text-pink-500 bg-pink-50 border-pink-100' },
   { id: 'campanha_meta', name: 'Campanha Meta Ads', icon: Megaphone, color: 'text-blue-500 bg-blue-50 border-blue-100' },
   { id: 'campanha_google', name: 'Campanha Google Ads', icon: Search, color: 'text-green-500 bg-green-50 border-green-100' },
@@ -55,7 +55,19 @@ export function ProcessTemplatesModal({ onClose }: Props) {
       .select('*')
       .eq('agency_id', agencyId)
       .order('position');
-    if (data) setTemplates(data);
+    if (data) {
+      const parsed = data.map(t => {
+        let sla = t.sla_days;
+        if (sla === undefined || sla === null) {
+          if (t.description && t.description.includes('[sla:')) {
+            const m = t.description.match(/\[sla:(\d+)\]/);
+            if (m) sla = parseInt(m[1], 10);
+          }
+        }
+        return { ...t, sla_days: sla || 1 };
+      });
+      setTemplates(parsed);
+    }
     setLoading(false);
   };
 
@@ -88,37 +100,86 @@ export function ProcessTemplatesModal({ onClose }: Props) {
   const handleSaveTemplate = async () => {
     if (!editingTemplate || !editingTemplate.title) return;
 
+    const slaDays = Math.max(1, parseInt(editingTemplate.sla_days, 10) || 1);
+    let desc = editingTemplate.description || '';
+    // Embed fallback tag in description in case database column sla_days is pending execution
+    desc = desc.replace(/\[sla:\d+\]/g, '').trim();
+    const descWithTag = desc ? `${desc} [sla:${slaDays}]` : `[sla:${slaDays}]`;
+
     if (editingTemplate.id) {
-      const { data } = await supabase
-        .from('process_templates')
-        .update({
-          title: editingTemplate.title,
-          description: editingTemplate.description,
-          responsible: editingTemplate.responsible
-        })
-        .eq('agency_id', agencyId)
-        .eq('id', editingTemplate.id)
-        .select('*')
-        .single();
-      
-      if (data) {
-        setTemplates(templates.map(t => t.id === data.id ? data : t));
+      try {
+        const { data, error } = await supabase
+          .from('process_templates')
+          .update({
+            title: editingTemplate.title,
+            description: descWithTag,
+            responsible: editingTemplate.responsible,
+            sla_days: slaDays
+          })
+          .eq('agency_id', agencyId)
+          .eq('id', editingTemplate.id)
+          .select('*')
+          .single();
+
+        if (error) {
+          // Fallback if column sla_days doesn't exist
+          const { data: fbData } = await supabase
+            .from('process_templates')
+            .update({
+              title: editingTemplate.title,
+              description: descWithTag,
+              responsible: editingTemplate.responsible
+            })
+            .eq('agency_id', agencyId)
+            .eq('id', editingTemplate.id)
+            .select('*')
+            .single();
+
+          if (fbData) {
+            setTemplates(templates.map(t => t.id === fbData.id ? { ...fbData, sla_days: slaDays } : t));
+          }
+        } else if (data) {
+          setTemplates(templates.map(t => t.id === data.id ? { ...data, sla_days: slaDays } : t));
+        }
+      } catch (err) {
+        console.error('Erro ao atualizar template:', err);
       }
     } else {
-      const { data, error } = await supabase
-        .from('process_templates')
-        .insert([{ 
-          ...editingTemplate, 
-          agency_id: agencyId,
-          position: templates.filter(t => t.process_type === editingTemplate.process_type).length 
-        }])
-        .select('*')
-        .single();
-      
-      if (data) {
-        setTemplates([...templates, data]);
-      } else if (error) {
-        alert("Erro ao adicionar: " + error.message);
+      try {
+        const { data, error } = await supabase
+          .from('process_templates')
+          .insert([{ 
+            ...editingTemplate, 
+            description: descWithTag,
+            sla_days: slaDays,
+            agency_id: agencyId,
+            position: templates.filter(t => t.process_type === editingTemplate.process_type).length 
+          }])
+          .select('*')
+          .single();
+        
+        if (error) {
+          const { data: fbData, error: fbErr } = await supabase
+            .from('process_templates')
+            .insert([{ 
+              ...editingTemplate, 
+              description: descWithTag,
+              agency_id: agencyId,
+              position: templates.filter(t => t.process_type === editingTemplate.process_type).length 
+            }])
+            .select('*')
+            .single();
+
+          if (fbData) {
+            setTemplates([...templates, { ...fbData, sla_days: slaDays }]);
+          } else if (fbErr) {
+            alert("Erro ao adicionar: " + fbErr.message);
+          }
+        } else if (data) {
+          setTemplates([...templates, { ...data, sla_days: slaDays }]);
+        }
+      } catch (err) {
+        console.error('Erro ao criar template:', err);
       }
     }
     setEditingTemplate(null);
@@ -159,7 +220,7 @@ export function ProcessTemplatesModal({ onClose }: Props) {
                        <Icon size={20} className="text-gray-500" /> {type.name}
                     </h4>
                     <button 
-                      onClick={() => setEditingTemplate({ process_type: type.id, responsible: 'agency' })}
+                      onClick={() => setEditingTemplate({ process_type: type.id, responsible: 'agency', sla_days: 1 })}
                       className="flex items-center gap-2 px-3 py-1.5 bg-brand-dark text-white rounded-lg text-[10px] font-bold uppercase tracking-widest hover:opacity-90 transition-opacity"
                     >
                       <Plus size={14} /> Adicionar
@@ -209,7 +270,7 @@ export function ProcessTemplatesModal({ onClose }: Props) {
                               <div key={item.id} className="space-y-2">
                                 <SortableTemplateItem 
                                   item={item} 
-                                  onAddChild={() => setEditingTemplate({ process_type: type.id, responsible: 'agency', parent_id: item.id })}
+                                  onAddChild={() => setEditingTemplate({ process_type: type.id, responsible: 'agency', parent_id: item.id, sla_days: 1 })}
                                   onEdit={() => setEditingTemplate(item)}
                                   onDelete={() => deleteTemplate(item.id)}
                                 />
@@ -217,8 +278,13 @@ export function ProcessTemplatesModal({ onClose }: Props) {
                                   <div className="pl-10 space-y-2">
                                     {children.map(child => (
                                       <div key={child.id} className="flex justify-between items-center p-3 bg-gray-50 border border-gray-100 rounded-xl group hover:border-gray-200 transition-all">
-                                        <div className="flex-1 min-w-0">
+                                        <div className="flex-1 min-w-0 flex items-center gap-3">
                                           <p className="text-sm font-semibold text-gray-800">{child.title}</p>
+                                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
+                                            <Clock size={10} className="text-amber-500" />
+                                            SLA: {child.sla_days || 1}d
+                                          </span>
+                                          <span className="text-[10px] text-gray-400 font-bold uppercase">{child.responsible}</span>
                                         </div>
                                         <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                                           <button onClick={() => setEditingTemplate(child)} className="p-1.5 text-gray-400 hover:text-blue-600 rounded flex-shrink-0"><Settings2 size={16} /></button>
@@ -244,30 +310,55 @@ export function ProcessTemplatesModal({ onClose }: Props) {
             <div className="w-[400px] flex-shrink-0 bg-white rounded-3xl p-6 border border-gray-100 shadow-xl h-fit sticky top-0">
               <div className="flex justify-between items-center mb-6">
                 <h4 className="font-bold text-lg text-gray-900">
-                  {editingTemplate.id ? 'Editar Temaplate' : 'Novo Template'}
+                  {editingTemplate.id ? 'Editar Template' : 'Novo Template'}
                 </h4>
                 <button onClick={() => setEditingTemplate(null)} className="text-gray-400 hover:text-gray-600"><X size={20} /></button>
               </div>
 
               <div className="space-y-4">
                 <div>
-                  <label className="text-xs font-bold uppercase tracking-widest text-gray-500 mb-1.5 block">Título</label>
+                  <label className="text-xs font-bold uppercase tracking-widest text-gray-500 mb-1.5 block">Título da Etapa</label>
                   <input
                     type="text"
+                    placeholder="Ex: Briefing da arte, Criar arte..."
                     className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-dark/20 focus:border-brand-dark"
                     value={editingTemplate.title || ''}
                     onChange={e => setEditingTemplate({ ...editingTemplate, title: e.target.value })}
                   />
                 </div>
+
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="text-xs font-bold uppercase tracking-widest text-gray-500">SLA / Prazo da Etapa</label>
+                    <span className="text-xs font-bold text-amber-600 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
+                      {editingTemplate.sla_days || 1} {Number(editingTemplate.sla_days) === 1 ? 'dia útil' : 'dias úteis'}
+                    </span>
+                  </div>
+                  <div className="relative">
+                    <input
+                      type="number"
+                      min={1}
+                      max={60}
+                      className="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm font-semibold focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-dark/20 focus:border-brand-dark"
+                      value={editingTemplate.sla_days ?? 1}
+                      onChange={e => setEditingTemplate({ ...editingTemplate, sla_days: Math.max(1, parseInt(e.target.value, 10) || 1) })}
+                    />
+                    <Clock size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
+                  </div>
+                  <p className="text-[11px] text-gray-400 mt-1">Prazo em dias úteis a contar a partir da etapa anterior ao gerar a tarefa.</p>
+                </div>
+
                 <div>
                   <label className="text-xs font-bold uppercase tracking-widest text-gray-500 mb-1.5 block">Descrição (Opcional)</label>
                   <textarea
                     onChange={e => setEditingTemplate({ ...editingTemplate, description: e.target.value })}
                     value={editingTemplate.description || ''}
                     rows={3}
+                    placeholder="Instruções ou checklist para esta etapa..."
                     className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-dark/20 focus:border-brand-dark resize-none"
                   />
                 </div>
+
                 <div>
                   <label className="text-xs font-bold uppercase tracking-widest text-gray-500 mb-1.5 block">Responsável</label>
                   <select
@@ -282,7 +373,7 @@ export function ProcessTemplatesModal({ onClose }: Props) {
                 </div>
 
                 <div className="pt-4 border-t border-gray-100">
-                  <button onClick={handleSaveTemplate} disabled={!editingTemplate.title} className="w-full px-4 py-4 bg-brand-dark text-white rounded-xl font-bold uppercase tracking-widest text-xs hover:opacity-90 disabled:opacity-50">Salvar Template</button>
+                  <button onClick={handleSaveTemplate} disabled={!editingTemplate.title} className="w-full px-4 py-4 bg-brand-dark text-white rounded-xl font-bold uppercase tracking-widest text-xs hover:opacity-90 disabled:opacity-50 transition-all shadow-md">Salvar Template</button>
                 </div>
               </div>
             </div>
@@ -298,17 +389,23 @@ const SortableTemplateItem: React.FC<{ item: any, onAddChild: () => void, onEdit
   const style = { transform: CSS.Transform.toString(transform), transition };
 
   return (
-    <div ref={setNodeRef} style={style} className="bg-white rounded-2xl border border-gray-100 hover:border-brand-dark/30 p-4 flex items-center gap-4 group">
+    <div ref={setNodeRef} style={style} className="bg-white rounded-2xl border border-gray-100 hover:border-brand-dark/30 p-4 flex items-center gap-4 group transition-all">
       <div {...attributes} {...listeners} className="text-gray-300 hover:text-brand-dark cursor-grab active:cursor-grabbing p-1"><GripVertical size={20} /></div>
       <div className="flex-1 min-w-0">
-        <p className="font-bold text-gray-900 break-words leading-snug">{item.title}</p>
-        <span className="text-[10px] text-gray-400 font-bold uppercase">{item.responsible}</span>
+        <div className="flex items-center gap-2 flex-wrap">
+          <p className="font-bold text-gray-900 break-words leading-snug">{item.title}</p>
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200 whitespace-nowrap">
+            <Clock size={11} className="text-amber-500" />
+            SLA: {item.sla_days || 1} {Number(item.sla_days) === 1 ? 'dia útil' : 'dias úteis'}
+          </span>
+          <span className="text-[10px] text-gray-400 font-bold uppercase px-1.5 py-0.5 bg-gray-100 rounded">{item.responsible}</span>
+        </div>
       </div>
       <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-        <button onClick={onAddChild} className="p-2 text-gray-400 hover:text-green-600 rounded-lg hover:bg-green-50"><Plus size={18} /></button>
-        <button onClick={onEdit} className="p-2 text-gray-400 hover:text-blue-600 rounded-lg hover:bg-blue-50"><Settings2 size={18} /></button>
-        <button onClick={onDelete} className="p-2 text-gray-400 hover:text-red-600 rounded-lg hover:bg-red-50"><Trash2 size={18} /></button>
+        <button onClick={onAddChild} className="p-2 text-gray-400 hover:text-green-600 rounded-lg hover:bg-green-50" title="Adicionar sub-etapa"><Plus size={18} /></button>
+        <button onClick={onEdit} className="p-2 text-gray-400 hover:text-blue-600 rounded-lg hover:bg-blue-50" title="Editar etapa"><Settings2 size={18} /></button>
+        <button onClick={onDelete} className="p-2 text-gray-400 hover:text-red-600 rounded-lg hover:bg-red-50" title="Excluir etapa"><Trash2 size={18} /></button>
       </div>
     </div>
   );
-}
+};

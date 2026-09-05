@@ -1,10 +1,13 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { DailyContent, PostData, PostComment, PostStatus } from '../types';
+import { DailyContent, PostData, PostComment, PostStatus, PostRevision } from '../types';
 import { useAuth, supabase, parseImageUrl, stringifyImageUrl } from '../lib/supabase';
 import { shouldAutoPublish, shouldAutoPublishGroup } from '../lib/scheduledPostsUtils';
-import { X, Send, Image as ImageIcon, CheckCircle2, AlertTriangle, Save, UploadCloud, Trash2, Edit3, RefreshCw, Link, Check, Calendar, Instagram, Linkedin, ChevronDown, Layers, Copy, LayoutTemplate, Eye, FileText, XCircle, Building2 } from 'lucide-react';
+import { recordPostRevision, fetchPostRevisions, fetchPostRevisionsByDateKey } from '../lib/postRevisions';
+import { PostRejectionModal } from './PostRejectionModal';
+import { PostRevisionTimeline } from './PostRevisionTimeline';
+import { X, Send, Image as ImageIcon, CheckCircle2, AlertTriangle, Save, UploadCloud, Trash2, Edit3, RefreshCw, Link, Check, Calendar, Instagram, Linkedin, ChevronDown, Layers, Copy, LayoutTemplate, Eye, FileText, XCircle, Building2, History } from 'lucide-react';
 import { InstagramView, LinkedInView, TikTokView } from './PlatformViews';
 import { ConfirmModal } from './ConfirmModal';
 import { CustomDatePicker, CustomTimePicker } from './CustomPickers';
@@ -171,6 +174,40 @@ export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, group
   // Confirm Modals State
   const [confirmDeletePost, setConfirmDeletePost] = useState(false);
   const [confirmDeleteCommentId, setConfirmDeleteCommentId] = useState<string | null>(null);
+
+  // Revisions & Rejection Modal State
+  const [revisions, setRevisions] = useState<PostRevision[]>([]);
+  const [loadingRevisions, setLoadingRevisions] = useState(false);
+  const [rejectionModalOpen, setRejectionModalOpen] = useState(false);
+  const [rejectionModalMode, setRejectionModalMode] = useState<'reject' | 'request_changes'>('reject');
+  const [submittingRejection, setSubmittingRejection] = useState(false);
+
+  const loadRevisions = async (targetPostId?: string, targetKey?: string) => {
+    try {
+      setLoadingRevisions(true);
+      if (targetPostId) {
+        const revs = await fetchPostRevisions(targetPostId);
+        setRevisions(revs);
+      } else if (targetKey && targetKey !== 'new' && targetKey !== 'temp') {
+        const revs = await fetchPostRevisionsByDateKey(targetKey);
+        setRevisions(revs);
+      }
+    } catch (e) {
+      console.error("Erro carregando revisões:", e);
+    } finally {
+      setLoadingRevisions(false);
+    }
+  };
+
+  const rejectionsCount = revisions.filter(
+    (r) =>
+      r.action === 'rejected' ||
+      r.action === 'revision_requested' ||
+      r.status_after === 'rejected' ||
+      r.status_after === 'changes_requested' ||
+      r.status_after === 'theme_rejected' ||
+      (!!r.rejection_reason && r.rejection_reason.trim().length > 0)
+  ).length;
 
   // --------------------------------------------------------------------------------
   // INITIALIZATION
@@ -388,6 +425,13 @@ export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, group
             .eq('agency_id', agencyId)
             .order('created_at', { ascending: true });
          if (commentsData) setComments(commentsData as PostComment[]);
+
+         // Fetch Post Revisions
+         if (primaryData.id) {
+           await loadRevisions(primaryData.id);
+         } else if (foundKeys.length > 0) {
+           await loadRevisions(undefined, foundKeys[0]);
+         }
       }
       setLoading(false);
     };
@@ -748,8 +792,19 @@ export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, group
       setConfirmDeleteCommentId(null);
   };
   
-  const changeStatus = async (newStatus: PostStatus, extraFields: Partial<PostData> = {}) => {
+  const changeStatus = async (
+      newStatus: PostStatus, 
+      extraFields: Partial<PostData> = {},
+      revisionMetadata?: {
+          action?: 'submitted' | 'rejected' | 'approved' | 'revision_requested';
+          actorRole?: 'agency' | 'client';
+          actorName?: string;
+          rejectionReason?: string;
+      }
+  ) => {
       const keysToUpdate = originalKeys.length > 0 ? originalKeys : [dateKey];
+      let firstUpsertedId = post?.id;
+
       for (const k of keysToUpdate) {
           const plat = k.includes('linkedin') ? 'linkedin' : (k.includes('tiktok') ? 'tiktok' : 'meta');
           let finalCaption = captionMeta;
@@ -764,7 +819,7 @@ export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, group
               finalScheduledTime = customTimes[plat] || postTime || null;
           }
 
-          await supabase.from('posts').upsert({
+          const { data: upsertedRow } = await supabase.from('posts').upsert({
               date_key: k,
               client_id: activeClient?.id,
               agency_id: agencyId,
@@ -778,7 +833,11 @@ export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, group
               scheduled_time: finalScheduledTime,
               last_updated: new Date().toISOString(),
               ...extraFields
-          }, { onConflict: 'date_key' });
+          }, { onConflict: 'date_key' }).select('id').maybeSingle();
+
+          if (upsertedRow?.id && !firstUpsertedId) {
+              firstUpsertedId = upsertedRow.id;
+          }
       }
 
       // Update all linked versions sharing the same timestamp in date_key
@@ -796,6 +855,34 @@ export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, group
             .like('date_key', `%-${timestamp}`)
             .neq('status', 'published')
             .neq('status', 'deleted');
+      }
+
+      // Record Post Revision History
+      const targetPostId = firstUpsertedId || post?.id;
+      if (targetPostId) {
+          const defaultActorRole = userRole === 'admin' ? 'agency' : 'client';
+          const defaultActorName = sessionStorage.getItem('visitor_name') 
+            ?? (userRole === 'admin' ? 'Canguru' : (activeClient?.responsible || activeClient?.name || 'Usuário'));
+
+          let defaultAction: 'submitted' | 'rejected' | 'approved' | 'revision_requested' = 'submitted';
+          if (newStatus === 'approved' || newStatus === 'theme_approved') defaultAction = 'approved';
+          else if (newStatus === 'rejected' || newStatus === 'theme_rejected') defaultAction = 'rejected';
+          else if (newStatus === 'changes_requested' || newStatus === 'theme_approved_with_notes') defaultAction = 'revision_requested';
+          else if (newStatus === 'pending_approval' || newStatus === 'theme_pending') defaultAction = 'submitted';
+
+          await recordPostRevision({
+              postId: targetPostId,
+              agencyId: agencyId || 1,
+              action: revisionMetadata?.action || defaultAction,
+              actorRole: revisionMetadata?.actorRole || defaultActorRole,
+              actorName: revisionMetadata?.actorName || defaultActorName,
+              rejectionReason: revisionMetadata?.rejectionReason,
+              captionSnapshot: captionMeta || post?.caption || undefined,
+              statusBefore: post?.status || 'draft',
+              statusAfter: newStatus
+          });
+
+          await loadRevisions(targetPostId);
       }
 
       setPost(prev => ({ ...prev!, status: newStatus, ...extraFields }));
@@ -832,7 +919,12 @@ export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, group
         setComments(prev => [...prev, data as PostComment]);
         setNewComment('');
         if (userRole === 'approver') {
-             await changeStatus('changes_requested');
+             await changeStatus('changes_requested', {}, {
+                 action: 'revision_requested',
+                 actorRole: 'client',
+                 actorName: authorName,
+                 rejectionReason: newComment
+             });
              onClose();
         }
     }
@@ -859,7 +951,11 @@ export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, group
         console.warn('Erro ao inserir auditoria de aprovação:', e);
       }
 
-      await changeStatus('approved');
+      await changeStatus('approved', {}, {
+          action: 'approved',
+          actorRole: userRole === 'admin' ? 'agency' : 'client',
+          actorName: authorName
+      });
       onClose();
   };
 
@@ -884,12 +980,17 @@ export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, group
         console.warn('Erro ao inserir auditoria de aprovação de tema:', e);
       }
 
-      await changeStatus('theme_approved');
+      await changeStatus('theme_approved', {}, {
+          action: 'approved',
+          actorRole: userRole === 'admin' ? 'agency' : 'client',
+          actorName: authorName
+      });
       onClose();
   };
 
   const handleApproveThemeWithNotes = async () => {
       if (!themeNoteText.trim()) return alert("A observação é obrigatória.");
+      if (themeNoteText.trim().length < 10) return alert("A observação deve ter no mínimo 10 caracteres.");
       
       const currentPostKey = post?.date_key === 'temp' ? dateKey : post?.date_key || dateKey;
       const authorName = sessionStorage.getItem('visitor_name') 
@@ -914,7 +1015,12 @@ export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, group
 
       if (data) setComments(prev => [...prev, data as PostComment]);
       
-      await changeStatus('theme_approved_with_notes', { theme_client_notes: themeNoteText });
+      await changeStatus('theme_approved_with_notes', { theme_client_notes: themeNoteText }, {
+          action: 'revision_requested',
+          actorRole: userRole === 'admin' ? 'agency' : 'client',
+          actorName: authorName,
+          rejectionReason: themeNoteText
+      });
       setShowThemeNotesInput(false);
       setThemeNoteText('');
       onClose();
@@ -922,6 +1028,7 @@ export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, group
 
   const handleRejectTheme = async () => {
       if (!themeNoteText.trim()) return alert("O motivo da reprovação é obrigatório.");
+      if (themeNoteText.trim().length < 10) return alert("O motivo deve ter no mínimo 10 caracteres.");
       
       const currentPostKey = post?.date_key === 'temp' ? dateKey : post?.date_key || dateKey;
       const authorName = sessionStorage.getItem('visitor_name') 
@@ -946,44 +1053,74 @@ export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, group
 
       if (data) setComments(prev => [...prev, data as PostComment]);
 
-      await changeStatus('theme_rejected', { theme_rejection_reason: themeNoteText });
+      await changeStatus('theme_rejected', { theme_rejection_reason: themeNoteText }, {
+          action: 'rejected',
+          actorRole: userRole === 'admin' ? 'agency' : 'client',
+          actorName: authorName,
+          rejectionReason: themeNoteText
+      });
       setShowThemeRejectInput(false);
       setThemeNoteText('');
       onClose();
   };
 
-  const handleReject = async () => {
-      const justification = prompt("Por favor, justifique a reprovação:");
-      if (!justification || !justification.trim()) {
-          alert("A justificativa é obrigatória para reprovar a publicação.");
-          return;
-      }
-      
-      const currentPostKey = post?.date_key === 'temp' ? dateKey : post?.date_key || dateKey;
-      const authorName = sessionStorage.getItem('visitor_name') 
-        ?? (userRole === 'admin' ? 'Canguru' : (activeClient?.responsible || activeClient?.name || 'Cliente'));
+  const handleReject = () => {
+      setRejectionModalMode('reject');
+      setRejectionModalOpen(true);
+  };
 
-      const newCommentObj = { 
-          post_id: currentPostKey, 
-          agency_id: agencyId,
-          client_id: activeClient?.id,
-          author_role: userRole === 'admin' ? 'admin' : 'approver', 
-          author_name: authorName, 
-          content: `❌ REPROVOU a publicação. Justificativa: ${justification}`, 
-          visible_to_admin: true 
-      };
-      const { data, error } = await supabase.from('comments').insert(newCommentObj).select().single();
-      
-      if (error) {
-          console.error('Erro ao registrar reprovação:', error);
-          alert(`⚠️ Não foi possível registrar a reprovação. Tente novamente em instantes.\n\nSeu texto:\n${justification}`);
-          return;
-      }
-      
-      if (data) {
-          setComments(prev => [...prev, data as PostComment]);
-          await changeStatus('rejected');
+  const handleRequestChanges = () => {
+      setRejectionModalMode('request_changes');
+      setRejectionModalOpen(true);
+  };
+
+  const handleConfirmRejectionModal = async (reason: string, quickTags?: string[]) => {
+      setSubmittingRejection(true);
+      try {
+          const currentPostKey = post?.date_key === 'temp' ? dateKey : post?.date_key || dateKey;
+          const authorName = sessionStorage.getItem('visitor_name') 
+            ?? (userRole === 'admin' ? 'Canguru' : (activeClient?.responsible || activeClient?.name || 'Cliente'));
+          const isReject = rejectionModalMode === 'reject';
+          const newStatus: PostStatus = isReject ? 'rejected' : 'changes_requested';
+          const actionType: 'rejected' | 'revision_requested' = isReject ? 'rejected' : 'revision_requested';
+          const tagsSuffix = quickTags && quickTags.length > 0 ? ` [Tags: ${quickTags.join(', ')}]` : '';
+          const fullReason = `${reason.trim()}${tagsSuffix}`;
+
+          const newCommentObj = { 
+              post_id: currentPostKey, 
+              agency_id: agencyId,
+              client_id: activeClient?.id,
+              author_role: userRole === 'admin' ? 'admin' : (userRole === 'approver' ? 'approver' : 'client'), 
+              author_name: authorName, 
+              content: isReject ? `❌ REPROVOU a publicação. Motivo: ${fullReason}` : `⚠️ SOLICITOU AJUSTES: ${fullReason}`, 
+              visible_to_admin: true 
+          };
+
+          const { data: insertedComment, error } = await supabase.from('comments').insert(newCommentObj).select().single();
+          if (error) {
+              console.error('Erro ao registrar justificativa:', error);
+              alert('⚠️ Não foi possível salvar sua justificativa. Copie o texto e tente novamente.');
+              return;
+          }
+
+          if (insertedComment) {
+              setComments(prev => [...prev, insertedComment as PostComment]);
+          }
+
+          await changeStatus(newStatus, {}, {
+              action: actionType,
+              actorRole: userRole === 'admin' ? 'agency' : 'client',
+              actorName: authorName,
+              rejectionReason: fullReason
+          });
+
+          setRejectionModalOpen(false);
           onClose();
+      } catch (err) {
+          console.error('Erro ao processar rejeição/ajuste:', err);
+          alert('Erro ao processar ação.');
+      } finally {
+          setSubmittingRejection(false);
       }
   };
 
@@ -1171,11 +1308,18 @@ export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, group
              <div className="p-4 sm:p-6 border-b border-black/[0.03] flex flex-col gap-4 sm:gap-5 bg-white/50 backdrop-blur-sm pr-12 sm:pr-14">
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 sm:gap-0">
                    <div>
-                      {isNew ? (
-                          <h2 className="font-serif text-xl sm:text-2xl text-brand-dark tracking-tight">Nova Publicação</h2>
-                      ) : (
-                          <h2 className="font-serif text-xl sm:text-2xl text-brand-dark tracking-tight">{effectiveDayContent.day.split(' ')[0]}</h2>
-                      )}
+                      <div className="flex items-center gap-2">
+                        {isNew ? (
+                            <h2 className="font-serif text-xl sm:text-2xl text-brand-dark tracking-tight">Nova Publicação</h2>
+                        ) : (
+                            <h2 className="font-serif text-xl sm:text-2xl text-brand-dark tracking-tight">{effectiveDayContent.day.split(' ')[0]}</h2>
+                        )}
+                        {rejectionsCount >= 2 && (
+                            <span className="px-2 py-0.5 rounded-full text-[9px] font-extrabold bg-rose-100 text-rose-700 border border-rose-200 uppercase tracking-wider flex items-center gap-1 shadow-2xs">
+                                <AlertTriangle size={10} /> Rejeitado {rejectionsCount}x
+                            </span>
+                        )}
+                      </div>
                       <div className="flex items-center gap-2 mt-1">
                         <span className="text-[8px] sm:text-[9px] text-gray-400 uppercase font-bold tracking-[0.2em]">
                             {selectedPlatforms.length > 1 ? 'Multi-plataforma' : (previewPlatform === 'meta' ? 'Instagram/Face' : previewPlatform === 'tiktok' ? 'TikTok' : 'LinkedIn')}
@@ -1205,18 +1349,9 @@ export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, group
                {userRole === 'approver' && !isNew && (
                    <div className="flex flex-col gap-2">
                        <div className="flex gap-2">
-                           {!showRequestChangesInput ? (
-                             <>
-                             <button onClick={handleApprove} className="flex-1 flex items-center justify-center gap-1.5 px-3 py-3.5 bg-brand-dark hover:bg-black text-white rounded-xl font-bold text-[10px] sm:text-[11px] uppercase tracking-widest shadow-xl shadow-brand-dark/10 transition-all active:scale-95"><CheckCircle2 size={16} /> Aprovar</button>
-                             <button onClick={() => setShowRequestChangesInput(true)} className="flex-1 flex items-center justify-center gap-1.5 px-3 py-3.5 bg-white hover:bg-orange-50 text-orange-600 border border-orange-100 rounded-xl font-bold text-[10px] sm:text-[11px] uppercase tracking-widest transition-all active:scale-95"><AlertTriangle size={16} /> Ajuste</button>
-                             <button onClick={handleReject} className="flex-1 flex items-center justify-center gap-1.5 px-3 py-3.5 bg-white hover:bg-red-50 text-red-600 border border-red-100 rounded-xl font-bold text-[10px] sm:text-[11px] uppercase tracking-widest transition-all active:scale-95"><XCircle size={16} /> Reprovar</button>
-                             </>
-                           ) : (
-                             <div className="flex items-center justify-between w-full bg-orange-50 text-orange-800 px-4 py-3 rounded-xl border border-orange-100 text-[11px] font-bold uppercase tracking-widest">
-                                 <span>Escreva o ajuste abaixo</span>
-                                 <button onClick={() => setShowRequestChangesInput(false)} className="text-[10px] underline tracking-normal">Cancelar</button>
-                             </div>
-                           )}
+                           <button onClick={handleApprove} className="flex-1 flex items-center justify-center gap-1.5 px-3 py-3.5 bg-brand-dark hover:bg-black text-white rounded-xl font-bold text-[10px] sm:text-[11px] uppercase tracking-widest shadow-xl shadow-brand-dark/10 transition-all active:scale-95"><CheckCircle2 size={16} /> Aprovar</button>
+                           <button onClick={handleRequestChanges} className="flex-1 flex items-center justify-center gap-1.5 px-3 py-3.5 bg-white hover:bg-orange-50 text-orange-600 border border-orange-100 rounded-xl font-bold text-[10px] sm:text-[11px] uppercase tracking-widest transition-all active:scale-95"><AlertTriangle size={16} /> Ajuste</button>
+                           <button onClick={handleReject} className="flex-1 flex items-center justify-center gap-1.5 px-3 py-3.5 bg-white hover:bg-red-50 text-red-600 border border-red-100 rounded-xl font-bold text-[10px] sm:text-[11px] uppercase tracking-widest transition-all active:scale-95"><XCircle size={16} /> Reprovar</button>
                        </div>
                    </div>
                )}
@@ -1605,6 +1740,13 @@ export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, group
                         )}
                     </div>
 
+                    {/* Histórico de Versões no modo de Edição */}
+                    {revisions.length > 0 && (
+                      <div className="mb-5">
+                        <PostRevisionTimeline revisions={revisions} loading={loadingRevisions} />
+                      </div>
+                    )}
+
                     <button onClick={handleSavePost} disabled={loading} className="w-full text-[11px] font-bold uppercase tracking-[0.2em] bg-brand-dark text-white px-6 py-4 rounded-2xl hover:bg-black shadow-xl shadow-brand-dark/20 flex items-center justify-center gap-3 transition-all active:scale-[0.98] disabled:opacity-50">
                         {loading ? <RefreshCw size={18} className="animate-spin" /> : <Save size={18} />} Salvar Alterações
                     </button>
@@ -1639,6 +1781,11 @@ export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, group
                                 <p className="text-[11px] text-gray-700 leading-relaxed whitespace-pre-wrap">{editedBullets}</p>
                             </div>
                         )}
+
+                        {/* Linha do Tempo de Versões / Auditoria */}
+                        <div className="pt-2">
+                            <PostRevisionTimeline revisions={revisions} loading={loadingRevisions} />
+                        </div>
                     </div>
 
                     {/* Comments List */}
@@ -1754,6 +1901,14 @@ export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, group
         message="Tem certeza que deseja excluir este comentário?"
         onConfirm={() => confirmDeleteCommentId && handleDeleteComment(confirmDeleteCommentId)}
         onCancel={() => setConfirmDeleteCommentId(null)}
+      />
+
+      <PostRejectionModal
+        isOpen={rejectionModalOpen}
+        mode={rejectionModalMode}
+        onClose={() => setRejectionModalOpen(false)}
+        onConfirm={handleConfirmRejectionModal}
+        submitting={submittingRejection}
       />
     </div>
   );

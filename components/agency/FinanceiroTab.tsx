@@ -1,10 +1,10 @@
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { motion } from 'motion/react';
 import { 
   DollarSign, 
   TrendingUp, 
-  TrendingDown,
+  TrendingDown, 
   AlertCircle, 
   CheckCircle2, 
   Plus, 
@@ -40,7 +40,8 @@ import {
   ShieldCheck,
   Scale,
   Users,
-  Award
+  Award,
+  Search
 } from 'lucide-react';
 import { 
   ResponsiveContainer, 
@@ -56,14 +57,116 @@ import {
   Pie, 
   Cell 
 } from 'recharts';
-import { useAgencyFinanceiro } from '../../hooks/useAgencyFinanceiro';
+import { useAgencyFinanceiro, calculateDueDate } from '../../hooks/useAgencyFinanceiro';
 import { useReferralProgram } from '../../hooks/useReferralProgram';
+import { useClientRevenueEvents } from '../../hooks/useClientRevenueEvents';
+import { useAgencyClientsLtv } from '../../hooks/useClientLtv';
+import { ClientLtvCard } from '../financeiro/ClientLtvCard';
+import { TopClientsLtvRanking } from '../financeiro/TopClientsLtvRanking';
+import { formatCompactLtv } from '../../lib/clientLtv';
 import { ReferralProgramSection } from './ReferralProgramSection';
 import { parseCurrencyInput } from '../../lib/currencyUtils';
 import dayjs from 'dayjs';
 
-export const FinanceiroTab: React.FC = () => {
-  const [currentMonthYear, setCurrentMonthYear] = useState(dayjs().format('YYYY-MM'));
+export interface FinanceiroTabProps {
+  initialSubTab?: 'overview' | 'faturamento' | 'despesas' | 'indicacao';
+  initialMonthYear?: string;
+  initialClientFilter?: string;
+  onNavigateToContracts?: (clientId?: string) => void;
+}
+
+export interface BillingStatusInfo {
+  statusCalculado: 'paid' | 'overdue' | 'pending';
+  label: string;
+  isPaid: boolean;
+  isOverdue: boolean;
+  isPending: boolean;
+  dueDateStr: string;
+  dueDateFormatted: string;
+  dueDay: number;
+  daysOverdue: number;
+  daysUntilDue: number;
+  rowBgClass: string;
+  mobileCardClass: string;
+}
+
+export function getBillingStatusInfo(billing: any, currentMonthYear?: string): BillingStatusInfo {
+  const isPaid = billing.status === 'paid';
+  const dueDay = billing.due_day || 10;
+  const my = billing.month_year || currentMonthYear || dayjs().format('YYYY-MM');
+  const dueDateStr = billing.due_date || calculateDueDate(my, dueDay);
+  const dueDate = dayjs(dueDateStr);
+  const today = dayjs().startOf('day');
+  const dueDateDay = (dueDate.isValid() ? dueDate : dayjs(my).date(dueDay)).startOf('day');
+
+  const isOverdue = !isPaid && dueDateDay.isBefore(today);
+  const isPending = !isPaid && !isOverdue;
+
+  const daysOverdue = isOverdue ? today.diff(dueDateDay, 'day') : 0;
+  const daysUntilDue = isPending ? dueDateDay.diff(today, 'day') : 0;
+
+  let statusCalculado: 'paid' | 'overdue' | 'pending' = 'pending';
+  let label = 'Em dia';
+  let rowBgClass = 'bg-amber-50/20 hover:bg-amber-50/40';
+  let mobileCardClass = 'bg-amber-50/30 border-amber-200/70';
+
+  if (isPaid) {
+    statusCalculado = 'paid';
+    label = 'Paga';
+    rowBgClass = 'bg-emerald-50/25 hover:bg-emerald-50/45';
+    mobileCardClass = 'bg-emerald-50/30 border-emerald-200/70';
+  } else if (isOverdue) {
+    statusCalculado = 'overdue';
+    label = 'Vencida';
+    rowBgClass = 'bg-rose-50/25 hover:bg-rose-50/45';
+    mobileCardClass = 'bg-rose-50/30 border-rose-200/70';
+  }
+
+  return {
+    statusCalculado,
+    label,
+    isPaid,
+    isOverdue,
+    isPending,
+    dueDateStr,
+    dueDateFormatted: dueDate.isValid() ? dueDate.format('DD/MM/YYYY') : `Dia ${dueDay}`,
+    dueDay,
+    daysOverdue,
+    daysUntilDue,
+    rowBgClass,
+    mobileCardClass
+  };
+}
+
+export const FinanceiroTab: React.FC<FinanceiroTabProps> = ({
+  initialSubTab,
+  initialMonthYear,
+  initialClientFilter,
+  onNavigateToContracts
+}) => {
+  const [currentMonthYear, setCurrentMonthYear] = useState(initialMonthYear || dayjs().format('YYYY-MM'));
+  const [activeSubTab, setActiveSubTab] = useState<'overview' | 'faturamento' | 'despesas' | 'indicacao'>(initialSubTab || 'overview');
+  const [clientSearchFilter, setClientSearchFilter] = useState(initialClientFilter || '');
+  const { ltvList, ltvMap } = useAgencyClientsLtv();
+
+  useEffect(() => {
+    if (initialMonthYear) {
+      setCurrentMonthYear(initialMonthYear);
+    }
+  }, [initialMonthYear]);
+
+  useEffect(() => {
+    if (initialSubTab) {
+      setActiveSubTab(initialSubTab);
+    }
+  }, [initialSubTab]);
+
+  useEffect(() => {
+    if (initialClientFilter !== undefined) {
+      setClientSearchFilter(initialClientFilter);
+    }
+  }, [initialClientFilter]);
+
   const [hideValues, setHideValues] = useState<boolean>(() => {
     if (typeof window !== 'undefined') {
       return localStorage.getItem('agency_finance_hide_values') === 'true';
@@ -108,8 +211,14 @@ export const FinanceiroTab: React.FC = () => {
   const labelPeriodo = `Jan–${monthNames[dayjs().month()]} de ${dayjs().year()}`;
   const currentMonthFormatted = `${monthFullNames[dayjs(currentMonthYear).month()]} de ${dayjs(currentMonthYear).year()}`;
   
+  const targetYear = useMemo(() => {
+    const parts = currentMonthYear.split('-');
+    return parts[0] ? parseInt(parts[0], 10) : dayjs().year();
+  }, [currentMonthYear]);
+
+  const { expansionStats } = useClientRevenueEvents(null, targetYear);
+
   const { commissions, generateCommissionForBilling } = useReferralProgram();
-  const [activeSubTab, setActiveSubTab] = useState<'overview' | 'faturamento' | 'despesas' | 'indicacao'>('overview');
   const [expenseFilterStatus, setExpenseFilterStatus] = useState<'all' | 'pending' | 'paid'>('all');
   const [showExpenseModal, setShowExpenseModal] = useState(false);
   const [showSporadicModal, setShowSporadicModal] = useState(false);
@@ -196,8 +305,20 @@ export const FinanceiroTab: React.FC = () => {
   }, [billings, expenses]);
 
   const sortedBillings = useMemo(() => {
-    return [...billings].sort((a, b) => (a.due_day || 0) - (b.due_day || 0));
-  }, [billings]);
+    const sorted = [...billings].sort((a, b) => (a.due_day || 0) - (b.due_day || 0));
+    if (!clientSearchFilter.trim()) return sorted;
+    const q = clientSearchFilter.toLowerCase().trim();
+    return sorted.filter(b => {
+      const name = (b.is_sporadic ? b.sporadic_name : b.client?.name) || '';
+      return name.toLowerCase().includes(q);
+    });
+  }, [billings, clientSearchFilter]);
+
+  const matchedLtvDetail = useMemo(() => {
+    if (!clientSearchFilter.trim()) return null;
+    const q = clientSearchFilter.toLowerCase().trim();
+    return ltvList.find(item => item.clientName.toLowerCase().includes(q) || item.clientId === clientSearchFilter) || null;
+  }, [clientSearchFilter, ltvList]);
 
   const sortedExpenses = useMemo(() => {
     return [...expenses].sort((a, b) => {
@@ -586,32 +707,30 @@ export const FinanceiroTab: React.FC = () => {
   };
 
   const getStatusBadge = (billing: any) => {
-    if (billing.status === 'paid') {
+    const info = getBillingStatusInfo(billing, currentMonthYear);
+
+    if (info.isPaid) {
       return (
-        <div className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-emerald-50/50 text-emerald-600 rounded-lg text-[9px] font-bold uppercase tracking-widest border border-emerald-100/50">
-          <div className="w-1 h-1 rounded-full bg-emerald-600" />
-          Pago
+        <div className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-emerald-50 text-emerald-700 rounded-lg text-[9px] font-bold uppercase tracking-widest border border-emerald-200/60 shadow-2xs">
+          <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+          Paga
         </div>
       );
     }
     
-    const today = dayjs();
-    const billingDate = dayjs(billing.month_year).date(billing.due_day);
-    const isOverdue = today.isAfter(billingDate, 'day');
-    
-    if (isOverdue || billing.status === 'overdue') {
+    if (info.isOverdue) {
       return (
-        <div className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-rose-50/50 text-rose-600 rounded-lg text-[9px] font-bold uppercase tracking-widest border border-rose-100/50">
-          <div className="w-1 h-1 rounded-full bg-rose-600" />
-          Atrasado
+        <div className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-rose-50 text-rose-700 rounded-lg text-[9px] font-bold uppercase tracking-widest border border-rose-200/60 shadow-2xs">
+          <div className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse" />
+          Vencida
         </div>
       );
     }
     
     return (
-      <div className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-amber-50/50 text-amber-600 rounded-lg text-[9px] font-bold uppercase tracking-widest border border-amber-100/50">
-        <div className="w-1 h-1 rounded-full bg-amber-600" />
-        Pendente
+      <div className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-amber-50 text-amber-800 rounded-lg text-[9px] font-bold uppercase tracking-widest border border-amber-200/60 shadow-2xs">
+        <div className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+        Em dia
       </div>
     );
   };
@@ -834,6 +953,14 @@ export const FinanceiroTab: React.FC = () => {
       {/* ========================================================================= */}
       {activeSubTab === 'overview' && (
         <div className="space-y-8">
+          {/* Card de LTV do cliente caso haja filtro de cliente selecionado */}
+          {matchedLtvDetail && (
+            <ClientLtvCard
+              ltvDetails={matchedLtvDetail}
+              onNavigateToContracts={onNavigateToContracts}
+            />
+          )}
+
           {/* DESTAQUE PRINCIPAL: LUCRO E RENTABILIDADE */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Lucro Projetado / Estimado */}
@@ -992,51 +1119,77 @@ export const FinanceiroTab: React.FC = () => {
             </div>
           </div>
 
-          {/* INDICADORES ESTRATÉGICOS & ANUAIS */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div className="bg-stone-50/80 p-4 rounded-2xl border border-stone-200/60 flex items-center gap-3">
-              <div className="w-9 h-9 rounded-xl bg-teal-50 text-teal-600 flex items-center justify-center shrink-0">
-                <BarChart3 size={18} />
-              </div>
-              <div className="min-w-0">
-                <p className="text-[9px] uppercase tracking-wider font-bold text-gray-400">Acumulado no Ano</p>
-                <p className="text-sm font-bold text-brand-dark truncate">{formatCurrency(faturamentoAcumulado)}</p>
-                <p className="text-[9px] text-gray-400">{labelPeriodo}</p>
-              </div>
+          {/* RANKING DE LTV E INDICADORES ESTRATÉGICOS */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="lg:col-span-1">
+              <TopClientsLtvRanking
+                ltvList={ltvList}
+                onSelectClientFilter={(name) => setClientSearchFilter(name)}
+                onNavigateToContracts={onNavigateToContracts}
+              />
             </div>
 
-            <div className="bg-stone-50/80 p-4 rounded-2xl border border-stone-200/60 flex items-center gap-3">
-              <div className="w-9 h-9 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center shrink-0">
-                <Briefcase size={18} />
-              </div>
-              <div className="min-w-0">
-                <p className="text-[9px] uppercase tracking-wider font-bold text-gray-400">Ticket Médio</p>
-                <p className="text-sm font-bold text-brand-dark truncate">{formatCurrency(ticketMedio)}</p>
-                <p className="text-[9px] text-gray-400">por contrato recorrente</p>
-              </div>
-            </div>
+            <div className="lg:col-span-2">
+              {/* INDICADORES ESTRATÉGICOS & ANUAIS */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3 h-full">
+                <div className="bg-stone-50/80 p-4 rounded-2xl border border-stone-200/60 flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-teal-50 text-teal-600 flex items-center justify-center shrink-0">
+                    <BarChart3 size={18} />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-[9px] uppercase tracking-wider font-bold text-gray-400">Acumulado no Ano</p>
+                    <p className="text-sm font-bold text-brand-dark truncate">{formatCurrency(faturamentoAcumulado)}</p>
+                    <p className="text-[9px] text-gray-400">{labelPeriodo}</p>
+                  </div>
+                </div>
 
-            <div className="bg-stone-50/80 p-4 rounded-2xl border border-stone-200/60 flex items-center gap-3">
-              <div className="w-9 h-9 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center shrink-0">
-                <Scale size={18} />
-              </div>
-              <div className="min-w-0">
-                <p className="text-[9px] uppercase tracking-wider font-bold text-gray-400">Ponto de Equilíbrio</p>
-                <p className="text-sm font-bold text-brand-dark truncate">{formatCurrency(stats.totalExpenses)}</p>
-                <p className="text-[9px] text-gray-400">break-even operacional</p>
-              </div>
-            </div>
+                <div className="bg-stone-50/80 p-4 rounded-2xl border border-stone-200/60 flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
+                    <TrendingUp size={18} />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-[9px] uppercase tracking-wider font-bold text-gray-400">Expansão este ano</p>
+                    <p className="text-sm font-bold text-emerald-600 truncate">{formatCurrency(expansionStats.totalUpsellDelta)}</p>
+                    <p className="text-[9px] text-gray-400">
+                      {expansionStats.upsellCount} {expansionStats.upsellCount === 1 ? 'upsell' : 'upsells'} em {expansionStats.year}
+                    </p>
+                  </div>
+                </div>
 
-            <div className="bg-stone-50/80 p-4 rounded-2xl border border-stone-200/60 flex items-center gap-3">
-              <div className="w-9 h-9 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
-                <ShieldCheck size={18} />
-              </div>
-              <div className="min-w-0">
-                <p className="text-[9px] uppercase tracking-wider font-bold text-gray-400">Comprometimento Fixo</p>
-                <p className="text-sm font-bold text-brand-dark truncate">
-                  {stats.totalToReceive > 0 ? ((stats.totalFixedExpenses / stats.totalToReceive) * 100).toFixed(1) : 0}%
-                </p>
-                <p className="text-[9px] text-gray-400">da receita em custos fixos</p>
+                <div className="bg-stone-50/80 p-4 rounded-2xl border border-stone-200/60 flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center shrink-0">
+                    <Briefcase size={18} />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-[9px] uppercase tracking-wider font-bold text-gray-400">Ticket Médio</p>
+                    <p className="text-sm font-bold text-brand-dark truncate">{formatCurrency(ticketMedio)}</p>
+                    <p className="text-[9px] text-gray-400">por contrato recorrente</p>
+                  </div>
+                </div>
+
+                <div className="bg-stone-50/80 p-4 rounded-2xl border border-stone-200/60 flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center shrink-0">
+                    <Scale size={18} />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-[9px] uppercase tracking-wider font-bold text-gray-400">Ponto de Equilíbrio</p>
+                    <p className="text-sm font-bold text-brand-dark truncate">{formatCurrency(stats.totalExpenses)}</p>
+                    <p className="text-[9px] text-gray-400">break-even operacional</p>
+                  </div>
+                </div>
+
+                <div className="bg-stone-50/80 p-4 rounded-2xl border border-stone-200/60 flex items-center gap-3 col-span-1 sm:col-span-2 xl:col-span-1">
+                  <div className="w-9 h-9 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
+                    <ShieldCheck size={18} />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-[9px] uppercase tracking-wider font-bold text-gray-400">Comprometimento Fixo</p>
+                    <p className="text-sm font-bold text-brand-dark truncate">
+                      {stats.totalToReceive > 0 ? ((stats.totalFixedExpenses / stats.totalToReceive) * 100).toFixed(1) : 0}%
+                    </p>
+                    <p className="text-[9px] text-gray-400">da receita em custos fixos</p>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -1236,6 +1389,14 @@ export const FinanceiroTab: React.FC = () => {
       {/* ========================================================================= */}
       {activeSubTab === 'faturamento' && (
         <div className="space-y-6">
+          {/* Card de LTV do cliente caso haja filtro de cliente selecionado */}
+          {matchedLtvDetail && (
+            <ClientLtvCard
+              ltvDetails={matchedLtvDetail}
+              onNavigateToContracts={onNavigateToContracts}
+            />
+          )}
+
           {/* Cards de Métricas de Faturamento */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
             {[
@@ -1270,102 +1431,155 @@ export const FinanceiroTab: React.FC = () => {
 
           {/* Billings Table */}
           <div className="bg-white rounded-3xl border border-black/[0.03] shadow-sm overflow-hidden">
-            <div className="px-6 sm:px-8 py-5 border-b border-gray-50 flex justify-between items-center">
+            <div className="px-6 sm:px-8 py-5 border-b border-gray-50 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
               <div>
                 <h3 className="text-base sm:text-lg font-bold text-brand-dark">Faturamento por Cliente</h3>
-                <p className="text-xs text-gray-400 mt-0.5">Listagem de cobranças recorrentes e serviços esporádicos do mês</p>
+                <p className="text-xs text-gray-400 mt-0.5">Listagem de cobranças recorrentes e serviços esporádicos do mês com status de vencimento</p>
               </div>
-              <button 
-                type="button"
-                onClick={() => setShowSporadicModal(true)}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-blue-600 hover:bg-blue-50 rounded-xl transition-colors"
-              >
-                <Plus size={14} />
-                <span>Adicionar Esporádico</span>
-              </button>
+              
+              <div className="flex items-center gap-3 w-full sm:w-auto">
+                <div className="relative flex-1 sm:w-64">
+                  <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                  <input
+                    type="text"
+                    value={clientSearchFilter}
+                    onChange={(e) => setClientSearchFilter(e.target.value)}
+                    placeholder="Buscar cliente..."
+                    className="w-full pl-9 pr-3 py-1.5 text-xs bg-gray-50 border border-gray-200/80 rounded-xl focus:outline-none focus:border-blue-500 focus:bg-white transition-all text-brand-dark"
+                  />
+                  {clientSearchFilter && (
+                    <button
+                      type="button"
+                      onClick={() => setClientSearchFilter('')}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 p-0.5"
+                    >
+                      <X size={12} />
+                    </button>
+                  )}
+                </div>
+
+                <button 
+                  type="button"
+                  onClick={() => setShowSporadicModal(true)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-blue-600 hover:bg-blue-50 bg-blue-50/40 rounded-xl transition-colors whitespace-nowrap shrink-0 border border-blue-100"
+                >
+                  <Plus size={14} />
+                  <span>Adicionar Esporádico</span>
+                </button>
+              </div>
             </div>
             
             {/* Mobile View */}
             <div className="block md:hidden p-4 space-y-4">
-              {sortedBillings.map((billing) => (
-                <div key={billing.id} className="bg-gray-50/50 rounded-2xl p-4 border border-gray-100 flex flex-col gap-3">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="flex items-center gap-3">
-                      {billing.is_sporadic ? (
-                        <div className="w-8 h-8 rounded-lg flex-shrink-0 flex items-center justify-center text-white font-bold text-[10px] bg-gray-400">ES</div>
-                      ) : (
-                        <div className="w-8 h-8 rounded-lg flex-shrink-0 flex items-center justify-center text-white font-bold text-[10px]" style={{ backgroundColor: billing.client?.color }}>
-                          {billing.client?.initials}
+              {sortedBillings.map((billing) => {
+                const info = getBillingStatusInfo(billing, currentMonthYear);
+                return (
+                  <div 
+                    key={billing.id} 
+                    className={`rounded-2xl p-4 border flex flex-col gap-3 transition-all ${info.mobileCardClass}`}
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex items-center gap-3">
+                        {billing.is_sporadic ? (
+                          <div className="w-8 h-8 rounded-lg flex-shrink-0 flex items-center justify-center text-white font-bold text-[10px] bg-gray-400">ES</div>
+                        ) : (
+                          <div className="w-8 h-8 rounded-lg flex-shrink-0 flex items-center justify-center text-white font-bold text-[10px]" style={{ backgroundColor: billing.client?.color }}>
+                            {billing.client?.initials}
+                          </div>
+                        )}
+                        <div>
+                          <span className="font-bold text-sm text-brand-dark block">{billing.is_sporadic ? billing.sporadic_name : billing.client?.name}</span>
+                          {billing.is_sporadic && <span className="text-[10px] text-gray-500 uppercase tracking-widest font-bold">Esporádico</span>}
                         </div>
-                      )}
+                      </div>
+                      <div>{getStatusBadge(billing)}</div>
+                    </div>
+                    
+                    <div className="grid grid-cols-2 gap-2 text-sm bg-white/90 backdrop-blur-xs p-3 rounded-xl border border-gray-100/80 shadow-2xs">
                       <div>
-                        <span className="font-bold text-sm text-brand-dark block">{billing.is_sporadic ? billing.sporadic_name : billing.client?.name}</span>
-                        {billing.is_sporadic && <span className="text-[10px] text-gray-500 uppercase tracking-widest font-bold">Esporádico</span>}
+                        <p className="text-[9px] uppercase tracking-widest font-bold text-gray-400 mb-0.5">Base</p>
+                        <p className="font-medium text-brand-dark">{formatCurrency(billing.base_value)}</p>
+                      </div>
+                      <div>
+                        <p className="text-[9px] uppercase tracking-widest font-bold text-gray-400 mb-0.5">Extra</p>
+                        <p className="font-medium text-brand-dark">{formatCurrency(billing.extra_value)}</p>
+                      </div>
+                      <div>
+                        <p className="text-[9px] uppercase tracking-widest font-bold text-gray-400 mb-0.5">Total</p>
+                        <p className="font-bold text-brand-dark">{formatCurrency(billing.base_value + billing.extra_value)}</p>
+                      </div>
+                      <div>
+                        <p className="text-[9px] uppercase tracking-widest font-bold text-gray-400 mb-0.5">Vencimento</p>
+                        <p className="font-medium text-brand-dark text-xs">{info.dueDateFormatted}</p>
                       </div>
                     </div>
-                    <div>{getStatusBadge(billing)}</div>
-                  </div>
-                  
-                  <div className="grid grid-cols-2 gap-2 text-sm bg-white p-3 rounded-xl border border-gray-100">
-                    <div>
-                      <p className="text-[9px] uppercase tracking-widest font-bold text-gray-400 mb-0.5">Base</p>
-                      <p className="font-medium text-brand-dark">{formatCurrency(billing.base_value)}</p>
-                    </div>
-                    <div>
-                      <p className="text-[9px] uppercase tracking-widest font-bold text-gray-400 mb-0.5">Extra</p>
-                      <p className="font-medium text-brand-dark">{formatCurrency(billing.extra_value)}</p>
-                    </div>
-                    <div>
-                      <p className="text-[9px] uppercase tracking-widest font-bold text-gray-400 mb-0.5">Total</p>
-                      <p className="font-bold text-brand-dark">{formatCurrency(billing.base_value + billing.extra_value)}</p>
-                    </div>
-                    <div>
-                      <p className="text-[9px] uppercase tracking-widest font-bold text-gray-400 mb-0.5">Venc.</p>
-                      <p className="font-medium text-gray-600">Dia {billing.due_day}</p>
-                    </div>
-                  </div>
 
-                  <div className="flex items-center gap-2 pt-1">
-                    <button 
-                      type="button"
-                      onClick={() => startEditingBilling(billing)}
-                      className="flex-1 p-2.5 text-blue-600 bg-blue-50/50 hover:bg-blue-100 rounded-xl transition-all flex items-center justify-center gap-2 text-xs font-bold"
-                    >
-                      <Edit2 size={14} /> Editar
-                    </button>
-                    {billing.status !== 'paid' ? (
+                    {/* Status de Vencimento / Dias em Atraso */}
+                    <div className="px-1">
+                      {info.isOverdue && (
+                        <div className="flex items-center gap-1.5 text-xs font-bold text-rose-600 bg-rose-100/70 border border-rose-200 px-3 py-1.5 rounded-xl">
+                          <Clock size={13} className="shrink-0 text-rose-600" />
+                          <span>Venceu há {info.daysOverdue} {info.daysOverdue === 1 ? 'dia' : 'dias'}</span>
+                        </div>
+                      )}
+                      {info.isPending && (
+                        <div className="flex items-center gap-1.5 text-xs font-medium text-amber-900 bg-amber-100/70 border border-amber-200 px-3 py-1.5 rounded-xl">
+                          <Clock size={13} className="shrink-0 text-amber-700" />
+                          <span>{info.daysUntilDue === 0 ? 'Vence hoje' : info.daysUntilDue === 1 ? 'Vence em 1 dia' : `Vence em ${info.daysUntilDue} dias`}</span>
+                        </div>
+                      )}
+                      {info.isPaid && (
+                        <div className="flex items-center gap-1.5 text-xs font-medium text-emerald-800 bg-emerald-100/70 border border-emerald-200 px-3 py-1.5 rounded-xl">
+                          <CheckCircle2 size={13} className="shrink-0 text-emerald-600" />
+                          <span>{billing.paid_at ? `Fatura paga em ${dayjs(billing.paid_at).format('DD/MM/YYYY')}` : 'Fatura quitada'}</span>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="flex items-center gap-2 pt-1">
                       <button 
                         type="button"
-                        disabled={markingBillingId === billing.id}
-                        onClick={() => handleMarkBillingPaid(billing)}
-                        className="flex-1 py-2.5 bg-emerald-600 text-white rounded-xl text-[10px] font-bold uppercase tracking-widest hover:bg-emerald-700 transition-all text-center disabled:opacity-50"
+                        onClick={() => startEditingBilling(billing)}
+                        className="flex-1 p-2.5 text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-xl transition-all flex items-center justify-center gap-2 text-xs font-bold border border-blue-100"
                       >
-                        {markingBillingId === billing.id ? 'Salvando...' : 'Marcar Pago'}
+                        <Edit2 size={14} /> Editar
                       </button>
-                    ) : (
-                      <button 
-                        type="button"
-                        disabled={markingBillingId === billing.id}
-                        onClick={() => handleUnmarkBillingPaid(billing)}
-                        className="flex-1 py-2.5 bg-gray-100 text-gray-500 rounded-xl text-[10px] font-bold uppercase tracking-widest border border-gray-200 text-center hover:bg-rose-50 hover:text-rose-600 hover:border-rose-100 transition-all disabled:opacity-50"
-                      >
-                        {markingBillingId === billing.id ? 'Salvando...' : 'Estornar'}
-                      </button>
-                    )}
-                    {billing.is_sporadic && (
-                      <button 
-                        type="button"
-                        onClick={() => setDeletingSporadicBilling(billing)}
-                        className="p-2.5 text-rose-600 bg-rose-50/50 hover:bg-rose-100 rounded-xl transition-all"
-                      >
-                        <Trash2 size={16} />
-                      </button>
-                    )}
+                      {billing.status !== 'paid' ? (
+                        <button 
+                          type="button"
+                          disabled={markingBillingId === billing.id}
+                          onClick={() => handleMarkBillingPaid(billing)}
+                          className="flex-1 py-2.5 bg-emerald-600 text-white rounded-xl text-[10px] font-bold uppercase tracking-widest hover:bg-emerald-700 transition-all text-center disabled:opacity-50 shadow-sm shadow-emerald-600/20"
+                        >
+                          {markingBillingId === billing.id ? 'Salvando...' : 'Marcar Pago'}
+                        </button>
+                      ) : (
+                        <button 
+                          type="button"
+                          disabled={markingBillingId === billing.id}
+                          onClick={() => handleUnmarkBillingPaid(billing)}
+                          className="flex-1 py-2.5 bg-gray-100 text-gray-500 rounded-xl text-[10px] font-bold uppercase tracking-widest border border-gray-200 text-center hover:bg-rose-50 hover:text-rose-600 hover:border-rose-100 transition-all disabled:opacity-50"
+                        >
+                          {markingBillingId === billing.id ? 'Salvando...' : 'Estornar'}
+                        </button>
+                      )}
+                      {billing.is_sporadic && (
+                        <button 
+                          type="button"
+                          onClick={() => setDeletingSporadicBilling(billing)}
+                          className="p-2.5 text-rose-600 bg-rose-50 hover:bg-rose-100 rounded-xl transition-all border border-rose-100"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      )}
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
               {sortedBillings.length === 0 && (
-                <p className="text-center text-gray-400 text-sm py-4">Nenhum faturamento para este mês.</p>
+                <p className="text-center text-gray-400 text-sm py-4">
+                  {clientSearchFilter ? `Nenhum faturamento encontrado para "${clientSearchFilter}".` : 'Nenhum faturamento para este mês.'}
+                </p>
               )}
             </div>
 
@@ -1373,8 +1587,9 @@ export const FinanceiroTab: React.FC = () => {
             <div className="hidden md:block overflow-x-auto">
               <table className="w-full text-left">
                 <thead>
-                  <tr className="bg-gray-50/30">
+                  <tr className="bg-gray-50/50 border-b border-gray-100">
                     <th className="px-8 py-4 text-[9px] uppercase tracking-widest font-bold text-gray-400">Cliente</th>
+                    <th className="px-8 py-4 text-[9px] uppercase tracking-widest font-bold text-gray-400">LTV Est.</th>
                     <th className="px-8 py-4 text-[9px] uppercase tracking-widest font-bold text-gray-400">Valor Base</th>
                     <th className="px-8 py-4 text-[9px] uppercase tracking-widest font-bold text-gray-400">Extras</th>
                     <th className="px-8 py-4 text-[9px] uppercase tracking-widest font-bold text-gray-400">Total</th>
@@ -1383,84 +1598,136 @@ export const FinanceiroTab: React.FC = () => {
                     <th className="px-8 py-4 text-[9px] uppercase tracking-widest font-bold text-gray-400">Ações</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-50">
-                  {sortedBillings.map((billing) => (
-                    <tr key={billing.id} className="hover:bg-gray-50/30 transition-colors">
-                      <td className="px-8 py-5">
-                        <div className="flex items-center gap-3 min-w-[180px]">
-                          {billing.is_sporadic ? (
-                            <>
-                              <div className="w-7 h-7 rounded-lg flex-shrink-0 flex items-center justify-center text-white font-bold text-[10px] bg-gray-400">
-                                ES
-                              </div>
-                              <span className="font-bold text-sm text-brand-dark whitespace-normal leading-tight">{billing.sporadic_name} <span className="text-[10px] text-gray-400 font-normal ml-1">(Esporádico)</span></span>
-                            </>
+                <tbody className="divide-y divide-gray-100/70">
+                  {sortedBillings.map((billing) => {
+                    const info = getBillingStatusInfo(billing, currentMonthYear);
+                    return (
+                      <tr key={billing.id} className={`transition-colors ${info.rowBgClass}`}>
+                        <td className="px-8 py-5">
+                          <div className="flex items-center gap-3 min-w-[180px]">
+                            {billing.is_sporadic ? (
+                              <>
+                                <div className="w-7 h-7 rounded-lg flex-shrink-0 flex items-center justify-center text-white font-bold text-[10px] bg-gray-400">
+                                  ES
+                                </div>
+                                <span className="font-bold text-sm text-brand-dark whitespace-normal leading-tight">
+                                  {billing.sporadic_name} <span className="text-[10px] text-gray-400 font-normal ml-1">(Esporádico)</span>
+                                </span>
+                              </>
+                            ) : (
+                              <>
+                                <div className="w-7 h-7 rounded-lg flex-shrink-0 flex items-center justify-center text-white font-bold text-[10px]" style={{ backgroundColor: billing.client?.color }}>
+                                  {billing.client?.initials}
+                                </div>
+                                <span className="font-bold text-sm text-brand-dark whitespace-normal leading-tight">{billing.client?.name}</span>
+                              </>
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-8 py-5">
+                          {!billing.is_sporadic && billing.client_id && ltvMap[billing.client_id] ? (
+                            <span 
+                              className="inline-flex items-center gap-1 text-[10px] font-bold text-indigo-700 bg-indigo-50 border border-indigo-200/60 px-2.5 py-1 rounded-full whitespace-nowrap cursor-help" 
+                              title={ltvMap[billing.client_id].explanation}
+                            >
+                              {formatCompactLtv(ltvMap[billing.client_id].ltvEstimated)}
+                            </span>
                           ) : (
-                            <>
-                              <div className="w-7 h-7 rounded-lg flex-shrink-0 flex items-center justify-center text-white font-bold text-[10px]" style={{ backgroundColor: billing.client?.color }}>
-                                {billing.client?.initials}
-                              </div>
-                              <span className="font-bold text-sm text-brand-dark whitespace-normal leading-tight">{billing.client?.name}</span>
-                            </>
+                            <span className="text-[10px] text-gray-400">—</span>
                           )}
-                        </div>
-                      </td>
-                      <td className="px-8 py-5">
-                        <span className="text-sm font-medium text-brand-dark">{formatCurrency(billing.base_value)}</span>
-                      </td>
-                      <td className="px-8 py-5">
-                        <span className="text-sm font-medium text-brand-dark">{formatCurrency(billing.extra_value)}</span>
-                      </td>
-                      <td className="px-8 py-5 font-bold text-sm text-brand-dark">
-                        {formatCurrency(billing.base_value + billing.extra_value)}
-                      </td>
-                      <td className="px-8 py-5">
-                        <span className="text-gray-500 text-sm font-medium">Dia {billing.due_day}</span>
-                      </td>
-                      <td className="px-8 py-5">{getStatusBadge(billing)}</td>
-                      <td className="px-8 py-5">
-                        <div className="flex items-center gap-2">
-                          <button 
-                            type="button"
-                            onClick={() => startEditingBilling(billing)}
-                            className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-all"
-                            title="Editar Detalhes"
-                          >
-                            <Edit2 size={14} />
-                          </button>
-                          {billing.status !== 'paid' ? (
+                        </td>
+                        <td className="px-8 py-5">
+                          <span className="text-sm font-medium text-brand-dark">{formatCurrency(billing.base_value)}</span>
+                        </td>
+                        <td className="px-8 py-5">
+                          <span className="text-sm font-medium text-brand-dark">{formatCurrency(billing.extra_value)}</span>
+                        </td>
+                        <td className="px-8 py-5 font-bold text-sm text-brand-dark">
+                          {formatCurrency(billing.base_value + billing.extra_value)}
+                        </td>
+                        <td className="px-8 py-5">
+                          <div className="flex flex-col">
+                            <span className="text-brand-dark text-xs font-semibold">
+                              {info.dueDateFormatted}
+                            </span>
+                            {info.isOverdue && (
+                              <span className="inline-flex items-center gap-1 text-[11px] font-bold text-rose-600 mt-0.5">
+                                <Clock size={11} className="shrink-0 text-rose-500" />
+                                Venceu há {info.daysOverdue} {info.daysOverdue === 1 ? 'dia' : 'dias'}
+                              </span>
+                            )}
+                            {info.isPending && info.daysUntilDue <= 5 && (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 mt-1 rounded-md text-[10px] font-bold bg-amber-100/90 text-amber-900 border border-amber-200/80 w-fit shadow-2xs">
+                                <Clock size={10} className="shrink-0 text-amber-700" />
+                                {info.daysUntilDue === 0 ? 'Vence hoje' : info.daysUntilDue === 1 ? 'Vence em 1 dia' : `Vence em ${info.daysUntilDue} dias`}
+                              </span>
+                            )}
+                            {info.isPending && info.daysUntilDue > 5 && (
+                              <span className="inline-flex items-center gap-1 text-[11px] text-gray-500 font-medium mt-0.5">
+                                <Clock size={11} className="shrink-0 text-gray-400" />
+                                Vence em {info.daysUntilDue} dias
+                              </span>
+                            )}
+                            {info.isPaid && (
+                              <span className="inline-flex items-center gap-1 text-[11px] text-emerald-600 font-medium mt-0.5">
+                                <CheckCircle2 size={11} className="shrink-0 text-emerald-500" />
+                                {billing.paid_at ? `Pago em ${dayjs(billing.paid_at).format('DD/MM/YYYY')}` : 'Pago'}
+                              </span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-8 py-5">{getStatusBadge(billing)}</td>
+                        <td className="px-8 py-5">
+                          <div className="flex items-center gap-2">
                             <button 
                               type="button"
-                              disabled={markingBillingId === billing.id}
-                              onClick={() => handleMarkBillingPaid(billing)}
-                              className="px-4 py-2 bg-emerald-600 text-white rounded-xl text-[9px] font-bold uppercase tracking-widest hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-600/10 whitespace-nowrap disabled:opacity-50"
+                              onClick={() => startEditingBilling(billing)}
+                              className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-all"
+                              title="Editar Detalhes"
                             >
-                              {markingBillingId === billing.id ? 'Salvando...' : 'Marcar Pago'}
+                              <Edit2 size={14} />
                             </button>
-                          ) : (
-                            <button 
-                              type="button"
-                              disabled={markingBillingId === billing.id}
-                              onClick={() => handleUnmarkBillingPaid(billing)}
-                              className="px-4 py-2 bg-gray-50 text-gray-500 rounded-xl text-[9px] font-bold uppercase tracking-widest border border-gray-200 hover:bg-rose-50 hover:text-rose-600 hover:border-rose-100 transition-all whitespace-nowrap disabled:opacity-50"
-                            >
-                              {markingBillingId === billing.id ? 'Salvando...' : 'Estornar'}
-                            </button>
-                          )}
-                          {billing.is_sporadic && (
-                            <button 
-                              type="button"
-                              onClick={() => setDeletingSporadicBilling(billing)}
-                              className="p-2 text-gray-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all"
-                              title="Excluir Faturamento"
-                            >
-                              <Trash2 size={14} />
-                            </button>
-                          )}
-                        </div>
+                            {billing.status !== 'paid' ? (
+                              <button 
+                                type="button"
+                                disabled={markingBillingId === billing.id}
+                                onClick={() => handleMarkBillingPaid(billing)}
+                                className="px-4 py-2 bg-emerald-600 text-white rounded-xl text-[9px] font-bold uppercase tracking-widest hover:bg-emerald-700 transition-all shadow-md shadow-emerald-600/10 whitespace-nowrap disabled:opacity-50"
+                              >
+                                {markingBillingId === billing.id ? 'Salvando...' : 'Marcar Pago'}
+                              </button>
+                            ) : (
+                              <button 
+                                type="button"
+                                disabled={markingBillingId === billing.id}
+                                onClick={() => handleUnmarkBillingPaid(billing)}
+                                className="px-4 py-2 bg-gray-50 text-gray-500 rounded-xl text-[9px] font-bold uppercase tracking-widest border border-gray-200 hover:bg-rose-50 hover:text-rose-600 hover:border-rose-100 transition-all whitespace-nowrap disabled:opacity-50"
+                              >
+                                {markingBillingId === billing.id ? 'Salvando...' : 'Estornar'}
+                              </button>
+                            )}
+                            {billing.is_sporadic && (
+                              <button 
+                                type="button"
+                                onClick={() => setDeletingSporadicBilling(billing)}
+                                className="p-2 text-gray-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all"
+                                title="Excluir Faturamento"
+                              >
+                                <Trash2 size={14} />
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                  {sortedBillings.length === 0 && (
+                    <tr>
+                      <td colSpan={7} className="px-8 py-8 text-center text-gray-400 text-sm">
+                        {clientSearchFilter ? `Nenhum faturamento encontrado para "${clientSearchFilter}".` : 'Nenhum faturamento para este mês.'}
                       </td>
                     </tr>
-                  ))}
+                  )}
                 </tbody>
               </table>
             </div>

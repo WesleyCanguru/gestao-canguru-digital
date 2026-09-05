@@ -133,6 +133,31 @@ export interface PostComment {
   visible_to_admin: boolean; // True se for Wesley ou Admin. False se for Equipe.
 }
 
+export type PostRevisionAction = 
+  | 'submitted' 
+  | 'rejected' 
+  | 'approved' 
+  | 'revision_requested' 
+  | 'status_changed'
+  | 'edited';
+
+export type PostRevisionActorRole = 'agency' | 'client';
+
+export interface PostRevision {
+  id: string;
+  post_id: string;
+  agency_id: number;
+  version_number: number;
+  action: PostRevisionAction | string;
+  actor_role: PostRevisionActorRole;
+  actor_name: string | null;
+  rejection_reason: string | null;
+  caption_snapshot: string | null;
+  status_before: string | null;
+  status_after: string | null;
+  created_at: string;
+}
+
 export interface PostData {
   id?: string;
   client_id: string;
@@ -272,6 +297,21 @@ export interface ReferralPartner {
   total_paid_history?: number;
 }
 
+export interface ClientHealthScore {
+  id?: string;
+  agency_id: number;
+  client_id: string;
+  month_year: string; // 'YYYY-MM'
+  score: number; // 0-100
+  approval_speed_score: number; // 0-25
+  payment_score: number; // 0-25
+  nps_score: number; // 0-25
+  rejection_score: number; // 0-25
+  manual_notes?: string | null;
+  manual_penalty?: number | null; // 0-30
+  calculated_at?: string;
+}
+
 export interface ReferralCommission {
   id: string;
   agency_id: number;
@@ -289,6 +329,22 @@ export interface ReferralCommission {
   partner?: ReferralPartner;
   client?: Client;
   billing?: AgencyBilling;
+}
+
+export type RevenueEventType = 'upsell' | 'downsell' | 'churn' | 'reactivation' | 'new_client';
+
+export interface ClientRevenueEvent {
+  id: string;
+  agency_id: number;
+  client_id: string;
+  event_type: RevenueEventType | string;
+  previous_value: number;
+  new_value: number;
+  delta: number;
+  note?: string | null;
+  occurred_at: string;
+  created_at?: string;
+  client?: Client;
 }
 
 export interface PostTheme {
@@ -330,6 +386,7 @@ export interface AgencyBilling {
   extra_value: number;
   total_value: number;
   due_day: number;
+  due_date?: string | null; // YYYY-MM-DD
   status: 'paid' | 'pending' | 'overdue';
   notes: string | null;
   paid_at: string | null;
@@ -486,6 +543,8 @@ export interface AgencyLead {
   kanban_position: number;
   loss_reason: string | null;
   deal_value?: number | null;
+  estimated_value?: number | null;
+  close_probability?: number | null;
   stage_changed_at?: string;
   form_data: Record<string, any>;
   notes: string | null;
@@ -557,6 +616,10 @@ export interface AgencyTask {
   client?: { id: string; name: string; color: string; initials: string };
   position?: number;
   sort_order?: number | null;
+  parent_task_id?: string | null;
+  task_type?: string | null;
+  sla_days?: number | null;
+  subtasks?: AgencyTask[];
 }
 
 export type ProcessResponsible = 'wesley' | 'sarah' | 'client';
@@ -574,6 +637,7 @@ export interface ProcessTemplate {
   position: number;
   parent_id: string | null;
   is_active: boolean;
+  sla_days?: number | null;
 }
 
 export interface ProcessInstance {
@@ -672,6 +736,39 @@ export interface AgencyCommercialAction {
   contact_name: string;
   result: string;
   notes?: string | null;
+  meeting_video_url?: string | null;
+  meeting_summary_url?: string | null;
   created_at?: string;
+}
+
+export interface ClientNps {
+  id: string;
+  agency_id: number;
+  client_id: string;
+  month_year: string; // 'YYYY-MM'
+  score: number | null;
+  comment: string | null;
+  token: string;
+  sent_at: string | null;
+  responded_at: string | null;
+  created_at: string;
+  client?: {
+    id: string;
+    name: string;
+    logo_url?: string | null;
+    initials?: string;
+    color?: string;
+  };
+}
+
+export interface ClientMediaBudget {
+  id: string;
+  agency_id: number;
+  client_id: string;
+  platform: string;
+  month_year: string;
+  budget_amount: number;
+  created_at?: string;
+  updated_at?: string;
 }
 

@@ -31,6 +31,7 @@ import { ScriptApprovalPublic } from './components/anotacoes/ScriptApprovalPubli
 import { ClientPainelConteudo } from './components/client/ClientPainelConteudo';
 import { OrganicMetricsDashboard } from './components/client/OrganicMetricsDashboard';
 import { PublicMonthPage } from './components/PublicMonthPage';
+import { NpsPublicScreen } from './components/nps/NpsPublicScreen';
 
 import { AgencyHome } from './components/agency/AgencyHome';
 import { AgencyDashboard } from './components/agency/AgencyDashboard';
@@ -654,6 +655,7 @@ const App: React.FC = () => {
   const [themeToken, setThemeToken] = useState<string | null>(null);
   const [roteiroToken, setRoteiroToken] = useState<string | null>(null);
   const [fotosClientId, setFotosClientId] = useState<string | null>(null);
+  const [npsToken, setNpsToken] = useState<string | null>(null);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -671,6 +673,12 @@ const App: React.FC = () => {
     const fotosParam = params.get('fotos') || params.get('photos') || params.get('photos_client_id');
     if (fotosParam) {
       setFotosClientId(fotosParam);
+    }
+
+    // Suportar ?nps=TOKEN ou ?nps_token=TOKEN
+    const npsParam = params.get('nps') || params.get('nps_token');
+    if (npsParam) {
+      setNpsToken(npsParam);
     }
 
     const pathname = window.location.pathname;
@@ -692,6 +700,11 @@ const App: React.FC = () => {
     if (fotosMatch) {
       setFotosClientId(fotosMatch[1]);
     }
+    // Suportar /nps/TOKEN
+    const npsMatch = pathname.match(/^\/nps\/([^/]+)\/?$/);
+    if (npsMatch) {
+      setNpsToken(npsMatch[1]);
+    }
   }, []);
 
   const searchParams = new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '');
@@ -702,6 +715,10 @@ const App: React.FC = () => {
   const anoParam = searchParams.get('ano');
 
   const isPublicMonthLink = !!clientIdParam && (abaParam === 'mapa' || gateParam === 'nome');
+
+  if (npsToken) {
+    return <NpsPublicScreen token={npsToken} />;
+  }
 
   if (isPublicMonthLink && clientIdParam) {
     const mesNum = parseInt(mesParam ?? String(new Date().getMonth() + 1), 10);

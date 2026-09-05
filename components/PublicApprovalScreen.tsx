@@ -1,10 +1,12 @@
 
 import React, { useState, useEffect } from 'react';
 import { supabase, parseImageUrl, stringifyImageUrl } from '../lib/supabase';
-import { PostData, PostStatus, DailyContent, PostComment, Client } from '../types';
+import { PostData, PostStatus, DailyContent, PostComment, Client, PostRevision } from '../types';
 import { InstagramView, LinkedInView, TikTokView } from './PlatformViews';
 import { Logo } from './Logo';
-import { CheckCircle2, AlertTriangle, Send, User, Loader2, XCircle, Instagram, Linkedin, MessageSquare } from 'lucide-react';
+import { CheckCircle2, AlertTriangle, Send, User, Loader2, XCircle, Instagram, Linkedin, MessageSquare, History } from 'lucide-react';
+import { recordPostRevision, fetchPostRevisions } from '../lib/postRevisions';
+import { PostRevisionTimeline } from './PostRevisionTimeline';
 
 export const PublicApprovalScreen: React.FC = () => {
   const [loading, setLoading] = useState(true);
@@ -18,6 +20,8 @@ export const PublicApprovalScreen: React.FC = () => {
   
   // Comments State
   const [comments, setComments] = useState<PostComment[]>([]);
+  const [revisions, setRevisions] = useState<PostRevision[]>([]);
+  const [loadingRevisions, setLoadingRevisions] = useState(false);
   const [client, setClient] = useState<Client | null>(null);
   const [agencyId, setAgencyId] = useState<number | null>(null);
 
@@ -189,6 +193,19 @@ export const PublicApprovalScreen: React.FC = () => {
             setComments(commentsData as PostComment[]);
          }
 
+         // 4. Load Post Revisions
+         if (primary.post?.id) {
+            setLoadingRevisions(true);
+            try {
+               const revs = await fetchPostRevisions(primary.post.id);
+               setRevisions(revs);
+            } catch (rErr) {
+               console.warn('Erro ao carregar revisões:', rErr);
+            } finally {
+               setLoadingRevisions(false);
+            }
+         }
+
       } catch (err) {
          console.error(err);
          setError('Publicação não encontrada.');
@@ -292,6 +309,22 @@ export const PublicApprovalScreen: React.FC = () => {
             }
         }
 
+        // Record Post Revision
+        if (primaryPost.id) {
+            await recordPostRevision({
+                postId: primaryPost.id,
+                agencyId: primaryPost.agency_id || agencyId || 1,
+                action: 'approved',
+                actorRole: 'client',
+                actorName: name || 'Cliente',
+                captionSnapshot: primaryPost.caption,
+                statusBefore: primaryPost.status,
+                statusAfter: approvedStatus
+            });
+            const revs = await fetchPostRevisions(primaryPost.id);
+            setRevisions(revs);
+        }
+
         if (insertedComment) {
             setComments(prev => [...prev, insertedComment as PostComment]);
         }
@@ -316,6 +349,10 @@ export const PublicApprovalScreen: React.FC = () => {
 
   const submitReject = async () => {
      if (!primaryPost || !comment.trim()) return;
+     if (comment.trim().length < 10) {
+        alert('O motivo da reprovação deve ter pelo menos 10 caracteres.');
+        return;
+     }
      setSubmitting(true);
      try {
         const rejectedStatus = isThemeMode ? 'theme_rejected' : 'rejected';
@@ -383,6 +420,23 @@ export const PublicApprovalScreen: React.FC = () => {
             }
         }
 
+        // Record Post Revision
+        if (primaryPost.id) {
+            await recordPostRevision({
+                postId: primaryPost.id,
+                agencyId: primaryPost.agency_id || agencyId || 1,
+                action: 'rejected',
+                actorRole: 'client',
+                actorName: userName || 'Cliente',
+                rejectionReason: comment.trim(),
+                captionSnapshot: primaryPost.caption,
+                statusBefore: primaryPost.status,
+                statusAfter: rejectedStatus
+            });
+            const revs = await fetchPostRevisions(primaryPost.id);
+            setRevisions(revs);
+        }
+
         if (insertedComment) {
             setComments(prev => [...prev, insertedComment as PostComment]);
         }
@@ -410,6 +464,10 @@ export const PublicApprovalScreen: React.FC = () => {
 
   const submitChanges = async () => {
      if (!primaryPost || !comment.trim()) return;
+     if (comment.trim().length < 10) {
+        alert('A descrição do ajuste deve ter pelo menos 10 caracteres.');
+        return;
+     }
      setSubmitting(true);
      try {
         const changesStatus = isThemeMode ? 'theme_approved_with_notes' : 'changes_requested';
@@ -475,6 +533,23 @@ export const PublicApprovalScreen: React.FC = () => {
             if (item.post.date_key !== primaryPost.date_key) {
                 await saveChangesStatus(item.post, item.content);
             }
+        }
+
+        // Record Post Revision
+        if (primaryPost.id) {
+            await recordPostRevision({
+                postId: primaryPost.id,
+                agencyId: primaryPost.agency_id || agencyId || 1,
+                action: 'revision_requested',
+                actorRole: 'client',
+                actorName: userName || 'Cliente',
+                rejectionReason: comment.trim(),
+                captionSnapshot: primaryPost.caption,
+                statusBefore: primaryPost.status,
+                statusAfter: changesStatus
+            });
+            const revs = await fetchPostRevisions(primaryPost.id);
+            setRevisions(revs);
         }
 
         if (insertedComment) {
@@ -868,6 +943,16 @@ export const PublicApprovalScreen: React.FC = () => {
                                       </div>
                                   ))}
                               </div>
+                          </div>
+                      )}
+
+                      {/* Revisions History Section */}
+                      {revisions.length > 0 && (
+                          <div className="mt-8 pt-6 border-t border-gray-100">
+                              <h3 className="flex items-center gap-2 text-sm font-bold text-gray-900 mb-4">
+                                  <History size={16} className="text-purple-600" /> Histórico de Versões & Auditoria
+                              </h3>
+                              <PostRevisionTimeline revisions={revisions} loading={loadingRevisions} />
                           </div>
                       )}
 

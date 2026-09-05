@@ -228,6 +228,7 @@ interface HomeTabProps {
   onNavigateToMetas?: () => void;
   onNavigateToTasks?: () => void;
   onNavigateToCRM?: () => void;
+  onNavigateToFinanceiro?: (filter?: { clientId?: string; clientName?: string; monthYear?: string; subTab?: 'overview' | 'faturamento' | 'despesas' | 'indicacao' }) => void;
 }
 
 export const HomeTab: React.FC<HomeTabProps> = ({
@@ -236,7 +237,8 @@ export const HomeTab: React.FC<HomeTabProps> = ({
   onNavigateToPainelConteudo,
   onNavigateToMetas,
   onNavigateToTasks,
-  onNavigateToCRM
+  onNavigateToCRM,
+  onNavigateToFinanceiro
 }) => {
   const { agencyId, agencyName, userName, currentUser } = useAuth();
   const [personName, setPersonName] = useState<string | null>(null);
@@ -783,6 +785,8 @@ export const HomeTab: React.FC<HomeTabProps> = ({
         onNavigateToPainelConteudo={onNavigateToPainelConteudo}
         onNavigateToMasterMap={onNavigateToMasterMap}
         onNavigateToMetas={onNavigateToMetas}
+        onNavigateToTasks={onNavigateToTasks}
+        onNavigateToFinanceiro={onNavigateToFinanceiro}
       />
 
       {/* SEÇÃO 2 — PAINEL FINANCEIRO */}

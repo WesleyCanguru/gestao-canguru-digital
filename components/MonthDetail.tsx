@@ -15,6 +15,7 @@ import { useEditorialData, MONTH_NAMES, DAY_NAMES } from '../hooks/useEditorialD
 import { motion, AnimatePresence } from 'motion/react';
 import dayjs from 'dayjs';
 import { CustomDatePicker } from './CustomPickers';
+import { fetchRejectionCountsForClient } from '../lib/postRevisions';
 
 import { Client } from '../types';
 
@@ -87,6 +88,7 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({
   
   // Data States
   const [dbPosts, setDbPosts] = useState<Record<string, PostData>>({});
+  const [rejectionCounts, setRejectionCounts] = useState<{ byPostId: Record<string, number>; byDateKey: Record<string, number> }>({ byPostId: {}, byDateKey: {} });
   const [mergedPosts, setMergedPosts] = useState<Array<{ content: DailyContent, key: string, sortDate: number }>>([]);
   const [groupedPosts, setGroupedPosts] = useState<GroupedPost[]>([]);
   const [loadingPosts, setLoadingPosts] = useState(true);
@@ -842,6 +844,11 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({
     
     try {
       fetchRejectedCount();
+      if (activeClient?.id) {
+        fetchRejectionCountsForClient(activeClient.id).then(counts => {
+          setRejectionCounts(counts);
+        }).catch(e => console.warn('Erro ao carregar contagem de rejeições:', e));
+      }
       const { data, error } = await supabase
         .from('posts')
         .select('*')
@@ -1630,6 +1637,8 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({
               const hasLinkedin = group.platforms.some(p => p.toLowerCase().includes('linkedin'));
               const hasTikTok = group.platforms.some(p => p.toLowerCase().includes('tiktok'));
                const isSelected = selectedPosts.has(group.primaryKey);
+               const postObj = dbPosts[group.primaryKey];
+               const rejectionCount = (postObj?.id && rejectionCounts.byPostId[postObj.id]) || rejectionCounts.byDateKey[group.primaryKey] || 0;
 
                return (
                 <div 
@@ -1662,6 +1671,12 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({
                         {group.type.split(' ')[0]}
                       </span>
                     </div>
+
+                    {rejectionCount > 0 && (
+                      <span className="text-[7px] font-black uppercase tracking-wider text-rose-700 bg-rose-50 border border-rose-200 px-1.5 py-0.5 rounded flex items-center gap-0.5" title={`Este post já foi reprovado ${rejectionCount} vez(es)`}>
+                        Rejeitado {rejectionCount}x
+                      </span>
+                    )}
                   </div>
                   <p className="text-[11px] font-bold text-brand-dark leading-tight line-clamp-2 mb-2" title={group.theme}>
                     {group.theme}
@@ -2241,6 +2256,8 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({
                    const hasLinkedin = group.platforms.some(p => p.toLowerCase().includes('linkedin'));
                    const hasTikTok = group.platforms.some(p => p.toLowerCase().includes('tiktok'));
                    const isSelected = selectedPosts.has(group.primaryKey);
+                   const postObj = dbPosts[group.primaryKey];
+                   const rejectionCount = (postObj?.id && rejectionCounts.byPostId[postObj.id]) || rejectionCounts.byDateKey[group.primaryKey] || 0;
 
                    const targetDay = parseInt(group.content.day.split('/')[0]);
                    
@@ -2275,7 +2292,14 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({
                             <span className="inline-block md:mt-2 px-2 py-0.5 rounded text-[9px] font-bold border border-black/10 bg-white/50 uppercase text-gray-700">{getStatusLabel(group.status)}</span>
                          </div>
                          <div className="flex-grow">
-                            <span className="text-xs font-bold px-2 py-0.5 rounded border bg-white/50 border-black/10 text-gray-800 mb-2 inline-block">📌 {group.type}</span>
+                            <div className="flex items-center gap-2 mb-2 flex-wrap">
+                               <span className="text-xs font-bold px-2 py-0.5 rounded border bg-white/50 border-black/10 text-gray-800 inline-block">📌 {group.type}</span>
+                               {rejectionCount > 0 && (
+                                 <span className="text-[9px] font-black uppercase tracking-wider text-rose-700 bg-rose-50 border border-rose-200 px-2 py-0.5 rounded inline-block" title={`Este post já foi reprovado ${rejectionCount} vez(es)`}>
+                                   Rejeitado {rejectionCount}x
+                                 </span>
+                               )}
+                            </div>
                             {(() => {
                                const pts = group.platformTimes || [];
                                const timesSet = new Set(pts.map(p => p.time));

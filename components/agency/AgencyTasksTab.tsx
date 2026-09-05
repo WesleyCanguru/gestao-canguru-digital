@@ -111,6 +111,17 @@ dayjs.locale('pt-br');
 
 import { ProcessTemplatesModal } from './ProcessTemplatesModal';
 import { CustomDatePicker } from '../CustomPickers';
+import { 
+  matchProcessTemplate, 
+  createProcessTaskWithSteps, 
+  PROCESS_TYPES_CONFIG, 
+  DEFAULT_TEMPLATE_STEPS,
+  getTaskSlaAnalysis, 
+  getOverdueDays, 
+  parseTaskProcessMeta, 
+  cleanDescriptionFromMeta,
+  ProcessTypeInfo 
+} from '../../lib/processSla';
 
 const PROCESS_TYPES = [
   { id: 'carrossel', name: 'Publicação', icon: ImageIcon, color: 'text-purple-500 bg-purple-50 border-purple-100' },
@@ -619,7 +630,40 @@ const HojeTasks: React.FC<{
 
         const activeData = data.filter(task => !task.client || task.client.client_status !== 'cancelled');
 
-        const hojeTasks = activeData.filter(task => {
+        const activeWithMeta = activeData.map(t => {
+          const meta = parseTaskProcessMeta(t);
+          return {
+            ...t,
+            parent_task_id: t.parent_task_id || meta.parent_task_id,
+            task_type: t.task_type || meta.task_type,
+            sla_days: t.sla_days ?? meta.sla_days
+          };
+        });
+
+        const subtasksMap: Record<string, AgencyTask[]> = {};
+        activeWithMeta.forEach(t => {
+          if (t.parent_task_id) {
+            if (!subtasksMap[t.parent_task_id]) subtasksMap[t.parent_task_id] = [];
+            subtasksMap[t.parent_task_id].push(t);
+          }
+        });
+
+        activeWithMeta.forEach(t => {
+          if (!t.parent_task_id) {
+            t.subtasks = (subtasksMap[t.id] || []).sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
+          }
+        });
+
+        const hojeTasks = activeWithMeta.filter(task => {
+          // Sub-tarefas são exibidas dentro do card pai, não avulsas
+          if (task.parent_task_id) return false;
+
+          // Se tiver etapas de processo, checa se alguma etapa está pendente e vence hoje ou já atrasou
+          if (task.subtasks && task.subtasks.length > 0) {
+            const hasOverdueOrTodayStep = task.subtasks.some(st => st.status !== 'completed' && Boolean(st.due_date) && st.due_date <= todayString);
+            if (hasOverdueOrTodayStep) return true;
+          }
+
           // BUG FIX REATIVO: Tarefas com recurrence_type === none só aparecem se due_date <= hoje (hoje ou atrasada)
           if (task.recurrence_type === 'none' || !task.recurrence_type) {
             return task.status === 'pending' && Boolean(task.due_date) && task.due_date <= todayString;
@@ -1537,6 +1581,7 @@ const TodasTasks: React.FC<{
   const [sessionDurations, setSessionDurations] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
   const [filterClient, setFilterClient] = useState('all');
+  const [filterProcessOnly, setFilterProcessOnly] = useState(false);
   const [isCompletedExpanded, setIsCompletedExpanded] = useState(false);
 
   const sensors = useSensors(
@@ -1572,7 +1617,33 @@ const TodasTasks: React.FC<{
 
       if (data) {
         const activeTasks = data.filter(t => !t.client || t.client.client_status !== 'cancelled');
-        setTasks(activeTasks);
+        const activeWithMeta = activeTasks.map(t => {
+          const meta = parseTaskProcessMeta(t);
+          return {
+            ...t,
+            parent_task_id: t.parent_task_id || meta.parent_task_id,
+            task_type: t.task_type || meta.task_type,
+            sla_days: t.sla_days ?? meta.sla_days
+          };
+        });
+
+        const subtasksMap: Record<string, AgencyTask[]> = {};
+        activeWithMeta.forEach(t => {
+          if (t.parent_task_id) {
+            if (!subtasksMap[t.parent_task_id]) subtasksMap[t.parent_task_id] = [];
+            subtasksMap[t.parent_task_id].push(t);
+          }
+        });
+
+        const parentsOnly: AgencyTask[] = [];
+        activeWithMeta.forEach(t => {
+          if (!t.parent_task_id) {
+            t.subtasks = (subtasksMap[t.id] || []).sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
+            parentsOnly.push(t);
+          }
+        });
+
+        setTasks(parentsOnly);
       }
 
       // Fetch Pomodoro session durations for tasks
@@ -1677,6 +1748,11 @@ const TodasTasks: React.FC<{
     // Exclude daily, weekly and monthly recurring tasks (REQUISITO 2)
     const isRecurring = t.recurrence_type === 'daily' || t.recurrence_type === 'weekly' || t.recurrence_type === 'monthly';
     if (isRecurring) return false;
+
+    if (filterProcessOnly) {
+      const isProcess = Boolean(t.task_type || (t.subtasks && t.subtasks.length > 0));
+      if (!isProcess) return false;
+    }
 
     if (filterClient === 'internal') return !t.client_id;
     if (filterClient !== 'all') return t.client_id === filterClient;
@@ -1798,22 +1874,38 @@ const TodasTasks: React.FC<{
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center gap-4 mb-8">
-        <div className="flex items-center gap-2 text-gray-400">
-          <Filter size={18} />
-          <span className="text-xs font-bold uppercase tracking-widest">Filtrar por Cliente:</span>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex items-center gap-2 text-gray-400">
+            <Filter size={18} />
+            <span className="text-xs font-bold uppercase tracking-widest">Filtrar por Cliente:</span>
+          </div>
+          <select
+            value={filterClient}
+            onChange={(e) => setFilterClient(e.target.value)}
+            className="px-4 py-2.5 bg-white border border-gray-100 rounded-xl text-sm font-medium text-brand-dark outline-none cursor-pointer min-w-[220px] shadow-sm appearance-none"
+          >
+            <option value="all">Ver Todos</option>
+            <option value="internal">Canguru Digital (Interno)</option>
+            {clients.map(c => (
+              <option key={c.id} value={c.id}>{c.name}</option>
+            ))}
+          </select>
         </div>
-        <select
-          value={filterClient}
-          onChange={(e) => setFilterClient(e.target.value)}
-          className="px-4 py-2.5 bg-white border border-gray-100 rounded-xl text-sm font-medium text-brand-dark outline-none cursor-pointer min-w-[250px] shadow-sm appearance-none"
+
+        <button
+          type="button"
+          onClick={() => setFilterProcessOnly(prev => !prev)}
+          className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all shadow-xs cursor-pointer ${
+            filterProcessOnly 
+              ? 'bg-purple-600 text-white shadow-purple-600/20' 
+              : 'bg-white border border-gray-200 text-gray-700 hover:border-purple-300 hover:bg-purple-50/50'
+          }`}
         >
-          <option value="all">Ver Todos</option>
-          <option value="internal">Canguru Digital (Interno)</option>
-          {clients.map(c => (
-            <option key={c.id} value={c.id}>{c.name}</option>
-          ))}
-        </select>
+          <Clock size={15} className={filterProcessOnly ? 'text-white' : 'text-purple-600'} />
+          <span>Processos Ativos</span>
+          {filterProcessOnly && <Check size={14} />}
+        </button>
       </div>
 
       {loading ? (
@@ -1968,7 +2060,8 @@ const SortableTaskListItem: React.FC<{
   isTodayView?: boolean;
   onStartFocus?: (task: AgencyTask) => void;
   sessionDuration?: number;
-}> = ({ task, onToggle, onEdit, isTodayView, onStartFocus, sessionDuration }) => {
+  onRefresh?: () => void;
+}> = ({ task, onToggle, onEdit, isTodayView, onStartFocus, sessionDuration, onRefresh }) => {
   const {
     attributes,
     listeners,
@@ -1995,6 +2088,7 @@ const SortableTaskListItem: React.FC<{
         isDragging={isDragging} 
         onStartFocus={onStartFocus}
         sessionDuration={sessionDuration}
+        onRefresh={onRefresh}
       />
     </div>
   );
@@ -2007,9 +2101,40 @@ const TaskListItem: React.FC<{
   isTodayView?: boolean, 
   isDragging?: boolean,
   onStartFocus?: (task: AgencyTask) => void,
-  sessionDuration?: number
-}> = ({ task, onToggle, onEdit, isTodayView, isDragging, onStartFocus, sessionDuration }) => {
+  sessionDuration?: number,
+  onRefresh?: () => void
+}> = ({ task, onToggle, onEdit, isTodayView, isDragging, onStartFocus, sessionDuration, onRefresh }) => {
   const [showDetailModal, setShowDetailModal] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(false);
+  const [subtasksState, setSubtasksState] = useState<AgencyTask[]>(task.subtasks || []);
+
+  useEffect(() => {
+    setSubtasksState(task.subtasks || []);
+  }, [task.subtasks]);
+
+  const hasSubtasks = Boolean(subtasksState && subtasksState.length > 0);
+  const slaInfo = getTaskSlaAnalysis(subtasksState);
+
+  const toggleSubtask = async (e: React.MouseEvent, subtask: AgencyTask) => {
+    e.stopPropagation();
+    const nextStatus = subtask.status === 'completed' ? 'pending' : 'completed';
+    const completedAt = nextStatus === 'completed' ? new Date().toISOString() : null;
+
+    const updated = subtasksState.map(st => st.id === subtask.id ? { ...st, status: nextStatus as any, completed_at: completedAt } : st);
+    setSubtasksState(updated);
+
+    try {
+      await supabase
+        .from('agency_tasks')
+        .update({ status: nextStatus, completed_at: completedAt })
+        .eq('agency_id', task.agency_id)
+        .eq('id', subtask.id);
+    } catch (err) {
+      console.error('Erro ao atualizar sub-tarefa:', err);
+    }
+    if (onRefresh) onRefresh();
+  };
+
   const isDone = !isTaskPendingInCurrentCycle(task);
   const isOverdue = (task.recurrence_type === 'weekly' && isWeeklyTaskOverdue(task)) || 
     ((task.recurrence_type === 'none' || !task.recurrence_type) && !isDone && task.due_date && dayjs(task.due_date).isBefore(dayjs(), 'day'));
@@ -2042,9 +2167,11 @@ const TaskListItem: React.FC<{
 
   const cardBgClass = isDone 
     ? 'opacity-60 bg-gray-50 border-gray-100' 
-    : isOverdue 
+    : isOverdue || slaInfo.hasOverdue
       ? 'bg-red-50/60 border-red-200/80 hover:border-red-300' 
       : 'bg-white border-gray-100 hover:border-brand-dark/20';
+
+  const displayDescription = cleanDescriptionFromMeta(task.description);
 
   return (
     <>
@@ -2095,6 +2222,34 @@ const TaskListItem: React.FC<{
                 {task.priority || 'Normal'}
               </span>
 
+              {hasSubtasks && (
+                <span className="flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider whitespace-nowrap bg-purple-50 text-purple-700 border border-purple-200">
+                  <Clock size={11} className="text-purple-600" />
+                  {slaInfo.completedSteps}/{slaInfo.totalSteps} etapas ({slaInfo.progressPercent}%)
+                </span>
+              )}
+
+              {slaInfo.hasOverdue && (
+                <span className="flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider whitespace-nowrap text-rose-700 bg-rose-100 border border-rose-200 animate-pulse">
+                  <AlertCircle size={11} className="text-rose-600" />
+                  Etapa atrasada ({slaInfo.maxOverdueDays} {slaInfo.maxOverdueDays === 1 ? 'dia' : 'dias'})
+                </span>
+              )}
+
+              {hasSubtasks && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setIsExpanded(prev => !prev);
+                  }}
+                  className="flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-semibold text-gray-600 hover:text-brand-dark bg-gray-100 hover:bg-gray-200 transition-colors whitespace-nowrap cursor-pointer"
+                >
+                  {isExpanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+                  <span>{isExpanded ? 'Ocultar etapas' : `Ver ${slaInfo.totalSteps} etapas`}</span>
+                </button>
+              )}
+
               {task.recurrence_type && task.recurrence_type !== 'none' && (
                 <span title={`Recorrência: ${task.recurrence_type === 'daily' ? 'Diária' : task.recurrence_type === 'weekly' ? 'Semanal' : 'Mensal'}`} className={`flex items-center gap-1 px-2 py-0.5 rounded-md border text-[9px] font-bold uppercase tracking-wider whitespace-nowrap bg-purple-50 text-purple-600 border-purple-100`}>
                   <Repeat size={10} />
@@ -2102,7 +2257,7 @@ const TaskListItem: React.FC<{
                 </span>
               )}
               
-              {isOverdue && (
+              {isOverdue && !hasSubtasks && (
                 <span className="flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider whitespace-nowrap text-red-600 bg-red-100/80 border border-red-200">
                   Atrasada
                 </span>
@@ -2156,10 +2311,82 @@ const TaskListItem: React.FC<{
           </div>
 
           {/* Descrição Visível */}
-          {task.description && (
+          {displayDescription && (
             <p className={`text-xs mt-0.5 leading-relaxed break-words line-clamp-2 ${isDone ? 'text-gray-400' : 'text-gray-600'}`}>
-              {task.description}
+              {displayDescription}
             </p>
+          )}
+
+          {/* Checklist Inline de Etapas do Processo */}
+          {hasSubtasks && isExpanded && (
+            <div className="mt-3 pt-3 border-t border-gray-100/90 space-y-2.5" onClick={(e) => e.stopPropagation()}>
+              <div className="flex items-center justify-between text-[11px] font-bold uppercase tracking-wider text-gray-500">
+                <span className="flex items-center gap-1.5">
+                  <Clock size={13} className="text-purple-600" />
+                  Etapas do Processo & SLA
+                </span>
+                <span>{slaInfo.progressPercent}% concluído</span>
+              </div>
+
+              {/* Barra de progresso visual */}
+              <div className="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                <div 
+                  className="h-full bg-gradient-to-r from-purple-500 to-indigo-600 rounded-full transition-all duration-300"
+                  style={{ width: `${slaInfo.progressPercent}%` }}
+                />
+              </div>
+
+              {/* Lista das sub-tarefas com SLA individual */}
+              <div className="space-y-1.5 pt-1">
+                {subtasksState.map((step, idx) => {
+                  const stepDone = step.status === 'completed';
+                  const stepOverdue = !stepDone && step.due_date && dayjs(step.due_date).isBefore(dayjs(), 'day');
+                  const overdueDays = stepOverdue ? dayjs().diff(dayjs(step.due_date), 'day') : 0;
+                  const stepDate = step.due_date ? dayjs(step.due_date).format('DD/MM') : null;
+
+                  return (
+                    <div 
+                      key={step.id} 
+                      onClick={(e) => toggleSubtask(e, step)}
+                      className={`flex items-center justify-between p-2 rounded-xl text-xs transition-all cursor-pointer group/step ${
+                        stepDone 
+                          ? 'bg-gray-50/50 text-gray-400' 
+                          : (stepOverdue 
+                              ? 'bg-rose-50/70 border border-rose-200/80 shadow-xs' 
+                              : 'bg-white hover:bg-gray-50 border border-gray-100')
+                      }`}
+                    >
+                      <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                        <button
+                          type="button"
+                          onClick={(e) => toggleSubtask(e, step)}
+                          className={`flex-shrink-0 transition-colors ${stepDone ? 'text-green-500' : 'text-gray-300 group-hover/step:text-brand-dark'}`}
+                        >
+                          {stepDone ? <CheckCircle2 size={16} /> : <Circle size={16} />}
+                        </button>
+                        <span className={`font-medium break-words leading-tight ${stepDone ? 'line-through text-gray-400' : 'text-gray-800'}`}>
+                          <span className="text-[10px] font-bold text-gray-400 mr-1.5">{idx + 1}.</span>
+                          {cleanDescriptionFromMeta(step.title)}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center gap-2 flex-shrink-0 pl-2">
+                        {stepOverdue && (
+                          <span className="px-1.5 py-0.5 rounded text-[9px] font-black uppercase tracking-wider bg-rose-100 text-rose-700">
+                            Atrasado {overdueDays} {overdueDays === 1 ? 'dia' : 'dias'}
+                          </span>
+                        )}
+                        {stepDate && (
+                          <span className={`text-[10px] font-semibold ${stepOverdue ? 'text-rose-600 font-bold' : 'text-gray-500'}`}>
+                            Prazo: {stepDate}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
           )}
         </div>
         
@@ -2237,19 +2464,89 @@ const TaskListItem: React.FC<{
               </div>
 
               {/* Descrição */}
-              {task.description ? (
+              {displayDescription ? (
                 <div className="bg-gray-50 p-4 rounded-2xl border border-gray-100 space-y-1.5">
                   <div className="flex items-center gap-1.5 text-xs font-bold text-gray-400 uppercase tracking-wider">
                     <FileText size={14} />
                     <span>Descrição / Observações</span>
                   </div>
                   <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">
-                    {task.description}
+                    {displayDescription}
                   </p>
                 </div>
               ) : (
                 <div className="bg-gray-50/50 p-4 rounded-2xl border border-dashed border-gray-200 text-xs text-gray-400 italic">
                   Sem descrição informada nesta tarefa.
+                </div>
+              )}
+
+              {/* Etapas do Processo no Modal */}
+              {hasSubtasks && (
+                <div className="bg-purple-50/40 p-4 rounded-2xl border border-purple-100 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="flex items-center gap-2 text-xs font-bold text-purple-900 uppercase tracking-wider">
+                      <Clock size={15} className="text-purple-600" />
+                      Etapas do Processo & SLA ({slaInfo.completedSteps}/{slaInfo.totalSteps})
+                    </span>
+                    <span className="text-xs font-bold text-purple-700">{slaInfo.progressPercent}%</span>
+                  </div>
+
+                  <div className="w-full h-2 bg-purple-100/70 rounded-full overflow-hidden">
+                    <div 
+                      className="h-full bg-purple-600 rounded-full transition-all duration-300"
+                      style={{ width: `${slaInfo.progressPercent}%` }}
+                    />
+                  </div>
+
+                  <div className="space-y-2 pt-1 max-h-60 overflow-y-auto">
+                    {subtasksState.map((step, idx) => {
+                      const stepDone = step.status === 'completed';
+                      const stepOverdue = !stepDone && step.due_date && dayjs(step.due_date).isBefore(dayjs(), 'day');
+                      const overdueDays = stepOverdue ? dayjs().diff(dayjs(step.due_date), 'day') : 0;
+                      const stepDate = step.due_date ? dayjs(step.due_date).format('DD/MM/YYYY') : null;
+
+                      return (
+                        <div 
+                          key={step.id}
+                          onClick={(e) => toggleSubtask(e, step)}
+                          className={`flex items-center justify-between p-2.5 rounded-xl border text-xs cursor-pointer transition-all ${
+                            stepDone 
+                              ? 'bg-gray-50/60 border-gray-100 text-gray-400' 
+                              : (stepOverdue 
+                                  ? 'bg-rose-50 border-rose-200 text-gray-800' 
+                                  : 'bg-white border-purple-100/60 text-gray-800 hover:bg-purple-50/30')
+                          }`}
+                        >
+                          <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                            <button
+                              type="button"
+                              onClick={(e) => toggleSubtask(e, step)}
+                              className={`flex-shrink-0 ${stepDone ? 'text-green-500' : 'text-gray-300'}`}
+                            >
+                              {stepDone ? <CheckCircle2 size={18} /> : <Circle size={18} />}
+                            </button>
+                            <span className={`font-semibold ${stepDone ? 'line-through text-gray-400' : 'text-gray-800'}`}>
+                              <span className="text-[11px] text-gray-400 font-bold mr-1.5">{idx + 1}.</span>
+                              {cleanDescriptionFromMeta(step.title)}
+                            </span>
+                          </div>
+
+                          <div className="flex items-center gap-2 flex-shrink-0 pl-2">
+                            {stepOverdue && (
+                              <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-rose-100 text-rose-700">
+                                Atrasado {overdueDays}d
+                              </span>
+                            )}
+                            {stepDate && (
+                              <span className={`text-[11px] font-medium ${stepOverdue ? 'text-rose-600 font-bold' : 'text-gray-500'}`}>
+                                SLA: {stepDate}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
               )}
 
@@ -2366,6 +2663,11 @@ const TaskFormDrawer: React.FC<{
   onStartFocus?: (task: AgencyTask) => void;
 }> = ({ clients, task, onClose, onSuccess, onStartFocus }) => {
   const { agencyId } = useAuth();
+  const [suggestedProcess, setSuggestedProcess] = useState<ProcessTypeInfo | null>(() => task ? null : matchProcessTemplate(task?.title || ''));
+  const [selectedProcess, setSelectedProcess] = useState<string | null>(task?.task_type || null);
+  const [dismissedSuggestion, setDismissedSuggestion] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+
   const [form, setForm] = useState<{
     title: string;
     client_id: string;
@@ -2379,16 +2681,24 @@ const TaskFormDrawer: React.FC<{
     client_id: task?.client_id || '',
     priority: (task?.priority as AgencyTaskPriority) || 'normal',
     due_date: task?.due_date || '',
-    description: task?.description || '',
+    description: cleanDescriptionFromMeta(task?.description) || '',
     recurrence_type: (task?.recurrence_type as AgencyTaskRecurrenceType) || 'none',
     recurrence_days: task?.recurrence_days 
       ? task.recurrence_days.map((d: any) => parseInt(d, 10)).filter((d: any) => !isNaN(d))
       : []
   });
 
+  const handleTitleChange = (val: string) => {
+    setForm(prev => ({ ...prev, title: val }));
+    if (!task && !selectedProcess && !dismissedSuggestion) {
+      const match = matchProcessTemplate(val);
+      setSuggestedProcess(match);
+    }
+  };
+
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.title.trim()) return;
+    if (!form.title.trim() || isSaving) return;
 
     if (form.recurrence_type === 'weekly' && form.recurrence_days.length === 0) {
       alert('Selecione pelo menos 1 dia da semana para a recorrência semanal.');
@@ -2399,31 +2709,63 @@ const TaskFormDrawer: React.FC<{
       alert('Selecione um dia do mês válido entre 1 e 28.');
       return;
     }
-    
-    const payload = {
-      title: form.title,
-      client_id: form.client_id || null,
-      priority: form.priority,
-      due_date: form.due_date || null,
-      description: form.description,
-      recurrence_type: form.recurrence_type,
-      recurrence_days: form.recurrence_type === 'weekly' 
-        ? form.recurrence_days 
-        : (form.recurrence_type === 'monthly' 
-            ? (form.recurrence_days.length > 0 ? form.recurrence_days : [1]) 
-            : null),
-      agency_id: agencyId
-    };
-    
-    if (task) {
-      await supabase.from('agency_tasks')
-        .update(payload)
-        .eq('agency_id', agencyId)
-        .eq('id', task.id);
-    } else {
-      await supabase.from('agency_tasks').insert([payload]);
+
+    if (selectedProcess && !task && agencyId) {
+      setIsSaving(true);
+      try {
+        await createProcessTaskWithSteps({
+          agencyId,
+          title: form.title,
+          clientId: form.client_id || null,
+          priority: form.priority,
+          description: form.description,
+          processType: selectedProcess,
+          startDate: form.due_date || undefined
+        });
+        onSuccess();
+        onClose();
+        return;
+      } catch (err: any) {
+        console.error('Erro ao criar tarefa com processo:', err);
+        alert(`Erro ao criar tarefa com processo: ${err?.message || err}`);
+      } finally {
+        setIsSaving(false);
+      }
     }
-    onSuccess();
+    
+    setIsSaving(true);
+    try {
+      const payload: any = {
+        title: form.title,
+        client_id: form.client_id || null,
+        priority: form.priority,
+        due_date: form.due_date || null,
+        description: form.description,
+        recurrence_type: form.recurrence_type,
+        recurrence_days: form.recurrence_type === 'weekly' 
+          ? form.recurrence_days 
+          : (form.recurrence_type === 'monthly' 
+              ? (form.recurrence_days.length > 0 ? form.recurrence_days : [1]) 
+              : null),
+        agency_id: agencyId
+      };
+      
+      if (task) {
+        await supabase.from('agency_tasks')
+          .update(payload)
+          .eq('agency_id', agencyId)
+          .eq('id', task.id);
+      } else {
+        await supabase.from('agency_tasks').insert([payload]);
+      }
+      onSuccess();
+      onClose();
+    } catch (err: any) {
+      console.error('Erro ao salvar tarefa:', err);
+      alert(`Erro ao salvar tarefa: ${err?.message || err}`);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleDelete = async () => {
@@ -2459,7 +2801,105 @@ const TaskFormDrawer: React.FC<{
           <form id="task-form" onSubmit={handleSave} className="space-y-6">
             <div className="space-y-2">
               <label className="text-[10px] font-bold uppercase tracking-widest text-gray-500">Título</label>
-              <input autoFocus type="text" value={form.title} onChange={e => setForm({...form, title: e.target.value})} className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-brand-dark/20 outline-none" required />
+              <input 
+                autoFocus 
+                type="text" 
+                value={form.title} 
+                onChange={e => handleTitleChange(e.target.value)} 
+                className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-brand-dark/20 outline-none" 
+                placeholder="Ex: Criar reels para campanha de verão"
+                required 
+              />
+            </div>
+
+            {/* Banner de Sugestão de Processo Automático */}
+            {suggestedProcess && !selectedProcess && !dismissedSuggestion && !task && (
+              <div className="p-4 bg-amber-50/90 border border-amber-200/90 rounded-2xl space-y-2.5 shadow-xs animate-in fade-in duration-200">
+                <div className="flex items-start gap-3">
+                  <span className="text-xl">💡</span>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-bold text-amber-950">
+                      Quer usar o processo padrão de "{suggestedProcess.name}"?
+                    </p>
+                    <p className="text-[11px] text-amber-800/90 mt-0.5 leading-snug">
+                      Ele cria as etapas automaticamente com os prazos (SLA) calculados em dias úteis.
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 pl-8 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedProcess(suggestedProcess.id);
+                    }}
+                    className="px-3.5 py-1.5 bg-amber-600 hover:bg-amber-700 active:scale-95 text-white rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer"
+                  >
+                    Usar processo
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDismissedSuggestion(true);
+                    }}
+                    className="px-3.5 py-1.5 bg-white hover:bg-amber-100/50 text-amber-900 border border-amber-200 rounded-xl text-xs font-semibold transition-all cursor-pointer"
+                  >
+                    Não, obrigado
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Seletor Manual / Status de Processo com SLA */}
+            <div className="space-y-2">
+              <label className="text-[10px] font-bold uppercase tracking-widest text-gray-500">
+                Processo com SLA (Opcional)
+              </label>
+              <select 
+                value={selectedProcess || ''} 
+                onChange={e => setSelectedProcess(e.target.value || null)}
+                className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-brand-dark/20 outline-none cursor-pointer text-sm font-medium text-brand-dark"
+                disabled={Boolean(task)}
+              >
+                <option value="">Nenhum processo (Tarefa avulsa)</option>
+                {PROCESS_TYPES_CONFIG.map(p => {
+                  const stepsCount = (DEFAULT_TEMPLATE_STEPS[p.id] || []).length;
+                  return (
+                    <option key={p.id} value={p.id}>
+                      {p.name} ({stepsCount} etapas com SLA)
+                    </option>
+                  );
+                })}
+              </select>
+
+              {selectedProcess && (
+                <div className="p-3 bg-purple-50/70 border border-purple-100 rounded-xl space-y-2 text-xs">
+                  <div className="flex items-center justify-between text-purple-900 font-bold">
+                    <span className="flex items-center gap-1.5">
+                      <Clock size={13} className="text-purple-600" />
+                      Etapas com SLA que serão criadas:
+                    </span>
+                    {!task && (
+                      <button
+                        type="button"
+                        onClick={() => setSelectedProcess(null)}
+                        className="text-[10px] text-purple-600 hover:text-purple-800 underline font-semibold cursor-pointer"
+                      >
+                        Desvincular
+                      </button>
+                    )}
+                  </div>
+                  <ul className="space-y-1 text-purple-800/90 text-[11px]">
+                    {(DEFAULT_TEMPLATE_STEPS[selectedProcess] || []).map((st, i) => (
+                      <li key={i} className="flex items-center justify-between">
+                        <span>{i + 1}. {st.title}</span>
+                        <span className="font-bold text-purple-700 bg-purple-100/80 px-1.5 py-0.5 rounded text-[10px]">
+                          +{st.sla_days} {st.sla_days === 1 ? 'dia útil' : 'dias úteis'}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
             </div>
             
             <div className="space-y-2">
@@ -2481,7 +2921,7 @@ const TaskFormDrawer: React.FC<{
                 </select>
               </div>
               <div className="space-y-2">
-                <label className="text-[10px] font-bold uppercase tracking-widest text-gray-500">Data Limite</label>
+                <label className="text-[10px] font-bold uppercase tracking-widest text-gray-500">Data de Início / Limite</label>
                 <CustomDatePicker value={form.due_date} onChange={date => setForm({...form, due_date: date})} />
               </div>
             </div>
@@ -2569,8 +3009,13 @@ const TaskFormDrawer: React.FC<{
               <span>Modo Foco</span>
             </button>
           )}
-          <button type="submit" form="task-form" className="flex-1 py-4 bg-brand-dark text-white rounded-xl font-bold uppercase tracking-widest hover:opacity-90 transition-opacity">
-            Salvar
+          <button 
+            type="submit" 
+            form="task-form" 
+            disabled={isSaving}
+            className="flex-1 py-4 bg-brand-dark text-white rounded-xl font-bold uppercase tracking-widest hover:opacity-90 transition-opacity disabled:opacity-50 cursor-pointer"
+          >
+            {isSaving ? 'Salvando...' : (task ? 'Salvar' : (selectedProcess ? 'Criar Tarefa e Processo' : 'Criar Tarefa'))}
           </button>
         </div>
       </motion.div>

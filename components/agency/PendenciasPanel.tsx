@@ -7,11 +7,18 @@ import {
   Clock, 
   AlertTriangle, 
   Sparkles,
+  DollarSign,
+  Flame,
+  Activity,
   LucideIcon
 } from 'lucide-react';
 import dayjs from 'dayjs';
 import 'dayjs/locale/pt-br';
 import { Client } from '../../types';
+import { calculateDueDate } from '../../hooks/useAgencyFinanceiro';
+import { normalizePlatformKey, getPlatformLabel } from '../../hooks/useMediaBudgets';
+
+import { parseTaskProcessMeta, getOverdueDays } from '../../lib/processSla';
 
 dayjs.locale('pt-br');
 
@@ -19,7 +26,7 @@ const TEST_CLIENT_IDS = ['3491826b-8f32-4a8b-a081-8a1ed7c305c2'];
 
 export interface PendingItem {
   id: string;
-  type: 'no_posts_week' | 'goals_not_defined' | 'metrics_outdated' | 'stalled_posts';
+  type: 'no_posts_week' | 'goals_not_defined' | 'metrics_outdated' | 'stalled_posts' | 'overdue_billing' | 'high_consumption' | 'over_budget' | 'low_health_score' | 'overdue_process_steps';
   level: 'atencao' | 'urgente';
   icon: LucideIcon;
   label: string;
@@ -31,13 +38,17 @@ interface PendenciasPanelProps {
   onNavigateToPainelConteudo?: (filter?: { aba?: 'dashboard' | 'publicacoes'; status?: string; periodo?: string; date?: string }) => void;
   onNavigateToMasterMap?: (filter?: { aba?: 'dashboard' | 'publicacoes'; status?: string; periodo?: string; date?: string }) => void;
   onNavigateToMetas?: () => void;
+  onNavigateToTasks?: () => void;
+  onNavigateToFinanceiro?: (filter?: { clientId?: string; clientName?: string; monthYear?: string; subTab?: 'overview' | 'faturamento' | 'despesas' | 'indicacao' }) => void;
 }
 
 export const PendenciasPanel: React.FC<PendenciasPanelProps> = ({
   onNavigateToClients,
   onNavigateToPainelConteudo,
   onNavigateToMasterMap,
-  onNavigateToMetas
+  onNavigateToMetas,
+  onNavigateToTasks,
+  onNavigateToFinanceiro
 }) => {
   const { userRole, agencyId } = useAuth();
   const [loading, setLoading] = useState(true);
@@ -69,7 +80,11 @@ export const PendenciasPanel: React.FC<PendenciasPanelProps> = ({
         console.warn('Erro ao carregar clientes para pendências:', clientsErr.message);
       }
 
-      const activeClients = ((clientsData as any[]) || []).filter(
+      const rawClients = ((clientsData as any[]) || []);
+      const clientsMap = new Map<string, any>();
+      rawClients.forEach((c) => clientsMap.set(c.id, c));
+
+      const activeClients = rawClients.filter(
         (c) => !c.is_internal && c.client_status !== 'cancelled' && c.client_status !== 'inactive' && !TEST_CLIENT_IDS.includes(c.id)
       );
 
@@ -258,13 +273,211 @@ export const PendenciasPanel: React.FC<PendenciasPanelProps> = ({
         });
       });
 
+      // --- VERIFICAÇÃO 5: Faturas vencidas não pagas (Aging de Inadimplência) ---
+      const { data: billingsData, error: billingsErr } = await supabase
+        .from('agency_billing')
+        .select('id, client_id, month_year, due_day, due_date, status, is_sporadic, sporadic_name')
+        .eq('agency_id', agencyId)
+        .neq('status', 'paid');
+
+      if (billingsErr) {
+        console.warn('Aviso ao carregar faturas para pendências:', billingsErr.message);
+      }
+
+      if (billingsData) {
+        billingsData.forEach((b: any) => {
+          let clientName = '';
+          let isTest = false;
+
+          if (b.is_sporadic) {
+            clientName = b.sporadic_name || 'Esporádico';
+          } else {
+            const client = activeClients.find((c) => c.id === b.client_id);
+            if (!client) return; // Se o cliente não estiver ativo/recorrente na agência, ignora
+            clientName = client.name;
+            if (TEST_CLIENT_IDS.includes(client.id) || TEST_CLIENT_IDS.includes(b.client_id)) {
+              isTest = true;
+            }
+          }
+
+          if (isTest) return;
+
+          const dueDay = b.due_day || 10;
+          const dueStr = b.due_date || calculateDueDate(b.month_year, dueDay);
+          const dueDate = dayjs(dueStr);
+
+          if (!dueDate.isValid()) return;
+
+          // Se a data de vencimento for anterior ao início de hoje
+          if (dueDate.isBefore(today, 'day')) {
+            const daysOverdue = today.diff(dueDate.startOf('day'), 'day');
+            const monthName = dayjs(b.month_year).format('MMMM');
+
+            pendingList.push({
+              id: `overdue-billing-${b.id}`,
+              type: 'overdue_billing',
+              level: 'urgente',
+              icon: DollarSign,
+              label: `${clientName}: fatura de ${monthName} venceu há ${daysOverdue} ${daysOverdue === 1 ? 'dia' : 'dias'}`,
+              onClick: () => {
+                onNavigateToFinanceiro?.({
+                  clientId: b.client_id,
+                  clientName: clientName,
+                  monthYear: b.month_year,
+                  subTab: 'faturamento'
+                });
+              }
+            });
+          }
+        });
+      }
+
+      // 6. Verba de Mídia por cliente e plataforma (Alertas de consumo e estouro)
+      const startOfMonthStr = `${currentMonthYear}-01`;
+      const endOfMonthStr = dayjs(startOfMonthStr).endOf('month').format('YYYY-MM-DD');
+      const totalDaysInMonth = dayjs(startOfMonthStr).daysInMonth();
+      const currentDay = dayjs().date();
+      const remainingDaysInMonth = Math.max(0, totalDaysInMonth - currentDay);
+
+      const { data: mediaBudgetsData } = await supabase
+        .from('client_media_budgets')
+        .select('*')
+        .eq('agency_id', agencyId)
+        .eq('month_year', currentMonthYear);
+
+      if (mediaBudgetsData && mediaBudgetsData.length > 0) {
+        const { data: trafficData } = await supabase
+          .from('paid_traffic_daily')
+          .select('client_id, platform, investment')
+          .eq('agency_id', agencyId)
+          .gte('report_date', startOfMonthStr)
+          .lte('report_date', endOfMonthStr);
+
+        const investmentMap: Record<string, Record<string, number>> = {};
+        (trafficData || []).forEach(row => {
+          const cId = row.client_id;
+          const pKey = normalizePlatformKey(row.platform);
+          if (!investmentMap[cId]) investmentMap[cId] = {};
+          investmentMap[cId][pKey] = (investmentMap[cId][pKey] || 0) + (Number(row.investment) || 0);
+        });
+
+        mediaBudgetsData.forEach(b => {
+          const cId = b.client_id;
+          if (TEST_CLIENT_IDS.includes(cId)) return;
+          const client = clientsMap.get(cId);
+          if (!client || client.is_internal || client.client_status === 'cancelled') return;
+          if (client.name && client.name.toLowerCase().includes('a-teste')) return;
+
+          const pKey = normalizePlatformKey(b.platform);
+          const pLabel = getPlatformLabel(pKey);
+          const budget = Number(b.budget_amount) || 0;
+          if (budget <= 0) return;
+
+          const invested = investmentMap[cId]?.[pKey] || 0;
+          const percentage = Math.round((invested / budget) * 100);
+
+          if (invested > budget) {
+            const exceeded = Math.round(invested - budget);
+            pendingList.push({
+              id: `over-budget-${b.id}`,
+              type: 'over_budget',
+              level: 'urgente',
+              icon: Flame,
+              label: `${client.name} (${pLabel}): verba estourada em R$${exceeded.toLocaleString('pt-BR')}`,
+              onClick: () => {
+                onNavigateToClients?.(client);
+              }
+            });
+          } else if (percentage >= 85 && remainingDaysInMonth > 5) {
+            pendingList.push({
+              id: `high-consumption-${b.id}`,
+              type: 'high_consumption',
+              level: 'atencao',
+              icon: AlertTriangle,
+              label: `${client.name} (${pLabel}): ${percentage}% da verba consumida — faltam ${remainingDaysInMonth} dias`,
+              onClick: () => {
+                onNavigateToClients?.(client);
+              }
+            });
+          }
+        });
+      }
+
+      // 7. Health Score (Alerta para clientes com score < 60 - Risco de Churn)
+      const { data: healthScoresData } = await supabase
+        .from('client_health_scores')
+        .select('*')
+        .eq('agency_id', agencyId)
+        .eq('month_year', currentMonthYear);
+
+      if (healthScoresData && healthScoresData.length > 0) {
+        healthScoresData.forEach(h => {
+          const cId = h.client_id;
+          if (TEST_CLIENT_IDS.includes(cId)) return;
+          const client = clientsMap.get(cId);
+          if (!client || client.is_internal || client.client_status === 'cancelled' || client.client_status === 'inactive') return;
+          if (client.name && client.name.toLowerCase().includes('a-teste')) return;
+
+          if (h.score < 60) {
+            pendingList.push({
+              id: `low-health-${h.id}`,
+              type: 'low_health_score',
+              level: 'urgente',
+              icon: Activity,
+              label: `${client.name}: Health Score baixo (${h.score}/100) — Risco de Churn`,
+              onClick: () => {
+                onNavigateToClients?.(client);
+              }
+            });
+          }
+        });
+      }
+
+      // 8. Etapas de Processo com SLA Atrasado
+      try {
+        const { data: tasksData } = await supabase
+          .from('agency_tasks')
+          .select('id, title, status, due_date, parent_task_id, description')
+          .eq('agency_id', agencyId)
+          .eq('status', 'pending');
+
+        if (tasksData && tasksData.length > 0) {
+          let overdueProcessSteps = 0;
+          tasksData.forEach((task: any) => {
+            const meta = parseTaskProcessMeta(task);
+            const isStep = Boolean(task.parent_task_id || meta.parent_task_id);
+            if (isStep && task.due_date) {
+              const days = getOverdueDays(task.due_date);
+              if (days > 0) {
+                overdueProcessSteps++;
+              }
+            }
+          });
+
+          if (overdueProcessSteps > 0) {
+            pendingList.push({
+              id: 'overdue-process-steps',
+              type: 'overdue_process_steps',
+              level: 'urgente',
+              icon: Clock,
+              label: `${overdueProcessSteps} ${overdueProcessSteps === 1 ? 'etapa de processo atrasada' : 'etapas de processos atrasadas'}`,
+              onClick: () => {
+                onNavigateToTasks?.();
+              }
+            });
+          }
+        }
+      } catch (tErr) {
+        console.warn('Aviso ao carregar etapas de processo para pendências:', tErr);
+      }
+
       setItems(pendingList);
     } catch (err) {
       console.error('Erro ao calcular pendências operacionais:', err);
     } finally {
       setLoading(false);
     }
-  }, [agencyId, userRole, onNavigateToClients, onNavigateToPainelConteudo, onNavigateToMasterMap, onNavigateToMetas]);
+  }, [agencyId, userRole, onNavigateToClients, onNavigateToPainelConteudo, onNavigateToMasterMap, onNavigateToMetas, onNavigateToTasks, onNavigateToFinanceiro]);
 
   useEffect(() => {
     fetchPendencias();
@@ -283,6 +496,18 @@ export const PendenciasPanel: React.FC<PendenciasPanelProps> = ({
         fetchPendencias();
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'social_metrics', filter: `agency_id=eq.${agencyId}` }, () => {
+        fetchPendencias();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'agency_billing', filter: `agency_id=eq.${agencyId}` }, () => {
+        fetchPendencias();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'client_media_budgets', filter: `agency_id=eq.${agencyId}` }, () => {
+        fetchPendencias();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'paid_traffic_daily', filter: `agency_id=eq.${agencyId}` }, () => {
+        fetchPendencias();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'agency_tasks', filter: `agency_id=eq.${agencyId}` }, () => {
         fetchPendencias();
       })
       .subscribe();

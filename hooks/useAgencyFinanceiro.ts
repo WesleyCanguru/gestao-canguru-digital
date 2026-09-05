@@ -17,6 +17,32 @@ export interface MonthFinancialSummary {
   margin: number;
 }
 
+export function calculateDueDate(monthYear: string, dueDay: number): string {
+  const parts = (monthYear || '').split('-');
+  const year = parseInt(parts[0], 10) || dayjs().year();
+  const month = (parseInt(parts[1], 10) || (dayjs().month() + 1)) - 1; // 0-indexed
+  const safeDay = Math.max(1, Math.min(31, dueDay || 10));
+  const baseDate = dayjs(new Date(year, month, 1));
+  const daysInMonth = baseDate.daysInMonth();
+  const clampedDay = Math.min(safeDay, daysInMonth);
+  return baseDate.date(clampedDay).format('YYYY-MM-DD');
+}
+
+export function getLastActiveMonthYear(c: { cancelled_at?: string | null; service_end_date?: string | null }): string | null {
+  if (c.service_end_date) {
+    return dayjs(c.service_end_date).format('YYYY-MM');
+  }
+  if (c.cancelled_at) {
+    const cancelDate = dayjs(c.cancelled_at);
+    // Se cancelado no dia 1 do mês (ex: 2026-08-01), o último mês ativo de cobrança foi o mês anterior (2026-07)
+    if (cancelDate.date() === 1) {
+      return cancelDate.subtract(1, 'day').format('YYYY-MM');
+    }
+    return cancelDate.format('YYYY-MM');
+  }
+  return null;
+}
+
 export function useAgencyFinanceiro(monthYear: string) {
   const { agencyId } = useAuth();
   const [billings, setBillings] = useState<AgencyBilling[]>([]);
@@ -94,9 +120,9 @@ export function useAgencyFinanceiro(monthYear: string) {
       const clients = (clientsData || []).filter(c => {
         if (c.is_internal) return false;
         if (c.client_status !== 'cancelled') return true;
-        if (!c.cancelled_at) return false;
-        const cancelMonthYear = dayjs(c.cancelled_at).format('YYYY-MM');
-        return monthYear <= cancelMonthYear;
+        const lastActiveMY = getLastActiveMonthYear(c);
+        if (!lastActiveMY) return true;
+        return monthYear <= lastActiveMY;
       }) as any[];
 
       // Fetch Billings for the month
@@ -116,11 +142,6 @@ export function useAgencyFinanceiro(monthYear: string) {
         if (b.is_sporadic) return true;
         const c = b.client as any;
         if (c?.is_internal) return false;
-        if (c && c.client_status === 'cancelled') {
-          if (!c.cancelled_at) return false;
-          const cancelMonthYear = dayjs(c.cancelled_at).format('YYYY-MM');
-          return monthYear <= cancelMonthYear;
-        }
         return true;
       });
 
@@ -140,22 +161,26 @@ export function useAgencyFinanceiro(monthYear: string) {
         return clientStartMonth <= monthYear;
       });
 
-      const placeholderBillings: AgencyBilling[] = missingClients.map(c => ({
-        id: `temp-${c.id}`,
-        client_id: c.id,
-        month_year: monthYear,
-        base_value: c.base_value || 0,
-        extra_value: 0,
-        total_value: 0,
-        due_day: c.due_day || 10,
-        status: 'pending',
-        notes: null,
-        paid_at: null,
-        created_at: new Date().toISOString(),
-        client: c,
-        is_sporadic: false,
-        agency_id: agencyId!
-      }));
+      const placeholderBillings: AgencyBilling[] = missingClients.map(c => {
+        const dueDay = c.due_day || 10;
+        return {
+          id: `temp-${c.id}`,
+          client_id: c.id,
+          month_year: monthYear,
+          base_value: c.base_value || 0,
+          extra_value: 0,
+          total_value: 0,
+          due_day: dueDay,
+          due_date: calculateDueDate(monthYear, dueDay),
+          status: 'pending',
+          notes: null,
+          paid_at: null,
+          created_at: new Date().toISOString(),
+          client: c,
+          is_sporadic: false,
+          agency_id: agencyId!
+        };
+      });
 
       setBillings([...currentBillings, ...placeholderBillings]);
 
@@ -190,8 +215,9 @@ export function useAgencyFinanceiro(monthYear: string) {
         const explicitClientIds = new Set(mExplicitBillings.filter(b => !b.is_sporadic).map(b => b.client_id));
         
         const mActiveClients = clients.filter(c => {
-          if (c.client_status === 'cancelled' && c.cancelled_at && dayjs(c.cancelled_at).format('YYYY-MM') < mStr) {
-            return false;
+          if (c.client_status === 'cancelled') {
+            const lastActiveMY = getLastActiveMonthYear(c);
+            if (lastActiveMY && mStr > lastActiveMY) return false;
           }
           let startDate = c.created_at;
           if (c.contract && c.contract.length > 0 && c.contract[0].contract_start_date) {
@@ -266,13 +292,18 @@ export function useAgencyFinanceiro(monthYear: string) {
         paidAt = null;
       }
 
+      const dueDayVal = billing.due_day !== undefined ? billing.due_day : (existing?.due_day || 10);
+      const dueMonthYear = billing.month_year || existing?.month_year || monthYear;
+      const calculatedDueDate = billing.due_date || existing?.due_date || calculateDueDate(dueMonthYear, dueDayVal);
+
       const dbData = {
         client_id: billing.client_id || existing?.client_id || null,
-        month_year: billing.month_year || existing?.month_year || monthYear,
+        month_year: dueMonthYear,
         base_value: base,
         extra_value: extra,
         total_value: total,
-        due_day: billing.due_day !== undefined ? billing.due_day : (existing?.due_day || 10),
+        due_day: dueDayVal,
+        due_date: calculatedDueDate,
         status: newStatus,
         notes: billing.notes !== undefined ? billing.notes : (existing?.notes || null),
         paid_at: paidAt,

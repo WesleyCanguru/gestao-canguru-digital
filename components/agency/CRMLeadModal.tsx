@@ -19,6 +19,8 @@ export const CRMLeadModal: React.FC<CRMLeadModalProps> = ({ crm, lead, isOpen, o
   const [formData, setFormData] = useState<Record<string, any>>({});
   const [notes, setNotes] = useState('');
   const [stage, setStage] = useState('');
+  const [estimatedValue, setEstimatedValue] = useState('');
+  const [closeProbability, setCloseProbability] = useState('50');
   const [isSaving, setIsSaving] = useState(false);
   const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -26,6 +28,19 @@ export const CRMLeadModal: React.FC<CRMLeadModalProps> = ({ crm, lead, isOpen, o
   useEffect(() => {
     if (lead) {
       setName(lead.name);
+      const estVal = lead.estimated_value !== undefined && lead.estimated_value !== null
+        ? String(lead.estimated_value).replace('.', ',')
+        : (lead.deal_value !== undefined && lead.deal_value !== null
+            ? String(lead.deal_value).replace('.', ',')
+            : (lead.form_data?.deal_value !== undefined && lead.form_data?.deal_value !== null
+                ? String(lead.form_data.deal_value).replace('.', ',')
+                : ''));
+      setEstimatedValue(estVal);
+      setCloseProbability(
+        lead.close_probability !== undefined && lead.close_probability !== null
+          ? String(lead.close_probability)
+          : '50'
+      );
       
       const isPredefined = ["Não respondeu", "Achou caro", "Não era o momento", "Escolheu concorrente"].includes(lead.loss_reason || '');
       const temp_loss_reason = lead.loss_reason 
@@ -48,6 +63,8 @@ export const CRMLeadModal: React.FC<CRMLeadModalProps> = ({ crm, lead, isOpen, o
       setIsEditing(false);
     } else {
       setName('');
+      setEstimatedValue('');
+      setCloseProbability('50');
       setFormData({});
       setNotes('');
       setStage(crm.kanban_stages[0]?.name || '');
@@ -86,19 +103,30 @@ export const CRMLeadModal: React.FC<CRMLeadModalProps> = ({ crm, lead, isOpen, o
         cleanFormData.deal_value = null;
       }
 
+      const parsedEstimatedValue = estimatedValue.trim() !== '' ? parseCurrencyInput(estimatedValue) : cleanFormData.deal_value;
+      const parsedCloseProbability = closeProbability.trim() !== '' ? Math.min(100, Math.max(0, parseInt(closeProbability, 10))) : 50;
+
       if (lead) {
         await updateLead(lead.id, {
           name,
           form_data: cleanFormData,
           notes,
-          loss_reason: resolvedLossReason
+          loss_reason: resolvedLossReason,
+          estimated_value: parsedEstimatedValue,
+          close_probability: parsedCloseProbability,
+          deal_value: parsedEstimatedValue
         });
         if (stage !== lead.stage) {
           await moveLeadToStage(lead, stage, crm.kanban_stages, crm.auto_advance_time);
         }
       } else {
         const newLead = await addLead(crm.id, name, cleanFormData, stage);
-        await updateLead(newLead.id, { loss_reason: resolvedLossReason });
+        await updateLead(newLead.id, {
+          loss_reason: resolvedLossReason,
+          estimated_value: parsedEstimatedValue,
+          close_probability: parsedCloseProbability,
+          deal_value: parsedEstimatedValue
+        });
         if (stage !== crm.kanban_stages[0]?.name) {
           await moveLeadToStage(newLead, stage, crm.kanban_stages, crm.auto_advance_time);
         }
@@ -192,6 +220,38 @@ export const CRMLeadModal: React.FC<CRMLeadModalProps> = ({ crm, lead, isOpen, o
                 className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-dark/20 focus:border-brand-dark transition-all disabled:opacity-100 disabled:bg-gray-50/30 disabled:text-gray-600 disabled:border-gray-100/80 disabled:cursor-default"
                 placeholder="Ex: João Silva"
               />
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-emerald-50/50 border border-emerald-100 p-4 rounded-xl">
+              <div>
+                <label className="block text-xs font-bold text-emerald-900 mb-1">
+                  💵 Ticket Mensal Estimado (R$)
+                </label>
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  value={estimatedValue}
+                  onChange={(e) => setEstimatedValue(e.target.value)}
+                  disabled={!isEditing}
+                  className="w-full px-4 py-2 bg-white border border-emerald-200 rounded-xl text-gray-900 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all disabled:opacity-100 disabled:bg-emerald-50/20 disabled:text-gray-700"
+                  placeholder="Ex: 2500,00"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-emerald-900 mb-1">
+                  🎯 Probabilidade de Fechamento (%)
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  max="100"
+                  value={closeProbability}
+                  onChange={(e) => setCloseProbability(e.target.value)}
+                  disabled={!isEditing}
+                  className="w-full px-4 py-2 bg-white border border-emerald-200 rounded-xl text-gray-900 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all disabled:opacity-100 disabled:bg-emerald-50/20 disabled:text-gray-700"
+                  placeholder="0 a 100"
+                />
+              </div>
             </div>
 
             <div className="grid grid-cols-2 gap-4">

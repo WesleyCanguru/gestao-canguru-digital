@@ -123,12 +123,23 @@ export const CRMLeadCard: React.FC<CRMLeadCardProps> = ({ lead, crm, onClick, on
           )}
         </div>
 
-        {/* Display Deal Value if present */}
-        {(lead.form_data?.deal_value || lead.deal_value) ? (
-          <div className="text-xs font-bold text-purple-700 bg-purple-50 border border-purple-100 px-2.5 py-1 rounded-lg inline-block mb-3">
-            💜 {Number(lead.form_data?.deal_value || lead.deal_value).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+        {/* Display Estimated Value & Close Probability */}
+        {(lead.estimated_value || lead.deal_value || lead.form_data?.deal_value) ? (
+          <div className="flex flex-wrap items-center gap-1.5 mb-3">
+            <div className="text-xs font-bold text-emerald-800 bg-emerald-50 border border-emerald-200/80 px-2.5 py-1 rounded-lg">
+              💵 {Number(lead.estimated_value || lead.deal_value || lead.form_data?.deal_value).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+            </div>
+            {lead.close_probability !== undefined && lead.close_probability !== null && (
+              <div className="text-xs font-bold text-blue-700 bg-blue-50 border border-blue-200/80 px-2 py-1 rounded-lg" title="Probabilidade de Fechamento">
+                🎯 {lead.close_probability}%
+              </div>
+            )}
           </div>
-        ) : null}
+        ) : (lead.close_probability !== undefined && lead.close_probability !== null ? (
+          <div className="text-xs font-bold text-blue-700 bg-blue-50 border border-blue-200/80 px-2 py-1 rounded-lg inline-block mb-3" title="Probabilidade de Fechamento">
+            🎯 {lead.close_probability}%
+          </div>
+        ) : null)}
 
         {primaryValue && (
           <div className="text-xs text-gray-500 mb-3 line-clamp-1">

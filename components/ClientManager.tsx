@@ -6,6 +6,7 @@ import { Client, ClientLeadConfig } from '../types';
 import { getAnnualOverviewTemplate } from '../constants';
 import { parseCurrencyInput } from '../lib/currencyUtils';
 import dayjs from 'dayjs';
+import { ClientMediaBudgetSection } from './client/ClientMediaBudgetSection';
 import { 
   ArrowLeft, 
   Plus, 
@@ -38,8 +39,21 @@ import {
   LayoutDashboard,
   Copy,
   Target,
-  XCircle
+  XCircle,
+  HeartHandshake,
+  Send
 } from 'lucide-react';
+import { NpsBadge } from './nps/NpsBadge';
+import { ClientNpsSection } from './nps/ClientNpsSection';
+import { useAllClientsCurrentMonthNps, useClientNps } from '../hooks/useClientNps';
+import { HealthScoreBadge } from './health/HealthScoreBadge';
+import { ClientHealthPanel } from './health/ClientHealthPanel';
+import { useAllClientsCurrentMonthHealthScores } from '../hooks/useClientHealthScore';
+import { useAgencyClientsLtv } from '../hooks/useClientLtv';
+import { formatCompactLtv } from '../lib/clientLtv';
+import { Activity } from 'lucide-react';
+import { ClientRevenueHistory } from './client/ClientRevenueHistory';
+import { RevenueChangeConfirmModal, RevenueChangeModalData } from './client/RevenueChangeConfirmModal';
 import { ConfirmModal } from './ConfirmModal';
 import { BRIEFING_QUESTIONS } from './BriefingOnboarding';
 import { 
@@ -140,6 +154,12 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
   const [showInactive, setShowInactive] = useState(false);
   const [clientContract, setClientContract] = useState<any | null>(null);
   const [loadingContract, setLoadingContract] = useState(false);
+  const { npsMap, refresh: refreshNps } = useAllClientsCurrentMonthNps(agencyId);
+  const { healthMap } = useAllClientsCurrentMonthHealthScores(agencyId);
+  const { ltvMap } = useAgencyClientsLtv();
+  const [clientSortBy, setClientSortBy] = useState<'ltv' | 'health' | 'nps' | 'name'>('ltv');
+  const { sendSurvey: sendNpsSurvey, toastMessage: npsToast } = useClientNps(null, agencyId);
+  const [copiedNpsClientId, setCopiedNpsClientId] = useState<string | null>(null);
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -219,8 +239,10 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
   });
   const [uploading, setUploading] = useState(false);
   const [newContractLinkInfo, setNewContractLinkInfo] = useState<{ clientId: string, token: string } | null>(null);
-  const [formTab, setFormTab] = useState<'dados_basicos' | 'servicos' | 'acesso'>('dados_basicos');
+  const [formTab, setFormTab] = useState<'dados_basicos' | 'servicos' | 'acesso' | 'saude'>('dados_basicos');
   const [customTemplates, setCustomTemplates] = useState<Record<string, any>>({});
+  const [showRevenueChangeModal, setShowRevenueChangeModal] = useState(false);
+  const [revenueChangeModalData, setRevenueChangeModalData] = useState<RevenueChangeModalData | null>(null);
 
   const fetchClients = async () => {
     if (!agencyId) return;
@@ -284,6 +306,37 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
 
   const handleSave = async () => {
     if (!form.name.trim() || !form.initials.trim()) return;
+
+    // Detectar se o valor base mensal mudou durante a edição de um cliente
+    if (editingClientId) {
+      const originalClient = clients.find(c => c.id === editingClientId);
+      const originalBaseValue = Number(originalClient?.base_value) || 0;
+      const newBaseValue = parseCurrencyInput(form.base_value) || 0;
+
+      if (originalBaseValue !== newBaseValue) {
+        setRevenueChangeModalData({
+          clientId: editingClientId,
+          clientName: form.name.trim() || originalClient?.name || '',
+          previousValue: originalBaseValue,
+          newValue: newBaseValue,
+          eventType: newBaseValue > originalBaseValue ? 'upsell' : 'downsell'
+        });
+        setShowRevenueChangeModal(true);
+        return;
+      }
+    }
+
+    await executeSave();
+  };
+
+  const executeSave = async (revenueEventData?: {
+    eventType: any;
+    previousValue: number;
+    newValue: number;
+    note?: string;
+    occurredAt?: string;
+  }) => {
+    if (!form.name.trim() || !form.initials.trim()) return;
     setSaving(true);
     try {
       const socialNetworks = form.social_networks.filter(s => !s.startsWith('linkedin_handle:'));
@@ -334,6 +387,24 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
         if (error) throw error;
         clientData = data;
 
+        // Registrar evento de receita automaticamente se houve mudança de valor
+        if (revenueEventData) {
+          try {
+            await supabase.from('client_revenue_events').insert([{
+              agency_id: agencyId,
+              client_id: editingClientId,
+              event_type: revenueEventData.eventType,
+              previous_value: revenueEventData.previousValue,
+              new_value: revenueEventData.newValue,
+              delta: revenueEventData.newValue - revenueEventData.previousValue,
+              note: revenueEventData.note?.trim() || null,
+              occurred_at: revenueEventData.occurredAt || dayjs().format('YYYY-MM-DD')
+            }]);
+          } catch (revErr) {
+            console.error('Falha ao gravar evento em client_revenue_events:', revErr);
+          }
+        }
+
         // Save lead tracking config
         await supabase.from('client_lead_configs').upsert({
           client_id: editingClientId,
@@ -353,6 +424,25 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
 
         if (error) throw error;
         clientData = data;
+
+        // Registrar evento de início se o cliente já possui valor cadastrado
+        const initialVal = parseCurrencyInput(form.base_value) || 0;
+        if (initialVal > 0) {
+          try {
+            await supabase.from('client_revenue_events').insert([{
+              agency_id: agencyId,
+              client_id: clientData.id,
+              event_type: 'new_client',
+              previous_value: 0,
+              new_value: initialVal,
+              delta: initialVal,
+              note: 'Início de contrato',
+              occurred_at: dayjs().format('YYYY-MM-DD')
+            }]);
+          } catch (initRevErr) {
+            console.error('Falha ao registrar novo cliente no histórico de receita:', initRevErr);
+          }
+        }
 
         // 2. Chamar RPCs de estrutura padrão (apenas para novos)
         await supabase.rpc('create_default_editorial_structure', {
@@ -735,6 +825,23 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
 
   return (
     <div className="min-h-screen bg-[#FDFDFD] p-6 relative overflow-hidden">
+      {/* Toast flutuante de NPS */}
+      <AnimatePresence>
+        {npsToast && (
+          <motion.div
+            initial={{ opacity: 0, y: -20, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -20, scale: 0.95 }}
+            className="fixed top-6 right-6 z-50 flex items-center gap-3 px-5 py-3.5 bg-[#13284D] text-white rounded-2xl shadow-xl border border-white/10 text-sm font-medium"
+          >
+            <div className="w-6 h-6 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0">
+              <Check className="w-3.5 h-3.5 stroke-[3]" />
+            </div>
+            <span>{npsToast}</span>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Background decoration */}
       <div className="absolute top-0 left-0 w-full h-full overflow-hidden z-0 pointer-events-none">
         <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-blue-50/50 rounded-full blur-[120px]"></div>
@@ -817,6 +924,16 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
               >
                 Acesso & Exibição
               </button>
+              {editingClientId && (
+                <button
+                  type="button"
+                  onClick={() => setFormTab('saude')}
+                  className={`py-3 px-6 text-sm font-bold border-b-2 transition-colors whitespace-nowrap flex items-center gap-1.5 ${formTab === 'saude' ? 'border-brand-dark text-brand-dark' : 'border-transparent text-gray-400 hover:text-gray-600'}`}
+                >
+                  <Activity size={15} />
+                  Saúde do Cliente
+                </button>
+              )}
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
@@ -1094,6 +1211,45 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
                 </div>
               </div>
 
+              {/* Plataformas de Anúncios (Tráfego Pago) */}
+              <div className="sm:col-span-2 mt-4 pt-4 border-t border-gray-100">
+                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
+                  Plataformas de Anúncios Ativas (Tráfego Pago)
+                </label>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                  {AVAILABLE_TRAFFIC_PLATFORMS.map(platform => (
+                    <label key={platform} className="flex items-center gap-2 cursor-pointer">
+                      <input 
+                        type="checkbox" 
+                        checked={form.traffic_platforms.includes(platform)}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setForm(f => ({ ...f, traffic_platforms: [...f.traffic_platforms, platform] }));
+                          } else {
+                            setForm(f => ({ ...f, traffic_platforms: f.traffic_platforms.filter(p => p !== platform) }));
+                          }
+                        }}
+                        className="w-4 h-4 text-brand-dark border-gray-300 rounded focus:ring-brand-dark"
+                      />
+                      <span className="text-sm text-gray-700">{platform}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              {/* Seção de Verba de Mídia por Cliente */}
+              {editingClientId && (
+                <div className="sm:col-span-2 mt-4 pt-4 border-t border-gray-100">
+                  <ClientMediaBudgetSection 
+                    client={{
+                      id: editingClientId,
+                      name: form.name,
+                      traffic_platforms: form.traffic_platforms,
+                    } as Client} 
+                  />
+                </div>
+              )}
+
               <div className="sm:col-span-2 mt-4 pt-6 border-t border-gray-100">
                 <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-4">
                   Configurações Financeiras (Padrão)
@@ -1174,6 +1330,16 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
                       />
                     </div>
                   </div>
+                </div>
+              )}
+
+              {/* Histórico de Receita do Cliente */}
+              {editingClientId && (
+                <div className="sm:col-span-2 mt-4 pt-6 border-t border-gray-100">
+                  <ClientRevenueHistory 
+                    client={clients.find(c => c.id === editingClientId) || ({ id: editingClientId, name: form.name, base_value: parseCurrencyInput(form.base_value) } as any)} 
+                    onEventAdded={fetchClients}
+                  />
                 </div>
               )}
 
@@ -1666,7 +1832,18 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
               </div>
               </>
               )}
+              {formTab === 'saude' && editingClientId && clients.find(c => c.id === editingClientId) && (
+                <div className="sm:col-span-2">
+                  <ClientHealthPanel client={clients.find(c => c.id === editingClientId)!} />
+                </div>
+              )}
             </div>
+
+            {editingClientId && clients.find(c => c.id === editingClientId) && formTab !== 'saude' && (
+              <div className="mt-8 pt-8 border-t border-gray-100">
+                <ClientNpsSection client={clients.find(c => c.id === editingClientId)!} />
+              </div>
+            )}
 
             <div className="flex gap-4 mt-8">
               <button onClick={handleSave} disabled={saving || !form.name || !form.initials}
@@ -1691,10 +1868,49 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
           const activeClientsList = clients.filter(c => !c.client_status || c.client_status === 'active');
           const inactiveClientsList = clients.filter(c => c.client_status === 'cancelled' || c.client_status === 'completed');
 
+          const sortedActiveClients = [...activeClientsList].sort((a, b) => {
+            if (clientSortBy === 'ltv') {
+              const ltvA = ltvMap[a.id]?.ltvEstimated || 0;
+              const ltvB = ltvMap[b.id]?.ltvEstimated || 0;
+              return ltvB - ltvA;
+            }
+            if (clientSortBy === 'health') {
+              const scoreA = healthMap[a.id]?.score ?? -1;
+              const scoreB = healthMap[b.id]?.score ?? -1;
+              return scoreB - scoreA;
+            }
+            if (clientSortBy === 'nps') {
+              const npsA = npsMap[a.id]?.score ?? -1;
+              const npsB = npsMap[b.id]?.score ?? -1;
+              return npsB - npsA;
+            }
+            return a.name.localeCompare(b.name);
+          });
+
           return (
             <div className="space-y-6">
+              {/* Barra de Ordenação de Clientes */}
+              <div className="flex items-center justify-between gap-4 flex-wrap bg-white p-4 rounded-2xl border border-black/[0.03] shadow-2xs">
+                <span className="text-xs font-bold uppercase tracking-wider text-gray-500">
+                  Clientes Ativos ({activeClientsList.length})
+                </span>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-semibold text-gray-400">Ordenar por:</span>
+                  <select
+                    value={clientSortBy}
+                    onChange={(e) => setClientSortBy(e.target.value as any)}
+                    className="text-xs font-bold bg-gray-50 border border-gray-200 rounded-xl px-3 py-1.5 text-brand-dark focus:outline-none focus:border-blue-500 cursor-pointer"
+                  >
+                    <option value="ltv">Maior LTV Estimado</option>
+                    <option value="health">Health Score</option>
+                    <option value="nps">Média NPS</option>
+                    <option value="name">Nome (A-Z)</option>
+                  </select>
+                </div>
+              </div>
+
               <div className="space-y-4">
-                {activeClientsList.map((client, index) => (
+                {sortedActiveClients.map((client, index) => (
                   <motion.div 
                     key={client.id} 
                     initial={{ opacity: 0, y: 10 }}
@@ -1718,6 +1934,16 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
                             Pontual {client.service_end_date ? `• até ${dayjs(client.service_end_date).format('DD/MM')}` : ''}
                           </span>
                         )}
+                        {ltvMap[client.id] && (
+                          <span 
+                            className="inline-flex items-center gap-1 px-2.5 py-0.5 bg-indigo-50 text-indigo-700 border border-indigo-200/60 rounded-full text-[10px] font-extrabold uppercase tracking-wider shadow-2xs cursor-help"
+                            title={ltvMap[client.id].explanation}
+                          >
+                            LTV Est: {formatCompactLtv(ltvMap[client.id].ltvEstimated)}
+                          </span>
+                        )}
+                        <HealthScoreBadge healthScore={healthMap[client.id]} size="sm" />
+                        <NpsBadge nps={npsMap[client.id]} size="sm" />
                       </div>
                       <p className="text-xs text-gray-400 uppercase tracking-wider font-semibold">
                         {client.segment || '—'} {client.responsible ? `• ${client.responsible}` : ''}
@@ -1733,6 +1959,29 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
                       )}
                     </div>
                     <div className="flex-shrink-0 flex items-center gap-4 self-end sm:self-auto mt-4 sm:mt-0">
+                      <button 
+                        onClick={async () => {
+                          const res = await sendNpsSurvey(client.id, client.agency_id);
+                          if (res.success) {
+                            setCopiedNpsClientId(client.id);
+                            setTimeout(() => setCopiedNpsClientId(null), 3000);
+                            refreshNps();
+                          }
+                        }}
+                        className={`flex flex-col items-center justify-center gap-1 p-2 transition-colors ${
+                          copiedNpsClientId === client.id ? 'text-emerald-600' : 'text-gray-400 hover:text-amber-600'
+                        }`}
+                        title={npsMap[client.id]?.sent_at ? "Copiar link da pesquisa NPS" : "Enviar pesquisa de satisfação"}
+                      >
+                        {copiedNpsClientId === client.id ? (
+                          <Check size={18} className="text-emerald-500" />
+                        ) : (
+                          <HeartHandshake size={18} />
+                        )}
+                        <span className="text-[9px] font-bold uppercase tracking-widest">
+                          {copiedNpsClientId === client.id ? 'Copiado' : 'NPS'}
+                        </span>
+                      </button>
                       <button 
                         onClick={() => handleEdit(client)}
                         className="flex flex-col items-center justify-center gap-1 p-2 text-gray-400 hover:text-brand-dark transition-colors"
@@ -1808,6 +2057,16 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
                                 }`}>
                                   {client.client_status === 'cancelled' ? 'Cancelado' : 'Concluído'}
                                 </span>
+                                {ltvMap[client.id] && (
+                                  <span 
+                                    className="inline-flex items-center gap-1 px-2.5 py-0.5 bg-stone-100 text-stone-700 border border-stone-200 rounded-full text-[10px] font-extrabold uppercase tracking-wider shadow-2xs cursor-help"
+                                    title={ltvMap[client.id].explanation}
+                                  >
+                                    LTV Real: {formatCompactLtv(ltvMap[client.id].ltvEstimated)}
+                                  </span>
+                                )}
+                                <HealthScoreBadge healthScore={healthMap[client.id]} size="sm" />
+                                <NpsBadge nps={npsMap[client.id]} size="sm" />
                               </div>
                               <p className="text-xs text-gray-400 uppercase tracking-wider font-semibold">
                                 {client.segment || '—'} {client.responsible ? `• ${client.responsible}` : ''}
@@ -1988,6 +2247,30 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
           </motion.div>
         </div>
       )}
+
+      {/* Modal de Confirmação de Alteração de Receita (Upsell / Downsell) */}
+      <RevenueChangeConfirmModal
+        isOpen={showRevenueChangeModal}
+        data={revenueChangeModalData}
+        loading={saving}
+        onCancel={() => {
+          setShowRevenueChangeModal(false);
+          setRevenueChangeModalData(null);
+        }}
+        onConfirm={async (note, occurredAt) => {
+          if (revenueChangeModalData) {
+            await executeSave({
+              eventType: revenueChangeModalData.eventType,
+              previousValue: revenueChangeModalData.previousValue,
+              newValue: revenueChangeModalData.newValue,
+              note,
+              occurredAt
+            });
+            setShowRevenueChangeModal(false);
+            setRevenueChangeModalData(null);
+          }
+        }}
+      />
     </div>
   );
 };

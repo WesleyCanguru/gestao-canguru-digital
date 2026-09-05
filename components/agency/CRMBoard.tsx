@@ -380,13 +380,37 @@ export const CRMBoard: React.FC<CRMBoardProps> = ({ crm }) => {
     }, {} as Record<string, number>);
 
     const emNegociacaoLeads = filteredLeads.filter(l => isNegotiationOrProposalStage(l.stage));
-    const emMesa = emNegociacaoLeads.reduce((sum, l) => sum + (Number(l.form_data?.deal_value) || Number(l.deal_value) || 0), 0);
+    const emMesa = emNegociacaoLeads.reduce((sum, l) => sum + (Number(l.estimated_value) || Number(l.form_data?.deal_value) || Number(l.deal_value) || 0), 0);
 
     const perdidoStage = crm.kanban_stages.find(s => s.id === 'perdido' || s.name.toLowerCase() === 'perdido');
-    const perdidosLeads = filteredLeads.filter(l => l.stage === perdidoStage?.name);
+    const perdidosLeads = filteredLeads.filter(l => l.stage === perdidoStage?.name || l.stage.toLowerCase().includes('perdido'));
 
     const fechadoStage = crm.kanban_stages.find(s => s.id === 'fechado' || s.name.toLowerCase() === 'fechado');
-    const fechadosLeads = filteredLeads.filter(l => l.stage === fechadoStage?.name);
+    const fechadosLeads = filteredLeads.filter(l => l.stage === fechadoStage?.name || l.stage.toLowerCase().includes('fechado'));
+
+    // Pipeline Active Leads (excluindo 'perdido' e 'fechado')
+    const activePipelineLeads = filteredLeads.filter(l => {
+      const stageLower = (l.stage || '').toLowerCase();
+      const stageObj = crm.kanban_stages.find(s => s.name === l.stage);
+      const isLost = stageLower.includes('perdido') || stageLower.includes('lost') || stageObj?.id === 'perdido';
+      const isClosed = stageLower.includes('fechado') || stageLower.includes('closed') || stageObj?.id === 'fechado';
+      return !isLost && !isClosed;
+    });
+
+    const pipelineTotal = activePipelineLeads.reduce((sum, l) => {
+      const val = Number(l.estimated_value) || Number(l.deal_value) || Number(l.form_data?.deal_value) || 0;
+      return sum + val;
+    }, 0);
+
+    const receitaProjetada = activePipelineLeads.reduce((sum, l) => {
+      const val = Number(l.estimated_value) || Number(l.deal_value) || Number(l.form_data?.deal_value) || 0;
+      const prob = l.close_probability !== undefined && l.close_probability !== null ? Number(l.close_probability) : 50;
+      return sum + (val * (prob / 100));
+    }, 0);
+
+    const conversionRate = leads.length > 0
+      ? (fechadosLeads.length / leads.length) * 100
+      : 0;
 
     const coldStages = crm.kanban_stages.filter(s => 
       !isNegotiationOrProposalStage(s.name) && s.id !== 'perdido' && s.id !== 'fechado' &&
@@ -407,13 +431,17 @@ export const CRMBoard: React.FC<CRMBoardProps> = ({ crm }) => {
     return {
       counts,
       emMesa,
+      pipelineTotal,
+      receitaProjetada,
+      conversionRate,
       propostaEnviadaCount: emNegociacaoLeads.length,
       perdidoCount: perdidosLeads.length,
       fechadoCount: fechadosLeads.length,
+      activePipelineCount: activePipelineLeads.length,
       coldStages,
       lossReasonsCounts
     };
-  }, [filteredLeads, crm.kanban_stages]);
+  }, [filteredLeads, leads.length, crm.kanban_stages]);
 
   return (
     <div className="h-full flex flex-col bg-gray-50/25">
@@ -508,85 +536,68 @@ export const CRMBoard: React.FC<CRMBoardProps> = ({ crm }) => {
       {activeTab === 'metrics' && (
         <div className="flex-1 overflow-y-auto">
           <div className="p-4 sm:p-6 space-y-6 max-w-7xl mx-auto w-full pb-20">
-            {/* Indicadores Grid */}
-            <div className="bg-white rounded-3xl border border-gray-100 p-6 shadow-sm flex flex-col lg:flex-row items-stretch divide-y lg:divide-y-0 lg:divide-x divide-gray-100 gap-6 lg:gap-0">
-              
-              {/* Bloco 1: Leads, Fechados, Conversão */}
-              <div className="flex-1 grid grid-cols-1 sm:grid-cols-3 gap-6 lg:pr-6 pb-6 lg:pb-0">
-                {/* Leads no Mês */}
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2 text-gray-400 font-bold text-[10px] uppercase tracking-wider">
-                    <span className="w-1.5 h-1.5 rounded-full bg-blue-500" />
-                    Leads no Mês
-                  </div>
-                  <div className="text-4xl font-black text-gray-900">
-                    {leads.length}
+            {/* Indicadores Pipeline Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {/* Card 1: Pipeline Total */}
+              <div className="bg-white rounded-3xl border border-gray-100 p-6 shadow-xs space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold uppercase tracking-wider text-gray-500 flex items-center gap-1.5">
+                    <span className="p-1.5 bg-blue-50 text-blue-600 rounded-xl">📊</span>
+                    Pipeline Total
+                  </span>
+                  <span className="text-[11px] font-bold text-gray-400 bg-gray-50 px-2 py-0.5 rounded-md">
+                    {dashboardStats.activePipelineCount} leads
+                  </span>
+                </div>
+                <div className="text-3xl font-black text-gray-900">
+                  {dashboardStats.pipelineTotal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                </div>
+                <p className="text-xs text-gray-400 font-medium">
+                  Soma dos tickets estimados dos leads ativos (exclui perdas e fechados)
+                </p>
+              </div>
+
+              {/* Card 2: Receita Projetada com Forecast Tooltip */}
+              <div className="bg-gradient-to-br from-emerald-900 to-[#13284D] text-white rounded-3xl p-6 shadow-md space-y-2 relative group">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold uppercase tracking-wider text-emerald-300 flex items-center gap-1.5">
+                    <span className="p-1.5 bg-emerald-800/60 text-emerald-300 rounded-xl">🎯</span>
+                    Receita Projetada (Forecast)
+                  </span>
+                  <div className="relative cursor-pointer">
+                    <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-emerald-800/80 text-emerald-200 text-xs font-black hover:bg-emerald-700 transition-colors">?</span>
+                    {/* Tooltip */}
+                    <div className="absolute right-0 top-full mt-2 w-72 p-3 bg-gray-900 text-stone-100 text-xs leading-relaxed rounded-2xl shadow-2xl opacity-0 group-hover:opacity-100 transition-all pointer-events-none z-50 border border-gray-800">
+                      Calculado multiplicando o ticket estimado de cada lead pela probabilidade de fechamento. Ex: um lead de R$3.000 com 70% de chance = R$2.100 projetado. Use isso para planejar o crescimento do próximo mês.
+                    </div>
                   </div>
                 </div>
-                {/* Fechados no Mês */}
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2 text-gray-400 font-bold text-[10px] uppercase tracking-wider">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                    Fechados no Mês
-                  </div>
-                  <div className="text-4xl font-black text-emerald-600">
-                    {dashboardStats.fechadoCount}
-                  </div>
+                <div className="text-3xl font-black text-emerald-300">
+                  {dashboardStats.receitaProjetada.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                 </div>
-                {/* Taxa de Conversão */}
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2 text-gray-400 font-bold text-[10px] uppercase tracking-wider">
-                    <span className="w-1.5 h-1.5 rounded-full bg-purple-500" />
+                <p className="text-xs text-emerald-200/70 font-medium">
+                  Previsão ponderada de novos contratos
+                </p>
+              </div>
+
+              {/* Card 3: Taxa de Conversão */}
+              <div className="bg-white rounded-3xl border border-gray-100 p-6 shadow-xs space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold uppercase tracking-wider text-gray-500 flex items-center gap-1.5">
+                    <span className="p-1.5 bg-purple-50 text-purple-600 rounded-xl">📈</span>
                     Taxa de Conversão
-                  </div>
-                  <div className="text-4xl font-black text-purple-600">
-                    {leads.length > 0 ? Math.round((dashboardStats.fechadoCount / leads.length) * 100) : 0}%
-                  </div>
+                  </span>
+                  <span className="text-[11px] font-bold text-purple-600 bg-purple-50 px-2 py-0.5 rounded-md">
+                    {dashboardStats.fechadoCount} de {leads.length}
+                  </span>
                 </div>
-              </div>
-
-              {/* Bloco 2: Dinheiro em Negociação */}
-              <div className="flex-1 lg:pl-8 lg:pr-8 py-6 lg:py-0 border-orange-500 border-l-0 lg:border-l-2 pl-0">
-                <div className="space-y-1.5">
-                  <div className="flex items-center gap-1.5 text-amber-850 font-bold text-[10px] uppercase tracking-wider">
-                    <span>📄</span> Dinheiro em Negociação
-                  </div>
-                  <div className="text-3xl font-black text-amber-700">
-                    {dashboardStats.emMesa.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                  </div>
-                  <div className="flex items-center gap-1 text-[11px] font-bold text-amber-600">
-                    <span>💼</span> Dinheiro na Mesa
-                  </div>
-                  <div className="text-[11px] text-gray-400 font-medium">
-                    {dashboardStats.propostaEnviadaCount} {dashboardStats.propostaEnviadaCount === 1 ? 'lead em negociação' : 'leads em negociação'} este mês
-                  </div>
+                <div className="text-3xl font-black text-purple-600">
+                  {dashboardStats.conversionRate.toFixed(1)}%
                 </div>
+                <p className="text-xs text-gray-400 font-medium">
+                  Proporção de leads convertidos em relação ao total criado no mês
+                </p>
               </div>
-
-              {/* Bloco 3: Faturamento CRM */}
-              <div className="flex-1 lg:pl-8 py-6 lg:py-0">
-                <div className="space-y-1.5">
-                  <div className="flex items-center gap-1.5 text-emerald-800 font-bold text-[10px] uppercase tracking-wider">
-                    <span>💵</span> Faturamento CRM
-                  </div>
-                  <div className="text-3xl font-black text-emerald-700">
-                    {(() => {
-                      const fechadoStageName = crm.kanban_stages.find(s => s.id === 'fechado' || s.name.toLowerCase() === 'fechado')?.name || 'Fechado';
-                      const value = leads
-                        .filter(l => l.stage === fechadoStageName)
-                        .reduce((sum, l) => sum + (Number(l.form_data?.deal_value) || Number(l.deal_value) || 0), 0);
-                      return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-                    })()}
-                  </div>
-                  <div className="flex items-center gap-1 text-[11px] font-bold text-emerald-600">
-                    <span>💰</span> Faturamento Real
-                  </div>
-                  <div className="text-[11px] text-gray-400 font-medium">
-                    Soma dos contratos fechados de fato
-                  </div>
-                </div>
-              </div>
-
             </div>
 
             {/* Grid Inferior: Gráfico de Barras & Motivos de Perda */}
@@ -723,6 +734,61 @@ export const CRMBoard: React.FC<CRMBoardProps> = ({ crm }) => {
       {/* --- ABA 2: FUNIL / KANBAN --- */}
       {activeTab === 'kanban' && (
         <div className="flex-1 flex flex-col min-h-0">
+          {/* Summary Cards Top Bar no Kanban */}
+          <div className="px-6 py-3 bg-white border-b border-gray-100 grid grid-cols-1 sm:grid-cols-3 gap-4 shrink-0">
+            {/* Card 1: Pipeline Total */}
+            <div className="bg-slate-50 p-3 rounded-2xl border border-slate-200/70 flex items-center justify-between">
+              <div>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1">
+                  <span>📊</span> Pipeline Total
+                </span>
+                <div className="text-lg font-black text-slate-900 mt-0.5">
+                  {dashboardStats.pipelineTotal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                </div>
+                <div className="text-[10px] text-slate-500 font-medium mt-0.5">
+                  {dashboardStats.activePipelineCount} leads ativos
+                </div>
+              </div>
+            </div>
+
+            {/* Card 2: Receita Projetada (Forecast) com Tooltip */}
+            <div className="bg-emerald-50/80 p-3 rounded-2xl border border-emerald-200/80 flex items-center justify-between relative group">
+              <div>
+                <div className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-emerald-800">
+                  <span>🎯</span> Receita Projetada
+                  <div className="relative inline-block cursor-pointer">
+                    <span className="inline-flex items-center justify-center w-3.5 h-3.5 rounded-full bg-emerald-200 text-emerald-900 text-[9px] font-black">?</span>
+                    {/* Tooltip */}
+                    <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 w-64 p-2.5 bg-gray-900 text-white text-[11px] leading-relaxed rounded-xl shadow-xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50">
+                      Calculado multiplicando o ticket estimado de cada lead pela probabilidade de fechamento. Ex: um lead de R$3.000 com 70% de chance = R$2.100 projetado. Use isso para planejar o crescimento do próximo mês.
+                    </div>
+                  </div>
+                </div>
+                <div className="text-lg font-black text-emerald-700 mt-0.5">
+                  {dashboardStats.receitaProjetada.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                </div>
+                <div className="text-[10px] text-emerald-600 font-medium mt-0.5">
+                  Previsão ponderada
+                </div>
+              </div>
+            </div>
+
+            {/* Card 3: Taxa de Conversão */}
+            <div className="bg-purple-50/80 p-3 rounded-2xl border border-purple-200/80 flex items-center justify-between">
+              <div>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-purple-800 flex items-center gap-1">
+                  <span>📈</span> Taxa de Conversão
+                </span>
+                <div className="text-lg font-black text-purple-700 mt-0.5">
+                  {dashboardStats.conversionRate.toFixed(1)}%
+                </div>
+                <div className="text-[10px] text-purple-600 font-medium mt-0.5">
+                  {dashboardStats.fechadoCount} fechados no mês
+                </div>
+              </div>
+            </div>
+          </div>
+
           {/* Board Header de controles menores e mais discretos */}
           <div className="px-6 py-3.5 bg-gray-50/50 border-b border-gray-100 flex items-center justify-between shrink-0">
             <div className="text-xs font-bold text-gray-500 flex items-center gap-1.5">

@@ -3,7 +3,12 @@ import { motion } from 'motion/react';
 import { supabase, useAuth } from '../lib/supabase';
 import { Client } from '../types';
 import { AgencyLogo } from './AgencyLogo';
-import { Plus, Users, LogOut, ChevronRight, Building2 } from 'lucide-react';
+import { Plus, Users, LogOut, ChevronRight, Building2, AlertTriangle } from 'lucide-react';
+import { NpsBadge } from './nps/NpsBadge';
+import { useAllClientsCurrentMonthNps } from '../hooks/useClientNps';
+import { HealthScoreBadge } from './health/HealthScoreBadge';
+import { useAllClientsCurrentMonthHealthScores } from '../hooks/useClientHealthScore';
+import { useMediaBudgets } from '../hooks/useMediaBudgets';
 
 interface ClientSelectorScreenProps {
   onSelectClient: (client: Client) => void;
@@ -20,6 +25,15 @@ export const ClientSelectorScreen: React.FC<ClientSelectorScreenProps> = ({
   const [loading, setLoading] = useState(true);
   const [debugError, setDebugError] = useState<string>('');
   const { setActiveClient, agencyId } = useAuth();
+  const { npsMap } = useAllClientsCurrentMonthNps(agencyId);
+  const { healthMap } = useAllClientsCurrentMonthHealthScores(agencyId);
+  const { overBudgetClientIds, fetchAgencyBudgetAlerts } = useMediaBudgets(null);
+
+  useEffect(() => {
+    if (agencyId) {
+      fetchAgencyBudgetAlerts();
+    }
+  }, [agencyId, fetchAgencyBudgetAlerts]);
 
   useEffect(() => {
     const fetchClients = async () => {
@@ -110,7 +124,17 @@ export const ClientSelectorScreen: React.FC<ClientSelectorScreenProps> = ({
                     )}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-brand-dark font-bold text-base truncate mb-1">{client.name}</p>
+                    <div className="flex items-center gap-2 flex-wrap mb-1">
+                      <p className="text-brand-dark font-bold text-base truncate">{client.name}</p>
+                      <HealthScoreBadge healthScore={healthMap[client.id]} size="sm" />
+                      <NpsBadge nps={npsMap[client.id]} size="sm" />
+                      {overBudgetClientIds.has(client.id) && (
+                        <span className="inline-flex items-center gap-1 text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-rose-100 text-rose-800 border border-rose-300 shadow-2xs">
+                          <AlertTriangle size={11} className="text-rose-600 shrink-0" />
+                          Verba Estourada
+                        </span>
+                      )}
+                    </div>
                     {client.segment && (
                       <p className="text-gray-400 text-xs truncate uppercase tracking-wider font-semibold">{client.segment}</p>
                     )}
