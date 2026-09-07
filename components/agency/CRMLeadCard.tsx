@@ -16,6 +16,98 @@ const formatWhatsAppUrl = (phone: string) => {
   return `https://wa.me/${digits}`;
 };
 
+export const formatUrl = (url: string) => {
+  if (!url) return '';
+  const clean = url.trim();
+  if (!clean) return '';
+  if (/^https?:\/\//i.test(clean)) {
+    return clean;
+  }
+  return `https://${clean}`;
+};
+
+export const getDisplayDomain = (url: string) => {
+  if (!url) return '';
+  try {
+    const formatted = formatUrl(url);
+    const parsed = new URL(formatted);
+    return parsed.hostname.replace(/^www\./, '');
+  } catch {
+    return url.trim();
+  }
+};
+
+const getEmpresaValue = (lead: AgencyLead, crm: AgencyCRM): string | null => {
+  if (!lead.form_data) return null;
+  if (lead.form_data.empresa) return String(lead.form_data.empresa);
+  if (lead.form_data.company) return String(lead.form_data.company);
+
+  const empresaField = crm.form_fields?.find(f => {
+    const k = (f.key || (f as any).id || '').toLowerCase();
+    const l = (f.label || '').toLowerCase();
+    return k === 'empresa' || k === 'company' || l.includes('empresa');
+  });
+
+  if (empresaField) {
+    const key = empresaField.key || (empresaField as any).id;
+    if (key && lead.form_data[key]) {
+      return String(lead.form_data[key]);
+    }
+  }
+  return null;
+};
+
+const getPhoneValue = (lead: AgencyLead, crm: AgencyCRM): string | null => {
+  if (!lead.form_data) return null;
+  if (lead.form_data.telefone) return String(lead.form_data.telefone);
+  if (lead.form_data.phone) return String(lead.form_data.phone);
+  if (lead.form_data.celular) return String(lead.form_data.celular);
+
+  const phoneField = crm.form_fields?.find(f => {
+    const k = (f.key || (f as any).id || '').toLowerCase();
+    const l = (f.label || '').toLowerCase();
+    return f.type === 'tel' || k.includes('tel') || k.includes('phone') || k.includes('celular') || l.includes('telefone');
+  });
+
+  if (phoneField) {
+    const key = phoneField.key || (phoneField as any).id;
+    if (key && lead.form_data[key]) {
+      return String(lead.form_data[key]);
+    }
+  }
+  return null;
+};
+
+const getSiteUrls = (lead: AgencyLead, crm: AgencyCRM) => {
+  if (!lead.form_data) return [];
+  const urls: { key: string; label: string; value: string }[] = [];
+  const seen = new Set<string>();
+
+  crm.form_fields?.forEach(f => {
+    const key = f.key || (f as any).id;
+    const isUrlType = f.type === 'url' || key === 'site' || key === 'website' || key === 'site_url';
+    if (isUrlType && key && lead.form_data[key]) {
+      const val = String(lead.form_data[key]).trim();
+      if (val && !seen.has(val)) {
+        urls.push({ key, label: f.label || 'Site', value: val });
+        seen.add(val);
+      }
+    }
+  });
+
+  ['site', 'website', 'site_url'].forEach(k => {
+    if (lead.form_data?.[k]) {
+      const val = String(lead.form_data[k]).trim();
+      if (val && !seen.has(val)) {
+        urls.push({ key: k, label: 'Site', value: val });
+        seen.add(val);
+      }
+    }
+  });
+
+  return urls;
+};
+
 interface CRMLeadCardProps {
   lead: AgencyLead;
   crm: AgencyCRM;
@@ -90,6 +182,10 @@ export const CRMLeadCard: React.FC<CRMLeadCardProps> = ({ lead, crm, onClick, on
 
   const isLastStage = crm.kanban_stages.findIndex(s => s.name === lead.stage) === crm.kanban_stages.length - 1;
 
+  const empresaValue = getEmpresaValue(lead, crm);
+  const phoneValue = getPhoneValue(lead, crm);
+  const siteUrls = getSiteUrls(lead, crm);
+
   return (
     <div 
       onClick={onClick}
@@ -100,7 +196,7 @@ export const CRMLeadCard: React.FC<CRMLeadCardProps> = ({ lead, crm, onClick, on
       } hover:shadow-md`}
     >
       <div>
-        <div className="flex justify-between items-start mb-2">
+        <div className="flex justify-between items-start mb-1">
           <h4 className="font-bold text-gray-900 text-sm line-clamp-2 pr-2 flex items-center gap-1.5">
             {isOver48h && (
               <span 
@@ -122,6 +218,14 @@ export const CRMLeadCard: React.FC<CRMLeadCardProps> = ({ lead, crm, onClick, on
             </button>
           )}
         </div>
+
+        {/* Empresa (Subtítulo do Card) */}
+        {empresaValue && (
+          <div className="text-xs font-semibold text-gray-500 mb-2 line-clamp-1 flex items-center gap-1">
+            <span className="text-gray-400 text-[11px]">🏢</span>
+            <span className="truncate">{empresaValue}</span>
+          </div>
+        )}
 
         {/* Display Estimated Value & Close Probability */}
         {(lead.estimated_value || lead.deal_value || lead.form_data?.deal_value) ? (
@@ -179,17 +283,17 @@ export const CRMLeadCard: React.FC<CRMLeadCardProps> = ({ lead, crm, onClick, on
           </div>
         )}
 
-        {/* Links Rápidos (Instagram / WhatsApp) */}
-        {lead.form_data && (lead.form_data.instagram || lead.form_data.whatsapp) && (
-          <div className="flex flex-wrap items-center gap-2 mb-3">
+        {/* Links Rápidos (Instagram / WhatsApp / Site / Telefone) */}
+        {lead.form_data && (
+          <div className="flex flex-wrap items-center gap-1.5 mb-3">
             {lead.form_data.instagram && (
               <a
                 href={formatInstagramUrl(lead.form_data.instagram)}
                 target="_blank"
                 rel="noreferrer"
                 onClick={(e) => e.stopPropagation()}
-                className="inline-flex items-center gap-1 text-[11px] font-medium text-pink-600 bg-pink-50 hover:bg-pink-100 border border-pink-200/50 px-2.5 py-1 rounded-lg transition-all"
-                title={`Ir para o Instagram de ${lead.name}`}
+                className="inline-flex items-center gap-1 text-[11px] font-medium text-pink-600 bg-pink-50 hover:bg-pink-100 border border-pink-200/50 px-2 py-0.5 rounded-lg transition-all"
+                title={`Instagram de ${lead.name}`}
               >
                 <span className="text-xs">📸</span>
                 <span>@{lead.form_data.instagram.trim().replace(/^@/, '')}</span>
@@ -201,11 +305,36 @@ export const CRMLeadCard: React.FC<CRMLeadCardProps> = ({ lead, crm, onClick, on
                 target="_blank"
                 rel="noreferrer"
                 onClick={(e) => e.stopPropagation()}
-                className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-600 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200/50 px-2.5 py-1 rounded-lg transition-all"
+                className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-600 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200/50 px-2 py-0.5 rounded-lg transition-all"
                 title={`Conversar no WhatsApp de ${lead.name}`}
               >
                 <span className="text-xs">💬</span>
                 <span>WhatsApp</span>
+              </a>
+            )}
+            {siteUrls.map(item => (
+              <a
+                key={item.key}
+                href={formatUrl(item.value)}
+                target="_blank"
+                rel="noreferrer"
+                onClick={(e) => e.stopPropagation()}
+                className="inline-flex items-center gap-1 text-[11px] font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 border border-blue-200/50 px-2 py-0.5 rounded-lg transition-all"
+                title={`Abrir ${item.label}: ${item.value}`}
+              >
+                <span className="text-xs">🌐</span>
+                <span className="truncate max-w-[120px]">{getDisplayDomain(item.value)}</span>
+              </a>
+            ))}
+            {phoneValue && (
+              <a
+                href={`tel:${phoneValue.replace(/\s+/g, '')}`}
+                onClick={(e) => e.stopPropagation()}
+                className="inline-flex items-center gap-1 text-[11px] font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-200 px-2 py-0.5 rounded-lg transition-all"
+                title={`Ligar para ${phoneValue}`}
+              >
+                <span className="text-xs">📞</span>
+                <span>{phoneValue}</span>
               </a>
             )}
           </div>

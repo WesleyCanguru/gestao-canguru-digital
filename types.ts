@@ -511,9 +511,10 @@ export interface KanbanStage {
 }
 
 export interface FormField {
+  id?: string;
   key: string;
   label: string;
-  type: 'text' | 'select' | 'textarea';
+  type: 'text' | 'select' | 'textarea' | 'url' | 'tel' | 'email';
   required: boolean;
   options?: string[];
   placeholder?: string;

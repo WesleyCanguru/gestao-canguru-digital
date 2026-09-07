@@ -74,11 +74,13 @@ const SortableField: React.FC<{ field: FormField, onUpdate: (f: FormField) => vo
         <select
           value={field.type}
           onChange={(e) => onUpdate({ ...field, type: e.target.value as any })}
-          className="w-32 px-2 py-1.5 bg-gray-50 border border-gray-200 rounded-lg text-sm"
+          className="w-36 px-2 py-1.5 bg-gray-50 border border-gray-200 rounded-lg text-sm"
         >
           <option value="text">Texto</option>
           <option value="textarea">Área de Texto</option>
           <option value="select">Seleção</option>
+          <option value="url">Link / Site (URL)</option>
+          <option value="tel">Telefone</option>
         </select>
         <label className="flex items-center gap-2 text-sm text-gray-600">
           <input

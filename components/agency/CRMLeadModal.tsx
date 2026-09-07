@@ -1,9 +1,23 @@
 import React, { useState, useEffect } from 'react';
-import { X, Save, Trash2, Clock, Pause, Play, Edit } from 'lucide-react';
-import { AgencyCRM, AgencyLead } from '../../types';
+import { X, Save, Trash2, Clock, Pause, Play, Edit, ExternalLink } from 'lucide-react';
+import { AgencyCRM, AgencyLead, FormField } from '../../types';
 import { useAgencyCRM } from '../../hooks/useAgencyCRM';
 import { ConfirmModal } from '../ConfirmModal';
 import { parseCurrencyInput } from '../../lib/currencyUtils';
+import { formatUrl, getDisplayDomain } from './CRMLeadCard';
+
+const formatInstagramUrl = (handle: string) => {
+  const clean = handle.trim().replace(/^@/, '');
+  return `https://instagram.com/${clean}`;
+};
+
+const formatWhatsAppUrl = (phone: string) => {
+  const digits = phone.replace(/\D/g, '');
+  if (digits.length === 10 || digits.length === 11) {
+    return `https://wa.me/55${digits}`;
+  }
+  return `https://wa.me/${digits}`;
+};
 
 interface CRMLeadModalProps {
   crm: AgencyCRM;
@@ -48,7 +62,28 @@ export const CRMLeadModal: React.FC<CRMLeadModalProps> = ({ crm, lead, isOpen, o
         : '';
       const temp_custom_loss_reason = lead.loss_reason && !isPredefined ? lead.loss_reason : '';
 
-      const initialFormData = { ...(lead.form_data || {}) };
+      const initialFormData: Record<string, any> = { ...(lead.form_data || {}) };
+
+      // Ensure every defined form_field in crm is loaded from form_data
+      crm.form_fields?.forEach(field => {
+        const key = field.key || (field as any).id;
+        if (key) {
+          if (initialFormData[key] !== undefined && initialFormData[key] !== null) {
+            // value exists under key
+          } else {
+            const altKey = (field as any).id || field.key;
+            if (altKey && initialFormData[altKey] !== undefined && initialFormData[altKey] !== null) {
+              initialFormData[key] = initialFormData[altKey];
+            } else {
+              const normLabel = field.label ? field.label.toLowerCase().trim().replace(/[^a-z0-9]/g, '_') : '';
+              if (normLabel && initialFormData[normLabel] !== undefined && initialFormData[normLabel] !== null) {
+                initialFormData[key] = initialFormData[normLabel];
+              }
+            }
+          }
+        }
+      });
+
       if (initialFormData.deal_value !== undefined && initialFormData.deal_value !== null) {
         initialFormData.deal_value = String(initialFormData.deal_value).replace('.', ',');
       }
@@ -65,7 +100,16 @@ export const CRMLeadModal: React.FC<CRMLeadModalProps> = ({ crm, lead, isOpen, o
       setName('');
       setEstimatedValue('');
       setCloseProbability('50');
-      setFormData({});
+      
+      const defaultFormData: Record<string, any> = {};
+      crm.form_fields?.forEach(field => {
+        const key = field.key || (field as any).id;
+        if (key) {
+          defaultFormData[key] = '';
+        }
+      });
+
+      setFormData(defaultFormData);
       setNotes('');
       setStage(crm.kanban_stages[0]?.name || '');
       setIsEditing(true);
@@ -73,6 +117,38 @@ export const CRMLeadModal: React.FC<CRMLeadModalProps> = ({ crm, lead, isOpen, o
   }, [lead, crm]);
 
   if (!isOpen) return null;
+
+  // Helper to collect all fields (both from crm.form_fields and extra keys in lead.form_data)
+  const fieldsToRender: FormField[] = (() => {
+    const fields: FormField[] = [...(crm.form_fields || [])];
+    const knownKeys = new Set(fields.map(f => f.key || (f as any).id));
+    const ignoredKeys = new Set([
+      'deal_value', 'temp_loss_reason', 'temp_custom_loss_reason', 'loss_reason',
+      'specialty', 'origin', 'value_history'
+    ]);
+
+    Object.keys(formData).forEach(key => {
+      if (!knownKeys.has(key) && !ignoredKeys.has(key)) {
+        let type: FormField['type'] = 'text';
+        if (key === 'site' || key === 'website' || key === 'site_url') type = 'url';
+        else if (key === 'telefone' || key === 'phone' || key === 'celular') type = 'tel';
+
+        const label = key
+          .replace(/_/g, ' ')
+          .replace(/\b\w/g, l => l.toUpperCase());
+
+        fields.push({
+          key,
+          label,
+          type,
+          required: false
+        });
+        knownKeys.add(key);
+      }
+    });
+
+    return fields;
+  })();
 
   const handleSave = async () => {
     if (!name.trim()) {
@@ -372,51 +448,142 @@ export const CRMLeadModal: React.FC<CRMLeadModalProps> = ({ crm, lead, isOpen, o
           <div className="border-t border-gray-100"></div>
 
           {/* Dynamic Form Fields */}
-          {crm.form_fields.length > 0 && (
+          {fieldsToRender.length > 0 && (
             <div className="space-y-4">
               <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wider">Dados do Lead</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {crm.form_fields.map(field => (
-                  <div key={field.key} className={field.type === 'textarea' ? 'md:col-span-2' : ''}>
-                    <label className="block text-sm font-bold text-gray-700 mb-1">
-                      {field.label} {field.required && '*'}
-                    </label>
-                    {field.type === 'select' ? (
-                      <select
-                        value={formData[field.key] || ''}
-                        onChange={(e) => setFormData({ ...formData, [field.key]: e.target.value })}
-                        required={field.required}
-                        disabled={!isEditing}
-                        className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-dark/20 focus:border-brand-dark transition-all disabled:opacity-100 disabled:bg-gray-50/30 disabled:text-gray-600 disabled:border-gray-100/80 disabled:cursor-default"
-                      >
-                        <option value="">Selecione...</option>
-                        {field.options?.map(opt => (
-                          <option key={opt} value={opt}>{opt}</option>
-                        ))}
-                      </select>
-                    ) : field.type === 'textarea' ? (
-                      <textarea
-                        value={formData[field.key] || ''}
-                        onChange={(e) => setFormData({ ...formData, [field.key]: e.target.value })}
-                        required={field.required}
-                        placeholder={field.placeholder}
-                        disabled={!isEditing}
-                        rows={3}
-                        className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-dark/20 focus:border-brand-dark transition-all resize-none disabled:opacity-100 disabled:bg-gray-50/30 disabled:text-gray-600 disabled:border-gray-100/80 disabled:cursor-default"
-                      />
-                    ) : (
-                      <input
-                        type="text"
-                        value={formData[field.key] || ''}
-                        onChange={(e) => setFormData({ ...formData, [field.key]: e.target.value })}
-                        required={field.required}
-                        placeholder={field.placeholder}
-                        disabled={!isEditing}
-                        className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-dark/20 focus:border-brand-dark transition-all disabled:opacity-100 disabled:bg-gray-50/30 disabled:text-gray-600 disabled:border-gray-100/80 disabled:cursor-default"
-                      />
-                    )}
-                  </div>
-                ))}
+                {fieldsToRender.map(field => {
+                  const fieldKey = field.key || (field as any).id || '';
+                  const fieldValue = formData[fieldKey] !== undefined && formData[fieldKey] !== null ? String(formData[fieldKey]) : '';
+
+                  const isUrlType = field.type === 'url' || fieldKey === 'site' || fieldKey === 'website' || fieldKey === 'site_url';
+                  const isTelType = field.type === 'tel' || fieldKey === 'telefone' || fieldKey === 'phone' || fieldKey === 'celular';
+                  const isInstagram = fieldKey === 'instagram';
+
+                  return (
+                    <div key={fieldKey} className={field.type === 'textarea' ? 'md:col-span-2' : ''}>
+                      <label className="block text-sm font-bold text-gray-700 mb-1">
+                        {field.label} {field.required && '*'}
+                      </label>
+
+                      {isEditing ? (
+                        field.type === 'select' ? (
+                          <select
+                            value={fieldValue}
+                            onChange={(e) => setFormData({ ...formData, [fieldKey]: e.target.value })}
+                            required={field.required}
+                            className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-dark/20 focus:border-brand-dark transition-all"
+                          >
+                            <option value="">Selecione...</option>
+                            {field.options?.map(opt => (
+                              <option key={opt} value={opt}>{opt}</option>
+                            ))}
+                          </select>
+                        ) : field.type === 'textarea' ? (
+                          <textarea
+                            value={fieldValue}
+                            onChange={(e) => setFormData({ ...formData, [fieldKey]: e.target.value })}
+                            required={field.required}
+                            placeholder={field.placeholder}
+                            rows={3}
+                            className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-dark/20 focus:border-brand-dark transition-all resize-none"
+                          />
+                        ) : isUrlType ? (
+                          <input
+                            type="url"
+                            value={fieldValue}
+                            onChange={(e) => setFormData({ ...formData, [fieldKey]: e.target.value })}
+                            required={field.required}
+                            placeholder={field.placeholder || 'https://exemplo.com.br'}
+                            className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-dark/20 focus:border-brand-dark transition-all"
+                          />
+                        ) : isTelType ? (
+                          <input
+                            type="tel"
+                            value={fieldValue}
+                            onChange={(e) => setFormData({ ...formData, [fieldKey]: e.target.value })}
+                            required={field.required}
+                            placeholder={field.placeholder || '(00) 00000-0000'}
+                            className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-dark/20 focus:border-brand-dark transition-all"
+                          />
+                        ) : (
+                          <input
+                            type="text"
+                            value={fieldValue}
+                            onChange={(e) => setFormData({ ...formData, [fieldKey]: e.target.value })}
+                            required={field.required}
+                            placeholder={field.placeholder}
+                            className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-dark/20 focus:border-brand-dark transition-all"
+                          />
+                        )
+                      ) : (
+                        /* View mode rendering */
+                        isUrlType ? (
+                          fieldValue ? (
+                            <a
+                              href={formatUrl(fieldValue)}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="inline-flex items-center gap-2 text-sm font-semibold text-blue-600 hover:text-blue-800 hover:underline bg-blue-50/80 border border-blue-200/60 px-3.5 py-2 rounded-xl transition-all"
+                            >
+                              <span>🌐</span>
+                              <span>{getDisplayDomain(fieldValue)}</span>
+                              <ExternalLink className="w-3.5 h-3.5 ml-0.5 opacity-70" />
+                            </a>
+                          ) : (
+                            <div className="px-4 py-2 bg-gray-50/50 border border-gray-100 rounded-xl text-gray-400 text-sm italic">
+                              Não informado
+                            </div>
+                          )
+                        ) : isInstagram ? (
+                          fieldValue ? (
+                            <a
+                              href={formatInstagramUrl(fieldValue)}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="inline-flex items-center gap-2 text-sm font-semibold text-pink-600 hover:text-pink-800 hover:underline bg-pink-50/80 border border-pink-200/60 px-3.5 py-2 rounded-xl transition-all"
+                            >
+                              <span>📸</span>
+                              <span>@{fieldValue.trim().replace(/^@/, '')}</span>
+                              <ExternalLink className="w-3.5 h-3.5 ml-0.5 opacity-70" />
+                            </a>
+                          ) : (
+                            <div className="px-4 py-2 bg-gray-50/50 border border-gray-100 rounded-xl text-gray-400 text-sm italic">
+                              Não informado
+                            </div>
+                          )
+                        ) : isTelType ? (
+                          fieldValue ? (
+                            <div className="flex flex-wrap items-center gap-2">
+                              <a
+                                href={formatWhatsAppUrl(fieldValue)}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="inline-flex items-center gap-1.5 text-sm font-semibold text-emerald-600 hover:bg-emerald-100 bg-emerald-50 border border-emerald-200/80 px-3 py-2 rounded-xl transition-all"
+                              >
+                                <span>💬</span> WhatsApp
+                              </a>
+                              <a
+                                href={`tel:${fieldValue.replace(/\s+/g, '')}`}
+                                className="inline-flex items-center gap-1.5 text-sm font-semibold text-slate-700 hover:bg-slate-200 bg-slate-100 border border-slate-200 px-3 py-2 rounded-xl transition-all"
+                              >
+                                <span>📞</span> {fieldValue}
+                              </a>
+                            </div>
+                          ) : (
+                            <div className="px-4 py-2 bg-gray-50/50 border border-gray-100 rounded-xl text-gray-400 text-sm italic">
+                              Não informado
+                            </div>
+                          )
+                        ) : (
+                          <div className="w-full px-4 py-2 bg-gray-50/50 border border-gray-100 rounded-xl text-gray-900 font-medium text-sm">
+                            {fieldValue || <span className="text-gray-400 italic font-normal">Não informado</span>}
+                          </div>
+                        )
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             </div>
           )}

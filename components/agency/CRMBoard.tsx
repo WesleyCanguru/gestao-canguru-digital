@@ -929,10 +929,12 @@ export const CRMBoard: React.FC<CRMBoardProps> = ({ crm }) => {
                                 Nenhum lead nesta etapa
                               </div>
                             ) : (
-                              stageLeads.map(lead => {
+                                stageLeads.map(lead => {
                                 const phone = getLeadPhone(lead);
                                 const instagram = lead.form_data?.instagram;
                                 const whatsapp = lead.form_data?.whatsapp || (phone !== 'Não informado' ? phone : null);
+                                const empresa = lead.form_data?.empresa || lead.form_data?.company;
+                                const site = lead.form_data?.site || lead.form_data?.website || lead.form_data?.site_url;
                                 const dealValue = lead.form_data?.deal_value || lead.deal_value;
                                 const isOverdue = lead.next_stage_at && new Date(lead.next_stage_at).getTime() < new Date().getTime();
 
@@ -946,10 +948,15 @@ export const CRMBoard: React.FC<CRMBoardProps> = ({ crm }) => {
                                     className="p-4 sm:px-5 sm:py-3.5 hover:bg-gray-50/80 transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-3 cursor-pointer group"
                                   >
                                     <div className="flex-1 min-w-0">
-                                      <div className="flex items-center gap-2 mb-1">
+                                      <div className="flex flex-wrap items-center gap-2 mb-1">
                                         <span className="font-bold text-gray-900 text-sm group-hover:text-brand-dark transition-colors">
                                           {lead.name}
                                         </span>
+                                        {empresa && (
+                                          <span className="text-xs font-medium text-gray-500 flex items-center gap-1">
+                                            🏢 {empresa}
+                                          </span>
+                                        )}
                                         {lead.loss_reason && (
                                           <span className="text-[10px] font-semibold text-red-600 bg-red-50 border border-red-100 px-2 py-0.5 rounded">
                                             Motivo: {lead.loss_reason}
@@ -979,6 +986,17 @@ export const CRMBoard: React.FC<CRMBoardProps> = ({ crm }) => {
                                             className="text-emerald-600 hover:underline flex items-center gap-1 font-medium text-[11px]"
                                           >
                                             <span>💬</span> {whatsapp}
+                                          </a>
+                                        )}
+                                        {site && (
+                                          <a
+                                            href={/^https?:\/\//i.test(site.trim()) ? site.trim() : `https://${site.trim()}`}
+                                            target="_blank"
+                                            rel="noreferrer"
+                                            onClick={e => e.stopPropagation()}
+                                            className="text-blue-600 hover:underline flex items-center gap-1 font-medium text-[11px]"
+                                          >
+                                            <span>🌐</span> {site}
                                           </a>
                                         )}
                                         {lead.form_data?.specialty && (
