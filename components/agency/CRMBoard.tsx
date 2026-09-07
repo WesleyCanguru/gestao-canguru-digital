@@ -97,7 +97,7 @@ interface DroppableColumnProps {
 const DroppableColumn: React.FC<DroppableColumnProps> = ({ id, children }) => {
   const { setNodeRef } = useDroppable({ id });
   return (
-    <div ref={setNodeRef} className="flex-1 overflow-y-auto p-3 space-y-3 min-h-[150px]">
+    <div ref={setNodeRef} className="p-3 space-y-3 min-h-[150px]">
       {children}
     </div>
   );
@@ -444,7 +444,7 @@ export const CRMBoard: React.FC<CRMBoardProps> = ({ crm }) => {
   }, [filteredLeads, leads.length, crm.kanban_stages]);
 
   return (
-    <div className="h-full flex flex-col bg-gray-50/25">
+    <div className="flex flex-col bg-gray-50/25">
       {/* Banner Principal - Estilo Premium CRM & Oportunidades */}
       <div className="bg-neutral-950 text-white px-6 py-8 rounded-3xl m-4 sm:m-6 shadow-xl relative overflow-hidden shrink-0">
         {/* Background Decorative Dots/Grid */}
@@ -493,48 +493,135 @@ export const CRMBoard: React.FC<CRMBoardProps> = ({ crm }) => {
         </div>
       </div>
 
-      {/* Navigation Tabs - Estilo Minimalista e Elegante */}
-      <div className="px-4 sm:px-6 bg-white border-b border-gray-100 flex flex-col sm:flex-row sm:items-center sm:justify-between shrink-0 gap-4">
-        <div className="flex overflow-x-auto scrollbar-none gap-6 pt-1">
-          {[
-            { id: 'metrics', label: 'RELATÓRIO & MÉTRICAS', emoji: '📈' },
-            { id: 'kanban', label: 'FUNIL / KANBAN', emoji: '📊' },
-            { id: 'fechados', label: 'CONTRATOS FECHADOS', emoji: '🤝' },
-            { id: 'perdidos', label: 'LEADS PERDIDOS', emoji: '💔' },
-          ].map(tab => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id as any)}
-              className={`pb-4 text-xs font-bold uppercase tracking-wider border-b-2 transition-all whitespace-nowrap flex items-center gap-1.5 focus:outline-none ${
-                activeTab === tab.id
-                  ? 'border-neutral-950 text-neutral-950 font-extrabold'
-                  : 'border-transparent text-gray-400 hover:text-gray-600 hover:border-gray-200'
-              }`}
-            >
-              <span>{tab.emoji}</span>
-              <span>{tab.label}</span>
-            </button>
-          ))}
+      {/* Header Sticky: Navigation Tabs + Painel de Resumo de Métricas (Kanban) */}
+      <div className="sticky top-16 lg:top-0 z-30 bg-white border-b border-gray-100 shadow-xs">
+        {/* Navigation Tabs - Estilo Minimalista e Elegante */}
+        <div className="px-4 sm:px-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 py-1">
+          <div className="flex overflow-x-auto scrollbar-none gap-6 pt-1">
+            {[
+              { id: 'metrics', label: 'RELATÓRIO & MÉTRICAS', emoji: '📈' },
+              { id: 'kanban', label: 'FUNIL / KANBAN', emoji: '📊' },
+              { id: 'fechados', label: 'CONTRATOS FECHADOS', emoji: '🤝' },
+              { id: 'perdidos', label: 'LEADS PERDIDOS', emoji: '💔' },
+            ].map(tab => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id as any)}
+                className={`pb-3 text-xs font-bold uppercase tracking-wider border-b-2 transition-all whitespace-nowrap flex items-center gap-1.5 focus:outline-none ${
+                  activeTab === tab.id
+                    ? 'border-neutral-950 text-neutral-950 font-extrabold'
+                    : 'border-transparent text-gray-400 hover:text-gray-600 hover:border-gray-200'
+                }`}
+              >
+                <span>{tab.emoji}</span>
+                <span>{tab.label}</span>
+              </button>
+            ))}
+          </div>
+
+          {/* Search input (visible only when not on active metrics tab, or general search) */}
+          {activeTab !== 'metrics' && (
+            <div className="pb-2 sm:pb-0 relative w-full sm:w-64">
+              <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                placeholder="Buscar leads..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-9 pr-4 py-1.5 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-neutral-200 focus:border-neutral-300 transition-all"
+              />
+            </div>
+          )}
         </div>
 
-        {/* Search input (visible only when not on active metrics tab, or general search) */}
-        {activeTab !== 'metrics' && (
-          <div className="pb-3 sm:pb-0 relative w-full sm:w-64">
-            <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
-            <input
-              type="text"
-              placeholder="Buscar leads..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-9 pr-4 py-2 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-neutral-200 focus:border-neutral-300 transition-all"
-            />
-          </div>
+        {/* Summary Cards Top Bar no Kanban (visível na aba Kanban) */}
+        {activeTab === 'kanban' && (
+          <>
+            <div className="px-6 py-3 bg-white border-t border-gray-100 grid grid-cols-1 sm:grid-cols-3 gap-4">
+              {/* Card 1: Pipeline Total */}
+              <div className="bg-slate-50 p-3 rounded-2xl border border-slate-200/70 flex items-center justify-between">
+                <div>
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1">
+                    <span>📊</span> Pipeline Total
+                  </span>
+                  <div className="text-lg font-black text-slate-900 mt-0.5">
+                    {dashboardStats.pipelineTotal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                  </div>
+                  <div className="text-[10px] text-slate-500 font-medium mt-0.5">
+                    {dashboardStats.activePipelineCount} leads ativos
+                  </div>
+                </div>
+              </div>
+
+              {/* Card 2: Receita Projetada (Forecast) com Tooltip */}
+              <div className="bg-emerald-50/80 p-3 rounded-2xl border border-emerald-200/80 flex items-center justify-between relative group">
+                <div>
+                  <div className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-emerald-800">
+                    <span>🎯</span> Receita Projetada
+                    <div className="relative inline-block cursor-pointer">
+                      <span className="inline-flex items-center justify-center w-3.5 h-3.5 rounded-full bg-emerald-200 text-emerald-900 text-[9px] font-black">?</span>
+                      {/* Tooltip */}
+                      <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 w-64 p-2.5 bg-gray-900 text-white text-[11px] leading-relaxed rounded-xl shadow-xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50">
+                        Calculado multiplicando o ticket estimado de cada lead pela probabilidade de fechamento. Ex: um lead de R$3.000 com 70% de chance = R$2.100 projetado. Use isso para planejar o crescimento do próximo mês.
+                      </div>
+                    </div>
+                  </div>
+                  <div className="text-lg font-black text-emerald-700 mt-0.5">
+                    {dashboardStats.receitaProjetada.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                  </div>
+                  <div className="text-[10px] text-emerald-600 font-medium mt-0.5">
+                    Previsão ponderada
+                  </div>
+                </div>
+              </div>
+
+              {/* Card 3: Taxa de Conversão */}
+              <div className="bg-purple-50/80 p-3 rounded-2xl border border-purple-200/80 flex items-center justify-between">
+                <div>
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-purple-800 flex items-center gap-1">
+                    <span>📈</span> Taxa de Conversão
+                  </span>
+                  <div className="text-lg font-black text-purple-700 mt-0.5">
+                    {dashboardStats.conversionRate.toFixed(1)}%
+                  </div>
+                  <div className="text-[10px] text-purple-600 font-medium mt-0.5">
+                    {dashboardStats.fechadoCount} fechados no mês
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Board Header de controles menores e mais discretos */}
+            <div className="px-6 py-2.5 bg-gray-50/80 border-t border-gray-100 flex items-center justify-between">
+              <div className="text-xs font-bold text-gray-500 flex items-center gap-1.5">
+                <span>🎯</span>
+                <span>{filteredLeads.length} de {leads.length} leads correspondentes</span>
+              </div>
+              
+              <div className="flex bg-gray-100/80 p-1 rounded-xl">
+                <button
+                  onClick={() => setViewMode('kanban')}
+                  className={`p-1.5 rounded-lg transition-all ${viewMode === 'kanban' ? 'bg-white shadow-sm text-neutral-900 font-bold' : 'text-gray-400 hover:text-gray-600'}`}
+                  title="Visualização Kanban"
+                >
+                  <LayoutGrid className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => setViewMode('list')}
+                  className={`p-1.5 rounded-lg transition-all ${viewMode === 'list' ? 'bg-white shadow-sm text-neutral-900 font-bold' : 'text-gray-400 hover:text-gray-600'}`}
+                  title="Visualização em Lista"
+                >
+                  <List className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          </>
         )}
       </div>
 
       {/* --- ABA 1: RELATÓRIO & MÉTRICAS --- */}
       {activeTab === 'metrics' && (
-        <div className="flex-1 overflow-y-auto">
+        <div>
           <div className="p-4 sm:p-6 space-y-6 max-w-7xl mx-auto w-full pb-20">
             {/* Indicadores Pipeline Grid */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -733,88 +820,8 @@ export const CRMBoard: React.FC<CRMBoardProps> = ({ crm }) => {
 
       {/* --- ABA 2: FUNIL / KANBAN --- */}
       {activeTab === 'kanban' && (
-        <div className="flex-1 flex flex-col min-h-0">
-          {/* Summary Cards Top Bar no Kanban */}
-          <div className="px-6 py-3 bg-white border-b border-gray-100 grid grid-cols-1 sm:grid-cols-3 gap-4 shrink-0">
-            {/* Card 1: Pipeline Total */}
-            <div className="bg-slate-50 p-3 rounded-2xl border border-slate-200/70 flex items-center justify-between">
-              <div>
-                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1">
-                  <span>📊</span> Pipeline Total
-                </span>
-                <div className="text-lg font-black text-slate-900 mt-0.5">
-                  {dashboardStats.pipelineTotal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                </div>
-                <div className="text-[10px] text-slate-500 font-medium mt-0.5">
-                  {dashboardStats.activePipelineCount} leads ativos
-                </div>
-              </div>
-            </div>
-
-            {/* Card 2: Receita Projetada (Forecast) com Tooltip */}
-            <div className="bg-emerald-50/80 p-3 rounded-2xl border border-emerald-200/80 flex items-center justify-between relative group">
-              <div>
-                <div className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-emerald-800">
-                  <span>🎯</span> Receita Projetada
-                  <div className="relative inline-block cursor-pointer">
-                    <span className="inline-flex items-center justify-center w-3.5 h-3.5 rounded-full bg-emerald-200 text-emerald-900 text-[9px] font-black">?</span>
-                    {/* Tooltip */}
-                    <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 w-64 p-2.5 bg-gray-900 text-white text-[11px] leading-relaxed rounded-xl shadow-xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50">
-                      Calculado multiplicando o ticket estimado de cada lead pela probabilidade de fechamento. Ex: um lead de R$3.000 com 70% de chance = R$2.100 projetado. Use isso para planejar o crescimento do próximo mês.
-                    </div>
-                  </div>
-                </div>
-                <div className="text-lg font-black text-emerald-700 mt-0.5">
-                  {dashboardStats.receitaProjetada.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                </div>
-                <div className="text-[10px] text-emerald-600 font-medium mt-0.5">
-                  Previsão ponderada
-                </div>
-              </div>
-            </div>
-
-            {/* Card 3: Taxa de Conversão */}
-            <div className="bg-purple-50/80 p-3 rounded-2xl border border-purple-200/80 flex items-center justify-between">
-              <div>
-                <span className="text-[10px] font-bold uppercase tracking-wider text-purple-800 flex items-center gap-1">
-                  <span>📈</span> Taxa de Conversão
-                </span>
-                <div className="text-lg font-black text-purple-700 mt-0.5">
-                  {dashboardStats.conversionRate.toFixed(1)}%
-                </div>
-                <div className="text-[10px] text-purple-600 font-medium mt-0.5">
-                  {dashboardStats.fechadoCount} fechados no mês
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Board Header de controles menores e mais discretos */}
-          <div className="px-6 py-3.5 bg-gray-50/50 border-b border-gray-100 flex items-center justify-between shrink-0">
-            <div className="text-xs font-bold text-gray-500 flex items-center gap-1.5">
-              <span>🎯</span>
-              <span>{filteredLeads.length} de {leads.length} leads correspondentes</span>
-            </div>
-            
-            <div className="flex bg-gray-100/80 p-1 rounded-xl">
-              <button
-                onClick={() => setViewMode('kanban')}
-                className={`p-1.5 rounded-lg transition-all ${viewMode === 'kanban' ? 'bg-white shadow-sm text-neutral-900 font-bold' : 'text-gray-400 hover:text-gray-600'}`}
-                title="Visualização Kanban"
-              >
-                <LayoutGrid className="w-4 h-4" />
-              </button>
-              <button
-                onClick={() => setViewMode('list')}
-                className={`p-1.5 rounded-lg transition-all ${viewMode === 'list' ? 'bg-white shadow-sm text-neutral-900 font-bold' : 'text-gray-400 hover:text-gray-600'}`}
-                title="Visualização em Lista"
-              >
-                <List className="w-4 h-4" />
-              </button>
-            </div>
-          </div>
-
-          <div className={`flex-1 ${viewMode === 'kanban' ? 'overflow-x-auto overflow-y-hidden' : 'overflow-y-auto'} p-4 sm:p-6 bg-gray-50/30`}>
+        <div className="flex flex-col">
+          <div className={`p-4 sm:p-6 bg-gray-50/30 ${viewMode === 'kanban' ? 'overflow-x-auto' : ''}`}>
             {viewMode === 'kanban' ? (
               <DndContext
                 sensors={sensors}
@@ -822,11 +829,11 @@ export const CRMBoard: React.FC<CRMBoardProps> = ({ crm }) => {
                 onDragStart={handleDragStart}
                 onDragEnd={handleDragEnd}
               >
-                <div className="flex gap-6 h-full items-start">
+                <div className="flex gap-6 items-start pb-4">
                   {crm.kanban_stages.map(stage => {
                     const stageLeads = getLeadsByStage(stage.name);
                     return (
-                      <div key={stage.id} className="flex-shrink-0 w-80 flex flex-col max-h-full bg-gray-100/40 rounded-2xl border border-gray-200/50">
+                      <div key={stage.id} className="flex-shrink-0 w-80 flex flex-col bg-gray-100/40 rounded-2xl border border-gray-200/50">
                         {/* Column Header */}
                         <div className="p-4 flex items-center justify-between shrink-0 border-b border-gray-200/50 bg-white rounded-t-2xl">
                           <div className="flex items-center gap-2">
@@ -1031,7 +1038,7 @@ export const CRMBoard: React.FC<CRMBoardProps> = ({ crm }) => {
 
       {/* --- ABA 3: CONTRATOS FECHADOS --- */}
       {activeTab === 'fechados' && (
-        <div className="flex-1 overflow-y-auto">
+        <div>
           <div className="p-4 sm:p-6 space-y-6 max-w-7xl mx-auto w-full pb-20">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
               <div>

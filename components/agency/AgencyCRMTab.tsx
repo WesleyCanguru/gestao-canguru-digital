@@ -66,7 +66,7 @@ export const AgencyCRMTab: React.FC = () => {
   const activeCRM = crms.find(c => c.id === activeCRMId);
 
   return (
-    <div className="flex flex-col h-full space-y-6">
+    <div className="flex flex-col space-y-6">
       {/* Header & Tabs */}
       <div className="shrink-0 space-y-6">
         <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
@@ -115,7 +115,7 @@ export const AgencyCRMTab: React.FC = () => {
       </div>
 
       {/* Board Area */}
-      <div className="flex-1 overflow-hidden bg-white rounded-3xl shadow-sm border border-gray-100 flex flex-col">
+      <div className="bg-white rounded-3xl shadow-sm border border-gray-100 flex flex-col">
         {activeCRM ? (
           <CRMBoard crm={activeCRM} />
         ) : (

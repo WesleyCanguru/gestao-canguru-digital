@@ -137,7 +137,7 @@ export const AgencyDashboard: React.FC<AgencyDashboardProps> = ({ onBack, onSele
                 </div>
               )}
               {activeTab === 'prospeccao' && (
-                <div className="h-[calc(100vh-8rem)] flex flex-col">
+                <div>
                   <AgencyCRMTab />
                 </div>
               )}
