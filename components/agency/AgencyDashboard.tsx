@@ -128,6 +128,7 @@ export const AgencyDashboard: React.FC<AgencyDashboardProps> = ({ onBack, onSele
                   initialMonthYear={financeiroFilter.monthYear}
                   initialClientFilter={financeiroFilter.clientName || financeiroFilter.clientId}
                   onNavigateToContracts={() => onTabChange?.('contratos')}
+                  onNavigateToClient={(client) => onSelectClient(client)}
                 />
               )}
               {activeTab === 'clientes' && <ClientesTab onBack={() => onTabChange?.('home')} />}

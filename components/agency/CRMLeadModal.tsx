@@ -190,27 +190,29 @@ export const CRMLeadModal: React.FC<CRMLeadModalProps> = ({ crm, lead, isOpen, o
           loss_reason: resolvedLossReason,
           estimated_value: parsedEstimatedValue,
           close_probability: parsedCloseProbability,
-          deal_value: parsedEstimatedValue
+          deal_value: parsedEstimatedValue,
+          stage: stage
         });
         if (stage !== lead.stage) {
-          await moveLeadToStage(lead, stage, crm.kanban_stages, crm.auto_advance_time);
+          try {
+            await moveLeadToStage(lead, stage, crm.kanban_stages, crm.auto_advance_time);
+          } catch (moveErr) {
+            console.warn('Aviso não bloqueante ao mover etapa do lead:', moveErr);
+          }
         }
       } else {
-        const newLead = await addLead(crm.id, name, cleanFormData, stage);
-        await updateLead(newLead.id, {
+        await addLead(crm.id, name, cleanFormData, stage, {
+          notes,
           loss_reason: resolvedLossReason,
           estimated_value: parsedEstimatedValue,
           close_probability: parsedCloseProbability,
           deal_value: parsedEstimatedValue
         });
-        if (stage !== crm.kanban_stages[0]?.name) {
-          await moveLeadToStage(newLead, stage, crm.kanban_stages, crm.auto_advance_time);
-        }
       }
       onClose();
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error saving lead:', err);
-      alert('Erro ao salvar lead.');
+      alert(`Erro ao salvar lead: ${err?.message || 'Falha na comunicação com o banco de dados.'}`);
     } finally {
       setIsSaving(false);
     }

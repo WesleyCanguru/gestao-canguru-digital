@@ -354,52 +354,68 @@ export const PendenciasPanel: React.FC<PendenciasPanelProps> = ({
           .lte('report_date', endOfMonthStr);
 
         const investmentMap: Record<string, Record<string, number>> = {};
+        const totalInvestmentByClient: Record<string, number> = {};
         (trafficData || []).forEach(row => {
           const cId = row.client_id;
           const pKey = normalizePlatformKey(row.platform);
+          const inv = Number(row.investment) || 0;
           if (!investmentMap[cId]) investmentMap[cId] = {};
-          investmentMap[cId][pKey] = (investmentMap[cId][pKey] || 0) + (Number(row.investment) || 0);
+          investmentMap[cId][pKey] = (investmentMap[cId][pKey] || 0) + inv;
+          totalInvestmentByClient[cId] = (totalInvestmentByClient[cId] || 0) + inv;
         });
 
+        // Agrupar orçamentos por cliente priorizando platform === 'total'
+        const clientBudgetRecords: Record<string, any[]> = {};
         mediaBudgetsData.forEach(b => {
-          const cId = b.client_id;
+          if (!clientBudgetRecords[b.client_id]) clientBudgetRecords[b.client_id] = [];
+          clientBudgetRecords[b.client_id].push(b);
+        });
+
+        Object.entries(clientBudgetRecords).forEach(([cId, bList]) => {
           if (TEST_CLIENT_IDS.includes(cId)) return;
           const client = clientsMap.get(cId);
           if (!client || client.is_internal || client.client_status === 'cancelled') return;
           if (client.name && client.name.toLowerCase().includes('a-teste')) return;
 
-          const pKey = normalizePlatformKey(b.platform);
-          const pLabel = getPlatformLabel(pKey);
-          const budget = Number(b.budget_amount) || 0;
-          if (budget <= 0) return;
+          const totalRecord = bList.find(b => normalizePlatformKey(b.platform) === 'total');
+          const recordsToProcess = totalRecord ? [totalRecord] : bList;
 
-          const invested = investmentMap[cId]?.[pKey] || 0;
-          const percentage = Math.round((invested / budget) * 100);
+          recordsToProcess.forEach(b => {
+            const pKey = normalizePlatformKey(b.platform);
+            const pLabel = pKey === 'total' ? 'Verba de Mídia' : getPlatformLabel(pKey);
+            const budget = Number(b.budget_amount) || 0;
+            if (budget <= 0) return;
 
-          if (invested > budget) {
-            const exceeded = Math.round(invested - budget);
-            pendingList.push({
-              id: `over-budget-${b.id}`,
-              type: 'over_budget',
-              level: 'urgente',
-              icon: Flame,
-              label: `${client.name} (${pLabel}): verba estourada em R$${exceeded.toLocaleString('pt-BR')}`,
-              onClick: () => {
-                onNavigateToClients?.(client);
-              }
-            });
-          } else if (percentage >= 85 && remainingDaysInMonth > 5) {
-            pendingList.push({
-              id: `high-consumption-${b.id}`,
-              type: 'high_consumption',
-              level: 'atencao',
-              icon: AlertTriangle,
-              label: `${client.name} (${pLabel}): ${percentage}% da verba consumida — faltam ${remainingDaysInMonth} dias`,
-              onClick: () => {
-                onNavigateToClients?.(client);
-              }
-            });
-          }
+            const invested = pKey === 'total'
+              ? (totalInvestmentByClient[cId] || 0)
+              : (investmentMap[cId]?.[pKey] || 0);
+            const percentage = Math.round((invested / budget) * 100);
+
+            if (invested > budget) {
+              const exceeded = Math.round(invested - budget);
+              pendingList.push({
+                id: `over-budget-${b.id}`,
+                type: 'over_budget',
+                level: 'urgente',
+                icon: Flame,
+                label: `${client.name} (${pLabel}): verba estourada em R$${exceeded.toLocaleString('pt-BR')}`,
+                onClick: () => {
+                  onNavigateToClients?.(client);
+                }
+              });
+            } else if (percentage >= 85 && remainingDaysInMonth > 5) {
+              pendingList.push({
+                id: `high-consumption-${b.id}`,
+                type: 'high_consumption',
+                level: 'atencao',
+                icon: AlertTriangle,
+                label: `${client.name} (${pLabel}): ${percentage}% da verba consumida — faltam ${remainingDaysInMonth} dias`,
+                onClick: () => {
+                  onNavigateToClients?.(client);
+                }
+              });
+            }
+          });
         });
       }
 

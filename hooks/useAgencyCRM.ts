@@ -126,15 +126,46 @@ export function useAgencyCRM() {
     }
   };
 
-  const addLead = async (crmId: string, name: string, formData: Record<string, any>, initialStage?: string) => {
+  const addLead = async (
+    crmId: string,
+    name: string,
+    formData: Record<string, any>,
+    initialStage?: string,
+    extraData?: Partial<AgencyLead>
+  ) => {
     if (!agencyId) throw new Error('Agency ID not found');
     try {
       const targetCRM = crms.find(c => c.id === crmId);
       const defaultStage = initialStage || targetCRM?.kanban_stages[0]?.name || 'Novos Leads';
 
+      const insertPayload: any = {
+        crm_id: crmId,
+        agency_id: agencyId,
+        name,
+        stage: defaultStage,
+        stage_entered_at: new Date().toISOString(),
+        next_stage_at: null,
+        auto_advance_paused: false,
+        kanban_position: 0,
+        form_data: formData,
+        notes: extraData?.notes || null,
+        loss_reason: extraData?.loss_reason || null,
+      };
+
+      if (extraData?.deal_value !== undefined) insertPayload.deal_value = extraData.deal_value;
+      if (extraData?.estimated_value !== undefined) insertPayload.estimated_value = extraData.estimated_value;
+      if (extraData?.close_probability !== undefined) insertPayload.close_probability = extraData.close_probability;
+
       const { data: newLead, error } = await supabase
         .from('agency_leads')
-        .insert({
+        .insert(insertPayload)
+        .select()
+        .single();
+
+      if (error) {
+        console.warn('Initial addLead insert failed, trying minimal payload:', error.message);
+        // Fallback with standard schema columns only in case custom columns don't exist
+        const fallbackPayload: any = {
           crm_id: crmId,
           agency_id: agencyId,
           name,
@@ -143,12 +174,21 @@ export function useAgencyCRM() {
           next_stage_at: null,
           auto_advance_paused: false,
           kanban_position: 0,
-          form_data: formData
-        })
-        .select()
-        .single();
+          form_data: formData,
+          notes: extraData?.notes || null,
+          loss_reason: extraData?.loss_reason || null,
+        };
+        const { data: retryLead, error: retryError } = await supabase
+          .from('agency_leads')
+          .insert(fallbackPayload)
+          .select()
+          .single();
 
-      if (error) throw error;
+        if (retryError) throw retryError;
+        setLeads(prev => [...prev, retryLead]);
+        return retryLead;
+      }
+
       setLeads(prev => [...prev, newLead]);
       return newLead;
     } catch (err: any) {

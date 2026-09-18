@@ -33,6 +33,10 @@ import { LeadTrackerView } from './LeadTrackerView';
 import { PostModal } from './PostModal';
 import { ClientLeadConfig, Client, DailyContent, PostStatus } from '../types';
 import { ClientNpsSection } from './nps/ClientNpsSection';
+import { HealthScoreBadge } from './health/HealthScoreBadge';
+import { ClientHealthModal } from './health/ClientHealthModal';
+import { useClientHealthScore } from '../hooks/useClientHealthScore';
+import { Activity } from 'lucide-react';
 
 dayjs.locale('pt-br');
 
@@ -81,6 +85,8 @@ export const ClientHome: React.FC<ClientHomeProps> = ({
   const [leadConfig, setLeadConfig] = useState<ClientLeadConfig | null>(null);
   const [monthLeadsCount, setMonthLeadsCount] = useState<number>(0);
   const [activeView, setActiveView] = useState<'dashboard' | 'leads'>(initialActiveView || 'dashboard');
+  const [isHealthModalOpen, setIsHealthModalOpen] = useState(false);
+  const { currentScore: healthScore, refetch: refreshHealth } = useClientHealthScore(activeClient?.id);
 
   // Organic metrics preview state
   const [organicPreview, setOrganicPreview] = useState<{
@@ -667,40 +673,66 @@ export const ClientHome: React.FC<ClientHomeProps> = ({
         <div className="absolute top-0 right-0 w-96 h-96 bg-blue-500/10 rounded-full blur-[100px] pointer-events-none -mr-20 -mt-20"></div>
         <div className="absolute bottom-0 right-1/3 w-64 h-64 bg-indigo-500/10 rounded-full blur-[80px] pointer-events-none"></div>
 
-        <div className="relative z-10">
-          <p
-            style={{
-              color: '#8A8F98',
-              fontSize: 12,
-              fontWeight: 700,
-              letterSpacing: '0.12em',
-              textTransform: 'uppercase',
-              marginBottom: 8
-            }}
-          >
-            {saudacao} — {nomeMesAno}
-          </p>
-          <h1
-            style={{
-              color: '#ffffff',
-              fontSize: 28,
-              fontWeight: 700,
-              lineHeight: 1.2,
-              margin: 0
-            }}
-          >
-            {saudacao}, {primeiroNome}
-          </h1>
-          <p
-            style={{
-              color: '#8A8F98',
-              fontSize: 14,
-              marginTop: 8,
-              marginBottom: 0
-            }}
-          >
-            {nomeEmpresa} · Painel do cliente
-          </p>
+        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div>
+            <p
+              style={{
+                color: '#8A8F98',
+                fontSize: 12,
+                fontWeight: 700,
+                letterSpacing: '0.12em',
+                textTransform: 'uppercase',
+                marginBottom: 8
+              }}
+            >
+              {saudacao} — {nomeMesAno}
+            </p>
+            <h1
+              style={{
+                color: '#ffffff',
+                fontSize: 28,
+                fontWeight: 700,
+                lineHeight: 1.2,
+                margin: 0
+              }}
+            >
+              {saudacao}, {primeiroNome}
+            </h1>
+            <p
+              style={{
+                color: '#8A8F98',
+                fontSize: 14,
+                marginTop: 8,
+                marginBottom: 0
+              }}
+            >
+              {nomeEmpresa} · Painel do cliente
+            </p>
+          </div>
+
+          {isAdmin && (
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => setIsHealthModalOpen(true)}
+                className="flex items-center gap-2.5 px-4 py-2.5 bg-white/10 hover:bg-white/20 backdrop-blur-md border border-white/15 rounded-2xl text-white text-xs font-bold transition-all shadow-sm cursor-pointer hover:scale-[1.02] active:scale-[0.98]"
+                title="Diagnóstico de Saúde e Risco do Cliente"
+              >
+                <Activity size={16} className="text-emerald-400" />
+                <span>Health Score</span>
+                {healthScore && typeof healthScore.score === 'number' && (
+                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-black ${
+                    healthScore.score >= 80 
+                      ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-400/30' 
+                      : healthScore.score >= 60 
+                        ? 'bg-amber-500/20 text-amber-300 border border-amber-400/30' 
+                        : 'bg-rose-500/20 text-rose-300 border border-rose-400/30'
+                  }`}>
+                    {healthScore.score} pts
+                  </span>
+                )}
+              </button>
+            </div>
+          )}
         </div>
       </motion.div>
 
@@ -1165,6 +1197,16 @@ export const ClientHome: React.FC<ClientHomeProps> = ({
           }}
         />
       )}
+
+      {/* Modal de Health Score direto para administradores */}
+      <ClientHealthModal
+        client={activeClient}
+        isOpen={isHealthModalOpen}
+        onClose={() => {
+          setIsHealthModalOpen(false);
+          refreshHealth();
+        }}
+      />
     </div>
   );
 };

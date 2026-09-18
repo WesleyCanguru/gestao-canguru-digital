@@ -1,11 +1,12 @@
 import React from 'react';
 import { ClientLtvDetails, formatCompactLtv } from '../../lib/clientLtv';
-import { Crown, Trophy, ArrowUpRight, TrendingUp, ChevronRight } from 'lucide-react';
+import { Trophy, ChevronRight, ArrowUpRight, Clock, Calendar } from 'lucide-react';
 
 interface TopClientsLtvRankingProps {
   ltvList: ClientLtvDetails[];
   onSelectClientFilter?: (clientName: string) => void;
   onNavigateToContracts?: (clientId?: string) => void;
+  onNavigateToClient?: (clientId: string, clientName: string) => void;
   limit?: number;
 }
 
@@ -13,6 +14,7 @@ export const TopClientsLtvRanking: React.FC<TopClientsLtvRankingProps> = ({
   ltvList,
   onSelectClientFilter,
   onNavigateToContracts,
+  onNavigateToClient,
   limit = 5
 }) => {
   const topList = ltvList.slice(0, limit);
@@ -47,14 +49,20 @@ export const TopClientsLtvRanking: React.FC<TopClientsLtvRankingProps> = ({
         {topList.map((item, index) => {
           const rank = index + 1;
           const formattedValue = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(item.ltvEstimated);
+          const formattedTicket = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(item.monthlyTicket);
 
           return (
             <div
               key={item.clientId}
               onClick={() => {
-                if (onSelectClientFilter) onSelectClientFilter(item.clientName);
+                if (onNavigateToClient) {
+                  onNavigateToClient(item.clientId, item.clientName);
+                } else if (onSelectClientFilter) {
+                  onSelectClientFilter(item.clientName);
+                }
               }}
               className="group flex items-center justify-between p-3 hover:bg-gray-50/80 rounded-2xl transition-all border border-transparent hover:border-gray-100 cursor-pointer"
+              title={`Clique para abrir ${item.clientName}`}
             >
               <div className="flex items-center gap-3 min-w-0">
                 <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-black shrink-0 ${
@@ -66,27 +74,35 @@ export const TopClientsLtvRanking: React.FC<TopClientsLtvRankingProps> = ({
                   {rank}
                 </span>
 
-                <div className="min-w-0">
-                  <p className="font-bold text-xs text-brand-dark truncate group-hover:text-blue-600 transition-colors flex items-center gap-1.5">
-                    {item.clientName}
+                <div className="min-w-0 space-y-0.5">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <p className="font-bold text-xs text-brand-dark truncate group-hover:text-blue-600 transition-colors flex items-center gap-1">
+                      {item.clientName}
+                      <ArrowUpRight size={12} className="opacity-0 group-hover:opacity-100 transition-opacity text-blue-600" />
+                    </p>
                     {item.isCancelled && (
                       <span className="text-[8px] font-extrabold uppercase px-1.5 py-0.2 bg-gray-100 text-gray-500 rounded border border-gray-200">
                         Inativo
                       </span>
                     )}
+                  </div>
+
+                  <p className="text-[10px] text-gray-500 font-medium truncate">
+                    <span className="text-gray-400">Tempo com a agência:</span> <span className="text-stone-700 font-semibold">{item.timeWithAgencyLabel || `${item.monthsActive} meses`}</span>
                   </p>
-                  <p className="text-[10px] text-gray-400 truncate">
-                    Ticket: {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(item.monthlyTicket)} • {item.projectedMonths} meses
+
+                  <p className="text-[9px] text-gray-400 truncate">
+                    Ticket: {formattedTicket} • {item.isCancelled ? `Total: ${item.monthsActive} meses` : `Projeção: ${item.projectedMonths} meses`}
                   </p>
                 </div>
               </div>
 
-              <div className="text-right shrink-0">
+              <div className="text-right shrink-0 pl-3">
                 <span className="font-black text-xs text-brand-dark group-hover:text-emerald-600 transition-colors block">
                   {formattedValue}
                 </span>
                 <span className="text-[9px] font-bold text-gray-400 block uppercase tracking-wider">
-                  {formatCompactLtv(item.ltvEstimated)}
+                  {item.isCancelled ? 'LTV Real' : 'LTV Est.'}
                 </span>
               </div>
             </div>

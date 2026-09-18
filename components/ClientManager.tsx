@@ -48,6 +48,7 @@ import { ClientNpsSection } from './nps/ClientNpsSection';
 import { useAllClientsCurrentMonthNps, useClientNps } from '../hooks/useClientNps';
 import { HealthScoreBadge } from './health/HealthScoreBadge';
 import { ClientHealthPanel } from './health/ClientHealthPanel';
+import { ClientHealthModal } from './health/ClientHealthModal';
 import { useAllClientsCurrentMonthHealthScores } from '../hooks/useClientHealthScore';
 import { useAgencyClientsLtv } from '../hooks/useClientLtv';
 import { formatCompactLtv } from '../lib/clientLtv';
@@ -158,6 +159,7 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
   const { healthMap } = useAllClientsCurrentMonthHealthScores(agencyId);
   const { ltvMap } = useAgencyClientsLtv();
   const [clientSortBy, setClientSortBy] = useState<'ltv' | 'health' | 'nps' | 'name'>('ltv');
+  const [healthModalClient, setHealthModalClient] = useState<Client | null>(null);
   const { sendSurvey: sendNpsSurvey, toastMessage: npsToast } = useClientNps(null, agencyId);
   const [copiedNpsClientId, setCopiedNpsClientId] = useState<string | null>(null);
 
@@ -1942,7 +1944,11 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
                             LTV Est: {formatCompactLtv(ltvMap[client.id].ltvEstimated)}
                           </span>
                         )}
-                        <HealthScoreBadge healthScore={healthMap[client.id]} size="sm" />
+                        <HealthScoreBadge 
+                          healthScore={healthMap[client.id]} 
+                          size="sm" 
+                          onClick={() => setHealthModalClient(client)} 
+                        />
                         <NpsBadge nps={npsMap[client.id]} size="sm" />
                       </div>
                       <p className="text-xs text-gray-400 uppercase tracking-wider font-semibold">
@@ -1958,7 +1964,15 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
                         </div>
                       )}
                     </div>
-                    <div className="flex-shrink-0 flex items-center gap-4 self-end sm:self-auto mt-4 sm:mt-0">
+                    <div className="flex-shrink-0 flex items-center gap-3 sm:gap-4 self-end sm:self-auto mt-4 sm:mt-0">
+                      <button 
+                        onClick={() => setHealthModalClient(client)}
+                        className="flex flex-col items-center justify-center gap-1 p-2 text-gray-400 hover:text-emerald-600 transition-colors"
+                        title="Ver e Ajustar Saúde do Cliente (Health Score)"
+                      >
+                        <Activity size={18} />
+                        <span className="text-[9px] font-bold uppercase tracking-widest">Saúde</span>
+                      </button>
                       <button 
                         onClick={async () => {
                           const res = await sendNpsSurvey(client.id, client.agency_id);
@@ -2065,7 +2079,11 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
                                     LTV Real: {formatCompactLtv(ltvMap[client.id].ltvEstimated)}
                                   </span>
                                 )}
-                                <HealthScoreBadge healthScore={healthMap[client.id]} size="sm" />
+                                <HealthScoreBadge 
+                                  healthScore={healthMap[client.id]} 
+                                  size="sm" 
+                                  onClick={() => setHealthModalClient(client)}
+                                />
                                 <NpsBadge nps={npsMap[client.id]} size="sm" />
                               </div>
                               <p className="text-xs text-gray-400 uppercase tracking-wider font-semibold">
@@ -2081,7 +2099,15 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
                                 </div>
                               )}
                             </div>
-                            <div className="flex-shrink-0 flex items-center gap-4 self-end sm:self-auto mt-4 sm:mt-0">
+                            <div className="flex-shrink-0 flex items-center gap-3 sm:gap-4 self-end sm:self-auto mt-4 sm:mt-0">
+                              <button 
+                                onClick={() => setHealthModalClient(client)}
+                                className="flex flex-col items-center justify-center gap-1 p-2 text-gray-400 hover:text-emerald-600 transition-colors"
+                                title="Ver e Ajustar Saúde do Cliente (Health Score)"
+                              >
+                                <Activity size={18} />
+                                <span className="text-[9px] font-bold uppercase tracking-widest">Saúde</span>
+                              </button>
                               <button 
                                 onClick={() => handleEdit(client)}
                                 className="flex flex-col items-center justify-center gap-1 p-2 text-gray-400 hover:text-brand-dark transition-colors"
@@ -2270,6 +2296,13 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
             setRevenueChangeModalData(null);
           }
         }}
+      />
+
+      {/* Modal de Diagnóstico e Ajuste do Health Score (Acesso direto em 1 clique) */}
+      <ClientHealthModal
+        client={healthModalClient}
+        isOpen={!!healthModalClient}
+        onClose={() => setHealthModalClient(null)}
       />
     </div>
   );

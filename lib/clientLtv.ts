@@ -6,10 +6,33 @@ export interface ClientLtvDetails {
   clientName: string;
   monthlyTicket: number;
   monthsActive: number;
+  realDaysActive: number;
+  realMonthsActive: number;
+  timeWithAgencyLabel: string;
   projectedMonths: number;
   ltvEstimated: number;
   isCancelled: boolean;
   explanation: string;
+}
+
+/**
+ * Formata o tempo real de casa do cliente de forma amigável e legível.
+ */
+export function formatTimeWithAgency(startDateStr?: string | null, endDateStr?: string | null): string {
+  if (!startDateStr) return 'Novo cliente';
+  const start = dayjs(startDateStr);
+  if (!start.isValid()) return 'Novo cliente';
+
+  const end = endDateStr ? dayjs(endDateStr) : dayjs();
+  const diffDays = Math.max(0, end.diff(start, 'day'));
+
+  if (diffDays === 0) return 'Novo cliente (hoje)';
+  if (diffDays === 1) return 'Novo cliente (1 dia)';
+  if (diffDays < 30) return `Novo cliente (${diffDays} dias)`;
+
+  const diffMonths = Math.max(1, Math.floor(diffDays / 30.4375));
+  if (diffMonths === 1) return '1 mês';
+  return `${diffMonths} meses`;
 }
 
 /**
@@ -63,7 +86,15 @@ export function calculateSingleClientLtv(
 ): ClientLtvDetails {
   const monthlyTicket = getClientMonthlyTicket(client);
   const monthsActive = getClientMonthsActive(client);
+  const startDateStr = client.contract?.contract_start_date || client.created_at;
   const isCancelled = client.client_status === 'cancelled' || client.client_status === 'inactive';
+  const endDateStr = (isCancelled && client.cancelled_at) ? client.cancelled_at : undefined;
+  
+  const timeWithAgencyLabel = formatTimeWithAgency(startDateStr, endDateStr);
+  const start = startDateStr ? dayjs(startDateStr) : dayjs();
+  const end = endDateStr ? dayjs(endDateStr) : dayjs();
+  const realDaysActive = Math.max(0, end.diff(start, 'day'));
+  const realMonthsActive = Math.max(0, Math.floor(realDaysActive / 30.4375));
 
   if (isCancelled) {
     // Para clientes cancelados: usar o valor real faturado (paidBillingsSum) se disponível, senão ticket x meses ativos
@@ -78,6 +109,9 @@ export function calculateSingleClientLtv(
       clientName: client.name || 'Cliente',
       monthlyTicket,
       monthsActive,
+      realDaysActive,
+      realMonthsActive,
+      timeWithAgencyLabel,
       projectedMonths: monthsActive,
       ltvEstimated: ltvReal,
       isCancelled: true,
@@ -97,10 +131,13 @@ export function calculateSingleClientLtv(
     clientName: client.name || 'Cliente',
     monthlyTicket,
     monthsActive,
+    realDaysActive,
+    realMonthsActive,
+    timeWithAgencyLabel,
     projectedMonths,
     ltvEstimated,
     isCancelled: false,
-    explanation: `ticket ${formattedTicket} × tempo médio de permanência (${projectedMonths} meses projetados)`
+    explanation: `ticket ${formattedTicket} × projeção de ${projectedMonths} meses (${timeWithAgencyLabel})`
   };
 }
 

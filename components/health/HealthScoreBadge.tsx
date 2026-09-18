@@ -7,18 +7,24 @@ interface HealthScoreBadgeProps {
   healthScore?: ClientHealthScore | null;
   size?: 'sm' | 'md' | 'lg';
   showLabel?: boolean;
+  onClick?: (e: React.MouseEvent) => void;
 }
 
 export const HealthScoreBadge: React.FC<HealthScoreBadgeProps> = ({
   healthScore,
   size = 'md',
-  showLabel = false
+  showLabel = false,
+  onClick
 }) => {
   const [showTooltip, setShowTooltip] = useState(false);
 
   if (!healthScore || healthScore.score === undefined || healthScore.score === null) {
     return (
-      <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-gray-100 text-gray-500 text-[10px] font-bold uppercase tracking-wider border border-gray-200" title="Score de Saúde não calculado">
+      <span 
+        onClick={onClick ? (e) => { e.stopPropagation(); onClick(e); } : undefined}
+        className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-gray-100 text-gray-500 text-[10px] font-bold uppercase tracking-wider border border-gray-200 ${onClick ? 'cursor-pointer hover:bg-gray-200/80 transition-all' : ''}`}
+        title="Score de Saúde não calculado (clique para abrir)"
+      >
         <span className="w-1.5 h-1.5 rounded-full bg-gray-400" />
         Health --
       </span>
@@ -36,6 +42,7 @@ export const HealthScoreBadge: React.FC<HealthScoreBadgeProps> = ({
         className="relative inline-flex items-center"
         onMouseEnter={() => setShowTooltip(true)}
         onMouseLeave={() => setShowTooltip(false)}
+        onClick={onClick ? (e) => { e.stopPropagation(); onClick(e); } : undefined}
       >
         <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black tracking-tight border ${category.badgeBg} ${category.badgeText} ${category.badgeBorder} cursor-pointer transition-all hover:scale-105 shadow-2xs`}>
           <span className={`w-2 h-2 rounded-full ${category.dotColor} shrink-0 animate-pulse`} />
@@ -53,6 +60,11 @@ export const HealthScoreBadge: React.FC<HealthScoreBadgeProps> = ({
             <div className="text-[10px] text-gray-300">
               {tooltipText}
             </div>
+            {onClick && (
+              <div className="text-[9px] text-emerald-400 font-bold mt-1 pt-1 border-t border-gray-800">
+                Clique para ver detalhes e editar
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -64,8 +76,9 @@ export const HealthScoreBadge: React.FC<HealthScoreBadgeProps> = ({
       className="relative inline-flex items-center"
       onMouseEnter={() => setShowTooltip(true)}
       onMouseLeave={() => setShowTooltip(false)}
+      onClick={onClick ? (e) => { e.stopPropagation(); onClick(e); } : undefined}
     >
-      <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-2xl border ${category.badgeBg} ${category.badgeText} ${category.badgeBorder} cursor-pointer transition-all hover:shadow-md`}>
+      <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-2xl border ${category.badgeBg} ${category.badgeText} ${category.badgeBorder} cursor-pointer transition-all hover:shadow-md hover:scale-[1.02]`}>
         <span className={`w-2.5 h-2.5 rounded-full ${category.dotColor} shrink-0`} />
         <div className="flex flex-col text-left leading-none">
           <span className="text-xs font-black">{score}/100</span>
@@ -83,6 +96,11 @@ export const HealthScoreBadge: React.FC<HealthScoreBadgeProps> = ({
           <p className="text-[11px] text-gray-300">
             {tooltipText}
           </p>
+          {onClick && (
+            <div className="text-[9px] text-emerald-400 font-bold mt-1.5 pt-1.5 border-t border-gray-800">
+              Clique para ver detalhes e editar
+            </div>
+          )}
         </div>
       )}
     </div>

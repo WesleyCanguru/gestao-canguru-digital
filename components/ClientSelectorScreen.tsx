@@ -7,6 +7,7 @@ import { Plus, Users, LogOut, ChevronRight, Building2, AlertTriangle } from 'luc
 import { NpsBadge } from './nps/NpsBadge';
 import { useAllClientsCurrentMonthNps } from '../hooks/useClientNps';
 import { HealthScoreBadge } from './health/HealthScoreBadge';
+import { ClientHealthModal } from './health/ClientHealthModal';
 import { useAllClientsCurrentMonthHealthScores } from '../hooks/useClientHealthScore';
 import { useMediaBudgets } from '../hooks/useMediaBudgets';
 
@@ -24,6 +25,7 @@ export const ClientSelectorScreen: React.FC<ClientSelectorScreenProps> = ({
   const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
   const [debugError, setDebugError] = useState<string>('');
+  const [healthModalClient, setHealthModalClient] = useState<Client | null>(null);
   const { setActiveClient, agencyId } = useAuth();
   const { npsMap } = useAllClientsCurrentMonthNps(agencyId);
   const { healthMap } = useAllClientsCurrentMonthHealthScores(agencyId);
@@ -126,7 +128,11 @@ export const ClientSelectorScreen: React.FC<ClientSelectorScreenProps> = ({
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap mb-1">
                       <p className="text-brand-dark font-bold text-base truncate">{client.name}</p>
-                      <HealthScoreBadge healthScore={healthMap[client.id]} size="sm" />
+                      <HealthScoreBadge 
+                        healthScore={healthMap[client.id]} 
+                        size="sm" 
+                        onClick={() => setHealthModalClient(client)}
+                      />
                       <NpsBadge nps={npsMap[client.id]} size="sm" />
                       {overBudgetClientIds.has(client.id) && (
                         <span className="inline-flex items-center gap-1 text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-rose-100 text-rose-800 border border-rose-300 shadow-2xs">
@@ -166,6 +172,13 @@ export const ClientSelectorScreen: React.FC<ClientSelectorScreenProps> = ({
           </div>
         </div>
       </motion.div>
+
+      {/* Modal de Health Score direto */}
+      <ClientHealthModal
+        client={healthModalClient}
+        isOpen={!!healthModalClient}
+        onClose={() => setHealthModalClient(null)}
+      />
     </div>
   );
 };

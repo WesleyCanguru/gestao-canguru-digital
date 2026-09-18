@@ -73,6 +73,7 @@ export interface FinanceiroTabProps {
   initialMonthYear?: string;
   initialClientFilter?: string;
   onNavigateToContracts?: (clientId?: string) => void;
+  onNavigateToClient?: (client: any) => void;
 }
 
 export interface BillingStatusInfo {
@@ -142,7 +143,8 @@ export const FinanceiroTab: React.FC<FinanceiroTabProps> = ({
   initialSubTab,
   initialMonthYear,
   initialClientFilter,
-  onNavigateToContracts
+  onNavigateToContracts,
+  onNavigateToClient
 }) => {
   const [currentMonthYear, setCurrentMonthYear] = useState(initialMonthYear || dayjs().format('YYYY-MM'));
   const [activeSubTab, setActiveSubTab] = useState<'overview' | 'faturamento' | 'despesas' | 'indicacao'>(initialSubTab || 'overview');
@@ -1126,6 +1128,13 @@ export const FinanceiroTab: React.FC<FinanceiroTabProps> = ({
                 ltvList={ltvList}
                 onSelectClientFilter={(name) => setClientSearchFilter(name)}
                 onNavigateToContracts={onNavigateToContracts}
+                onNavigateToClient={(clientId, clientName) => {
+                  if (onNavigateToClient) {
+                    onNavigateToClient({ id: clientId, name: clientName });
+                  } else {
+                    setClientSearchFilter(clientName);
+                  }
+                }}
               />
             </div>
 
