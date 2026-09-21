@@ -390,11 +390,12 @@ export const HomeTab: React.FC<HomeTabProps> = ({
           .eq('agency_id', agencyId)
           .neq('status', 'deleted')
           .limit(10000),
-        supabase.from('agency_users')
-          .select('name')
-          .eq('agency_id', agencyId)
-          .limit(1)
-          .maybeSingle()
+        (() => {
+          const storedUserId = typeof window !== 'undefined' ? localStorage.getItem('next_app_user_id') : null;
+          return storedUserId
+            ? supabase.from('agency_users').select('name').eq('id', storedUserId).maybeSingle()
+            : supabase.from('agency_users').select('name').eq('agency_id', agencyId).not('name', 'is', null).limit(1).maybeSingle();
+        })()
       ]);
 
       if (agencyUserResult?.data?.name) {
@@ -694,10 +695,11 @@ export const HomeTab: React.FC<HomeTabProps> = ({
     );
   }
 
-  // Dados para Saudação e Cabeçalho
+  // Dados para Saudação e Cabeçalho (usa estritamente agency_users.name, nunca agency_name)
   const hora = new Date().getHours();
   const saudacao = hora < 12 ? 'Bom dia' : hora < 18 ? 'Boa tarde' : 'Boa noite';
-  const rawName = personName || userName || currentUser?.name || (agencyName && !agencyName.toLowerCase().includes('canguru') ? agencyName : null) || 'Wesley';
+  const storedUserName = typeof window !== 'undefined' ? localStorage.getItem('next_app_user_name') : null;
+  const rawName = personName || userName || currentUser?.name || storedUserName || 'Wesley';
   const nomeUsuario = rawName.trim().split(' ')[0] || 'Wesley';
   const diaSemana = dayjs().format('dddd');
   const dataFormatada = dayjs().format('D [de] MMMM');

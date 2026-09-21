@@ -32,6 +32,7 @@ import { ClientPainelConteudo } from './components/client/ClientPainelConteudo';
 import { OrganicMetricsDashboard } from './components/client/OrganicMetricsDashboard';
 import { PublicMonthPage } from './components/PublicMonthPage';
 import { NpsPublicScreen } from './components/nps/NpsPublicScreen';
+import { ClientNpsSection } from './components/nps/ClientNpsSection';
 
 import { AgencyHome } from './components/agency/AgencyHome';
 import { AgencyDashboard } from './components/agency/AgencyDashboard';
@@ -43,7 +44,7 @@ dayjs.locale('pt-br');
 
 import { Navigation } from './components/Navigation';
 
-type ViewState = 'home' | 'month-detail' | 'onboarding' | 'dashboard' | 'briefings' | 'strategic-briefings' | 'paid-traffic' | 'website' | 'password-vault' | 'tutorials' | 'ai-photos' | 'agencyDashboard' | 'crm' | 'roteiros' | 'organico';
+type ViewState = 'home' | 'month-detail' | 'onboarding' | 'dashboard' | 'briefings' | 'strategic-briefings' | 'paid-traffic' | 'website' | 'password-vault' | 'tutorials' | 'ai-photos' | 'agencyDashboard' | 'crm' | 'roteiros' | 'organico' | 'nps';
 
 interface MainAppProps {
   initialView?: ViewState;
@@ -66,6 +67,7 @@ const MainApp: React.FC<MainAppProps> = ({ initialView, onExitAgencyDashboard, o
       if (viewParam === 'crm') return 'crm';
       if (viewParam === 'tutorial') return 'tutorials';
       if (viewParam === 'password-vault') return 'password-vault';
+      if (viewParam === 'nps' || aba === 'nps') return 'nps';
     }
     return initialView || 'dashboard';
   });
@@ -126,6 +128,8 @@ const MainApp: React.FC<MainAppProps> = ({ initialView, onExitAgencyDashboard, o
       }
     } else if (viewParam === 'password-vault') {
       setView('password-vault');
+    } else if (viewParam === 'nps' || aba === 'nps') {
+      setView('nps');
     }
   }, []);
 
@@ -237,6 +241,14 @@ const MainApp: React.FC<MainAppProps> = ({ initialView, onExitAgencyDashboard, o
             setActiveClient(client);
             if (isAgencyView) {
               setView('dashboard');
+            } else {
+              const services = client.services || [];
+              const hasSocial = Array.isArray(services) && services.some(
+                (s: any) => typeof s === 'string' && s.trim().toLowerCase() === 'social media'
+              );
+              if (!hasSocial && (view === 'month-detail' || view === 'organico' || view === 'roteiros' || view === 'ai-photos')) {
+                setView('dashboard');
+              }
             }
           }}
         />
@@ -530,6 +542,31 @@ const MainApp: React.FC<MainAppProps> = ({ initialView, onExitAgencyDashboard, o
                       </div>
                     )}
                     {activeClient && <ClientChecklistView client={activeClient} onClose={() => setView('dashboard')} />}
+                  </div>
+                ) : view === 'nps' ? (
+                  <div className="space-y-6">
+                    {!showNav && (
+                      <div className="bg-white rounded-2xl p-4 border border-stone-200/70 shadow-xs flex items-center justify-between mb-4">
+                        <button 
+                          onClick={() => setView('dashboard')}
+                          className="flex items-center gap-2 text-sm font-bold text-[#13284D] hover:opacity-80 transition-opacity cursor-pointer"
+                        >
+                          <ChevronRight className="w-5 h-5 rotate-180" />
+                          <span>Voltar ao Início</span>
+                        </button>
+                      </div>
+                    )}
+                    {activeClient && (
+                      <div className="bg-white rounded-[2.5rem] border border-black/[0.03] shadow-sm min-h-[80vh] p-6 sm:p-10">
+                        <div className="mb-8 border-b border-gray-100 pb-6 flex items-center justify-between">
+                          <div>
+                            <h2 className="text-2xl font-bold text-brand-dark">Net Promoter Score (NPS)</h2>
+                            <p className="text-sm text-gray-500 mt-1">Acompanhamento da satisfação e feedback de {activeClient.name}</p>
+                          </div>
+                        </div>
+                        <ClientNpsSection client={activeClient} />
+                      </div>
+                    )}
                   </div>
                 ) : view === 'home' ? (
                   <AnnualOverview onSelectMonth={handleSelectMonth} />

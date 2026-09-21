@@ -31,7 +31,8 @@ import {
   Sparkles,
   PlayCircle,
   BarChart3,
-  NotebookPen
+  NotebookPen,
+  HeartHandshake
 } from 'lucide-react';
 import { useAuth, supabase } from '../lib/supabase';
 import { Logo } from './Logo';
@@ -61,6 +62,7 @@ export const Navigation: React.FC<SidebarProps> = ({
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const [isClientDropdownOpen, setIsClientDropdownOpen] = useState(false);
   const [availableClients, setAvailableClients] = useState<Client[]>([]);
+  const [hasCredentials, setHasCredentials] = useState<boolean>(false);
   const { userRole, logout, agencyId, agencyName } = useAuth();
 
   useEffect(() => {
@@ -68,6 +70,27 @@ export const Navigation: React.FC<SidebarProps> = ({
       fetchClients();
     }
   }, [userRole, agencyId]);
+
+  useEffect(() => {
+    if (!activeClient?.id) {
+      setHasCredentials(false);
+      return;
+    }
+    let isMounted = true;
+    supabase
+      .from('client_credentials')
+      .select('id', { count: 'exact', head: true })
+      .eq('client_id', activeClient.id)
+      .then(({ count, error }) => {
+        if (isMounted) {
+          setHasCredentials(!error && (count ?? 0) > 0);
+        }
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [activeClient?.id]);
 
   const fetchClients = async () => {
     if (!agencyId) return;
@@ -98,69 +121,118 @@ export const Navigation: React.FC<SidebarProps> = ({
 
   const getClientItems = () => {
     if (!activeClient) return [];
-    
-    const services = activeClient.services || [];
-    const hasService = (s: string) => services.includes(s);
-    const getFeature = (feature: string, defaultVal: boolean) => {
-      if (feature === 'crm') {
-        return activeClient.features_settings?.crm ?? activeClient.features_settings?.is_lead_tracking_enabled ?? (activeClient as any).is_lead_tracking_enabled ?? defaultVal;
-      }
-      return activeClient.features_settings?.[feature] ?? defaultVal;
-    };
 
-    const allModules = [
-      { id: 'dashboard', label: 'Início', icon: Home, featureKey: null, defaultVisible: true },
-      { id: 'crm', label: 'CRM', icon: Kanban, featureKey: 'crm', defaultVisible: false },
-      { id: 'month-detail', label: 'Painel de Conteúdo', icon: LayoutDashboard, featureKey: 'mapa', defaultVisible: hasService('Social Media') },
-      { id: 'organico', label: 'Redes Sociais', icon: TrendingUp, featureKey: 'organico', defaultVisible: hasService('Social Media') },
-      { id: 'paid-traffic', label: 'Tráfego Pago', icon: Zap, featureKey: null, defaultVisible: services.includes('Tráfego Pago') },
-      { id: 'strategic-briefings', label: 'Briefings', icon: Target, featureKey: 'briefings', defaultVisible: hasService('Social Media') || hasService('Tráfego Pago') },
-      { id: 'website', label: 'Website', icon: Globe, featureKey: 'website', defaultVisible: hasService('Tráfego Pago') },
-      { id: 'ai-photos', label: 'Fotos IA', icon: Camera, featureKey: 'ai_photos', defaultVisible: hasService('Fotos com IA') },
-      { id: 'roteiros', label: 'Roteiros', icon: FileText, featureKey: 'roteiros', defaultVisible: true },
-      { id: 'password-vault', label: 'Senhas', icon: ShieldCheck, featureKey: 'password_vault', defaultVisible: true },
-      { id: 'tutorials', label: 'Tutoriais', icon: BookOpen, featureKey: 'tutorials', defaultVisible: true }
-    ];
-
-    // Aplicar ordem personalizada se existir
-    const menuOrder = activeClient.features_settings?.menu_order;
-    if (menuOrder && Array.isArray(menuOrder)) {
-      allModules.sort((a, b) => {
-        let indexA = menuOrder.indexOf(a.id);
-        let indexB = menuOrder.indexOf(b.id);
-        // Novos módulos (não na lista salva) vão para o final
-        if (indexA === -1) indexA = 999;
-        if (indexB === -1) indexB = 999;
-        return indexA - indexB;
-      });
-    }
-
-    const isAgencyUser = userRole === 'admin' || userRole === 'team';
-
-    const mapped = allModules.filter(item => {
-      if (isAgencyUser) return true;
-      if (!item.featureKey) return item.defaultVisible;
-      return getFeature(item.featureKey, item.defaultVisible);
-    }).map(item => {
-      const isHiddenForClient = item.featureKey && !getFeature(item.featureKey, item.defaultVisible);
-      const forceShowAsActive = false;
-      const shouldShowHiddenTag = isAgencyUser && isHiddenForClient && !forceShowAsActive;
-      
-      return {
-        ...item,
-        label: shouldShowHiddenTag ? `${item.label} (Oculto)` : item.label,
-        isInactive: isHiddenForClient && !forceShowAsActive
+    // Não afetar clientes da agência original (agency_id=1)
+    if (activeClient.agency_id === 1) {
+      const services = activeClient.services || [];
+      const hasService = (s: string) => services.includes(s);
+      const getFeature = (feature: string, defaultVal: boolean) => {
+        if (feature === 'crm') {
+          return activeClient.features_settings?.crm ?? activeClient.features_settings?.is_lead_tracking_enabled ?? (activeClient as any).is_lead_tracking_enabled ?? defaultVal;
+        }
+        return activeClient.features_settings?.[feature] ?? defaultVal;
       };
-    });
 
-    if (isAgencyUser) {
-      // Reordenar: ativos primeiro, inativos por último
-      const active = mapped.filter(i => !i.isInactive);
-      const inactive = mapped.filter(i => i.isInactive);
-      return [...active, ...inactive];
+      const allModules = [
+        { id: 'dashboard', label: 'Início', icon: Home, featureKey: null, defaultVisible: true },
+        { id: 'crm', label: 'CRM', icon: Kanban, featureKey: 'crm', defaultVisible: false },
+        { id: 'month-detail', label: 'Painel de Conteúdo', icon: LayoutDashboard, featureKey: 'mapa', defaultVisible: hasService('Social Media') },
+        { id: 'organico', label: 'Redes Sociais', icon: TrendingUp, featureKey: 'organico', defaultVisible: hasService('Social Media') },
+        { id: 'paid-traffic', label: 'Tráfego Pago', icon: Zap, featureKey: null, defaultVisible: services.includes('Tráfego Pago') },
+        { id: 'strategic-briefings', label: 'Briefings', icon: Target, featureKey: 'briefings', defaultVisible: hasService('Social Media') || hasService('Tráfego Pago') },
+        { id: 'website', label: 'Website', icon: Globe, featureKey: 'website', defaultVisible: hasService('Tráfego Pago') },
+        { id: 'ai-photos', label: 'Fotos IA', icon: Camera, featureKey: 'ai_photos', defaultVisible: hasService('Fotos com IA') },
+        { id: 'roteiros', label: 'Roteiros', icon: FileText, featureKey: 'roteiros', defaultVisible: true },
+        { id: 'password-vault', label: 'Senhas', icon: ShieldCheck, featureKey: 'password_vault', defaultVisible: true },
+        { id: 'tutorials', label: 'Tutoriais', icon: BookOpen, featureKey: 'tutorials', defaultVisible: true }
+      ];
+
+      // Aplicar ordem personalizada se existir
+      const menuOrder = activeClient.features_settings?.menu_order;
+      if (menuOrder && Array.isArray(menuOrder)) {
+        allModules.sort((a, b) => {
+          let indexA = menuOrder.indexOf(a.id);
+          let indexB = menuOrder.indexOf(b.id);
+          if (indexA === -1) indexA = 999;
+          if (indexB === -1) indexB = 999;
+          return indexA - indexB;
+        });
+      }
+
+      const isAgencyUser = userRole === 'admin' || userRole === 'team';
+
+      const mapped = allModules.filter(item => {
+        if (isAgencyUser) return true;
+        if (!item.featureKey) return item.defaultVisible;
+        return getFeature(item.featureKey, item.defaultVisible);
+      }).map(item => {
+        const isHiddenForClient = item.featureKey && !getFeature(item.featureKey, item.defaultVisible);
+        const forceShowAsActive = false;
+        const shouldShowHiddenTag = isAgencyUser && isHiddenForClient && !forceShowAsActive;
+        
+        return {
+          ...item,
+          label: shouldShowHiddenTag ? `${item.label} (Oculto)` : item.label,
+          isInactive: isHiddenForClient && !forceShowAsActive
+        };
+      });
+
+      if (isAgencyUser) {
+        // Reordenar: ativos primeiro, inativos por último
+        const active = mapped.filter(i => !i.isInactive);
+        const inactive = mapped.filter(i => i.isInactive);
+        return [...active, ...inactive];
+      }
+
+      return mapped;
     }
 
-    return mapped;
+    // Ambiente Demo (agency_id=6) e demais clientes fora da agência 1:
+    // Menu lateral dinâmico baseado estritamente no campo `services`
+    const services = activeClient.services || [];
+    const hasSocialMedia = Array.isArray(services) && services.some(
+      s => typeof s === 'string' && s.trim().toLowerCase() === 'social media'
+    );
+    const hasTrafegoPago = Array.isArray(services) && services.some(
+      s => typeof s === 'string' && (s.trim().toLowerCase() === 'tráfego pago' || s.trim().toLowerCase() === 'trafego pago')
+    );
+
+    const items: Array<{ id: string; label: string; icon: any }> = [];
+
+    // Início (sempre primeiro)
+    items.push({ id: 'dashboard', label: 'Início', icon: Home });
+
+    if (hasSocialMedia) {
+      // Clientes com Social Media:
+      // - Início
+      // - Painel de Conteúdo
+      // - Redes Sociais
+      // - Tráfego Pago
+      // - Credenciais/Senhas (se existir dados em client_credentials para este cliente)
+      // - NPS
+      items.push({ id: 'month-detail', label: 'Painel de Conteúdo', icon: LayoutDashboard });
+      items.push({ id: 'organico', label: 'Redes Sociais', icon: TrendingUp });
+      if (hasTrafegoPago || true) {
+        items.push({ id: 'paid-traffic', label: 'Tráfego Pago', icon: Zap });
+      }
+      if (hasCredentials) {
+        items.push({ id: 'password-vault', label: 'Credenciais', icon: ShieldCheck });
+      }
+      items.push({ id: 'nps', label: 'NPS', icon: HeartHandshake });
+    } else {
+      // Clientes SEM Social Media (apenas Tráfego Pago):
+      // - Início
+      // - Tráfego Pago
+      // - Credenciais/Senhas (se existir dados em client_credentials para este cliente)
+      // - NPS
+      items.push({ id: 'paid-traffic', label: 'Tráfego Pago', icon: Zap });
+      if (hasCredentials) {
+        items.push({ id: 'password-vault', label: 'Credenciais', icon: ShieldCheck });
+      }
+      items.push({ id: 'nps', label: 'NPS', icon: HeartHandshake });
+    }
+
+    return items;
   };
 
   const navItems = view === 'agency' ? agencyItems : getClientItems();

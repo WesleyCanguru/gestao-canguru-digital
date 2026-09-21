@@ -73,7 +73,7 @@ export const PendenciasPanel: React.FC<PendenciasPanelProps> = ({
       // 1. Clientes Ativos
       const { data: clientsData, error: clientsErr } = await supabase
         .from('clients')
-        .select('id, name, logo_url, color, initials, is_internal, client_status')
+        .select('id, name, logo_url, color, initials, is_internal, client_status, services')
         .eq('agency_id', agencyId);
 
       if (clientsErr) {
@@ -87,6 +87,19 @@ export const PendenciasPanel: React.FC<PendenciasPanelProps> = ({
       const activeClients = rawClients.filter(
         (c) => !c.is_internal && c.client_status !== 'cancelled' && c.client_status !== 'inactive' && !TEST_CLIENT_IDS.includes(c.id)
       );
+
+      // Helper para verificar se cliente possui serviço de Social Media
+      const hasSocialMedia = (c: any) => {
+        if (!c || !c.services) return false;
+        const s = c.services;
+        if (Array.isArray(s)) {
+          return s.some((item: any) => typeof item === 'string' && item.trim().toLowerCase() === 'social media');
+        }
+        if (typeof s === 'string') {
+          return s.trim().toLowerCase() === 'social media' || s.trim().toLowerCase().includes('social media');
+        }
+        return false;
+      };
 
       // 2. Posts da agência
       const { data: postsData, error: postsErr } = await supabase
@@ -130,6 +143,9 @@ export const PendenciasPanel: React.FC<PendenciasPanelProps> = ({
 
       // --- VERIFICAÇÃO 1: Clientes sem posts agendados/aprovados para os próximos 7 dias ---
       activeClients.forEach((client) => {
+        // Ignorar clientes que não possuem Social Media no array de services (ex: apenas Tráfego Pago)
+        if (!hasSocialMedia(client)) return;
+
         const clientPosts = validPosts.filter((p) => p.client_id === client.id);
 
         const hasPostInWeek = clientPosts.some((p) => {
@@ -199,6 +215,8 @@ export const PendenciasPanel: React.FC<PendenciasPanelProps> = ({
 
       // --- VERIFICAÇÃO 3: Coleta de métricas desatualizada (> 48h) ---
       activeClients.forEach((client) => {
+        if (!hasSocialMedia(client)) return;
+
         const clientMetrics = rawMetrics.filter((m) => m.client_id === client.id);
 
         let latestTimestamp: dayjs.Dayjs | null = null;
@@ -239,6 +257,9 @@ export const PendenciasPanel: React.FC<PendenciasPanelProps> = ({
       validPosts.forEach((post) => {
         if (TEST_CLIENT_IDS.includes(post.client_id)) return;
 
+        const client = clientsMap.get(post.client_id);
+        if (!client || !hasSocialMedia(client)) return;
+
         const isPending =
           post.status === 'pending_approval' ||
           post.status === 'theme_pending' ||
@@ -257,6 +278,7 @@ export const PendenciasPanel: React.FC<PendenciasPanelProps> = ({
 
       Object.entries(stalledPostsByClient).forEach(([clientId, count]) => {
         const client = activeClients.find((c) => c.id === clientId);
+        if (!client || !hasSocialMedia(client)) return;
         const clientName = client ? client.name : 'Cliente';
 
         pendingList.push({
