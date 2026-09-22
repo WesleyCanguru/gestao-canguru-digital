@@ -54,8 +54,13 @@ export const PendenciasPanel: React.FC<PendenciasPanelProps> = ({
   const [loading, setLoading] = useState(true);
   const [items, setItems] = useState<PendingItem[]>([]);
 
+  // Ocultar completamente o Painel de Pendências para a agência de ID 6 (Canguru Digital USA)
+  if (Number(agencyId) === 6) {
+    return null;
+  }
+
   const fetchPendencias = useCallback(async () => {
-    if (!agencyId || userRole !== 'admin') {
+    if (!agencyId || userRole !== 'admin' || Number(agencyId) === 6) {
       setLoading(false);
       return;
     }
