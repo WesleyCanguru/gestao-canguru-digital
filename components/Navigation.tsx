@@ -135,6 +135,7 @@ export const Navigation: React.FC<SidebarProps> = ({
 
       const allModules = [
         { id: 'dashboard', label: 'Início', icon: Home, featureKey: null, defaultVisible: true },
+        { id: 'ai-onboarding', label: 'Onboarding IA', icon: Sparkles, featureKey: 'ai_onboarding', defaultVisible: true },
         { id: 'crm', label: 'CRM', icon: Kanban, featureKey: 'crm', defaultVisible: false },
         { id: 'month-detail', label: 'Painel de Conteúdo', icon: LayoutDashboard, featureKey: 'mapa', defaultVisible: hasService('Social Media') },
         { id: 'organico', label: 'Redes Sociais', icon: TrendingUp, featureKey: 'organico', defaultVisible: hasService('Social Media') },
@@ -201,6 +202,7 @@ export const Navigation: React.FC<SidebarProps> = ({
 
     // Início (sempre primeiro)
     items.push({ id: 'dashboard', label: 'Início', icon: Home });
+    items.push({ id: 'ai-onboarding', label: 'Onboarding IA', icon: Sparkles });
 
     if (hasSocialMedia) {
       // Clientes com Social Media:

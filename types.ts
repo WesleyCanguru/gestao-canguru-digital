@@ -281,6 +281,43 @@ export interface Client {
   last_payment_date?: string | null;
   last_payment_value?: number | null;
   referral_partner_id?: string | null;
+  onboarding_status?: 'em_andamento' | 'concluido' | 'ativo' | string | null;
+  onboarding_completed_at?: string | null;
+  currency?: string | null;
+  timezone?: string | null;
+  ai_onboarding?: AiOnboardingData | null;
+}
+
+export interface AiOnboardingItem {
+  id: string;
+  label: string;
+  url?: string;
+  note?: string;
+  done: boolean;
+}
+
+export interface AiOnboardingCategory {
+  id: string;
+  category: string;
+  icon?: string;
+  items: AiOnboardingItem[];
+}
+
+export interface AiOnboardingStrategySummary {
+  positioning?: string;
+  content_pillars?: string[];
+  posting_frequency?: string;
+  priority_30_days?: string[];
+}
+
+export interface AiOnboardingData {
+  generated_at: string;
+  version: number;
+  client_name?: string;
+  business_name?: string;
+  segment?: string;
+  checklist: AiOnboardingCategory[];
+  strategy_summary?: AiOnboardingStrategySummary;
 }
 
 export interface ReferralPartner {

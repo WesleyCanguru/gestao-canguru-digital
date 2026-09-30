@@ -43,6 +43,7 @@ dayjs.locale('pt-br');
 interface ClientHomeProps {
   initialActiveView?: 'dashboard' | 'leads';
   onNavigateToOnboarding: () => void;
+  onNavigateToAiOnboarding?: () => void;
   onNavigateToMapa: (tab?: 'dashboard' | 'publicacoes' | 'mapa', filterStatus?: string) => void;
   onNavigateToPublicacoes?: (filterStatus?: string) => void;
   onNavigateToBriefings: () => void;
@@ -66,6 +67,7 @@ const MONTHS_PT = [
 export const ClientHome: React.FC<ClientHomeProps> = ({
   initialActiveView,
   onNavigateToOnboarding,
+  onNavigateToAiOnboarding,
   onNavigateToMapa,
   onNavigateToPublicacoes,
   onNavigateToBriefings,
@@ -446,6 +448,20 @@ export const ClientHome: React.FC<ClientHomeProps> = ({
   // Lista dos módulos compactos para a grade de acesso rápido
   const modulesList = [
     {
+      id: 'ai-onboarding',
+      label: 'Onboarding IA',
+      subtitle: 'Checklist e estratégia de ativação',
+      icon: Sparkles,
+      visible: true,
+      action: () => {
+        if (onNavigateToAiOnboarding) {
+          onNavigateToAiOnboarding();
+        } else {
+          onNavigateToOnboarding();
+        }
+      }
+    },
+    {
       id: 'mapa_editorial',
       label: 'Painel de Conteúdo',
       subtitle: 'Dashboard e mapa editorial',
@@ -652,9 +668,24 @@ export const ClientHome: React.FC<ClientHomeProps> = ({
   const nomeMesAno = getMonthYearString();
   const nomeEmpresa = activeClient?.name || 'Sua Empresa';
 
+  const aiOnboardingStats = useMemo(() => {
+    const ob = activeClient?.ai_onboarding;
+    if (!ob?.checklist) return null;
+    let total = 0;
+    let done = 0;
+    ob.checklist.forEach(cat => {
+      cat.items.forEach(i => {
+        total++;
+        if (i.done) done++;
+      });
+    });
+    const percent = total > 0 ? Math.round((done / total) * 100) : 0;
+    return { total, done, percent };
+  }, [activeClient?.ai_onboarding]);
+
   return (
     <div className="max-w-6xl mx-auto w-full pb-16">
-      {/* SEÇÃO 1 — Header de boas-vindas */}
+      {/* SECAO 1 - Header de boas-vindas */}
       <motion.div
         initial={{ opacity: 0, y: 15 }}
         animate={{ opacity: 1, y: 0 }}
@@ -685,7 +716,7 @@ export const ClientHome: React.FC<ClientHomeProps> = ({
                 marginBottom: 8
               }}
             >
-              {saudacao} — {nomeMesAno}
+              {saudacao} · {nomeMesAno}
             </p>
             <h1
               style={{
@@ -736,7 +767,54 @@ export const ClientHome: React.FC<ClientHomeProps> = ({
         </div>
       </motion.div>
 
-      {/* SEÇÃO 2 — Cards de ação rápida */}
+      {/* Card de Onboarding IA */}
+      {aiOnboardingStats && (
+        <motion.div
+          initial={{ opacity: 0, y: 15 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.08, ease: [0.16, 1, 0.3, 1] }}
+          onClick={() => {
+            if (onNavigateToAiOnboarding) onNavigateToAiOnboarding();
+            else onNavigateToOnboarding();
+          }}
+          className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4 cursor-pointer hover:border-brand-dark/30 transition-all select-none group"
+        >
+          <div className="flex items-center gap-3.5">
+            <div className="w-12 h-12 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+              <Sparkles size={22} />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="font-bold text-gray-900 text-sm sm:text-base">Onboarding IA - Checklist de Ativação</h3>
+                {aiOnboardingStats.percent === 100 ? (
+                  <span className="text-xs bg-emerald-50 text-emerald-700 font-bold px-2 py-0.5 rounded-md">Concluído</span>
+                ) : (
+                  <span className="text-xs bg-blue-50 text-blue-700 font-bold px-2 py-0.5 rounded-md">{aiOnboardingStats.percent}%</span>
+                )}
+              </div>
+              <p className="text-xs text-gray-400 mt-0.5">
+                {aiOnboardingStats.done} de {aiOnboardingStats.total} itens concluídos
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-4">
+            <div className="w-32 hidden md:block">
+              <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-emerald-500 rounded-full transition-all duration-500"
+                  style={{ width: `${aiOnboardingStats.percent}%` }}
+                />
+              </div>
+            </div>
+            <span className="text-xs font-bold text-brand-dark group-hover:translate-x-0.5 transition-transform flex items-center gap-1">
+              Ver checklist <ChevronRight size={14} />
+            </span>
+          </div>
+        </motion.div>
+      )}
+
+      {/* SECAO 2 - Cards de ação rápida */}
       <motion.div
         initial={{ opacity: 0, y: 15 }}
         animate={{ opacity: 1, y: 0 }}
@@ -805,7 +883,7 @@ export const ClientHome: React.FC<ClientHomeProps> = ({
         })}
       </motion.div>
 
-      {/* Card de preview orgânico — mostrar apenas se houver dados em social_metrics */}
+      {/* Card de preview organico - mostrar apenas se houver dados em social_metrics */}
       {organicPreview && (
         <motion.div
           initial={{ opacity: 0, y: 15 }}
@@ -870,7 +948,7 @@ export const ClientHome: React.FC<ClientHomeProps> = ({
         </motion.div>
       )}
 
-      {/* SEÇÃO 3 — Publicações pendentes de aprovação (condicional) */}
+      {/* SECAO 3 - Publicações pendentes de aprovação (condicional) */}
       {!postsLoading && postsParaAprovar.length > 0 && (
         <motion.div
           initial={{ opacity: 0, y: 15 }}
@@ -1087,7 +1165,7 @@ export const ClientHome: React.FC<ClientHomeProps> = ({
         </motion.div>
       )}
 
-      {/* SEÇÃO 4 — Seus módulos (grade menor / Acesso rápido) */}
+      {/* SECAO 4 - Seus módulos (grade menor / Acesso rápido) */}
       <motion.div
         initial={{ opacity: 0, y: 15 }}
         animate={{ opacity: 1, y: 0 }}
@@ -1158,7 +1236,7 @@ export const ClientHome: React.FC<ClientHomeProps> = ({
         </div>
       </motion.div>
 
-      {/* SEÇÃO 5 — Pesquisa de Satisfação NPS (para Administrador) */}
+      {/* SECAO 5 - Pesquisa de Satisfação NPS (para Administrador) */}
       {isAdmin && activeClient && (
         <motion.div
           initial={{ opacity: 0, y: 15 }}

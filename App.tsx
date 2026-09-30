@@ -33,6 +33,8 @@ import { OrganicMetricsDashboard } from './components/client/OrganicMetricsDashb
 import { PublicMonthPage } from './components/PublicMonthPage';
 import { NpsPublicScreen } from './components/nps/NpsPublicScreen';
 import { ClientNpsSection } from './components/nps/ClientNpsSection';
+import { PublicClientOnboarding } from './components/PublicClientOnboarding';
+import { OnboardingChecklist } from './components/OnboardingChecklist';
 
 import { AgencyHome } from './components/agency/AgencyHome';
 import { AgencyDashboard } from './components/agency/AgencyDashboard';
@@ -44,7 +46,7 @@ dayjs.locale('pt-br');
 
 import { Navigation } from './components/Navigation';
 
-type ViewState = 'home' | 'month-detail' | 'onboarding' | 'dashboard' | 'briefings' | 'strategic-briefings' | 'paid-traffic' | 'website' | 'password-vault' | 'tutorials' | 'ai-photos' | 'agencyDashboard' | 'crm' | 'roteiros' | 'organico' | 'nps';
+type ViewState = 'home' | 'month-detail' | 'onboarding' | 'dashboard' | 'briefings' | 'strategic-briefings' | 'paid-traffic' | 'website' | 'password-vault' | 'tutorials' | 'ai-photos' | 'agencyDashboard' | 'crm' | 'roteiros' | 'organico' | 'nps' | 'ai-onboarding';
 
 interface MainAppProps {
   initialView?: ViewState;
@@ -68,6 +70,7 @@ const MainApp: React.FC<MainAppProps> = ({ initialView, onExitAgencyDashboard, o
       if (viewParam === 'tutorial') return 'tutorials';
       if (viewParam === 'password-vault') return 'password-vault';
       if (viewParam === 'nps' || aba === 'nps') return 'nps';
+      if (viewParam === 'ai-onboarding' || viewParam === 'onboarding-ia' || aba === 'ai-onboarding' || aba === 'onboarding-ia') return 'ai-onboarding';
     }
     return initialView || 'dashboard';
   });
@@ -130,6 +133,8 @@ const MainApp: React.FC<MainAppProps> = ({ initialView, onExitAgencyDashboard, o
       setView('password-vault');
     } else if (viewParam === 'nps' || aba === 'nps') {
       setView('nps');
+    } else if (viewParam === 'ai-onboarding' || viewParam === 'onboarding-ia' || aba === 'ai-onboarding' || aba === 'onboarding-ia') {
+      setView('ai-onboarding');
     }
   }, []);
 
@@ -526,8 +531,37 @@ const MainApp: React.FC<MainAppProps> = ({ initialView, onExitAgencyDashboard, o
                     onNavigateToAiPhotos={() => setView('ai-photos')}
                     onNavigateToRoteiros={() => setView('roteiros')}
                     onNavigateToOrganico={() => setView('organico')}
+                    onNavigateToAiOnboarding={() => setView('ai-onboarding')}
                     onRefreshClient={refreshActiveClient}
                   />
+                ) : view === 'ai-onboarding' ? (
+                  <div className="space-y-6">
+                    {!showNav && (
+                      <div className="bg-white rounded-2xl p-4 border border-stone-200/70 shadow-xs flex items-center justify-between mb-4">
+                        <button 
+                          onClick={() => setView('dashboard')}
+                          className="flex items-center gap-2 text-sm font-bold text-[#13284D] hover:opacity-80 transition-opacity cursor-pointer"
+                        >
+                          <ChevronRight className="w-5 h-5 rotate-180" />
+                          <span>Voltar ao Início</span>
+                        </button>
+                      </div>
+                    )}
+                    {activeClient ? (
+                      <div className="bg-white rounded-[2.5rem] border border-black/[0.03] shadow-sm min-h-[80vh] p-6 sm:p-10">
+                        <OnboardingChecklist 
+                          client={activeClient}
+                          agencyId={activeClient.agency_id}
+                          isClientView={userRole === 'approver'}
+                          onUpdate={() => {
+                            refreshActiveClient();
+                          }}
+                        />
+                      </div>
+                    ) : (
+                      <div className="text-center py-12 text-gray-400">Nenhum cliente selecionado</div>
+                    )}
+                  </div>
                 ) : view === 'onboarding' ? (
                   <div className="bg-white rounded-[2.5rem] border border-black/[0.03] shadow-sm min-h-[80vh] p-6 sm:p-10">
                     {!showNav && (
@@ -693,6 +727,17 @@ const App: React.FC = () => {
   const [roteiroToken, setRoteiroToken] = useState<string | null>(null);
   const [fotosClientId, setFotosClientId] = useState<string | null>(null);
   const [npsToken, setNpsToken] = useState<string | null>(null);
+  const [isCadastroRoute, setIsCadastroRoute] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    const p = window.location.pathname;
+    const s = new URLSearchParams(window.location.search);
+    return p === '/cadastro' || p.startsWith('/cadastro/') || s.has('cadastro') || s.get('route') === 'cadastro';
+  });
+  const [cadastroAgencySlug, setCadastroAgencySlug] = useState<string | null>(() => {
+    if (typeof window === 'undefined') return null;
+    const s = new URLSearchParams(window.location.search);
+    return s.get('agency') || s.get('agencia');
+  });
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -719,6 +764,12 @@ const App: React.FC = () => {
     }
 
     const pathname = window.location.pathname;
+    if (pathname === '/cadastro' || pathname.startsWith('/cadastro/') || params.has('cadastro') || params.get('route') === 'cadastro') {
+      setIsCadastroRoute(true);
+      const slug = params.get('agency') || params.get('agencia');
+      setCadastroAgencySlug(slug);
+    }
+
     const contractMatch = pathname.match(/^\/contrato\/([^/]+)\/?$/);
     if (contractMatch) {
       setContractToken(contractMatch[1]);
@@ -752,6 +803,10 @@ const App: React.FC = () => {
   const anoParam = searchParams.get('ano');
 
   const isPublicMonthLink = !!clientIdParam && (abaParam === 'mapa' || gateParam === 'nome');
+
+  if (isCadastroRoute) {
+    return <PublicClientOnboarding agencySlug={cadastroAgencySlug} />;
+  }
 
   if (npsToken) {
     return <NpsPublicScreen token={npsToken} />;

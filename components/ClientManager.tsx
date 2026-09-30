@@ -38,11 +38,15 @@ import {
   Trash2,
   LayoutDashboard,
   Copy,
+  Link2,
+  KeyRound,
   Target,
   XCircle,
   HeartHandshake,
-  Send
+  Send,
+  Sparkles
 } from 'lucide-react';
+import { OnboardingChecklist } from './OnboardingChecklist';
 import { NpsBadge } from './nps/NpsBadge';
 import { ClientNpsSection } from './nps/ClientNpsSection';
 import { useAllClientsCurrentMonthNps, useClientNps } from '../hooks/useClientNps';
@@ -162,6 +166,14 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
   const [healthModalClient, setHealthModalClient] = useState<Client | null>(null);
   const { sendSurvey: sendNpsSurvey, toastMessage: npsToast } = useClientNps(null, agencyId);
   const [copiedNpsClientId, setCopiedNpsClientId] = useState<string | null>(null);
+  const [agencySlug, setAgencySlug] = useState<string>('');
+  const [copiedCadastroLink, setCopiedCadastroLink] = useState(false);
+  const [toastMsg, setToastMsg] = useState<string | null>(null);
+  const [clientAccessKey, setClientAccessKey] = useState<string | null>(null);
+  const [loadingAccessKey, setLoadingAccessKey] = useState(false);
+  const [copiedKey, setCopiedKey] = useState(false);
+  const [copiedClientKeyId, setCopiedClientKeyId] = useState<string | null>(null);
+  const [accessKeysMap, setAccessKeysMap] = useState<Record<string, string>>({});
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -241,7 +253,7 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
   });
   const [uploading, setUploading] = useState(false);
   const [newContractLinkInfo, setNewContractLinkInfo] = useState<{ clientId: string, token: string } | null>(null);
-  const [formTab, setFormTab] = useState<'dados_basicos' | 'servicos' | 'acesso' | 'saude'>('dados_basicos');
+  const [formTab, setFormTab] = useState<'dados_basicos' | 'servicos' | 'acesso' | 'saude' | 'onboarding_ia'>('dados_basicos');
   const [customTemplates, setCustomTemplates] = useState<Record<string, any>>({});
   const [showRevenueChangeModal, setShowRevenueChangeModal] = useState(false);
   const [revenueChangeModalData, setRevenueChangeModalData] = useState<RevenueChangeModalData | null>(null);
@@ -250,6 +262,21 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
     if (!agencyId) return;
     try {
       setLoading(true);
+
+      // Buscar slug da agência para o link de auto-cadastro
+      try {
+        const { data: agData } = await supabase
+          .from('agencies')
+          .select('slug')
+          .eq('id', agencyId)
+          .maybeSingle();
+        if (agData?.slug) {
+          setAgencySlug(agData.slug);
+        }
+      } catch (e) {
+        console.warn('Erro ao carregar slug da agência:', e);
+      }
+
       const { data: templatesData } = await supabase
         .from('agency_briefing_templates')
         .select('*')
@@ -294,6 +321,52 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
           return client;
         }));
         setClients(updatedData as Client[]);
+
+        // Buscar mapeamento de chaves de acesso dos clientes
+        try {
+          const keysMap: Record<string, string> = {};
+
+          // 1. client_users
+          try {
+            const { data: usersData } = await supabase
+              .from('client_users')
+              .select('client_id, access_key')
+              .eq('agency_id', agencyId)
+              .not('access_key', 'is', null);
+            if (usersData) {
+              usersData.forEach((u: any) => {
+                if (u.client_id && u.access_key) keysMap[u.client_id] = u.access_key;
+              });
+            }
+          } catch (e) {}
+
+          // 2. client_credentials
+          try {
+            const { data: credsData } = await supabase
+              .from('client_credentials')
+              .select('client_id, password_encrypted')
+              .eq('agency_id', agencyId)
+              .eq('platform', 'portal');
+            if (credsData) {
+              credsData.forEach((c: any) => {
+                if (c.client_id && c.password_encrypted && !keysMap[c.client_id]) {
+                  keysMap[c.client_id] = c.password_encrypted;
+                }
+              });
+            }
+          } catch (e) {}
+
+          // 3. traffic_strategy_data fallback
+          updatedData.forEach((cl: any) => {
+            if (!keysMap[cl.id] && cl.traffic_strategy_data?.client_access_key) {
+              keysMap[cl.id] = cl.traffic_strategy_data.client_access_key;
+            }
+          });
+
+          setAccessKeysMap(keysMap);
+        } catch (keysErr) {
+          console.warn('Erro ao carregar mapa de chaves de acesso:', keysErr);
+        }
       }
     } catch (err) {
       console.error('Error fetching clients:', err);
@@ -674,13 +747,108 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
     });
     setEditingClientId(null);
     setClientContract(null);
+    setClientAccessKey(null);
+    setLoadingAccessKey(false);
+    setCopiedKey(false);
     setFormTab('dados_basicos');
   };
 
-  const handleEdit = async (client: Client) => {
+  const handleCopyCadastroLink = async () => {
+    let slug = agencySlug;
+    if (!slug && agencyId) {
+      try {
+        const { data } = await supabase.from('agencies').select('slug').eq('id', agencyId).single();
+        if (data?.slug) {
+          slug = data.slug;
+          setAgencySlug(data.slug);
+        }
+      } catch (e) {}
+    }
+    if (!slug) {
+      slug = agencyId === 7 ? 'joey' : agencyId === 6 ? 'canguru-usa' : agencyId === 2 ? 'kanoa' : 'canguru';
+    }
+    const url = `https://bolsa.cangurudigital.com.br/cadastro?agency=${slug}`;
+    try {
+      await navigator.clipboard.writeText(url);
+    } catch (err) {
+      console.warn('Clipboard write failed, fallback:', err);
+    }
+    setCopiedCadastroLink(true);
+    setToastMsg('Link copiado!');
+    setTimeout(() => {
+      setCopiedCadastroLink(false);
+      setToastMsg(null);
+    }, 3000);
+  };
+
+  const handleCopyKey = async (key: string) => {
+    if (!key) return;
+    try {
+      await navigator.clipboard.writeText(key);
+    } catch (err) {}
+    setCopiedKey(true);
+    setToastMsg('Chave copiada!');
+    setTimeout(() => {
+      setCopiedKey(false);
+      setToastMsg(null);
+    }, 3000);
+  };
+
+  const handleCopyClientKey = async (clientId: string, key: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!key) return;
+    try {
+      await navigator.clipboard.writeText(key);
+    } catch (err) {}
+    setCopiedClientKeyId(clientId);
+    setToastMsg('Chave de acesso copiada!');
+    setTimeout(() => {
+      setCopiedClientKeyId(null);
+      setToastMsg(null);
+    }, 3000);
+  };
+
+  const handleEdit = async (client: Client, initialTab?: 'dados_basicos' | 'servicos' | 'acesso' | 'saude' | 'onboarding_ia') => {
     const linkedinHandle = client.linkedin || client.social_networks?.find(s => s.startsWith('linkedin_handle:'))?.split(':')[1] || '';
     
     setLoadingContract(true);
+    setLoadingAccessKey(true);
+    setClientAccessKey(null);
+    setCopiedKey(false);
+
+    // Buscar chave de acesso para exibição ao abrir o detalhe do cliente
+    let key = accessKeysMap[client.id] || null;
+    if (!key) {
+      try {
+        const { data: uData } = await supabase
+          .from('client_users')
+          .select('access_key')
+          .eq('client_id', client.id)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        if (uData?.access_key) key = uData.access_key;
+      } catch (e) {}
+    }
+    if (!key) {
+      try {
+        const { data: cData } = await supabase
+          .from('client_credentials')
+          .select('password_encrypted')
+          .eq('client_id', client.id)
+          .eq('platform', 'portal')
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        if (cData?.password_encrypted) key = cData.password_encrypted;
+      } catch (e) {}
+    }
+    if (!key && (client as any)?.traffic_strategy_data?.client_access_key) {
+      key = (client as any).traffic_strategy_data.client_access_key;
+    }
+    setClientAccessKey(key);
+    setLoadingAccessKey(false);
+
     let config = null;
     let contract = null;
     try {
@@ -731,7 +899,7 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
       }
     });
     setEditingClientId(client.id);
-    setFormTab('dados_basicos');
+    setFormTab(initialTab || 'dados_basicos');
     setShowForm(true);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -856,6 +1024,21 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
         className="max-w-4xl mx-auto relative z-10"
       >
         
+        {/* Toast Flutuante */}
+        <AnimatePresence>
+          {toastMsg && (
+            <motion.div
+              initial={{ opacity: 0, y: -20, scale: 0.95 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -20, scale: 0.95 }}
+              className="fixed top-6 right-6 z-50 flex items-center gap-2.5 px-5 py-3 bg-gray-900 text-white text-xs font-bold uppercase tracking-wider rounded-2xl shadow-2xl border border-white/10"
+            >
+              <Check size={16} className="text-emerald-400" />
+              <span>{toastMsg}</span>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-10 w-full">
           <div className="flex items-center gap-4">
@@ -867,16 +1050,36 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
               <p className="text-sm text-gray-500 mt-1">{clients.length} cliente(s) cadastrado(s)</p>
             </div>
           </div>
-          <button
-            onClick={() => {
-              if (showForm) resetForm();
-              setShowForm(!showForm);
-            }}
-            className="flex justify-center items-center gap-2 px-6 py-3 bg-brand-dark hover:bg-opacity-90 text-white rounded-2xl font-bold text-xs uppercase tracking-widest transition-all shadow-[0_10px_20px_rgba(0,0,0,0.1)] hover:shadow-[0_15px_30px_rgba(0,0,0,0.15)] hover:-translate-y-0.5 w-full sm:w-auto"
-          >
-            {showForm ? <X size={16} /> : <Plus size={16} />}
-            {showForm ? 'Fechar' : 'Novo Cliente'}
-          </button>
+          <div className="flex items-center gap-3 flex-wrap sm:flex-nowrap w-full sm:w-auto">
+            <button
+              type="button"
+              onClick={handleCopyCadastroLink}
+              className="flex justify-center items-center gap-2 px-5 py-3 bg-white hover:bg-gray-50 border border-gray-200 text-brand-dark rounded-2xl font-bold text-xs uppercase tracking-widest transition-all shadow-2xs hover:shadow-xs hover:-translate-y-0.5 w-full sm:w-auto cursor-pointer"
+              title="Copiar link de auto-cadastro para clientes"
+            >
+              {copiedCadastroLink ? (
+                <>
+                  <Check size={16} className="text-emerald-600" />
+                  <span className="text-emerald-700">Link copiado!</span>
+                </>
+              ) : (
+                <>
+                  <Link2 size={16} className="text-brand-dark" />
+                  <span>Copiar link de cadastro</span>
+                </>
+              )}
+            </button>
+            <button
+              onClick={() => {
+                if (showForm) resetForm();
+                setShowForm(!showForm);
+              }}
+              className="flex justify-center items-center gap-2 px-6 py-3 bg-brand-dark hover:bg-opacity-90 text-white rounded-2xl font-bold text-xs uppercase tracking-widest transition-all shadow-[0_10px_20px_rgba(0,0,0,0.1)] hover:shadow-[0_15px_30px_rgba(0,0,0,0.15)] hover:-translate-y-0.5 w-full sm:w-auto cursor-pointer"
+            >
+              {showForm ? <X size={16} /> : <Plus size={16} />}
+              {showForm ? 'Fechar' : 'Novo Cliente'}
+            </button>
+          </div>
         </div>
 
         {/* Mensagem de sucesso */}
@@ -902,7 +1105,33 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
             animate={{ opacity: 1, height: 'auto' }} 
             className="mb-10 p-8 bg-white rounded-[2rem] border border-black/[0.03] shadow-[0_20px_50px_rgba(0,0,0,0.04)] overflow-hidden"
           >
-            <h2 className="text-xl font-bold text-brand-dark mb-6">{editingClientId ? 'Editar Cliente' : 'Novo Cliente'}</h2>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+              <h2 className="text-xl font-bold text-brand-dark">{editingClientId ? 'Editar Cliente' : 'Novo Cliente'}</h2>
+
+              {/* Informação / Chave de acesso em texto puro ao abrir o detalhe do cliente */}
+              {editingClientId && (
+                <div className="flex items-center gap-3 bg-slate-50 border border-slate-200/90 px-4 py-2.5 rounded-2xl shadow-2xs">
+                  <KeyRound size={17} className="text-brand-dark flex-shrink-0" />
+                  <div className="text-left">
+                    <span className="text-[9px] font-bold text-gray-400 uppercase tracking-wider block">Chave de Acesso</span>
+                    <span className="text-xs font-mono font-bold text-brand-dark select-all">
+                      {loadingAccessKey ? 'Buscando...' : clientAccessKey || 'Nenhuma chave cadastrada'}
+                    </span>
+                  </div>
+                  {clientAccessKey && (
+                    <button
+                      type="button"
+                      onClick={() => handleCopyKey(clientAccessKey)}
+                      className="ml-2 inline-flex items-center gap-1 px-2.5 py-1 bg-white hover:bg-slate-100 rounded-xl text-gray-600 hover:text-brand-dark transition-all border border-slate-200 cursor-pointer text-[10px] font-bold shadow-2xs"
+                      title="Copiar chave de acesso"
+                    >
+                      {copiedKey ? <Check size={13} className="text-emerald-600" /> : <Copy size={13} />}
+                      <span>{copiedKey ? 'Copiado!' : 'Copiar'}</span>
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
             
             <div className="flex border-b border-gray-100 mb-8 overflow-x-auto hide-scrollbar">
               <button
@@ -934,6 +1163,16 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
                 >
                   <Activity size={15} />
                   Saúde do Cliente
+                </button>
+              )}
+              {editingClientId && (
+                <button
+                  type="button"
+                  onClick={() => setFormTab('onboarding_ia')}
+                  className={`py-3 px-6 text-sm font-bold border-b-2 transition-colors whitespace-nowrap flex items-center gap-1.5 ${formTab === 'onboarding_ia' ? 'border-brand-dark text-brand-dark' : 'border-transparent text-gray-400 hover:text-gray-600'}`}
+                >
+                  <Sparkles size={15} />
+                  Onboarding IA
                 </button>
               )}
             </div>
@@ -1353,11 +1592,58 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
                 <>
               {/* Seção de Acesso */}
               <div className="sm:col-span-2 mt-4 pt-6 border-t border-gray-100">
-                <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-4">
-                  Acesso do Cliente (Opcional)
-                </h3>
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-sm font-bold text-gray-700 uppercase tracking-wider">
+                    Acesso do Cliente (Portal Bolsa)
+                  </h3>
+                  {editingClientId && clientAccessKey && (
+                    <button
+                      type="button"
+                      onClick={() => handleCopyKey(clientAccessKey)}
+                      className="inline-flex items-center gap-1.5 px-3 py-1 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-all shadow-2xs cursor-pointer"
+                    >
+                      {copiedKey ? <Check size={14} className="text-emerald-600" /> : <Copy size={14} />}
+                      <span>{copiedKey ? 'Copiado!' : 'Copiar Chave'}</span>
+                    </button>
+                  )}
+                </div>
+
+                {/* Exibição da chave de acesso em texto puro com botão de copiar */}
+                {editingClientId && (
+                  <div className="mb-6 p-4 bg-slate-50 border border-slate-200 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2.5 bg-brand-dark/10 text-brand-dark rounded-xl">
+                        <KeyRound size={22} />
+                      </div>
+                      <div>
+                        <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">
+                          Chave de Acesso (client_users.access_key)
+                        </span>
+                        <span className="text-base font-mono font-bold text-brand-dark select-all">
+                          {loadingAccessKey ? 'Buscando...' : clientAccessKey || 'Nenhuma chave cadastrada'}
+                        </span>
+                        <p className="text-[11px] text-gray-500 mt-0.5">
+                          Chave em texto puro para uso interno e suporte da agência.
+                        </p>
+                      </div>
+                    </div>
+                    {clientAccessKey && (
+                      <button
+                        type="button"
+                        onClick={() => handleCopyKey(clientAccessKey)}
+                        className="inline-flex items-center gap-2 px-4 py-2 bg-brand-dark hover:bg-opacity-90 text-white rounded-xl text-xs font-bold transition-all shadow-2xs cursor-pointer self-start sm:self-auto"
+                      >
+                        {copiedKey ? <Check size={14} className="text-emerald-400" /> : <Copy size={14} />}
+                        <span>{copiedKey ? 'Chave copiada!' : 'Copiar chave'}</span>
+                      </button>
+                    )}
+                  </div>
+                )}
+
                 <div className="max-w-xs">
-                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Senha de Acesso</label>
+                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">
+                    Redefinir Senha de Acesso
+                  </label>
                   <div className="relative">
                     <Lock className="absolute left-3 top-3 text-gray-400" size={16} />
                     <input type="password" value={form.password} onChange={e => setForm(f => ({...f, password: e.target.value}))}
@@ -1839,9 +2125,21 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
                   <ClientHealthPanel client={clients.find(c => c.id === editingClientId)!} />
                 </div>
               )}
+              {formTab === 'onboarding_ia' && editingClientId && clients.find(c => c.id === editingClientId) && (
+                <div className="sm:col-span-2">
+                  <OnboardingChecklist 
+                    client={clients.find(c => c.id === editingClientId)!} 
+                    agencyId={agencyId}
+                    isClientView={false}
+                    onUpdate={(updatedData) => {
+                      setClients(prev => prev.map(c => c.id === editingClientId ? { ...c, ai_onboarding: updatedData } : c));
+                    }}
+                  />
+                </div>
+              )}
             </div>
 
-            {editingClientId && clients.find(c => c.id === editingClientId) && formTab !== 'saude' && (
+            {editingClientId && clients.find(c => c.id === editingClientId) && formTab !== 'saude' && formTab !== 'onboarding_ia' && (
               <div className="mt-8 pt-8 border-t border-gray-100">
                 <ClientNpsSection client={clients.find(c => c.id === editingClientId)!} />
               </div>
@@ -1867,7 +2165,7 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
         {loading ? (
           <div className="text-center text-gray-400 py-12">Carregando...</div>
         ) : (() => {
-          const activeClientsList = clients.filter(c => !c.client_status || c.client_status === 'active');
+          const activeClientsList = clients.filter(c => c.client_status !== 'cancelled' && c.client_status !== 'completed');
           const inactiveClientsList = clients.filter(c => c.client_status === 'cancelled' || c.client_status === 'completed');
 
           const sortedActiveClients = [...activeClientsList].sort((a, b) => {
@@ -1931,6 +2229,21 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap mb-1">
                         <p className="font-bold text-brand-dark text-base">{client.name}</p>
+
+                        {/* Badges de Onboarding */}
+                        {client.onboarding_status === 'em_andamento' && (
+                          <span className="px-2.5 py-0.5 bg-amber-50 text-amber-700 border border-amber-200/80 rounded-md text-[9px] font-black uppercase tracking-wider flex items-center gap-1 shadow-2xs">
+                            <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>
+                            Onboarding
+                          </span>
+                        )}
+                        {client.onboarding_status === 'concluido' && !client.is_active && (
+                          <span className="px-2.5 py-0.5 bg-blue-50 text-blue-700 border border-blue-200/80 rounded-md text-[9px] font-black uppercase tracking-wider flex items-center gap-1 shadow-2xs">
+                            <span className="w-1.5 h-1.5 rounded-full bg-blue-500"></span>
+                            Aguardando ativação
+                          </span>
+                        )}
+
                         {client.client_type === 'one_time' && (
                           <span className="px-2 py-0.5 bg-blue-50 text-blue-600 border border-blue-100 rounded-md text-[8px] font-black uppercase tracking-widest">
                             Pontual {client.service_end_date ? `• até ${dayjs(client.service_end_date).format('DD/MM')}` : ''}
@@ -1951,9 +2264,27 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
                         />
                         <NpsBadge nps={npsMap[client.id]} size="sm" />
                       </div>
-                      <p className="text-xs text-gray-400 uppercase tracking-wider font-semibold">
-                        {client.segment || '—'} {client.responsible ? `• ${client.responsible}` : ''}
-                      </p>
+                      <div className="flex items-center gap-3 flex-wrap">
+                        <p className="text-xs text-gray-400 uppercase tracking-wider font-semibold">
+                          {client.segment || '-'} {client.responsible ? `• ${client.responsible}` : ''}
+                        </p>
+                        {accessKeysMap[client.id] && (
+                          <button
+                            type="button"
+                            onClick={(e) => handleCopyClientKey(client.id, accessKeysMap[client.id], e)}
+                            className="inline-flex items-center gap-1.5 px-2 py-0.5 bg-slate-50 hover:bg-slate-100 text-slate-700 rounded-md text-[10px] font-mono font-bold border border-slate-200 transition-colors shadow-2xs cursor-pointer"
+                            title="Copiar chave de acesso"
+                          >
+                            <KeyRound size={11} className="text-brand-dark" />
+                            <span>{copiedClientKeyId === client.id ? 'Copiado!' : accessKeysMap[client.id]}</span>
+                            {copiedClientKeyId === client.id ? (
+                              <Check size={11} className="text-emerald-600" />
+                            ) : (
+                              <Copy size={11} className="text-gray-400" />
+                            )}
+                          </button>
+                        )}
+                      </div>
                       {client.services && client.services.length > 0 && (
                         <div className="flex flex-wrap gap-2 mt-3">
                           {client.services.map(service => (
@@ -1997,6 +2328,14 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
                         </span>
                       </button>
                       <button 
+                        onClick={() => handleEdit(client, 'onboarding_ia')}
+                        className="flex flex-col items-center justify-center gap-1 p-2 text-gray-400 hover:text-blue-600 transition-colors"
+                        title="Abrir Onboarding IA do Cliente"
+                      >
+                        <Sparkles size={18} />
+                        <span className="text-[9px] font-bold uppercase tracking-widest">Onboarding</span>
+                      </button>
+                      <button 
                         onClick={() => handleEdit(client)}
                         className="flex flex-col items-center justify-center gap-1 p-2 text-gray-400 hover:text-brand-dark transition-colors"
                         title="Editar Cliente"
@@ -2023,9 +2362,23 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
                         <Trash2 size={18} />
                         <span className="text-[9px] font-bold uppercase tracking-widest">Excluir</span>
                       </button>
-                      <span className="text-[10px] px-3 py-1.5 bg-green-50 text-green-600 border border-green-100 rounded-xl font-bold uppercase tracking-widest h-fit">
-                        Ativo
-                      </span>
+                      {client.is_active ? (
+                        <span className="text-[10px] px-3 py-1.5 bg-green-50 text-green-600 border border-green-100 rounded-xl font-bold uppercase tracking-widest h-fit">
+                          Ativo
+                        </span>
+                      ) : client.onboarding_status === 'concluido' ? (
+                        <span className="text-[10px] px-3 py-1.5 bg-blue-50 text-blue-700 border border-blue-200 rounded-xl font-bold uppercase tracking-widest h-fit">
+                          Aguardando ativação
+                        </span>
+                      ) : client.onboarding_status === 'em_andamento' ? (
+                        <span className="text-[10px] px-3 py-1.5 bg-amber-50 text-amber-700 border border-amber-200 rounded-xl font-bold uppercase tracking-widest h-fit">
+                          Onboarding
+                        </span>
+                      ) : (
+                        <span className="text-[10px] px-3 py-1.5 bg-gray-100 text-gray-500 border border-gray-200 rounded-xl font-bold uppercase tracking-widest h-fit">
+                          Inativo
+                        </span>
+                      )}
                     </div>
                   </motion.div>
                 ))}
@@ -2071,6 +2424,16 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
                                 }`}>
                                   {client.client_status === 'cancelled' ? 'Cancelado' : 'Concluído'}
                                 </span>
+                                {client.onboarding_status === 'em_andamento' && (
+                                  <span className="px-2.5 py-0.5 bg-amber-50 text-amber-700 border border-amber-200/80 rounded-md text-[8px] font-black uppercase tracking-wider flex items-center gap-1 shadow-2xs">
+                                    Onboarding
+                                  </span>
+                                )}
+                                {client.onboarding_status === 'concluido' && !client.is_active && (
+                                  <span className="px-2.5 py-0.5 bg-blue-50 text-blue-700 border border-blue-200/80 rounded-md text-[8px] font-black uppercase tracking-wider flex items-center gap-1 shadow-2xs">
+                                    Aguardando ativação
+                                  </span>
+                                )}
                                 {ltvMap[client.id] && (
                                   <span 
                                     className="inline-flex items-center gap-1 px-2.5 py-0.5 bg-stone-100 text-stone-700 border border-stone-200 rounded-full text-[10px] font-extrabold uppercase tracking-wider shadow-2xs cursor-help"
@@ -2087,7 +2450,7 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
                                 <NpsBadge nps={npsMap[client.id]} size="sm" />
                               </div>
                               <p className="text-xs text-gray-400 uppercase tracking-wider font-semibold">
-                                {client.segment || '—'} {client.responsible ? `• ${client.responsible}` : ''}
+                                {client.segment || '-'} {client.responsible ? `• ${client.responsible}` : ''}
                               </p>
                               {client.services && client.services.length > 0 && (
                                 <div className="flex flex-wrap gap-2 mt-3">
@@ -2107,6 +2470,14 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
                               >
                                 <Activity size={18} />
                                 <span className="text-[9px] font-bold uppercase tracking-widest">Saúde</span>
+                              </button>
+                              <button 
+                                onClick={() => handleEdit(client, 'onboarding_ia')}
+                                className="flex flex-col items-center justify-center gap-1 p-2 text-gray-400 hover:text-blue-600 transition-colors"
+                                title="Abrir Onboarding IA do Cliente"
+                              >
+                                <Sparkles size={18} />
+                                <span className="text-[9px] font-bold uppercase tracking-widest">Onboarding</span>
                               </button>
                               <button 
                                 onClick={() => handleEdit(client)}
