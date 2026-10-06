@@ -35,6 +35,7 @@ import { NpsPublicScreen } from './components/nps/NpsPublicScreen';
 import { ClientNpsSection } from './components/nps/ClientNpsSection';
 import { PublicClientOnboarding } from './components/PublicClientOnboarding';
 import { OnboardingChecklist } from './components/OnboardingChecklist';
+import { ResetAccessKeyPage } from './components/ResetAccessKeyPage';
 
 import { AgencyHome } from './components/agency/AgencyHome';
 import { AgencyDashboard } from './components/agency/AgencyDashboard';
@@ -738,6 +739,20 @@ const App: React.FC = () => {
     const s = new URLSearchParams(window.location.search);
     return s.get('agency') || s.get('agencia');
   });
+  const [isResetKeyRoute, setIsResetKeyRoute] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    const p = window.location.pathname;
+    const s = new URLSearchParams(window.location.search);
+    return p === '/reset-key' || p.startsWith('/reset-key/') || s.has('reset-key') || s.get('route') === 'reset-key';
+  });
+  const [resetKeyParams, setResetKeyParams] = useState<{ token: string | null; clientId: string | null }>(() => {
+    if (typeof window === 'undefined') return { token: null, clientId: null };
+    const s = new URLSearchParams(window.location.search);
+    return {
+      token: s.get('token') || s.get('reset_token'),
+      clientId: s.get('client') || s.get('client_id')
+    };
+  });
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -768,6 +783,14 @@ const App: React.FC = () => {
       setIsCadastroRoute(true);
       const slug = params.get('agency') || params.get('agencia');
       setCadastroAgencySlug(slug);
+    }
+
+    if (pathname === '/reset-key' || pathname.startsWith('/reset-key/') || params.has('reset-key') || params.get('route') === 'reset-key') {
+      setIsResetKeyRoute(true);
+      setResetKeyParams({
+        token: params.get('token') || params.get('reset_token'),
+        clientId: params.get('client') || params.get('client_id')
+      });
     }
 
     const contractMatch = pathname.match(/^\/contrato\/([^/]+)\/?$/);
@@ -803,6 +826,10 @@ const App: React.FC = () => {
   const anoParam = searchParams.get('ano');
 
   const isPublicMonthLink = !!clientIdParam && (abaParam === 'mapa' || gateParam === 'nome');
+
+  if (isResetKeyRoute) {
+    return <ResetAccessKeyPage token={resetKeyParams.token} clientId={resetKeyParams.clientId} />;
+  }
 
   if (isCadastroRoute) {
     return <PublicClientOnboarding agencySlug={cadastroAgencySlug} />;

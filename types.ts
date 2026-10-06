@@ -275,7 +275,7 @@ export interface Client {
   traffic_strategy_data?: TrafficStrategyData | null;
   features_settings?: Record<string, any> | null;
   client_type?: 'recurring' | 'one_time';
-  client_status?: 'active' | 'cancelled' | 'completed';
+  client_status?: 'active' | 'cancelled' | 'completed' | 'prospect' | 'pending' | string;
   service_end_date?: string | null;
   cancelled_at?: string | null;
   last_payment_date?: string | null;
@@ -286,6 +286,13 @@ export interface Client {
   currency?: string | null;
   timezone?: string | null;
   ai_onboarding?: AiOnboardingData | null;
+  target_age_ranges?: string[] | null;
+  target_location?: string | null;
+  target_interests?: string | null;
+  instagram_url?: string | null;
+  linkedin_url?: string | null;
+  tiktok_url?: string | null;
+  google_business_url?: string | null;
 }
 
 export interface AiOnboardingItem {

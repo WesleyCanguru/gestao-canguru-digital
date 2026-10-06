@@ -41,21 +41,36 @@ async function sha256(text: string): Promise<string> {
   return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
+const AGE_RANGE_OPTIONS = [
+  'Under 18',
+  '18 - 24',
+  '25 - 34',
+  '35 - 44',
+  '45 - 54',
+  '55 - 64',
+  '65+'
+];
+
 export const PublicClientOnboarding: React.FC<PublicClientOnboardingProps> = ({ agencySlug }) => {
   const [loadingAgency, setLoadingAgency] = useState(true);
   const [agency, setAgency] = useState<AgencyData | null>(null);
   const [agencyNotFound, setAgencyNotFound] = useState(false);
+  const [logoLoadError, setLogoLoadError] = useState(false);
 
   // Stepper state: 1 = Dados, 2 = Contrato, 3 = Briefing, 4 = Chave, 5 = Concluído
   const [step, setStep] = useState<1 | 2 | 3 | 4 | 5>(1);
 
-  // Step 1: Dados da Empresa
+  // Step 1: Dados da Empresa + Links de Redes Sociais (opcionais)
   const [formData, setFormData] = useState({
     responsible: '',
     companyName: '',
     website: '',
     phone: '',
-    email: ''
+    email: '',
+    instagram_url: '',
+    linkedin_url: '',
+    tiktok_url: '',
+    google_business_url: ''
   });
   const [step1Errors, setStep1Errors] = useState<Record<string, string>>({});
 
@@ -68,7 +83,9 @@ export const PublicClientOnboarding: React.FC<PublicClientOnboardingProps> = ({ 
   const [briefingData, setBriefingData] = useState({
     niche: '',
     objective: 'Geração de Leads',
-    targetAudience: '',
+    targetAgeRanges: [] as string[],
+    targetLocation: '',
+    targetInterests: '',
     competitors: '',
     differentiator: '',
     notes: ''
@@ -173,10 +190,24 @@ export const PublicClientOnboarding: React.FC<PublicClientOnboardingProps> = ({ 
 
       const currency = agency.id === 7 ? 'USD' : 'BRL';
 
-      const clientPayload = {
+      const baseTrafficStrategyData = {
+        website_url: formData.website.trim(),
+        phone: formData.phone.trim(),
+        instagram_url: formData.instagram_url.trim() || null,
+        linkedin_url: formData.linkedin_url.trim() || null,
+        tiktok_url: formData.tiktok_url.trim() || null,
+        google_business_url: formData.google_business_url.trim() || null,
+        created_via: 'public_onboarding',
+        agency_slug: agency.slug
+      };
+
+      const baseClientPayload: any = {
         name: cleanCompany,
         responsible: formData.responsible.trim(),
         email: formData.email.trim(),
+        instagram: formData.instagram_url.trim() || null,
+        linkedin: formData.linkedin_url.trim() || null,
+        tiktok: formData.tiktok_url.trim() || null,
         agency_id: agency.id,
         client_status: 'prospect',
         onboarding_status: 'em_andamento',
@@ -186,19 +217,33 @@ export const PublicClientOnboarding: React.FC<PublicClientOnboardingProps> = ({ 
         is_active: false,
         initials,
         color: brandColor,
-        traffic_strategy_data: {
-          website_url: formData.website.trim(),
-          phone: formData.phone.trim(),
-          created_via: 'public_onboarding',
-          agency_slug: agency.slug
-        }
+        traffic_strategy_data: baseTrafficStrategyData
       };
 
-      const { data, error } = await supabase
+      const fullClientPayload: any = {
+        ...baseClientPayload,
+        instagram_url: formData.instagram_url.trim() || null,
+        linkedin_url: formData.linkedin_url.trim() || null,
+        tiktok_url: formData.tiktok_url.trim() || null,
+        google_business_url: formData.google_business_url.trim() || null
+      };
+
+      let { data, error } = await supabase
         .from('clients')
-        .insert(clientPayload)
+        .insert(fullClientPayload)
         .select('id')
         .single();
+
+      if (error) {
+        console.warn('Insert with new social URL columns returned warning, retrying with base schema:', error.message);
+        const retryRes = await supabase
+          .from('clients')
+          .insert(baseClientPayload)
+          .select('id')
+          .single();
+        data = retryRes.data;
+        error = retryRes.error;
+      }
 
       if (error || !data) {
         console.error('Error creating client during onboarding:', error);
@@ -216,6 +261,18 @@ export const PublicClientOnboarding: React.FC<PublicClientOnboardingProps> = ({ 
     }
   };
 
+  const toggleAgeRange = (range: string) => {
+    setBriefingData(prev => {
+      const exists = prev.targetAgeRanges.includes(range);
+      return {
+        ...prev,
+        targetAgeRanges: exists
+          ? prev.targetAgeRanges.filter(r => r !== range)
+          : [...prev.targetAgeRanges, range]
+      };
+    });
+  };
+
   // Salvar Briefing (Etapa 3)
   const handleSaveBriefing = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -227,26 +284,50 @@ export const PublicClientOnboarding: React.FC<PublicClientOnboardingProps> = ({ 
       const onboarding_briefing = {
         nicho: briefingData.niche.trim(),
         objetivo: briefingData.objective.trim(),
-        publico_alvo: briefingData.targetAudience.trim(),
+        target_age_ranges: briefingData.targetAgeRanges,
+        target_location: briefingData.targetLocation.trim(),
+        target_interests: briefingData.targetInterests.trim(),
         concorrentes: briefingData.competitors.trim(),
         diferencial: briefingData.differentiator.trim(),
         observacoes: briefingData.notes.trim()
       };
 
-      // Atualizar clients.traffic_strategy_data
-      await supabase
+      const updatedStrategyData = {
+        website_url: formData.website.trim(),
+        phone: formData.phone.trim(),
+        instagram_url: formData.instagram_url.trim() || null,
+        linkedin_url: formData.linkedin_url.trim() || null,
+        tiktok_url: formData.tiktok_url.trim() || null,
+        google_business_url: formData.google_business_url.trim() || null,
+        target_age_ranges: briefingData.targetAgeRanges,
+        target_location: briefingData.targetLocation.trim() || null,
+        target_interests: briefingData.targetInterests.trim() || null,
+        created_via: 'public_onboarding',
+        agency_slug: agency.slug,
+        onboarding_briefing
+      };
+
+      // Atualizar clients com as novas colunas + fallback
+      const { error: updateErr } = await supabase
         .from('clients')
         .update({
           segment: briefingData.niche.trim() || undefined,
-          traffic_strategy_data: {
-            website_url: formData.website.trim(),
-            phone: formData.phone.trim(),
-            created_via: 'public_onboarding',
-            agency_slug: agency.slug,
-            onboarding_briefing
-          }
+          target_age_ranges: briefingData.targetAgeRanges,
+          target_location: briefingData.targetLocation.trim() || null,
+          target_interests: briefingData.targetInterests.trim() || null,
+          traffic_strategy_data: updatedStrategyData
         })
         .eq('id', createdClientId);
+
+      if (updateErr) {
+        await supabase
+          .from('clients')
+          .update({
+            segment: briefingData.niche.trim() || undefined,
+            traffic_strategy_data: updatedStrategyData
+          })
+          .eq('id', createdClientId);
+      }
 
       // Inserir opcionalmente em client_briefings
       try {
@@ -339,28 +420,57 @@ export const PublicClientOnboarding: React.FC<PublicClientOnboardingProps> = ({ 
 
       // 3. Atualizar clients onde id = client_id
       const nowIso = new Date().toISOString();
-      await supabase
+      const finalStrategyData = {
+        website_url: formData.website.trim(),
+        phone: formData.phone.trim(),
+        instagram_url: formData.instagram_url.trim() || null,
+        linkedin_url: formData.linkedin_url.trim() || null,
+        tiktok_url: formData.tiktok_url.trim() || null,
+        google_business_url: formData.google_business_url.trim() || null,
+        target_age_ranges: briefingData.targetAgeRanges,
+        target_location: briefingData.targetLocation.trim() || null,
+        target_interests: briefingData.targetInterests.trim() || null,
+        client_access_key: accessKey.trim(),
+        created_via: 'public_onboarding',
+        agency_slug: agency.slug,
+        onboarding_briefing: {
+          nicho: briefingData.niche.trim(),
+          objetivo: briefingData.objective.trim(),
+          target_age_ranges: briefingData.targetAgeRanges,
+          target_location: briefingData.targetLocation.trim(),
+          target_interests: briefingData.targetInterests.trim(),
+          concorrentes: briefingData.competitors.trim(),
+          diferencial: briefingData.differentiator.trim(),
+          observacoes: briefingData.notes.trim()
+        }
+      };
+
+      const { error: finalErr } = await supabase
         .from('clients')
         .update({
           onboarding_status: 'concluido',
           onboarding_completed_at: nowIso,
-          traffic_strategy_data: {
-            website_url: formData.website.trim(),
-            phone: formData.phone.trim(),
-            client_access_key: accessKey.trim(),
-            created_via: 'public_onboarding',
-            agency_slug: agency.slug,
-            onboarding_briefing: {
-              nicho: briefingData.niche.trim(),
-              objetivo: briefingData.objective.trim(),
-              publico_alvo: briefingData.targetAudience.trim(),
-              concorrentes: briefingData.competitors.trim(),
-              diferencial: briefingData.differentiator.trim(),
-              observacoes: briefingData.notes.trim()
-            }
-          }
+          target_age_ranges: briefingData.targetAgeRanges,
+          target_location: briefingData.targetLocation.trim() || null,
+          target_interests: briefingData.targetInterests.trim() || null,
+          instagram_url: formData.instagram_url.trim() || null,
+          linkedin_url: formData.linkedin_url.trim() || null,
+          tiktok_url: formData.tiktok_url.trim() || null,
+          google_business_url: formData.google_business_url.trim() || null,
+          traffic_strategy_data: finalStrategyData
         })
         .eq('id', createdClientId);
+
+      if (finalErr) {
+        await supabase
+          .from('clients')
+          .update({
+            onboarding_status: 'concluido',
+            onboarding_completed_at: nowIso,
+            traffic_strategy_data: finalStrategyData
+          })
+          .eq('id', createdClientId);
+      }
 
       // Ir para a tela de confirmação
       setStep(5);
@@ -431,8 +541,13 @@ export const PublicClientOnboarding: React.FC<PublicClientOnboardingProps> = ({ 
       {/* Header com logo da agência */}
       <header className="relative z-10 w-full max-w-4xl mx-auto pt-8 px-6 pb-4 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          {agency.logo_url ? (
-            <img src={agency.logo_url} alt={agency.name} className="h-10 object-contain" />
+          {agency.logo_url && !logoLoadError ? (
+            <img
+              src={agency.logo_url}
+              alt={agency.name}
+              className="max-h-[40px] h-10 w-auto object-contain"
+              onError={() => setLogoLoadError(true)}
+            />
           ) : (
             <div
               className="w-10 h-10 rounded-xl flex items-center justify-center text-white font-black text-lg shadow-sm"
@@ -635,6 +750,66 @@ export const PublicClientOnboarding: React.FC<PublicClientOnboardingProps> = ({ 
                     {step1Errors.email && (
                       <p className="text-xs text-red-500 font-medium mt-1">{step1Errors.email}</p>
                     )}
+                  </div>
+
+                  {/* Social Media & Online Presence (optional) */}
+                  <div className="pt-4 mt-4 border-t border-gray-100">
+                    <h3 className="text-xs font-bold text-gray-700 uppercase tracking-wider mb-3">
+                      {isEnglish ? 'Social Media & Online Presence (optional)' : 'Redes Sociais & Presença Online (opcional)'}
+                    </h3>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1.5">
+                          Instagram URL
+                        </label>
+                        <input
+                          type="text"
+                          value={formData.instagram_url}
+                          onChange={e => setFormData({ ...formData, instagram_url: e.target.value })}
+                          placeholder="https://instagram.com/yourhandle"
+                          className="w-full px-4 py-3 bg-gray-50/60 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:bg-white transition-all"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1.5">
+                          LinkedIn URL
+                        </label>
+                        <input
+                          type="text"
+                          value={formData.linkedin_url}
+                          onChange={e => setFormData({ ...formData, linkedin_url: e.target.value })}
+                          placeholder="https://linkedin.com/company/yourcompany"
+                          className="w-full px-4 py-3 bg-gray-50/60 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:bg-white transition-all"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1.5">
+                          TikTok URL
+                        </label>
+                        <input
+                          type="text"
+                          value={formData.tiktok_url}
+                          onChange={e => setFormData({ ...formData, tiktok_url: e.target.value })}
+                          placeholder="https://tiktok.com/@yourhandle"
+                          className="w-full px-4 py-3 bg-gray-50/60 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:bg-white transition-all"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1.5">
+                          Google Business Profile
+                        </label>
+                        <input
+                          type="text"
+                          value={formData.google_business_url}
+                          onChange={e => setFormData({ ...formData, google_business_url: e.target.value })}
+                          placeholder="https://maps.google.com/..."
+                          className="w-full px-4 py-3 bg-gray-50/60 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:bg-white transition-all"
+                        />
+                      </div>
+                    </div>
                   </div>
 
                   <div className="pt-4 flex justify-end">
@@ -851,14 +1026,56 @@ export const PublicClientOnboarding: React.FC<PublicClientOnboardingProps> = ({ 
                   </div>
 
                   <div>
+                    <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wider mb-2">
+                      TARGET AGE RANGE
+                    </label>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                      {AGE_RANGE_OPTIONS.map(range => {
+                        const isSelected = briefingData.targetAgeRanges.includes(range);
+                        return (
+                          <label
+                            key={range}
+                            className={`flex items-center gap-3 px-4 py-2.5 rounded-xl border text-sm font-medium cursor-pointer transition-all select-none ${
+                              isSelected
+                                ? 'bg-slate-900/5 border-slate-800 text-gray-900 shadow-2xs'
+                                : 'bg-gray-50/60 border-gray-200 text-gray-700 hover:bg-gray-100/60'
+                            }`}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              onChange={() => toggleAgeRange(range)}
+                              className="w-4 h-4 rounded border-gray-300 text-brand-dark focus:ring-brand-dark cursor-pointer"
+                            />
+                            <span>{range}</span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  <div>
                     <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1.5">
-                      {isEnglish ? 'Target Audience' : 'Público-alvo'}
+                      TARGET LOCATION
                     </label>
                     <input
                       type="text"
-                      value={briefingData.targetAudience}
-                      onChange={e => setBriefingData({ ...briefingData, targetAudience: e.target.value })}
-                      placeholder={isEnglish ? 'Who is your ideal customer? (age, location, interests)' : 'Quem é seu cliente ideal? (idade, localização, interesses, dores)'}
+                      value={briefingData.targetLocation}
+                      onChange={e => setBriefingData({ ...briefingData, targetLocation: e.target.value })}
+                      placeholder="e.g. Miami, FL / United States / Southeast USA"
+                      className="w-full px-4 py-3 bg-gray-50/60 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:bg-white transition-all"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1.5">
+                      TARGET INTERESTS
+                    </label>
+                    <input
+                      type="text"
+                      value={briefingData.targetInterests}
+                      onChange={e => setBriefingData({ ...briefingData, targetInterests: e.target.value })}
+                      placeholder="e.g. Fitness, healthy eating, active lifestyle"
                       className="w-full px-4 py-3 bg-gray-50/60 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:bg-white transition-all"
                     />
                   </div>

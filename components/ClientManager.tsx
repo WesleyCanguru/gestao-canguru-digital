@@ -44,7 +44,10 @@ import {
   XCircle,
   HeartHandshake,
   Send,
-  Sparkles
+  Sparkles,
+  Eye,
+  EyeOff,
+  RefreshCw
 } from 'lucide-react';
 import { OnboardingChecklist } from './OnboardingChecklist';
 import { NpsBadge } from './nps/NpsBadge';
@@ -172,6 +175,10 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
   const [clientAccessKey, setClientAccessKey] = useState<string | null>(null);
   const [loadingAccessKey, setLoadingAccessKey] = useState(false);
   const [copiedKey, setCopiedKey] = useState(false);
+  const [showAccessKey, setShowAccessKey] = useState(false);
+  const [generatingResetLink, setGeneratingResetLink] = useState(false);
+  const [resetKeyModalData, setResetKeyModalData] = useState<{ link: string; clientName: string } | null>(null);
+  const [copiedResetLink, setCopiedResetLink] = useState(false);
   const [copiedClientKeyId, setCopiedClientKeyId] = useState<string | null>(null);
   const [accessKeysMap, setAccessKeysMap] = useState<Record<string, string>>({});
 
@@ -808,6 +815,58 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
     }, 3000);
   };
 
+  const handleGenerateResetKeyLink = async () => {
+    if (!editingClientId) return;
+    try {
+      setGeneratingResetLink(true);
+      const token = crypto.randomUUID();
+      const expiresAt = new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString();
+
+      // 1. Tentar salvar em client_users (colunas password_reset_token e password_reset_expires_at)
+      try {
+        await supabase
+          .from('client_users')
+          .update({
+            password_reset_token: token,
+            password_reset_expires_at: expiresAt
+          })
+          .eq('client_id', editingClientId);
+      } catch (e) {
+        console.warn('Aviso ao salvar token em client_users:', e);
+      }
+
+      // 2. Garantir persistência em clients.traffic_strategy_data para resiliência
+      try {
+        const currentClient = clients.find(c => c.id === editingClientId);
+        const existingStrategy = (currentClient as any)?.traffic_strategy_data || {};
+        await supabase
+          .from('clients')
+          .update({
+            traffic_strategy_data: {
+              ...existingStrategy,
+              password_reset_token: token,
+              password_reset_expires_at: expiresAt
+            }
+          })
+          .eq('id', editingClientId);
+      } catch (e) {
+        console.warn('Aviso ao salvar fallback de token em clients:', e);
+      }
+
+      const link = `https://bolsa.cangurudigital.com.br/reset-key?token=${token}&client=${editingClientId}`;
+      setCopiedResetLink(false);
+      setResetKeyModalData({
+        link,
+        clientName: form.name || 'Cliente'
+      });
+    } catch (err) {
+      console.error('Erro ao gerar link de reset:', err);
+      setErrorMsg('Não foi possível gerar o link de redefinição.');
+    } finally {
+      setGeneratingResetLink(false);
+    }
+  };
+
   const handleEdit = async (client: Client, initialTab?: 'dados_basicos' | 'servicos' | 'acesso' | 'saude' | 'onboarding_ia') => {
     const linkedinHandle = client.linkedin || client.social_networks?.find(s => s.startsWith('linkedin_handle:'))?.split(':')[1] || '';
     
@@ -815,6 +874,7 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
     setLoadingAccessKey(true);
     setClientAccessKey(null);
     setCopiedKey(false);
+    setShowAccessKey(false);
 
     // Buscar chave de acesso para exibição ao abrir o detalhe do cliente
     let key = accessKeysMap[client.id] || null;
@@ -1108,27 +1168,56 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
               <h2 className="text-xl font-bold text-brand-dark">{editingClientId ? 'Editar Cliente' : 'Novo Cliente'}</h2>
 
-              {/* Informação / Chave de acesso em texto puro ao abrir o detalhe do cliente */}
+              {/* Chave de acesso mascarada + revelar + copiar + Reset Access Key */}
               {editingClientId && (
-                <div className="flex items-center gap-3 bg-slate-50 border border-slate-200/90 px-4 py-2.5 rounded-2xl shadow-2xs">
-                  <KeyRound size={17} className="text-brand-dark flex-shrink-0" />
+                <div className="flex flex-wrap items-center gap-2 bg-slate-50 border border-slate-200/90 px-3.5 py-2 rounded-2xl shadow-2xs">
+                  <KeyRound size={16} className="text-brand-dark flex-shrink-0" />
                   <div className="text-left">
-                    <span className="text-[9px] font-bold text-gray-400 uppercase tracking-wider block">Chave de Acesso</span>
-                    <span className="text-xs font-mono font-bold text-brand-dark select-all">
-                      {loadingAccessKey ? 'Buscando...' : clientAccessKey || 'Nenhuma chave cadastrada'}
-                    </span>
+                    <span className="text-[9px] font-bold text-gray-400 uppercase tracking-wider block">Access Key / Senha</span>
+                    {loadingAccessKey ? (
+                      <span className="text-xs font-mono text-gray-400">Buscando...</span>
+                    ) : clientAccessKey ? (
+                      <input
+                        type={showAccessKey ? 'text' : 'password'}
+                        readOnly
+                        value={clientAccessKey}
+                        className="bg-transparent border-none p-0 text-xs font-mono font-bold text-brand-dark focus:outline-none w-28"
+                      />
+                    ) : (
+                      <span className="text-xs font-mono text-gray-400">Não cadastrada</span>
+                    )}
                   </div>
                   {clientAccessKey && (
-                    <button
-                      type="button"
-                      onClick={() => handleCopyKey(clientAccessKey)}
-                      className="ml-2 inline-flex items-center gap-1 px-2.5 py-1 bg-white hover:bg-slate-100 rounded-xl text-gray-600 hover:text-brand-dark transition-all border border-slate-200 cursor-pointer text-[10px] font-bold shadow-2xs"
-                      title="Copiar chave de acesso"
-                    >
-                      {copiedKey ? <Check size={13} className="text-emerald-600" /> : <Copy size={13} />}
-                      <span>{copiedKey ? 'Copiado!' : 'Copiar'}</span>
-                    </button>
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => setShowAccessKey(prev => !prev)}
+                        className="p-1.5 bg-white hover:bg-slate-100 rounded-xl text-gray-500 hover:text-brand-dark transition-all border border-slate-200 cursor-pointer shadow-2xs"
+                        title={showAccessKey ? 'Ocultar chave' : 'Revelar chave'}
+                      >
+                        {showAccessKey ? <EyeOff size={13} /> : <Eye size={13} />}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleCopyKey(clientAccessKey)}
+                        className="inline-flex items-center gap-1 px-2.5 py-1 bg-white hover:bg-slate-100 rounded-xl text-gray-600 hover:text-brand-dark transition-all border border-slate-200 cursor-pointer text-[10px] font-bold shadow-2xs"
+                        title="Copiar chave de acesso"
+                      >
+                        {copiedKey ? <Check size={13} className="text-emerald-600" /> : <Copy size={13} />}
+                        <span>{copiedKey ? 'Copiado!' : 'Copiar'}</span>
+                      </button>
+                    </>
                   )}
+                  <button
+                    type="button"
+                    onClick={handleGenerateResetKeyLink}
+                    disabled={generatingResetLink}
+                    className="inline-flex items-center gap-1 px-2.5 py-1 bg-white hover:bg-slate-100 rounded-xl text-slate-700 hover:text-brand-dark transition-all border border-slate-200 cursor-pointer text-[10px] font-bold shadow-2xs"
+                    title="Gerar link para redefinir a Access Key"
+                  >
+                    <RefreshCw size={12} className={generatingResetLink ? 'animate-spin' : ''} />
+                    <span>Reset Access Key</span>
+                  </button>
                 </div>
               )}
             </div>
@@ -1608,35 +1697,66 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
                   )}
                 </div>
 
-                {/* Exibição da chave de acesso em texto puro com botão de copiar */}
+                {/* Exibição da chave de acesso mascarada (somente leitura) com revelar, copiar e Reset Access Key */}
                 {editingClientId && (
-                  <div className="mb-6 p-4 bg-slate-50 border border-slate-200 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                    <div className="flex items-center gap-3">
-                      <div className="p-2.5 bg-brand-dark/10 text-brand-dark rounded-xl">
-                        <KeyRound size={22} />
+                  <div className="mb-6 p-5 bg-slate-50 border border-slate-200 rounded-2xl flex flex-col gap-4">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                      <div className="flex items-center gap-3">
+                        <div className="p-2.5 bg-brand-dark/10 text-brand-dark rounded-xl">
+                          <KeyRound size={22} />
+                        </div>
+                        <div>
+                          <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">
+                            Access Key Atual (Somente Leitura)
+                          </span>
+                          <p className="text-[11px] text-gray-500 mt-0.5">
+                            A senha fica oculta por segurança. Use o ícone de olho para revelar ou envie um link de redefinição.
+                          </p>
+                        </div>
                       </div>
-                      <div>
-                        <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">
-                          Chave de Acesso (client_users.access_key)
-                        </span>
-                        <span className="text-base font-mono font-bold text-brand-dark select-all">
-                          {loadingAccessKey ? 'Buscando...' : clientAccessKey || 'Nenhuma chave cadastrada'}
-                        </span>
-                        <p className="text-[11px] text-gray-500 mt-0.5">
-                          Chave em texto puro para uso interno e suporte da agência.
-                        </p>
-                      </div>
-                    </div>
-                    {clientAccessKey && (
                       <button
                         type="button"
-                        onClick={() => handleCopyKey(clientAccessKey)}
-                        className="inline-flex items-center gap-2 px-4 py-2 bg-brand-dark hover:bg-opacity-90 text-white rounded-xl text-xs font-bold transition-all shadow-2xs cursor-pointer self-start sm:self-auto"
+                        onClick={handleGenerateResetKeyLink}
+                        disabled={generatingResetLink}
+                        className="inline-flex items-center gap-2 px-4 py-2.5 bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 rounded-xl text-xs font-bold transition-all shadow-2xs cursor-pointer self-start sm:self-auto"
                       >
-                        {copiedKey ? <Check size={14} className="text-emerald-400" /> : <Copy size={14} />}
-                        <span>{copiedKey ? 'Chave copiada!' : 'Copiar chave'}</span>
+                        <RefreshCw size={14} className={generatingResetLink ? 'animate-spin' : ''} />
+                        <span>Reset Access Key</span>
                       </button>
-                    )}
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-2">
+                      <div className="relative flex-1 min-w-[200px] max-w-xs">
+                        <input
+                          type={showAccessKey && clientAccessKey ? 'text' : 'password'}
+                          readOnly
+                          value={loadingAccessKey ? 'Buscando...' : clientAccessKey || ''}
+                          placeholder="Nenhuma chave cadastrada"
+                          className="w-full pl-3.5 pr-10 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-mono font-bold text-brand-dark focus:outline-none select-all"
+                        />
+                        {clientAccessKey && (
+                          <button
+                            type="button"
+                            onClick={() => setShowAccessKey(prev => !prev)}
+                            className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-brand-dark transition-colors cursor-pointer"
+                            title={showAccessKey ? 'Ocultar senha' : 'Revelar senha'}
+                          >
+                            {showAccessKey ? <EyeOff size={16} /> : <Eye size={16} />}
+                          </button>
+                        )}
+                      </div>
+
+                      {clientAccessKey && (
+                        <button
+                          type="button"
+                          onClick={() => handleCopyKey(clientAccessKey)}
+                          className="inline-flex items-center gap-2 px-4 py-2.5 bg-brand-dark hover:bg-opacity-90 text-white rounded-xl text-xs font-bold transition-all shadow-2xs cursor-pointer"
+                        >
+                          {copiedKey ? <Check size={14} className="text-emerald-400" /> : <Copy size={14} />}
+                          <span>{copiedKey ? 'Chave copiada!' : 'Copiar'}</span>
+                        </button>
+                      )}
+                    </div>
                   </div>
                 )}
 
@@ -2268,22 +2388,6 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
                         <p className="text-xs text-gray-400 uppercase tracking-wider font-semibold">
                           {client.segment || '-'} {client.responsible ? `• ${client.responsible}` : ''}
                         </p>
-                        {accessKeysMap[client.id] && (
-                          <button
-                            type="button"
-                            onClick={(e) => handleCopyClientKey(client.id, accessKeysMap[client.id], e)}
-                            className="inline-flex items-center gap-1.5 px-2 py-0.5 bg-slate-50 hover:bg-slate-100 text-slate-700 rounded-md text-[10px] font-mono font-bold border border-slate-200 transition-colors shadow-2xs cursor-pointer"
-                            title="Copiar chave de acesso"
-                          >
-                            <KeyRound size={11} className="text-brand-dark" />
-                            <span>{copiedClientKeyId === client.id ? 'Copiado!' : accessKeysMap[client.id]}</span>
-                            {copiedClientKeyId === client.id ? (
-                              <Check size={11} className="text-emerald-600" />
-                            ) : (
-                              <Copy size={11} className="text-gray-400" />
-                            )}
-                          </button>
-                        )}
                       </div>
                       {client.services && client.services.length > 0 && (
                         <div className="flex flex-wrap gap-2 mt-3">
@@ -2675,6 +2779,74 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
         isOpen={!!healthModalClient}
         onClose={() => setHealthModalClient(null)}
       />
+
+      {/* Modal de Link de Redefinição de Access Key */}
+      {resetKeyModalData && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-white rounded-3xl p-6 sm:p-8 max-w-lg w-full shadow-2xl border border-gray-100"
+          >
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-brand-dark/10 text-brand-dark flex items-center justify-center">
+                  <KeyRound size={20} />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-gray-900">Reset Access Key</h3>
+                  <p className="text-xs text-gray-500">{resetKeyModalData.clientName}</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setResetKeyModalData(null)}
+                className="p-2 text-gray-400 hover:text-gray-600 rounded-xl hover:bg-gray-100 transition-colors"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <p className="text-xs text-gray-600 leading-relaxed mb-4">
+              Copie o link abaixo e envie ao cliente para que ele possa definir uma nova Access Key de acesso ao portal:
+            </p>
+
+            <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-2xl mb-5">
+              <p className="text-xs font-mono text-slate-800 break-all select-all">
+                {resetKeyModalData.link}
+              </p>
+            </div>
+
+            <div className="flex items-center justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setResetKeyModalData(null)}
+                className="px-5 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl text-xs font-bold uppercase tracking-wider transition-colors cursor-pointer"
+              >
+                Fechar
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  try {
+                    await navigator.clipboard.writeText(resetKeyModalData.link);
+                  } catch (e) {}
+                  setCopiedResetLink(true);
+                  setToastMsg('Link de redefinição copiado!');
+                  setTimeout(() => {
+                    setCopiedResetLink(false);
+                    setToastMsg(null);
+                  }, 3000);
+                }}
+                className="inline-flex items-center gap-2 px-6 py-2.5 bg-brand-dark hover:bg-opacity-90 text-white rounded-xl text-xs font-bold uppercase tracking-wider transition-all shadow-md cursor-pointer"
+              >
+                {copiedResetLink ? <Check size={14} className="text-emerald-400" /> : <Copy size={14} />}
+                <span>{copiedResetLink ? 'Link Copiado!' : 'Copiar Link'}</span>
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
     </div>
   );
 };
