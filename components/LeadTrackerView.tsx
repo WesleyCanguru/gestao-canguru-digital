@@ -1085,7 +1085,7 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
               },
             }),
           }}>
-            {activeId ? (
+            {activeId && leads.some(l => l.id === activeId) ? (
               <LeadCard 
                 lead={leads.find(l => l.id === activeId)!} 
                 stages={stages} 
@@ -2388,7 +2388,7 @@ const LeadCard: React.FC<LeadCardProps & { isOverlay?: boolean }> = ({
     transform,
     transition,
     isDragging,
-  } = useSortable({ id: lead.id });
+  } = useSortable({ id: lead.id, disabled: isOverlay });
 
   const style = {
     transform: CSS.Translate.toString(transform),

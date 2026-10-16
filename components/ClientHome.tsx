@@ -364,6 +364,21 @@ export const ClientHome: React.FC<ClientHomeProps> = ({
     };
   }, [activeClient?.id, fetchClientPosts]);
 
+  const aiOnboardingStats = useMemo(() => {
+    const ob = activeClient?.ai_onboarding;
+    if (!ob?.checklist) return null;
+    let total = 0;
+    let done = 0;
+    ob.checklist.forEach(cat => {
+      cat.items.forEach(i => {
+        total++;
+        if (i.done) done++;
+      });
+    });
+    const percent = total > 0 ? Math.round((done / total) * 100) : 0;
+    return { total, done, percent };
+  }, [activeClient?.ai_onboarding]);
+
   // Abrir modal de um post específico
   const handleOpenPost = (post: any) => {
     let dayFormatted = dayjs().format('DD/MM');
@@ -667,21 +682,6 @@ export const ClientHome: React.FC<ClientHomeProps> = ({
   const primeiroNome = getFirstName();
   const nomeMesAno = getMonthYearString();
   const nomeEmpresa = activeClient?.name || 'Sua Empresa';
-
-  const aiOnboardingStats = useMemo(() => {
-    const ob = activeClient?.ai_onboarding;
-    if (!ob?.checklist) return null;
-    let total = 0;
-    let done = 0;
-    ob.checklist.forEach(cat => {
-      cat.items.forEach(i => {
-        total++;
-        if (i.done) done++;
-      });
-    });
-    const percent = total > 0 ? Math.round((done / total) * 100) : 0;
-    return { total, done, percent };
-  }, [activeClient?.ai_onboarding]);
 
   return (
     <div className="max-w-6xl mx-auto w-full pb-16">
