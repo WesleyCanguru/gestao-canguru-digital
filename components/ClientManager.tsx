@@ -948,7 +948,7 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
       is_lead_tracking_enabled: leadConfig?.is_enabled || false,
       features_settings: client.features_settings || {},
       client_type: client.client_type || 'recurring',
-      client_status: client.client_status || 'active',
+      client_status: (client.client_status as 'active' | 'cancelled' | 'completed') || 'active',
       service_end_date: client.service_end_date || '',
       cancelled_at: client.cancelled_at || '',
       last_payment_date: client.last_payment_date || '',

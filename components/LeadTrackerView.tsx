@@ -59,6 +59,9 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Legend, PieChart, Pie, Cell
 import { ClientLead, ClientLeadConfig } from '../types';
 import { useLeadTracker } from '../hooks/useLeadTracker';
 import { BRAZILIAN_STATES } from '../constants';
+import { VendaNegocioLeadForm } from './vendaNegocio/VendaNegocioLeadForm';
+import { VendaNegocioReport } from './vendaNegocio/VendaNegocioReport';
+import { VendaNegocioSale } from './vendaNegocio/VendaNegocioSale';
 
 dayjs.locale('pt-br');
 
@@ -99,10 +102,11 @@ const LEAD_SOURCES = [
   'Outro'
 ];
 
-export const isContractSentStage = (stageName?: string) => {
+export const isContractSentStage = (stageName?: string, isVendaNegocio = false) => {
   if (!stageName) return false;
   const lower = stageName.toLowerCase();
-  if (lower === 'fechado' || lower === 'perdido' || lower.includes('assinado') || lower.includes('concluido') || lower.includes('concluído')) {
+  const closedName = isVendaNegocio ? 'vendido' : 'fechado';
+  if (lower === closedName || lower === 'perdido' || lower.includes('assinado') || lower.includes('concluido') || lower.includes('concluído')) {
     return false;
   }
   return (
@@ -120,12 +124,19 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
   const { fetchLeads, addLead, updateLead, deleteLead, updateLeadStage, updateLeadsPositions } = useLeadTracker();
   const [leads, setLeads] = useState<ClientLead[]>([]);
   const [loading, setLoading] = useState(true);
+
+  const isVendaNegocio = config.crm_profile === 'venda_negocio';
+  const closedStageName = isVendaNegocio ? 'Vendido' : 'Fechado';
+  const isClosedStage = (stage?: string) => stage === closedStageName;
+  const currentLossReasons = isVendaNegocio && config.loss_reasons?.length ? config.loss_reasons : LOSS_REASONS;
   
   // CRM Tabs & Views
   const [activeCRMTab, setActiveCRMTab] = useState<'relatorio' | 'funil' | 'fechados' | 'perdidos'>('relatorio');
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
   const [selectedLeadForView, setSelectedLeadForView] = useState<ClientLead | null>(null);
   const [closedAtDate, setClosedAtDate] = useState('');
+  const [vendaPagamento, setVendaPagamento] = useState('');
+  const [vendaObservacoes, setVendaObservacoes] = useState('');
   
   // Filtros opcionais para listagens
   const [filterSpecialty, setFilterSpecialty] = useState('');
@@ -208,7 +219,7 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
     const total = monthLeads.length;
     // Usar closed_at para calculos de fechados, com fallback para lead_date se null
     const closedLeads = leads.filter(l => {
-      if (l.kanban_stage !== 'Fechado') return false;
+      if (!isClosedStage(l.kanban_stage)) return false;
       const dateToUse = l.closed_at || l.lead_date || l.created_at;
       return dateToUse.startsWith(selectedMonth);
     });
@@ -218,7 +229,7 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
     const conversionRate = total > 0 ? Math.round((closedMonth / total) * 100) : 0;
     
     // Propostas enviadas (inclui leads que têm a flag quote_sent = true ou estão atualmente na etapa de proposta)
-    const contractSentLeads = monthLeads.filter(l => l.quote_sent || (l.kanban_stage && isContractSentStage(l.kanban_stage)));
+    const contractSentLeads = monthLeads.filter(l => l.quote_sent || (l.kanban_stage && isContractSentStage(l.kanban_stage, isVendaNegocio)));
     const contractSentRevenue = contractSentLeads.reduce((acc, l) => acc + (Number(l.deal_value) || 0), 0);
     const contractSentCount = contractSentLeads.length;
 
@@ -243,7 +254,7 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
       contractSentRevenue,
       contractSentCount
     };
-  }, [leads, selectedMonth]);
+  }, [leads, selectedMonth, isVendaNegocio]);
 
   const last6MonthsData = useMemo(() => {
     const data = [];
@@ -253,7 +264,7 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
       const label = m.format('MM/YY'); // Formato pt-BR simples como "06/26"
 
       const leadsInMonth = leads.filter(l => (l.lead_date || l.created_at).startsWith(prefix));
-      const closedInMonth = leads.filter(l => l.kanban_stage === 'Fechado' && (l.closed_at || l.lead_date || l.created_at).startsWith(prefix));
+      const closedInMonth = leads.filter(l => isClosedStage(l.kanban_stage) && (l.closed_at || l.lead_date || l.created_at).startsWith(prefix));
 
       data.push({
         name: label,
@@ -262,10 +273,10 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
       });
     }
     return data;
-  }, [leads]);
+  }, [leads, isVendaNegocio]);
 
   const statsFechados = useMemo(() => {
-    const closedLeads = leads.filter(l => l.kanban_stage === 'Fechado');
+    const closedLeads = leads.filter(l => isClosedStage(l.kanban_stage));
     const totalRevenue = closedLeads.reduce((acc, lead) => acc + (lead.deal_value || 0), 0);
     
     // Meses específicos para o dashboard
@@ -287,7 +298,7 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
     }
 
     return { totalRevenue, count: closedLeads.length, monthsData };
-  }, [leads]);
+  }, [leads, isVendaNegocio]);
 
   const statsPerdidos = useMemo(() => {
     const lostLeads = leads.filter(l => l.kanban_stage === 'Perdido');
@@ -309,9 +320,13 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
     setEditingLead(null);
     setFormData({
       ...defaultLeadState,
-      origin: '',
-      specialty: config.specialty_options?.[0] || '',
-      kanban_stage: stages[0]
+      origin: isVendaNegocio ? 'Site' : '',
+      specialty: isVendaNegocio ? '' : (config.specialty_options?.[0] || ''),
+      kanban_stage: stages[0],
+      source: isVendaNegocio ? 'Meta Ads' : LEAD_SOURCES[0],
+      potential: 'baixo',
+      quality: 'bom',
+      form_data: {}
     });
     setIsModalOpen(true);
   };
@@ -324,6 +339,17 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
     setIsModalOpen(true);
   };
 
+  const handleOpenWinModal = (leadId: string) => {
+    const lead = leads.find(l => l.id === leadId);
+    setLeadToWin(leadId);
+    setDealValue(lead?.deal_value ? String(lead.deal_value).replace('.', ',') : '');
+    setClosedAtDate(dayjs().format('YYYY-MM-DD'));
+    setWinNotes('');
+    setVendaPagamento(lead?.form_data?.venda_pagamento || '');
+    setVendaObservacoes(lead?.form_data?.venda_observacoes || '');
+    setIsWonModalOpen(true);
+  };
+
   const handleOpenViewModal = (lead: ClientLead) => {
     setSelectedLeadForView(lead);
     setIsViewModalOpen(true);
@@ -332,20 +358,37 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
   const handleExportCSV = () => {
     if (!leads || leads.length === 0) return;
 
-    const headers = [
-      'Nome do Lead',
-      'Telefone',
-      'Data do Lead',
-      'Canal/Origem de Tráfego',
-      'Unidade/Cidade',
-      'Especialidade',
-      'Potencial',
-      'Qualidade',
-      'Valor do Acordo',
-      'Etapa do Funil',
-      'Motivo da Perda',
-      'Notas'
-    ];
+    let headers: string[];
+    if (isVendaNegocio) {
+      headers = [
+        'Nome',
+        'WhatsApp',
+        'E-mail',
+        'Cidade',
+        ...(config.lead_fields?.map(f => f.label) || []),
+        'Origem',
+        'Potencial',
+        'Etapa atual',
+        'Data de entrada',
+        'Motivo de perda',
+        'Valor da venda'
+      ];
+    } else {
+      headers = [
+        'Nome do Lead',
+        'Telefone',
+        'Data do Lead',
+        'Canal/Origem de Tráfego',
+        'Unidade/Cidade',
+        'Especialidade',
+        'Potencial',
+        'Qualidade',
+        'Valor do Acordo',
+        'Etapa do Funil',
+        'Motivo da Perda',
+        'Notas'
+      ];
+    }
 
     const escapeCSV = (val: any) => {
       if (val === null || val === undefined) return '';
@@ -360,20 +403,37 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
     const csvRows = [headers.join(';')];
 
     leads.forEach(lead => {
-      const row = [
-        escapeCSV(lead.lead_name || ''),
-        escapeCSV(lead.phone || ''),
-        escapeCSV(lead.lead_date ? new Date(lead.lead_date).toLocaleDateString('pt-BR') : ''),
-        escapeCSV(lead.source || ''),
-        escapeCSV(lead.origin || ''),
-        escapeCSV(lead.specialty || ''),
-        escapeCSV(lead.potential || ''),
-        escapeCSV(lead.quality || ''),
-        escapeCSV(lead.deal_value || 0),
-        escapeCSV(lead.kanban_stage || ''),
-        escapeCSV(lead.loss_reason || ''),
-        escapeCSV(lead.notes || '')
-      ];
+      let row: string[];
+      if (isVendaNegocio) {
+        row = [
+          escapeCSV(lead.lead_name || ''),
+          escapeCSV(lead.phone || ''),
+          escapeCSV(lead.email || ''),
+          escapeCSV(lead.city || ''),
+          ...(config.lead_fields?.map(f => escapeCSV(lead.form_data?.[f.key] || '')) || []),
+          escapeCSV(lead.source || ''),
+          escapeCSV(lead.potential === 'alto' ? 'Alto potencial' : lead.potential === 'baixo' ? 'Baixo potencial' : lead.potential || ''),
+          escapeCSV(lead.kanban_stage || ''),
+          escapeCSV(lead.lead_date ? new Date(lead.lead_date).toLocaleDateString('pt-BR') : ''),
+          escapeCSV(lead.loss_reason || ''),
+          escapeCSV(lead.closed ? (lead.deal_value || 0) : '')
+        ];
+      } else {
+        row = [
+          escapeCSV(lead.lead_name || ''),
+          escapeCSV(lead.phone || ''),
+          escapeCSV(lead.lead_date ? new Date(lead.lead_date).toLocaleDateString('pt-BR') : ''),
+          escapeCSV(lead.source || ''),
+          escapeCSV(lead.origin || ''),
+          escapeCSV(lead.specialty || ''),
+          escapeCSV(lead.potential || ''),
+          escapeCSV(lead.quality || ''),
+          escapeCSV(lead.deal_value || 0),
+          escapeCSV(lead.kanban_stage || ''),
+          escapeCSV(lead.loss_reason || ''),
+          escapeCSV(lead.notes || '')
+        ];
+      }
       csvRows.push(row.join(';'));
     });
 
@@ -385,7 +445,7 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
     link.href = url;
     
     const dateStr = new Date().toLocaleDateString('pt-BR').replace(/\//g, '-');
-    link.setAttribute('download', `leads_${dateStr}.csv`);
+    link.setAttribute('download', isVendaNegocio ? `interessados_${dateStr}.csv` : `leads_${dateStr}.csv`);
     
     document.body.appendChild(link);
     link.click();
@@ -394,14 +454,14 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
 
   const handleSaveLead = async () => {
     if (!formData.lead_name?.trim()) {
-      alert('Nome do Lead é obrigatório.');
+      alert(isVendaNegocio ? 'Nome do interessado é obrigatório.' : 'Nome do Lead é obrigatório.');
       return;
     }
     if (!formData.potential) {
-      alert('Selecione o potencial do lead.');
+      alert('Selecione o potencial do interessado.');
       return;
     }
-    if (!formData.notes?.trim()) {
+    if (!formData.notes?.trim() && !isVendaNegocio) {
       alert('Observações é obrigatório. Registre o que o lead procura.');
       return;
     }
@@ -411,12 +471,15 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
         await updateLead(editingLead.id, {
           lead_name: formData.lead_name,
           phone: formData.phone,
+          email: formData.email,
+          city: formData.city,
           lead_date: formData.lead_date,
           source: formData.source,
           origin: formData.origin,
           specialty: formData.specialty,
           potential: formData.potential,
-          notes: formData.notes
+          notes: formData.notes,
+          form_data: formData.form_data
         });
       } else {
         // Get max position for the stage
@@ -428,8 +491,10 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
           lead_date: formData.lead_date || dayjs().format('YYYY-MM-DD'),
           lead_name: formData.lead_name,
           phone: formData.phone,
+          email: formData.email,
+          city: formData.city,
           source: formData.source,
-          origin: formData.origin || '',
+          origin: formData.origin || 'Site',
           specialty: formData.specialty,
           potential: formData.potential,
           notes: formData.notes,
@@ -438,7 +503,8 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
           quality: 'bom',
           quote_sent: false,
           closed: false,
-          deal_value: 0
+          deal_value: 0,
+          form_data: formData.form_data
         });
       }
       setIsModalOpen(false);
@@ -521,21 +587,23 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
 
     if (targetStage === 'Perdido' && activeLead.kanban_stage !== 'Perdido') {
       setLeadToLose(activeId);
-      setLossReason(LOSS_REASONS[0]);
+      setLossReason(currentLossReasons[0]);
       setIsLossModalOpen(true);
       return;
     }
 
-    if (targetStage === 'Fechado' && activeLead.kanban_stage !== 'Fechado') {
+    if (targetStage === closedStageName && activeLead.kanban_stage !== closedStageName) {
       setLeadToWin(activeId);
       setDealValue(activeLead.deal_value ? String(activeLead.deal_value).replace('.', ',') : '');
-      setClosedAtDate('');
+      setClosedAtDate(dayjs().format('YYYY-MM-DD'));
       setWinNotes('');
+      setVendaPagamento('');
+      setVendaObservacoes('');
       setIsWonModalOpen(true);
       return;
     }
 
-    if (isContractSentStage(targetStage) && activeLead.kanban_stage !== targetStage) {
+    if (isContractSentStage(targetStage, isVendaNegocio) && activeLead.kanban_stage !== targetStage) {
       setLeadForContractValue(activeId);
       setContractValueStage(targetStage);
       setEstimatedContractValue(activeLead.deal_value ? String(activeLead.deal_value).replace('.', ',') : '');
@@ -569,22 +637,24 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
   const handleMoveStage = async (leadId: string, newStage: string) => {
     if (newStage === 'Perdido') {
       setLeadToLose(leadId);
-      setLossReason(LOSS_REASONS[0]);
+      setLossReason(currentLossReasons[0]);
       setIsLossModalOpen(true);
       return;
     }
 
-    if (newStage === 'Fechado') {
+    if (newStage === closedStageName) {
       const lead = leads.find(l => l.id === leadId);
       setLeadToWin(leadId);
       setDealValue(lead?.deal_value ? String(lead.deal_value).replace('.', ',') : '');
-      setClosedAtDate('');
+      setClosedAtDate(dayjs().format('YYYY-MM-DD'));
       setWinNotes('');
+      setVendaPagamento('');
+      setVendaObservacoes('');
       setIsWonModalOpen(true);
       return;
     }
 
-    if (isContractSentStage(newStage)) {
+    if (isContractSentStage(newStage, isVendaNegocio)) {
       setLeadForContractValue(leadId);
       setContractValueStage(newStage);
       const lead = leads.find(l => l.id === leadId);
@@ -619,22 +689,31 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
   const handleConfirmWin = async () => {
     if (!leadToWin) return;
     if (!closedAtDate) {
-      alert('A data de fechamento é obrigatória.');
+      alert('A data é obrigatória.');
       return;
     }
     try {
-      // Confirma o ganho do lead
+      const leadObj = leads.find(l => l.id === leadToWin);
       await updateLead(leadToWin, { 
-         kanban_stage: 'Fechado', 
+         kanban_stage: closedStageName, 
          closed: true, 
          deal_value: parseCurrencyInput(dealValue),
          closed_at: closedAtDate,
-         notes: winNotes || undefined
+         notes: winNotes || undefined,
+         ...(isVendaNegocio ? {
+           form_data: {
+             ...(leadObj?.form_data || {}),
+             venda_pagamento: vendaPagamento,
+             venda_observacoes: vendaObservacoes
+           }
+         } : {})
       });
       setIsWonModalOpen(false);
       setLeadToWin(null);
       setWinNotes('');
       setClosedAtDate('');
+      setVendaPagamento('');
+      setVendaObservacoes('');
       loadData();
     } catch (error) {
       console.error(error);
@@ -686,7 +765,7 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
     grouped['Perdido'] = [];
     
     leads.forEach(lead => {
-      if (lead.kanban_stage === 'Fechado') {
+      if (isClosedStage(lead.kanban_stage)) {
         const dateToUse = lead.closed_at || lead.lead_date || lead.created_at;
         if (!dateToUse.startsWith(selectedMonth)) {
           return; // Skip closed leads not from selected month
@@ -706,11 +785,11 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
       }
     });
     return grouped;
-  }, [leads, stages, selectedMonth]);
+  }, [leads, stages, selectedMonth, isClosedStage]);
 
   const filteredClosedLeads = useMemo(() => {
     return leads
-      .filter(l => l.kanban_stage === 'Fechado')
+      .filter(l => isClosedStage(l.kanban_stage))
       .filter(l => !filterSpecialty || l.specialty === filterSpecialty)
       .filter(l => !filterSource || l.source === filterSource)
       .filter(l => !filterOrigin || l.origin === filterOrigin)
@@ -781,7 +860,7 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
           <div>
             <div className="flex items-center gap-2 text-white/50 text-[10px] font-bold tracking-[0.2em] uppercase mb-4">
               <Users size={12} />
-              <span>Acompanhamento de Leads</span>
+              <span>{isVendaNegocio ? 'Acompanhamento de Interessados' : 'Acompanhamento de Leads'}</span>
             </div>
             <h1 className="text-4xl sm:text-5xl font-serif italic tracking-tight mb-6">
               CRM & Oportunidades
@@ -801,7 +880,7 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
                   ? 'bg-white/5 text-white/40 border-white/10 cursor-not-allowed opacity-60'
                   : 'bg-white/10 hover:bg-white/20 text-white border-white/20'
               }`}
-              title="Exportar todos os leads para CSV"
+              title={isVendaNegocio ? "Exportar todos os interessados para CSV" : "Exportar todos os leads para CSV"}
             >
               <Download size={18} />
               <span>Exportar</span>
@@ -811,7 +890,7 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
               className="flex items-center gap-2 px-6 py-2.5 bg-white text-black rounded-xl font-bold hover:bg-gray-100 transition-colors"
             >
               <Plus size={20} />
-              <span>Novo Lead</span>
+              <span>{isVendaNegocio ? 'Novo Interessado' : 'Novo Lead'}</span>
             </button>
           </div>
         </div>
@@ -844,7 +923,7 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
               activeCRMTab === 'fechados' ? 'text-brand-dark font-black' : 'text-gray-400 hover:text-brand-dark'
             }`}
           >
-            🤝 Contratos Fechados
+            {isVendaNegocio ? '🤝 Venda do negócio' : '🤝 Contratos Fechados'}
             {activeCRMTab === 'fechados' && <motion.div layoutId="activeCRMTabLine" className="absolute bottom-0 inset-x-0 h-0.5 bg-brand-dark" />}
           </button>
           <button
@@ -853,7 +932,7 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
               activeCRMTab === 'perdidos' ? 'text-brand-dark font-black' : 'text-gray-400 hover:text-brand-dark'
             }`}
           >
-            💔 Leads Perdidos
+            {isVendaNegocio ? '💔 Interessados que não seguiram' : '💔 Leads Perdidos'}
             {activeCRMTab === 'perdidos' && <motion.div layoutId="activeCRMTabLine" className="absolute bottom-0 inset-x-0 h-0.5 bg-brand-dark" />}
           </button>
         </div>
@@ -922,11 +1001,12 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
                             onUpdateDealValue={handleUpdateDealValue}
                             getSourceIcon={getSourceIcon}
                             onView={() => handleOpenViewModal(lead)}
+                            isVendaNegocio={isVendaNegocio}
                           />
                         ))
                       ) : (
                         <div className="py-8 text-center text-xs text-gray-400 italic">
-                          Nenhum lead nesta etapa
+                          {isVendaNegocio ? 'Nenhum interessado nesta etapa' : 'Nenhum lead nesta etapa'}
                         </div>
                       )}
                     </DroppableColumn>
@@ -939,7 +1019,7 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
                 <div className="flex items-center justify-between mb-4 px-2">
                   {showLost ? (
                     <>
-                      <h3 className="font-bold text-red-750 text-sm">Perdido</h3>
+                      <h3 className="font-bold text-red-750 text-sm">{isVendaNegocio ? 'Não seguiram' : 'Perdido'}</h3>
                       <div className="flex items-center gap-2">
                         <span className="bg-white border border-red-100/50 text-red-600 text-xs font-bold px-2.5 py-1 rounded-full">
                           {leadsByStage['Perdido']?.length || 0}
@@ -954,7 +1034,7 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
                       <button 
                         onClick={() => setShowLost(true)}
                         className="bg-red-50 text-red-650 text-xs font-bold px-2 py-2 rounded-full hover:bg-red-100 transition-colors"
-                        title="Ver Perdidos"
+                        title={isVendaNegocio ? "Ver que não seguiram" : "Ver Perdidos"}
                       >
                         {leadsByStage['Perdido']?.length || 0}
                       </button>
@@ -981,11 +1061,12 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
                             onUpdateDealValue={handleUpdateDealValue}
                             getSourceIcon={getSourceIcon}
                             onView={() => handleOpenViewModal(lead)}
+                            isVendaNegocio={isVendaNegocio}
                           />
                         ))
                       ) : (
                         <div className="py-8 text-center text-xs text-gray-400 italic">
-                          Nenhum lead marcado como perdido
+                          {isVendaNegocio ? 'Nenhum interessado que não seguiu' : 'Nenhum lead marcado como perdido'}
                         </div>
                       )}
                     </DroppableColumn>
@@ -1014,6 +1095,7 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
                 onUpdateDealValue={() => {}} 
                 getSourceIcon={getSourceIcon}
                 onView={() => {}}
+                isVendaNegocio={isVendaNegocio}
                 isOverlay
               />
             ) : null}
@@ -1022,357 +1104,482 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
       )}
 
       {activeCRMTab === 'fechados' && (
-        <div className="flex-1 bg-white border border-black/[0.05] rounded-[2rem] p-6 sm:p-8 shadow-sm space-y-6">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-black/[0.03] pb-4">
-            <div>
-              <h2 className="text-xl font-bold text-brand-dark">Histórico de Contratos Fechados</h2>
-              <p className="text-xs text-gray-400 mt-1 font-medium">Todos os fechamentos acumulados da agência (Histórico completo)</p>
-            </div>
-            
-            <div className="flex flex-wrap items-center gap-3">
-              <select
-                value={filterSpecialty}
-                onChange={(e) => setFilterSpecialty(e.target.value)}
-                className="bg-gray-50 border border-black/[0.05] rounded-xl px-3 py-1.5 text-xs font-semibold focus:ring-1 focus:ring-brand-dark outline-none cursor-pointer"
-              >
-                <option value="">Todas Especialidades</option>
-                {config.specialty_options?.map(opt => (
-                  <option key={opt} value={opt}>{opt}</option>
-                ))}
-              </select>
-
-              <select
-                value={filterSource}
-                onChange={(e) => setFilterSource(e.target.value)}
-                className="bg-gray-50 border border-black/[0.05] rounded-xl px-3 py-1.5 text-xs font-semibold focus:ring-1 focus:ring-brand-dark outline-none cursor-pointer"
-              >
-                <option value="">Todas as Fontes</option>
-                <option value="Google Ads">Google Ads</option>
-                <option value="Instagram">Instagram</option>
-                <option value="Site orgânico">Site orgânico</option>
-                <option value="Indicação">Indicação</option>
-              </select>
-
-              <select
-                value={filterOrigin}
-                onChange={(e) => setFilterOrigin(e.target.value)}
-                className="bg-gray-50 border border-black/[0.05] rounded-xl px-3 py-1.5 text-xs font-semibold focus:ring-1 focus:ring-brand-dark outline-none cursor-pointer"
-              >
-                <option value="">Todas Localidades</option>
-                {BRAZILIAN_STATES.map(st => (
-                  <option key={st} value={st}>{st}</option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          {/* Mini Dashboard de Fechados */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 shrink-0">
-            <div className="bg-emerald-50/30 border border-emerald-500/10 rounded-2xl p-4 flex flex-col justify-between">
-              <span className="text-[10px] uppercase font-bold text-emerald-800/60 mb-1">Total Geral</span>
-              <div className="text-xl font-black text-emerald-900 tracking-tight">
-                {statsFechados.totalRevenue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-              </div>
-              <div className="text-[9px] font-bold text-emerald-600/40">{statsFechados.count} contratos fechados</div>
-            </div>
-            {statsFechados.monthsData.map(m => (
-              <div key={m.label} className="bg-white border border-black/[0.05] rounded-2xl p-4 flex flex-col justify-between shadow-sm">
-                <span className="text-[10px] uppercase font-bold text-gray-400 mb-1">{m.label}</span>
-                <div className="text-sm font-black text-gray-900 tracking-tight">
-                  {m.value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                </div>
-                <div className="text-[9px] font-bold text-brand-dark/40">{m.count} contratos</div>
-              </div>
-            ))}
-          </div>
-
-          <div className="overflow-x-auto min-w-full">
-            {filteredClosedLeads.length > 0 ? (
-              <table className="min-w-full border-collapse text-left">
-                <thead>
-                  <tr className="border-b border-black/[0.03] text-[10px] uppercase tracking-wider font-bold text-gray-400">
-                    <th className="pb-3 pl-2">Fechamento</th>
-                    <th className="pb-3">Nome</th>
-                    <th className="pb-3">Telefone</th>
-                    <th className="pb-3">Especialidade</th>
-                    <th className="pb-3">Local</th>
-                    <th className="pb-3">Potencial</th>
-                    <th className="pb-3">Valor</th>
-                    <th className="pb-3 pr-2 text-right">Canal</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-black/[0.02]">
-                  {filteredClosedLeads.map(lead => {
-                    const closedDate = lead.closed_at || lead.lead_date || lead.created_at;
-                    return (
-                      <tr 
-                        key={lead.id} 
-                        onClick={() => handleOpenViewModal(lead)}
-                        className="text-xs font-semibold text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer"
-                      >
-                        <td className="py-3.5 pl-2 text-emerald-700 font-bold">
-                          {dayjs(closedDate).format('DD/MM/YYYY')}
-                        </td>
-                        <td className="py-3.5 font-bold text-gray-900">{lead.lead_name}</td>
-                        <td className="py-3.5 text-gray-500 font-normal">{lead.phone || '—'}</td>
-                        <td className="py-3.5 italic text-brand-dark">{lead.specialty || '—'}</td>
-                        <td className="py-3.5 uppercase text-gray-500">{lead.origin || '—'}</td>
-                        <td className="py-3.5">
-                          {lead.potential === 'alto' && <span className="text-green-700 font-bold">🔥 Alto</span>}
-                          {lead.potential === 'medio' && <span className="text-yellow-700 font-bold">⚡ Médio</span>}
-                          {lead.potential === 'baixo' && <span className="text-gray-600 font-bold">❄️ Baixo</span>}
-                        </td>
-                        <td className="py-3.5 text-emerald-800 font-black">
-                          {Number(lead.deal_value || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                        </td>
-                        <td className="py-3.5 pr-2 text-right text-brand-dark flex items-center justify-end gap-1.5 font-normal text-[10px] uppercase tracking-wider mt-1.5">
-                          {getSourceIcon(lead.source)}
-                          <span>{lead.source || '—'}</span>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            ) : (
-              <div className="py-12 text-center text-sm text-gray-400 italic">
-                Nenhum lead fechado encontrado com os filtros aplicados
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {activeCRMTab === 'perdidos' && (
-        <div className="flex-1 bg-white border border-black/[0.05] rounded-[2rem] p-6 sm:p-8 shadow-sm space-y-6">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-black/[0.03] pb-4">
-            <div>
-              <h2 className="text-xl font-bold text-red-700">Histórico de Leads Perdidos</h2>
-              <p className="text-xs text-gray-400 mt-1 font-medium">Todas as oportunidades perdidas no funil comercial</p>
-            </div>
-            
-            <div className="flex flex-wrap items-center gap-3">
-              <select
-                value={filterSpecialty}
-                onChange={(e) => setFilterSpecialty(e.target.value)}
-                className="bg-gray-50 border border-black/[0.05] rounded-xl px-3 py-1.5 text-xs font-semibold focus:ring-1 focus:ring-brand-dark outline-none cursor-pointer"
-              >
-                <option value="">Todas Especialidades</option>
-                {config.specialty_options?.map(opt => (
-                  <option key={opt} value={opt}>{opt}</option>
-                ))}
-              </select>
-
-              <select
-                value={filterSource}
-                onChange={(e) => setFilterSource(e.target.value)}
-                className="bg-gray-50 border border-black/[0.05] rounded-xl px-3 py-1.5 text-xs font-semibold focus:ring-1 focus:ring-brand-dark outline-none cursor-pointer"
-              >
-                <option value="">Todas as Fontes</option>
-                <option value="Google Ads">Google Ads</option>
-                <option value="Instagram">Instagram</option>
-                <option value="Site orgânico">Site orgânico</option>
-                <option value="Indicação">Indicação</option>
-              </select>
-            </div>
-          </div>
-
-          {/* Mini Dashboard de Perdidos */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-3 shrink-0">
-            {statsPerdidos.reasonData.slice(0, 6).map(entry => (
-              <div key={entry.name} className="bg-white border border-black/[0.05] rounded-2xl p-3 flex flex-col justify-between shadow-sm">
-                <span className="text-[9px] uppercase font-bold text-gray-400 line-clamp-1">{entry.name}</span>
-                <div className="flex items-end justify-between mt-1">
-                  <div className="text-lg font-black text-red-700 tracking-tighter">{entry.value}</div>
-                  <div className="text-[8px] font-bold text-red-300">{statsPerdidos.total > 0 ? ((entry.value / statsPerdidos.total) * 100).toFixed(0) : 0}%</div>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          <div className="overflow-x-auto min-w-full">
-            {filteredLostLeads.length > 0 ? (
-              <table className="min-w-full border-collapse text-left">
-                <thead>
-                  <tr className="border-b border-black/[0.03] text-[10px] uppercase tracking-wider font-bold text-gray-400">
-                    <th className="pb-3 pl-2">Data do Lead</th>
-                    <th className="pb-3">Nome</th>
-                    <th className="pb-3">Telefone</th>
-                    <th className="pb-3">Especialidade</th>
-                    <th className="pb-3">Local</th>
-                    <th className="pb-3">Motivo da Perda</th>
-                    <th className="pb-3 pr-2 text-right">Canal</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-black/[0.02]">
-                  {filteredLostLeads.map(lead => {
-                    const leadDate = lead.lead_date || lead.created_at;
-                    return (
-                      <tr 
-                        key={lead.id} 
-                        onClick={() => handleOpenViewModal(lead)}
-                        className="text-xs font-semibold text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer"
-                      >
-                        <td className="py-3.5 pl-2 text-gray-400">
-                          {dayjs(leadDate).format('DD/MM/YYYY')}
-                        </td>
-                        <td className="py-3.5 font-bold text-gray-900">{lead.lead_name}</td>
-                        <td className="py-3.5 text-gray-500 font-normal">{lead.phone || '—'}</td>
-                        <td className="py-3.5 italic text-brand-dark">{lead.specialty || '—'}</td>
-                        <td className="py-3.5 uppercase text-gray-500">{lead.origin || '—'}</td>
-                        <td className="py-3.5 text-red-600 font-bold">
-                          {lead.loss_reason || '—'}
-                        </td>
-                        <td className="py-3.5 pr-2 text-right text-brand-dark flex items-center justify-end gap-1.5 font-normal text-[10px] uppercase tracking-wider mt-1.5">
-                          {getSourceIcon(lead.source)}
-                          <span>{lead.source || '—'}</span>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            ) : (
-              <div className="py-12 text-center text-sm text-gray-400 italic">
-                Nenhum lead perdido encontrado com os filtros aplicados
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {activeCRMTab === 'relatorio' && (
-        <div className="space-y-8">
-          {/* Mini Dashboard de Relatórios */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 shrink-0">
-            <div className="premium-card p-6 flex flex-col justify-between">
-              <div className="flex items-center gap-3 mb-4">
-                <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center text-blue-600">
-                  <Users size={20} />
-                </div>
-                <span className="premium-label">Leads no Mês</span>
-              </div>
-              <div className="text-4xl font-bold tracking-tighter">{stats.total}</div>
-            </div>
-
-            <div className="premium-card p-6 flex flex-col justify-between">
-              <div className="flex items-center gap-3 mb-4">
-                <div className="w-10 h-10 rounded-xl bg-emerald-50 flex items-center justify-center text-emerald-600">
-                  <CheckSquare size={20} />
-                </div>
-                <span className="premium-label">Fechados no Mês</span>
-              </div>
-              <div className="text-4xl font-bold tracking-tighter text-emerald-600">{stats.closedMonth}</div>
-            </div>
-
-            <div className="premium-card p-6 flex flex-col justify-between">
-              <div className="flex items-center gap-3 mb-4">
-                <div className="w-10 h-10 rounded-xl bg-purple-50 flex items-center justify-center text-purple-600">
-                  <TrendingUp size={20} />
-                </div>
-                <span className="premium-label">Taxa de Conversão</span>
-              </div>
-              <div className="text-4xl font-bold tracking-tighter text-purple-600">{stats.conversionRate}%</div>
-            </div>
-
-            <div className="premium-card p-6 flex flex-col justify-between border-l-4 border-amber-500 bg-amber-50/10">
-              <div className="flex items-center gap-3 mb-4">
-                <div className="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center text-amber-600">
-                  <FileText size={20} />
-                </div>
-                <span className="premium-label font-bold text-amber-800">Dinheiro em Negociação</span>
-              </div>
-              <div className="text-2xl font-black tracking-tight text-amber-700">
-                {stats.contractSentRevenue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-              </div>
-              <div className="text-[10px] text-gray-400 mt-2 font-semibold">
-                <div className="text-amber-600 font-bold flex items-center gap-1 mb-1">
-                  <span>💼 Dinheiro na Mesa</span>
-                </div>
-                <div>{stats.contractSentCount} {stats.contractSentCount === 1 ? 'lead em negociação' : 'leads em negociação'} este mês</div>
-              </div>
-            </div>
-
-            <div className="premium-card p-6 flex flex-col justify-between">
-              <div className="flex items-center gap-3 mb-4">
-                <div className="w-10 h-10 rounded-xl bg-emerald-50 flex items-center justify-center text-emerald-600">
-                  <DollarSign size={20} />
-                </div>
-                <span className="premium-label">Faturamento CRM</span>
-              </div>
-              <div className="text-2xl font-bold tracking-tight text-emerald-700">
-                {stats.revenue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-              </div>
-              <div className="text-[10px] text-gray-400 mt-1 font-semibold">
-                Soma dos contratos fechados de fato
-              </div>
-            </div>
-          </div>
-
-          {/* Gráficos e Detalhes de Performance */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            {/* Gráfico de Barras dos Últimos 6 Meses */}
-            <div className="lg:col-span-2 bg-white border border-black/[0.05] rounded-[2rem] p-6 sm:p-8 shadow-sm">
-              <h3 className="text-base font-bold text-brand-dark mb-1">Performance Comercial (Últimos 6 Meses)</h3>
-              <p className="text-xs text-gray-400 mb-6 font-medium">Gráfico comparativo de Novos Leads vs Contratos Fechados</p>
-              
-              <div className="h-[280px] w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={last6MonthsData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(0,0,0,0.03)" />
-                    <XAxis dataKey="name" stroke="#a3a3a3" fontSize={11} tickLine={false} axisLine={false} />
-                    <YAxis stroke="#a3a3a3" fontSize={11} tickLine={false} axisLine={false} />
-                    <Tooltip cursor={{ fill: 'rgba(0,0,0,0.02)' }} />
-                    <Legend iconType="circle" wrapperStyle={{ fontSize: '11px', fontWeight: 'bold', paddingTop: '10px' }} />
-                    <Bar dataKey="Novos Leads" fill="rgba(17,17,17,0.7)" radius={[4, 4, 0, 0]} />
-                    <Bar dataKey="Contratos Fechados" fill="rgba(16,185,129,0.8)" radius={[4, 4, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
-
-            {/* Motivos de Perda no Mês */}
-            <div className="bg-white border border-black/[0.05] rounded-[2rem] p-6 sm:p-8 shadow-sm flex flex-col justify-between">
+        isVendaNegocio ? (
+          <VendaNegocioSale 
+            leads={leads} 
+            config={config} 
+            onOpenWinModal={handleOpenWinModal} 
+            onViewLead={handleOpenViewModal} 
+          />
+        ) : (
+          <div className="flex-1 bg-white border border-black/[0.05] rounded-[2rem] p-6 sm:p-8 shadow-sm space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-black/[0.03] pb-4">
               <div>
-                <h3 className="text-base font-bold text-brand-dark mb-1">Perdas do Mês</h3>
-                <p className="text-xs text-gray-400 mb-6">Motivos recorrentes na etapa de perda comercial</p>
+                <h2 className="text-xl font-bold text-brand-dark">Histórico de Contratos Fechados</h2>
+                <p className="text-xs text-gray-400 mt-1 font-medium">Todos os fechamentos acumulados da agência (Histórico completo)</p>
+              </div>
+              
+              <div className="flex flex-wrap items-center gap-3">
+                <select
+                  value={filterSpecialty}
+                  onChange={(e) => setFilterSpecialty(e.target.value)}
+                  className="bg-gray-50 border border-black/[0.05] rounded-xl px-3 py-1.5 text-xs font-semibold focus:ring-1 focus:ring-brand-dark outline-none cursor-pointer"
+                >
+                  <option value="">Todas Especialidades</option>
+                  {config.specialty_options?.map(opt => (
+                    <option key={opt} value={opt}>{opt}</option>
+                  ))}
+                </select>
 
-                {stats.lostCount > 0 ? (
-                  <div className="space-y-4">
-                    {stats.reasonData.slice(0, 4).map((entry, index) => {
-                      const perc = Math.round((entry.value / stats.lostCount) * 100);
+                <select
+                  value={filterSource}
+                  onChange={(e) => setFilterSource(e.target.value)}
+                  className="bg-gray-50 border border-black/[0.05] rounded-xl px-3 py-1.5 text-xs font-semibold focus:ring-1 focus:ring-brand-dark outline-none cursor-pointer"
+                >
+                  <option value="">Todas as Fontes</option>
+                  <option value="Google Ads">Google Ads</option>
+                  <option value="Instagram">Instagram</option>
+                  <option value="Site orgânico">Site orgânico</option>
+                  <option value="Indicação">Indicação</option>
+                </select>
+
+                <select
+                  value={filterOrigin}
+                  onChange={(e) => setFilterOrigin(e.target.value)}
+                  className="bg-gray-50 border border-black/[0.05] rounded-xl px-3 py-1.5 text-xs font-semibold focus:ring-1 focus:ring-brand-dark outline-none cursor-pointer"
+                >
+                  <option value="">Todas Localidades</option>
+                  {BRAZILIAN_STATES.map(st => (
+                    <option key={st} value={st}>{st}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {/* Mini Dashboard de Fechados */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 shrink-0">
+              <div className="bg-emerald-50/30 border border-emerald-500/10 rounded-2xl p-4 flex flex-col justify-between">
+                <span className="text-[10px] uppercase font-bold text-emerald-800/60 mb-1">Total Geral</span>
+                <div className="text-xl font-black text-emerald-900 tracking-tight">
+                  {statsFechados.totalRevenue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                </div>
+                <div className="text-[9px] font-bold text-emerald-600/40">{statsFechados.count} contratos fechados</div>
+              </div>
+              {statsFechados.monthsData.map(m => (
+                <div key={m.label} className="bg-white border border-black/[0.05] rounded-2xl p-4 flex flex-col justify-between shadow-sm">
+                  <span className="text-[10px] uppercase font-bold text-gray-400 mb-1">{m.label}</span>
+                  <div className="text-sm font-black text-gray-900 tracking-tight">
+                    {m.value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                  </div>
+                  <div className="text-[9px] font-bold text-brand-dark/40">{m.count} contratos</div>
+                </div>
+              ))}
+            </div>
+
+            <div className="overflow-x-auto min-w-full">
+              {filteredClosedLeads.length > 0 ? (
+                <table className="min-w-full border-collapse text-left">
+                  <thead>
+                    <tr className="border-b border-black/[0.03] text-[10px] uppercase tracking-wider font-bold text-gray-400">
+                      <th className="pb-3 pl-2">Fechamento</th>
+                      <th className="pb-3">Nome</th>
+                      <th className="pb-3">Telefone</th>
+                      <th className="pb-3">Especialidade</th>
+                      <th className="pb-3">Local</th>
+                      <th className="pb-3">Potencial</th>
+                      <th className="pb-3">Valor</th>
+                      <th className="pb-3 pr-2 text-right">Canal</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-black/[0.02]">
+                    {filteredClosedLeads.map(lead => {
+                      const closedDate = lead.closed_at || lead.lead_date || lead.created_at;
                       return (
-                        <div key={entry.name} className="space-y-1">
-                          <div className="flex justify-between text-xs font-bold text-gray-700">
-                            <span>{entry.name}</span>
-                            <span>{entry.value} ({perc}%)</span>
-                          </div>
-                          <div className="h-1.5 w-full bg-gray-100 rounded-full overflow-hidden">
-                            <div 
-                              className="h-full bg-red-400 rounded-full" 
-                              style={{ width: `${perc}%` }}
-                            />
-                          </div>
-                        </div>
+                        <tr 
+                          key={lead.id} 
+                          onClick={() => handleOpenViewModal(lead)}
+                          className="text-xs font-semibold text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer"
+                        >
+                          <td className="py-3.5 pl-2 text-emerald-700 font-bold">
+                            {dayjs(closedDate).format('DD/MM/YYYY')}
+                          </td>
+                          <td className="py-3.5 font-bold text-gray-900">{lead.lead_name}</td>
+                          <td className="py-3.5 text-gray-500 font-normal">{lead.phone || '—'}</td>
+                          <td className="py-3.5 italic text-brand-dark">{lead.specialty || '—'}</td>
+                          <td className="py-3.5 uppercase text-gray-500">{lead.origin || '—'}</td>
+                          <td className="py-3.5">
+                            {lead.potential === 'alto' && <span className="text-green-700 font-bold">🔥 Alto</span>}
+                            {lead.potential === 'medio' && <span className="text-yellow-700 font-bold">⚡ Médio</span>}
+                            {lead.potential === 'baixo' && <span className="text-gray-600 font-bold">❄️ Baixo</span>}
+                          </td>
+                          <td className="py-3.5 text-emerald-800 font-black">
+                            {Number(lead.deal_value || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                          </td>
+                          <td className="py-3.5 pr-2 text-right text-brand-dark flex items-center justify-end gap-1.5 font-normal text-[10px] uppercase tracking-wider mt-1.5">
+                            {getSourceIcon(lead.source)}
+                            <span>{lead.source || '—'}</span>
+                          </td>
+                        </tr>
                       );
                     })}
-                  </div>
-                ) : (
-                  <div className="h-[180px] flex items-center justify-center text-sm text-gray-400 italic">
-                    Nenhum lead perdido neste período
-                  </div>
-                )}
-              </div>
-
-              {stats.lostCount > 0 && (
-                <div className="mt-4 pt-4 border-t border-black/[0.03] flex items-center justify-between text-xs text-gray-500">
-                  <span>Total de perdas no mês:</span>
-                  <span className="font-bold text-red-600">{stats.lostCount} leads</span>
+                  </tbody>
+                </table>
+              ) : (
+                <div className="py-12 text-center text-sm text-gray-400 italic">
+                  Nenhum lead fechado encontrado com os filtros aplicados
                 </div>
               )}
             </div>
           </div>
-        </div>
+        )
+      )}
+
+      {activeCRMTab === 'perdidos' && (
+        isVendaNegocio ? (
+          <div className="flex-1 bg-white border border-black/[0.05] rounded-[2rem] p-6 sm:p-8 shadow-sm space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-black/[0.03] pb-4">
+              <div>
+                <h2 className="text-xl font-bold text-red-700">Interessados que não seguiram</h2>
+                <p className="text-xs text-gray-400 mt-1 font-medium">Oportunidades de venda que não seguiram no funil comercial</p>
+              </div>
+              
+              <div className="flex flex-wrap items-center gap-3">
+                <select
+                  value={filterSource}
+                  onChange={(e) => setFilterSource(e.target.value)}
+                  className="bg-gray-50 border border-black/[0.05] rounded-xl px-3 py-1.5 text-xs font-semibold focus:ring-1 focus:ring-brand-dark outline-none cursor-pointer"
+                >
+                  <option value="">Todas as Fontes</option>
+                  <option value="Meta Ads">Meta Ads</option>
+                  <option value="Google Ads">Google Ads</option>
+                  <option value="Google orgânico">Google orgânico</option>
+                  <option value="Redes sociais">Redes sociais</option>
+                  <option value="Indicação">Indicação</option>
+                  <option value="Direto">Direto</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Mini Dashboard de Perdidos */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-3 shrink-0">
+              {statsPerdidos.reasonData.slice(0, 6).map(entry => (
+                <div key={entry.name} className="bg-white border border-black/[0.05] rounded-2xl p-3 flex flex-col justify-between shadow-sm">
+                  <span className="text-[9px] uppercase font-bold text-gray-400 line-clamp-1">{entry.name}</span>
+                  <div className="flex items-end justify-between mt-1">
+                    <div className="text-lg font-black text-red-700 tracking-tighter">{entry.value}</div>
+                    <div className="text-[8px] font-bold text-red-300">{statsPerdidos.total > 0 ? ((entry.value / statsPerdidos.total) * 100).toFixed(0) : 0}%</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="overflow-x-auto min-w-full">
+              {filteredLostLeads.length > 0 ? (
+                <table className="min-w-full border-collapse text-left">
+                  <thead>
+                    <tr className="border-b border-black/[0.03] text-[10px] uppercase tracking-wider font-bold text-gray-400">
+                      <th className="pb-3 pl-2">Data de entrada</th>
+                      <th className="pb-3">Nome</th>
+                      <th className="pb-3">WhatsApp</th>
+                      <th className="pb-3">Perfil</th>
+                      <th className="pb-3">Capital Disponível</th>
+                      <th className="pb-3">Motivo da Perda</th>
+                      <th className="pb-3 pr-2 text-right">Canal</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-black/[0.02]">
+                    {filteredLostLeads.map(lead => {
+                      const leadDate = lead.lead_date || lead.created_at;
+                      return (
+                        <tr 
+                          key={lead.id} 
+                          onClick={() => handleOpenViewModal(lead)}
+                          className="text-xs font-semibold text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer"
+                        >
+                          <td className="py-3.5 pl-2 text-gray-400">
+                            {dayjs(leadDate).format('DD/MM/YYYY')}
+                          </td>
+                          <td className="py-3.5 font-bold text-gray-900">{lead.lead_name}</td>
+                          <td className="py-3.5 text-gray-500 font-normal">{lead.phone || '—'}</td>
+                          <td className="py-3.5">
+                            {lead.form_data?.perfil ? (
+                              <span className="px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 text-xs font-semibold">
+                                {lead.form_data.perfil}
+                              </span>
+                            ) : (
+                              <span className="text-gray-400">—</span>
+                            )}
+                          </td>
+                          <td className="py-3.5">
+                            {lead.form_data?.capital ? (
+                              <span className="px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-800 text-xs font-bold">
+                                {lead.form_data.capital}
+                              </span>
+                            ) : (
+                              <span className="text-gray-400">—</span>
+                            )}
+                          </td>
+                          <td className="py-3.5">
+                            <span className="inline-block px-2.5 py-1 bg-red-100 text-red-800 rounded-lg text-xs font-bold border border-red-200/60">
+                              {lead.loss_reason || '—'}
+                            </span>
+                          </td>
+                          <td className="py-3.5 pr-2 text-right text-brand-dark flex items-center justify-end gap-1.5 font-normal text-[10px] uppercase tracking-wider mt-1.5">
+                            {getSourceIcon(lead.source)}
+                            <span>{lead.source || '—'}</span>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              ) : (
+                <div className="py-12 text-center text-sm text-gray-400 italic">
+                  Nenhum interessado que não seguiu encontrado com os filtros aplicados
+                </div>
+              )}
+            </div>
+          </div>
+        ) : (
+          <div className="flex-1 bg-white border border-black/[0.05] rounded-[2rem] p-6 sm:p-8 shadow-sm space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-black/[0.03] pb-4">
+              <div>
+                <h2 className="text-xl font-bold text-red-700">Histórico de Leads Perdidos</h2>
+                <p className="text-xs text-gray-400 mt-1 font-medium">Todas as oportunidades perdidas no funil comercial</p>
+              </div>
+              
+              <div className="flex flex-wrap items-center gap-3">
+                <select
+                  value={filterSpecialty}
+                  onChange={(e) => setFilterSpecialty(e.target.value)}
+                  className="bg-gray-50 border border-black/[0.05] rounded-xl px-3 py-1.5 text-xs font-semibold focus:ring-1 focus:ring-brand-dark outline-none cursor-pointer"
+                >
+                  <option value="">Todas Especialidades</option>
+                  {config.specialty_options?.map(opt => (
+                    <option key={opt} value={opt}>{opt}</option>
+                  ))}
+                </select>
+
+                <select
+                  value={filterSource}
+                  onChange={(e) => setFilterSource(e.target.value)}
+                  className="bg-gray-50 border border-black/[0.05] rounded-xl px-3 py-1.5 text-xs font-semibold focus:ring-1 focus:ring-brand-dark outline-none cursor-pointer"
+                >
+                  <option value="">Todas as Fontes</option>
+                  <option value="Google Ads">Google Ads</option>
+                  <option value="Instagram">Instagram</option>
+                  <option value="Site orgânico">Site orgânico</option>
+                  <option value="Indicação">Indicação</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Mini Dashboard de Perdidos */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-3 shrink-0">
+              {statsPerdidos.reasonData.slice(0, 6).map(entry => (
+                <div key={entry.name} className="bg-white border border-black/[0.05] rounded-2xl p-3 flex flex-col justify-between shadow-sm">
+                  <span className="text-[9px] uppercase font-bold text-gray-400 line-clamp-1">{entry.name}</span>
+                  <div className="flex items-end justify-between mt-1">
+                    <div className="text-lg font-black text-red-700 tracking-tighter">{entry.value}</div>
+                    <div className="text-[8px] font-bold text-red-300">{statsPerdidos.total > 0 ? ((entry.value / statsPerdidos.total) * 100).toFixed(0) : 0}%</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="overflow-x-auto min-w-full">
+              {filteredLostLeads.length > 0 ? (
+                <table className="min-w-full border-collapse text-left">
+                  <thead>
+                    <tr className="border-b border-black/[0.03] text-[10px] uppercase tracking-wider font-bold text-gray-400">
+                      <th className="pb-3 pl-2">Data do Lead</th>
+                      <th className="pb-3">Nome</th>
+                      <th className="pb-3">Telefone</th>
+                      <th className="pb-3">Especialidade</th>
+                      <th className="pb-3">Local</th>
+                      <th className="pb-3">Motivo da Perda</th>
+                      <th className="pb-3 pr-2 text-right">Canal</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-black/[0.02]">
+                    {filteredLostLeads.map(lead => {
+                      const leadDate = lead.lead_date || lead.created_at;
+                      return (
+                        <tr 
+                          key={lead.id} 
+                          onClick={() => handleOpenViewModal(lead)}
+                          className="text-xs font-semibold text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer"
+                        >
+                          <td className="py-3.5 pl-2 text-gray-400">
+                            {dayjs(leadDate).format('DD/MM/YYYY')}
+                          </td>
+                          <td className="py-3.5 font-bold text-gray-900">{lead.lead_name}</td>
+                          <td className="py-3.5 text-gray-500 font-normal">{lead.phone || '—'}</td>
+                          <td className="py-3.5 italic text-brand-dark">{lead.specialty || '—'}</td>
+                          <td className="py-3.5 uppercase text-gray-500">{lead.origin || '—'}</td>
+                          <td className="py-3.5 text-red-600 font-bold">
+                            {lead.loss_reason || '—'}
+                          </td>
+                          <td className="py-3.5 pr-2 text-right text-brand-dark flex items-center justify-end gap-1.5 font-normal text-[10px] uppercase tracking-wider mt-1.5">
+                            {getSourceIcon(lead.source)}
+                            <span>{lead.source || '—'}</span>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              ) : (
+                <div className="py-12 text-center text-sm text-gray-400 italic">
+                  Nenhum lead perdido encontrado com os filtros aplicados
+                </div>
+              )}
+            </div>
+          </div>
+        )
+      )}
+
+      {activeCRMTab === 'relatorio' && (
+        isVendaNegocio ? (
+          <VendaNegocioReport
+            leads={leads}
+            config={config}
+            selectedMonth={selectedMonth}
+            setSelectedMonth={setSelectedMonth}
+          />
+        ) : (
+          <div className="space-y-8">
+            {/* Mini Dashboard de Relatórios */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 shrink-0">
+              <div className="premium-card p-6 flex flex-col justify-between">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center text-blue-600">
+                    <Users size={20} />
+                  </div>
+                  <span className="premium-label">Leads no Mês</span>
+                </div>
+                <div className="text-4xl font-bold tracking-tighter">{stats.total}</div>
+              </div>
+
+              <div className="premium-card p-6 flex flex-col justify-between">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-10 h-10 rounded-xl bg-emerald-50 flex items-center justify-center text-emerald-600">
+                    <CheckSquare size={20} />
+                  </div>
+                  <span className="premium-label">Fechados no Mês</span>
+                </div>
+                <div className="text-4xl font-bold tracking-tighter text-emerald-600">{stats.closedMonth}</div>
+              </div>
+
+              <div className="premium-card p-6 flex flex-col justify-between">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-10 h-10 rounded-xl bg-purple-50 flex items-center justify-center text-purple-600">
+                    <TrendingUp size={20} />
+                  </div>
+                  <span className="premium-label">Taxa de Conversão</span>
+                </div>
+                <div className="text-4xl font-bold tracking-tighter text-purple-600">{stats.conversionRate}%</div>
+              </div>
+
+              <div className="premium-card p-6 flex flex-col justify-between border-l-4 border-amber-500 bg-amber-50/10">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center text-amber-600">
+                    <FileText size={20} />
+                  </div>
+                  <span className="premium-label font-bold text-amber-800">Dinheiro em Negociação</span>
+                </div>
+                <div className="text-2xl font-black tracking-tight text-amber-700">
+                  {stats.contractSentRevenue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                </div>
+                <div className="text-[10px] text-gray-400 mt-2 font-semibold">
+                  <div className="text-amber-600 font-bold flex items-center gap-1 mb-1">
+                    <span>💼 Dinheiro na Mesa</span>
+                  </div>
+                  <div>{stats.contractSentCount} {stats.contractSentCount === 1 ? 'lead em negociação' : 'leads em negociação'} este mês</div>
+                </div>
+              </div>
+
+              <div className="premium-card p-6 flex flex-col justify-between">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-10 h-10 rounded-xl bg-emerald-50 flex items-center justify-center text-emerald-600">
+                    <DollarSign size={20} />
+                  </div>
+                  <span className="premium-label">Faturamento CRM</span>
+                </div>
+                <div className="text-2xl font-bold tracking-tight text-emerald-700">
+                  {stats.revenue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                </div>
+                <div className="text-[10px] text-gray-400 mt-1 font-semibold">
+                  Soma dos contratos fechados de fato
+                </div>
+              </div>
+            </div>
+
+            {/* Gráficos e Detalhes de Performance */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+              {/* Gráfico de Barras dos Últimos 6 Meses */}
+              <div className="lg:col-span-2 bg-white border border-black/[0.05] rounded-[2rem] p-6 sm:p-8 shadow-sm">
+                <h3 className="text-base font-bold text-brand-dark mb-1">Performance Comercial (Últimos 6 Meses)</h3>
+                <p className="text-xs text-gray-400 mb-6 font-medium">Gráfico comparativo de Novos Leads vs Contratos Fechados</p>
+                
+                <div className="h-[280px] w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={last6MonthsData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(0,0,0,0.03)" />
+                      <XAxis dataKey="name" stroke="#a3a3a3" fontSize={11} tickLine={false} axisLine={false} />
+                      <YAxis stroke="#a3a3a3" fontSize={11} tickLine={false} axisLine={false} />
+                      <Tooltip cursor={{ fill: 'rgba(0,0,0,0.02)' }} />
+                      <Legend iconType="circle" wrapperStyle={{ fontSize: '11px', fontWeight: 'bold', paddingTop: '10px' }} />
+                      <Bar dataKey="Novos Leads" fill="rgba(17,17,17,0.7)" radius={[4, 4, 0, 0]} />
+                      <Bar dataKey="Contratos Fechados" fill="rgba(16,185,129,0.8)" radius={[4, 4, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+
+              {/* Motivos de Perda no Mês */}
+              <div className="bg-white border border-black/[0.05] rounded-[2rem] p-6 sm:p-8 shadow-sm flex flex-col justify-between">
+                <div>
+                  <h3 className="text-base font-bold text-brand-dark mb-1">Perdas do Mês</h3>
+                  <p className="text-xs text-gray-400 mb-6">Motivos recorrentes na etapa de perda comercial</p>
+
+                  {stats.lostCount > 0 ? (
+                    <div className="space-y-4">
+                      {stats.reasonData.slice(0, 4).map((entry, index) => {
+                        const perc = Math.round((entry.value / stats.lostCount) * 100);
+                        return (
+                          <div key={entry.name} className="space-y-1">
+                            <div className="flex justify-between text-xs font-bold text-gray-700">
+                              <span>{entry.name}</span>
+                              <span>{entry.value} ({perc}%)</span>
+                            </div>
+                            <div className="h-1.5 w-full bg-gray-100 rounded-full overflow-hidden">
+                              <div 
+                                className="h-full bg-red-400 rounded-full" 
+                                style={{ width: `${perc}%` }}
+                              />
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className="h-[180px] flex items-center justify-center text-sm text-gray-400 italic">
+                      Nenhum lead perdido neste período
+                    </div>
+                  )}
+                </div>
+
+                {stats.lostCount > 0 && (
+                  <div className="mt-4 pt-4 border-t border-black/[0.03] flex items-center justify-between text-xs text-gray-500">
+                    <span>Total de perdas no mês:</span>
+                    <span className="font-bold text-red-600">{stats.lostCount} leads</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )
       )}
 
       {/* Modals */}
@@ -1395,7 +1602,9 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
             >
               <div className="flex items-start justify-between border-b border-black/[0.03] pb-4">
                 <div>
-                  <span className="text-[10px] uppercase font-bold tracking-widest text-gray-400">Ficha do Lead</span>
+                  <span className="text-[10px] uppercase font-bold tracking-widest text-gray-400">
+                    {isVendaNegocio ? 'Ficha do Interessado' : 'Ficha do Lead'}
+                  </span>
                   <h3 className="text-2xl font-bold tracking-tight text-brand-dark mt-1">
                     {selectedLeadForView.lead_name}
                   </h3>
@@ -1405,85 +1614,239 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
                 </button>
               </div>
 
-              <div className="grid grid-cols-2 gap-6">
-                <div>
-                  <span className="text-[10px] uppercase font-black text-gray-400 block mb-1">Status Atual</span>
-                  <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-brand-dark/5 text-xs font-bold text-brand-dark">
-                    <span>{selectedLeadForView.kanban_stage}</span>
+              {isVendaNegocio ? (
+                <div className="space-y-6">
+                  {/* Bloco 1: Contato */}
+                  <div className="bg-gray-50 p-4 rounded-2xl border border-black/[0.03]">
+                    <span className="text-[10px] uppercase font-black text-gray-400 block mb-3 tracking-wider">
+                      Contato
+                    </span>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      <div>
+                        <span className="text-[10px] font-bold text-gray-400 uppercase block">WhatsApp</span>
+                        {selectedLeadForView.phone ? (
+                          <a
+                            href={`https://wa.me/55${selectedLeadForView.phone.replace(/\D/g, '')}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-xs font-bold text-emerald-700 hover:underline flex items-center gap-1 mt-0.5"
+                          >
+                            <Phone size={12} />
+                            {selectedLeadForView.phone}
+                          </a>
+                        ) : (
+                          <span className="text-xs text-gray-500">—</span>
+                        )}
+                      </div>
+                      <div>
+                        <span className="text-[10px] font-bold text-gray-400 uppercase block">E-mail</span>
+                        <span className="text-xs font-semibold text-gray-800 break-all">{selectedLeadForView.email || '—'}</span>
+                      </div>
+                      <div>
+                        <span className="text-[10px] font-bold text-gray-400 uppercase block">Cidade</span>
+                        <span className="text-xs font-semibold text-gray-800">{selectedLeadForView.city || '—'}</span>
+                      </div>
+                    </div>
                   </div>
-                </div>
 
-                <div>
-                  <span className="text-[10px] uppercase font-black text-gray-400 block mb-1">Potencial</span>
-                  <div>
-                    {selectedLeadForView.potential === 'alto' && <span className="text-xs font-bold text-green-700">🔥 Alto</span>}
-                    {selectedLeadForView.potential === 'medio' && <span className="text-xs font-bold text-yellow-700">⚡ Médio</span>}
-                    {selectedLeadForView.potential === 'baixo' && <span className="text-xs font-bold text-gray-600">❄️ Baixo</span>}
+                  {/* Bloco 2: Qualificação */}
+                  <div className="bg-gray-50 p-4 rounded-2xl border border-black/[0.03]">
+                    <span className="text-[10px] uppercase font-black text-gray-400 block mb-3 tracking-wider">
+                      Qualificação
+                    </span>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
+                      <div>
+                        <span className="text-[10px] font-bold text-gray-400 uppercase block">Potencial</span>
+                        <div className="mt-0.5">
+                          {selectedLeadForView.potential === 'alto' && (
+                            <span className="inline-block px-2 py-0.5 bg-emerald-100 text-emerald-800 rounded-md text-xs font-bold">
+                              Alto potencial
+                            </span>
+                          )}
+                          {selectedLeadForView.potential === 'baixo' && (
+                            <span className="inline-block px-2 py-0.5 bg-gray-200 text-gray-700 rounded-md text-xs font-bold">
+                              Baixo potencial
+                            </span>
+                          )}
+                          {!selectedLeadForView.potential && <span className="text-xs text-gray-500">—</span>}
+                        </div>
+                      </div>
+                      {config.lead_fields?.map(field => (
+                        <div key={field.key}>
+                          <span className="text-[10px] font-bold text-gray-400 uppercase block">{field.label}</span>
+                          <p className="text-xs font-semibold text-gray-800 mt-0.5 whitespace-pre-wrap">
+                            {selectedLeadForView.form_data?.[field.key] || '—'}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                </div>
 
-                <div>
-                  <span className="text-[10px] uppercase font-black text-gray-400 block mb-1">Especialidade</span>
-                  <p className="text-sm font-semibold text-gray-800">{selectedLeadForView.specialty || '—'}</p>
-                </div>
+                  {/* Bloco 3: Origem */}
+                  <div className="bg-gray-50 p-4 rounded-2xl border border-black/[0.03]">
+                    <span className="text-[10px] uppercase font-black text-gray-400 block mb-2 tracking-wider">
+                      Origem
+                    </span>
+                    <p className="text-xs font-bold text-brand-dark uppercase tracking-wider flex items-center gap-1.5 mb-3">
+                      {getSourceIcon(selectedLeadForView.source)}
+                      <span>{selectedLeadForView.source || '—'}</span>
+                    </p>
 
-                <div>
-                  <span className="text-[10px] uppercase font-black text-gray-400 block mb-1">Faturamento Estimado</span>
-                  <p className="text-sm font-extrabold text-emerald-800">
-                    {Number(selectedLeadForView.deal_value || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                  </p>
-                </div>
+                    {/* Bloco recolhível: Dados do anúncio (UTM) */}
+                    <details className="mt-2 text-xs bg-white rounded-xl p-3 border border-gray-200 group">
+                      <summary className="font-bold text-gray-700 cursor-pointer select-none flex items-center justify-between">
+                        <span>Dados do anúncio (UTM / Rastreamento)</span>
+                        <ChevronDown size={14} className="group-open:rotate-180 transition-transform" />
+                      </summary>
+                      <div className="mt-3 pt-3 border-t border-gray-100 space-y-1.5 text-gray-600">
+                        {selectedLeadForView.utm && Object.keys(selectedLeadForView.utm).length > 0 ? (
+                          Object.entries(selectedLeadForView.utm).map(([key, val]) => (
+                            <div key={key} className="flex justify-between text-[11px]">
+                              <span className="font-mono text-gray-400">{key}:</span>
+                              <span className="font-semibold text-gray-800">{String(val)}</span>
+                            </div>
+                          ))
+                        ) : (
+                          <p className="text-[11px] text-gray-400 italic">Nenhum dado UTM registrado para este interessado.</p>
+                        )}
+                      </div>
+                    </details>
+                  </div>
 
-                <div>
-                  <span className="text-[10px] uppercase font-black text-gray-400 block mb-1">Contato</span>
-                  <p className="text-sm font-semibold text-gray-800">{selectedLeadForView.phone || '—'}</p>
-                </div>
+                  {/* Bloco 4: Observações internas */}
+                  <div className="bg-gray-50 p-4 rounded-2xl border border-black/[0.03]">
+                    <span className="text-[10px] uppercase font-black text-gray-400 block mb-2 tracking-wider">
+                      Observações internas
+                    </span>
+                    <p className="text-xs font-medium text-gray-700 whitespace-pre-wrap leading-relaxed">
+                      {selectedLeadForView.notes || 'Nenhuma observação interna registrada.'}
+                    </p>
+                  </div>
 
-                <div>
-                  <span className="text-[10px] uppercase font-black text-gray-400 block mb-1">Canal de Origem</span>
-                  <p className="text-xs font-bold text-brand-dark uppercase tracking-wider flex items-center gap-1.5 mt-1">
-                    {getSourceIcon(selectedLeadForView.source)}
-                    <span>{selectedLeadForView.source || '—'}</span>
-                  </p>
-                </div>
+                  {/* Se Vendido */}
+                  {(selectedLeadForView.kanban_stage === 'Vendido' || selectedLeadForView.closed) && (
+                    <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 space-y-2">
+                      <span className="text-[10px] uppercase font-black text-emerald-800 block">Dados da Venda</span>
+                      <div className="grid grid-cols-2 gap-3 text-xs">
+                        <div>
+                          <span className="text-gray-500 font-medium block">Valor da Venda:</span>
+                          <span className="font-black text-emerald-900 text-sm">
+                            {Number(selectedLeadForView.deal_value || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                          </span>
+                        </div>
+                        <div>
+                          <span className="text-gray-500 font-medium block">Data da Venda:</span>
+                          <span className="font-bold text-gray-800">
+                            {dayjs(selectedLeadForView.closed_at || selectedLeadForView.created_at).format('DD/MM/YYYY')}
+                          </span>
+                        </div>
+                        {selectedLeadForView.form_data?.venda_pagamento && (
+                          <div className="col-span-2">
+                            <span className="text-gray-500 font-medium block">Forma de Pagamento:</span>
+                            <span className="font-bold text-gray-800">{selectedLeadForView.form_data.venda_pagamento}</span>
+                          </div>
+                        )}
+                        {selectedLeadForView.form_data?.venda_observacoes && (
+                          <div className="col-span-2">
+                            <span className="text-gray-500 font-medium block">Observações da Venda:</span>
+                            <span className="font-medium text-gray-700">{selectedLeadForView.form_data.venda_observacoes}</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
 
-                <div>
-                  <span className="text-[10px] uppercase font-black text-gray-400 block mb-1">Estado / Região</span>
-                  <p className="text-sm font-semibold uppercase text-gray-800">{selectedLeadForView.origin || '—'}</p>
+                  {/* Se Perdido */}
+                  {selectedLeadForView.kanban_stage === 'Perdido' && (
+                    <div className="bg-red-50 border border-red-200 rounded-2xl p-4">
+                      <span className="text-[10px] uppercase font-black text-red-800 block mb-1">Motivo da Perda</span>
+                      <p className="text-sm font-bold text-red-900">{selectedLeadForView.loss_reason || '—'}</p>
+                    </div>
+                  )}
                 </div>
+              ) : (
+                <>
+                  <div className="grid grid-cols-2 gap-6">
+                    <div>
+                      <span className="text-[10px] uppercase font-black text-gray-400 block mb-1">Status Atual</span>
+                      <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-brand-dark/5 text-xs font-bold text-brand-dark">
+                        <span>{selectedLeadForView.kanban_stage}</span>
+                      </div>
+                    </div>
 
-                <div>
-                  <span className="text-[10px] uppercase font-black text-gray-400 block mb-1">Data de Cadastro</span>
-                  <p className="text-sm font-semibold text-gray-500">
-                    {dayjs(selectedLeadForView.lead_date || selectedLeadForView.created_at).format('DD/MM/YYYY')}
-                  </p>
-                </div>
-              </div>
+                    <div>
+                      <span className="text-[10px] uppercase font-black text-gray-400 block mb-1">Potencial</span>
+                      <div>
+                        {selectedLeadForView.potential === 'alto' && <span className="text-xs font-bold text-green-700">🔥 Alto</span>}
+                        {selectedLeadForView.potential === 'medio' && <span className="text-xs font-bold text-yellow-700">⚡ Médio</span>}
+                        {selectedLeadForView.potential === 'baixo' && <span className="text-xs font-bold text-gray-600">❄️ Baixo</span>}
+                      </div>
+                    </div>
 
-              {selectedLeadForView.kanban_stage === 'Fechado' && (
-                <div className="bg-emerald-50/50 border border-emerald-500/10 rounded-2xl p-4">
-                  <span className="text-[10px] uppercase font-black text-emerald-800 block mb-1">Concluído em</span>
-                  <p className="text-sm font-bold text-emerald-900">
-                    {dayjs(selectedLeadForView.closed_at || selectedLeadForView.lead_date || selectedLeadForView.created_at).format('DD/MM/YYYY')}
-                  </p>
-                </div>
+                    <div>
+                      <span className="text-[10px] uppercase font-black text-gray-400 block mb-1">Especialidade</span>
+                      <p className="text-sm font-semibold text-gray-800">{selectedLeadForView.specialty || '—'}</p>
+                    </div>
+
+                    <div>
+                      <span className="text-[10px] uppercase font-black text-gray-400 block mb-1">Faturamento Estimado</span>
+                      <p className="text-sm font-extrabold text-emerald-800">
+                        {Number(selectedLeadForView.deal_value || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                      </p>
+                    </div>
+
+                    <div>
+                      <span className="text-[10px] uppercase font-black text-gray-400 block mb-1">Contato</span>
+                      <p className="text-sm font-semibold text-gray-800">{selectedLeadForView.phone || '—'}</p>
+                    </div>
+
+                    <div>
+                      <span className="text-[10px] uppercase font-black text-gray-400 block mb-1">Canal de Origem</span>
+                      <p className="text-xs font-bold text-brand-dark uppercase tracking-wider flex items-center gap-1.5 mt-1">
+                        {getSourceIcon(selectedLeadForView.source)}
+                        <span>{selectedLeadForView.source || '—'}</span>
+                      </p>
+                    </div>
+
+                    <div>
+                      <span className="text-[10px] uppercase font-black text-gray-400 block mb-1">Estado / Região</span>
+                      <p className="text-sm font-semibold uppercase text-gray-800">{selectedLeadForView.origin || '—'}</p>
+                    </div>
+
+                    <div>
+                      <span className="text-[10px] uppercase font-black text-gray-400 block mb-1">Data de Cadastro</span>
+                      <p className="text-sm font-semibold text-gray-500">
+                        {dayjs(selectedLeadForView.lead_date || selectedLeadForView.created_at).format('DD/MM/YYYY')}
+                      </p>
+                    </div>
+                  </div>
+
+                  {isClosedStage(selectedLeadForView.kanban_stage) && (
+                    <div className="bg-emerald-50/50 border border-emerald-500/10 rounded-2xl p-4">
+                      <span className="text-[10px] uppercase font-black text-emerald-800 block mb-1">Concluído em</span>
+                      <p className="text-sm font-bold text-emerald-900">
+                        {dayjs(selectedLeadForView.closed_at || selectedLeadForView.lead_date || selectedLeadForView.created_at).format('DD/MM/YYYY')}
+                      </p>
+                    </div>
+                  )}
+
+                  {selectedLeadForView.kanban_stage === 'Perdido' && (
+                    <div className="bg-red-50/50 border border-red-500/10 rounded-2xl p-4">
+                      <span className="text-[10px] uppercase font-black text-red-800 block mb-1">Motivo da Perda</span>
+                      <p className="text-sm font-bold text-red-900">
+                        {selectedLeadForView.loss_reason || '—'}
+                      </p>
+                    </div>
+                  )}
+
+                  <div className="space-y-2 border-t border-black/[0.03] pt-4">
+                    <span className="text-[10px] uppercase font-black text-gray-400 block">Observações / Informações de Histórico</span>
+                    <div className="bg-gray-50 rounded-2xl p-4 text-xs font-medium text-gray-600 whitespace-pre-wrap leading-relaxed max-h-40 overflow-y-auto">
+                      {selectedLeadForView.notes || 'Nenhuma observação registrada.'}
+                    </div>
+                  </div>
+                </>
               )}
-
-              {selectedLeadForView.kanban_stage === 'Perdido' && (
-                <div className="bg-red-50/50 border border-red-500/10 rounded-2xl p-4">
-                  <span className="text-[10px] uppercase font-black text-red-800 block mb-1">Motivo da Perda</span>
-                  <p className="text-sm font-bold text-red-900">
-                    {selectedLeadForView.loss_reason || '—'}
-                  </p>
-                </div>
-              )}
-
-              <div className="space-y-2 border-t border-black/[0.03] pt-4">
-                <span className="text-[10px] uppercase font-black text-gray-400 block">Observações / Informações de Histórico</span>
-                <div className="bg-gray-50 rounded-2xl p-4 text-xs font-medium text-gray-600 whitespace-pre-wrap leading-relaxed max-h-40 overflow-y-auto">
-                  {selectedLeadForView.notes || 'Nenhuma observação registrada.'}
-                </div>
-              </div>
 
               <div className="flex gap-3 justify-end pt-4">
                 <button
@@ -1523,156 +1886,174 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
               className="bg-white rounded-[2.5rem] p-8 w-full max-w-lg relative z-10 shadow-2xl max-h-[90vh] overflow-y-auto custom-scrollbar"
             >
               <div className="flex items-center justify-between mb-8">
-                <h3 className="text-2xl font-bold tracking-tight">{editingLead ? 'Editar Lead' : 'Novo Lead'}</h3>
+                <h3 className="text-2xl font-bold tracking-tight">
+                  {isVendaNegocio
+                    ? (editingLead ? 'Editar Interessado' : 'Novo Interessado')
+                    : (editingLead ? 'Editar Lead' : 'Novo Lead')}
+                </h3>
                 <button onClick={() => setIsModalOpen(false)} className="p-2 hover:bg-gray-100 rounded-full transition-colors">
                   <X size={20} />
                 </button>
               </div>
 
-              <div className="space-y-5">
-                <div>
-                  <label className="premium-label mb-2 block">Nome do Lead *</label>
-                  <input 
-                    type="text"
-                    value={formData.lead_name || ''}
-                    onChange={(e) => setFormData(prev => ({ ...prev, lead_name: e.target.value }))}
-                    className="w-full bg-gray-50 border border-black/[0.05] rounded-2xl p-4 text-sm font-medium focus:ring-2 focus:ring-brand-green/20 outline-none"
-                    placeholder="Ex: João Silva"
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
+              {isVendaNegocio ? (
+                <VendaNegocioLeadForm
+                  formData={formData}
+                  setFormData={setFormData}
+                  config={config}
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    handleSaveLead();
+                  }}
+                  onCancel={() => setIsModalOpen(false)}
+                  isEditing={!!editingLead}
+                />
+              ) : (
+                <div className="space-y-5">
                   <div>
-                    <label className="premium-label mb-2 block">Telefone</label>
+                    <label className="premium-label mb-2 block">Nome do Lead *</label>
                     <input 
                       type="text"
-                      value={formData.phone || ''}
-                      onChange={(e) => setFormData(prev => ({ ...prev, phone: e.target.value }))}
+                      value={formData.lead_name || ''}
+                      onChange={(e) => setFormData(prev => ({ ...prev, lead_name: e.target.value }))}
                       className="w-full bg-gray-50 border border-black/[0.05] rounded-2xl p-4 text-sm font-medium focus:ring-2 focus:ring-brand-green/20 outline-none"
-                      placeholder="Ex: 11 99999-9999"
+                      placeholder="Ex: João Silva"
                     />
                   </div>
-                  <div>
-                    <label className="premium-label mb-2 block">Data de Contato</label>
-                    <input 
-                      type="date"
-                      value={formData.lead_date || ''}
-                      onChange={(e) => setFormData(prev => ({ ...prev, lead_date: e.target.value }))}
-                      className="w-full bg-gray-50 border border-black/[0.05] rounded-2xl p-4 text-sm font-medium focus:ring-2 focus:ring-brand-green/20 outline-none"
-                    />
-                  </div>
-                </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="premium-label mb-2 block">Telefone</label>
+                      <input 
+                        type="text"
+                        value={formData.phone || ''}
+                        onChange={(e) => setFormData(prev => ({ ...prev, phone: e.target.value }))}
+                        className="w-full bg-gray-50 border border-black/[0.05] rounded-2xl p-4 text-sm font-medium focus:ring-2 focus:ring-brand-green/20 outline-none"
+                        placeholder="Ex: 11 99999-9999"
+                      />
+                    </div>
+                    <div>
+                      <label className="premium-label mb-2 block">Data de Contato</label>
+                      <input 
+                        type="date"
+                        value={formData.lead_date || ''}
+                        onChange={(e) => setFormData(prev => ({ ...prev, lead_date: e.target.value }))}
+                        className="w-full bg-gray-50 border border-black/[0.05] rounded-2xl p-4 text-sm font-medium focus:ring-2 focus:ring-brand-green/20 outline-none"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="premium-label mb-2 block">Fonte</label>
+                      <select 
+                        value={formData.source || LEAD_SOURCES[0]}
+                        onChange={(e) => setFormData(prev => ({ ...prev, source: e.target.value }))}
+                        className="w-full bg-gray-50 border border-black/[0.05] rounded-2xl p-4 text-sm font-medium focus:ring-2 focus:ring-brand-green/20 outline-none"
+                      >
+                        {LEAD_SOURCES.map(opt => (
+                          <option key={opt} value={opt}>{opt}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="premium-label mb-2 block">Origem (Local)</label>
+                      <select 
+                        value={formData.origin || ''}
+                        onChange={(e) => setFormData(prev => ({ ...prev, origin: e.target.value }))}
+                        className="w-full bg-gray-50 border border-black/[0.05] rounded-2xl p-4 text-sm font-medium focus:ring-2 focus:ring-brand-green/20 outline-none"
+                      >
+                        <option value="">Selecione o estado...</option>
+                        {BRAZILIAN_STATES.map(opt => (
+                          <option key={opt} value={opt}>{opt}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
                   <div>
-                    <label className="premium-label mb-2 block">Fonte</label>
+                    <label className="premium-label mb-2 block">Especialidade</label>
                     <select 
-                      value={formData.source || LEAD_SOURCES[0]}
-                      onChange={(e) => setFormData(prev => ({ ...prev, source: e.target.value }))}
+                      value={formData.specialty || ''}
+                      onChange={(e) => setFormData(prev => ({ ...prev, specialty: e.target.value }))}
                       className="w-full bg-gray-50 border border-black/[0.05] rounded-2xl p-4 text-sm font-medium focus:ring-2 focus:ring-brand-green/20 outline-none"
                     >
-                      {LEAD_SOURCES.map(opt => (
+                      <option value="">Selecione...</option>
+                      {config.specialty_options?.map(opt => (
                         <option key={opt} value={opt}>{opt}</option>
                       ))}
                     </select>
                   </div>
-                  <div>
-                    <label className="premium-label mb-2 block">Origem (Local)</label>
-                    <select 
-                      value={formData.origin || ''}
-                      onChange={(e) => setFormData(prev => ({ ...prev, origin: e.target.value }))}
-                      className="w-full bg-gray-50 border border-black/[0.05] rounded-2xl p-4 text-sm font-medium focus:ring-2 focus:ring-brand-green/20 outline-none"
-                    >
-                      <option value="">Selecione o estado...</option>
-                      {BRAZILIAN_STATES.map(opt => (
-                        <option key={opt} value={opt}>{opt}</option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
 
-                <div>
-                  <label className="premium-label mb-2 block">Especialidade</label>
-                  <select 
-                    value={formData.specialty || ''}
-                    onChange={(e) => setFormData(prev => ({ ...prev, specialty: e.target.value }))}
-                    className="w-full bg-gray-50 border border-black/[0.05] rounded-2xl p-4 text-sm font-medium focus:ring-2 focus:ring-brand-green/20 outline-none"
+                  <div>
+                    <label className="premium-label mb-2 block">Potencial *</label>
+                    <div className="grid grid-cols-3 gap-3">
+                      <button 
+                        type="button"
+                        onClick={() => setFormData(prev => ({ ...prev, potential: 'alto' }))}
+                        className={`flex items-center justify-center gap-1.5 p-3 rounded-2xl border transition-all text-xs font-bold ${
+                          formData.potential === 'alto' 
+                            ? 'bg-green-50 border-green-200 text-green-700 font-extrabold shadow-sm' 
+                            : 'bg-white border-black/[0.05] text-gray-400 hover:bg-gray-50'
+                        }`}
+                      >
+                        🔥 Alto
+                      </button>
+                      <button 
+                        type="button"
+                        onClick={() => setFormData(prev => ({ ...prev, potential: 'medio' }))}
+                        className={`flex items-center justify-center gap-1.5 p-3 rounded-2xl border transition-all text-xs font-bold ${
+                          formData.potential === 'medio' 
+                            ? 'bg-yellow-50 border-yellow-200 text-yellow-700 font-extrabold shadow-sm' 
+                            : 'bg-white border-black/[0.05] text-gray-400 hover:bg-gray-50'
+                        }`}
+                      >
+                        ⚡ Médio
+                      </button>
+                      <button 
+                        type="button"
+                        onClick={() => setFormData(prev => ({ ...prev, potential: 'baixo' }))}
+                        className={`flex items-center justify-center gap-1.5 p-3 rounded-2xl border transition-all text-xs font-bold ${
+                          formData.potential === 'baixo' 
+                            ? 'bg-gray-100 border-gray-300 text-gray-700 font-extrabold shadow-sm' 
+                            : 'bg-white border-black/[0.05] text-gray-400 hover:bg-gray-50'
+                        }`}
+                      >
+                        ❄️ Baixo
+                      </button>
+                    </div>
+                  </div>
+
+                  {isClosedStage(formData.kanban_stage) && (
+                    <div>
+                      <label className="premium-label mb-2 block font-black text-emerald-800">📅 Data do Contrato Fechado (De Fato)</label>
+                      <input 
+                        type="date"
+                        value={formData.closed_at || ''}
+                        onChange={(e) => setFormData(prev => ({ ...prev, closed_at: e.target.value }))}
+                        className="w-full bg-emerald-50 border border-emerald-100 rounded-2xl p-4 text-sm font-bold text-emerald-800 focus:ring-2 focus:ring-emerald-200 outline-none"
+                      />
+                    </div>
+                  )}
+
+                  <div>
+                    <label className="premium-label mb-2 block">Observações *</label>
+                    <textarea 
+                      value={formData.notes || ''}
+                      onChange={(e) => setFormData(prev => ({ ...prev, notes: e.target.value }))}
+                      className="w-full bg-gray-50 border border-black/[0.05] rounded-2xl p-4 text-sm font-medium focus:ring-2 focus:ring-brand-green/20 outline-none min-h-[100px]"
+                      placeholder="Registre o que o lead procura (Obrigatório)"
+                    />
+                  </div>
+
+                  <button 
+                    onClick={handleSaveLead}
+                    className="w-full premium-button premium-button-primary py-4 mt-4"
                   >
-                    <option value="">Selecione...</option>
-                    {config.specialty_options?.map(opt => (
-                      <option key={opt} value={opt}>{opt}</option>
-                    ))}
-                  </select>
+                    Salvar Lead
+                  </button>
                 </div>
-
-                <div>
-                  <label className="premium-label mb-2 block">Potencial *</label>
-                  <div className="grid grid-cols-3 gap-3">
-                    <button 
-                      type="button"
-                      onClick={() => setFormData(prev => ({ ...prev, potential: 'alto' }))}
-                      className={`flex items-center justify-center gap-1.5 p-3 rounded-2xl border transition-all text-xs font-bold ${
-                        formData.potential === 'alto' 
-                          ? 'bg-green-50 border-green-200 text-green-700 font-extrabold shadow-sm' 
-                          : 'bg-white border-black/[0.05] text-gray-400 hover:bg-gray-50'
-                      }`}
-                    >
-                      🔥 Alto
-                    </button>
-                    <button 
-                      type="button"
-                      onClick={() => setFormData(prev => ({ ...prev, potential: 'medio' }))}
-                      className={`flex items-center justify-center gap-1.5 p-3 rounded-2xl border transition-all text-xs font-bold ${
-                        formData.potential === 'medio' 
-                          ? 'bg-yellow-50 border-yellow-200 text-yellow-700 font-extrabold shadow-sm' 
-                          : 'bg-white border-black/[0.05] text-gray-400 hover:bg-gray-50'
-                      }`}
-                    >
-                      ⚡ Médio
-                    </button>
-                    <button 
-                      type="button"
-                      onClick={() => setFormData(prev => ({ ...prev, potential: 'baixo' }))}
-                      className={`flex items-center justify-center gap-1.5 p-3 rounded-2xl border transition-all text-xs font-bold ${
-                        formData.potential === 'baixo' 
-                          ? 'bg-gray-100 border-gray-300 text-gray-700 font-extrabold shadow-sm' 
-                          : 'bg-white border-black/[0.05] text-gray-400 hover:bg-gray-50'
-                      }`}
-                    >
-                      ❄️ Baixo
-                    </button>
-                  </div>
-                </div>
-
-                {formData.kanban_stage === 'Fechado' && (
-                  <div>
-                    <label className="premium-label mb-2 block font-black text-emerald-800">📅 Data do Contrato Fechado (De Fato)</label>
-                    <input 
-                      type="date"
-                      value={formData.closed_at || ''}
-                      onChange={(e) => setFormData(prev => ({ ...prev, closed_at: e.target.value }))}
-                      className="w-full bg-emerald-50 border border-emerald-100 rounded-2xl p-4 text-sm font-bold text-emerald-800 focus:ring-2 focus:ring-emerald-200 outline-none"
-                    />
-                  </div>
-                )}
-
-                <div>
-                  <label className="premium-label mb-2 block">Observações *</label>
-                  <textarea 
-                    value={formData.notes || ''}
-                    onChange={(e) => setFormData(prev => ({ ...prev, notes: e.target.value }))}
-                    className="w-full bg-gray-50 border border-black/[0.05] rounded-2xl p-4 text-sm font-medium focus:ring-2 focus:ring-brand-green/20 outline-none min-h-[100px]"
-                    placeholder="Registre o que o lead procura (Obrigatório)"
-                  />
-                </div>
-
-                <button 
-                  onClick={handleSaveLead}
-                  className="w-full premium-button premium-button-primary py-4 mt-4"
-                >
-                  Salvar Lead
-                </button>
-              </div>
+              )}
             </motion.div>
           </div>
         )}
@@ -1693,14 +2074,16 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
               exit={{ scale: 0.9, opacity: 0, y: 20 }}
               className="bg-white rounded-[2.5rem] p-8 w-full max-w-sm relative z-10 shadow-2xl"
             >
-              <h3 className="text-xl font-bold tracking-tight mb-6">Qual o motivo da perda?</h3>
+              <h3 className="text-xl font-bold tracking-tight mb-6">
+                {isVendaNegocio ? 'Qual o motivo de não seguir?' : 'Qual o motivo da perda?'}
+              </h3>
               
               <select 
                 value={lossReason}
                 onChange={(e) => setLossReason(e.target.value)}
                 className="w-full bg-gray-50 border border-black/[0.05] rounded-2xl p-4 text-sm font-medium focus:ring-2 focus:ring-brand-green/20 outline-none mb-6"
               >
-                {LOSS_REASONS.map(opt => (
+                {currentLossReasons.map(opt => (
                   <option key={opt} value={opt}>{opt}</option>
                 ))}
               </select>
@@ -1739,7 +2122,11 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              onClick={() => setIsWonModalOpen(false)}
+              onClick={() => {
+                setIsWonModalOpen(false);
+                setLeadToWin(null);
+                loadData();
+              }}
               className="absolute inset-0 bg-brand-dark/40 backdrop-blur-sm"
             />
             
@@ -1752,12 +2139,18 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
               <div className="w-16 h-16 bg-emerald-50 text-emerald-500 rounded-full flex items-center justify-center mx-auto mb-6">
                 <DollarSign size={32} />
               </div>
-              <h3 className="text-xl font-bold tracking-tight mb-2 text-center">Contrato Fechado! 🎉</h3>
-              <p className="text-sm text-gray-500 mb-6 text-center">Informe os detalhes do fechamento</p>
+              <h3 className="text-xl font-bold tracking-tight mb-2 text-center">
+                {isVendaNegocio ? 'Registrar venda do negócio' : 'Contrato Fechado! 🎉'}
+              </h3>
+              <p className="text-sm text-gray-500 mb-6 text-center">
+                {isVendaNegocio ? 'Informe os detalhes da venda do estabelecimento' : 'Informe os detalhes do fechamento'}
+              </p>
               
               <div className="space-y-4 mb-6">
                 <div>
-                  <label className="text-[10px] uppercase font-bold text-gray-400 mb-1 block">Data do Contrato (De Fato) *</label>
+                  <label className="text-[10px] uppercase font-bold text-gray-400 mb-1 block">
+                    {isVendaNegocio ? 'Data da venda *' : 'Data do Contrato (De Fato) *'}
+                  </label>
                   <input 
                     type="date"
                     value={closedAtDate}
@@ -1768,7 +2161,9 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
                 </div>
 
                 <div>
-                  <label className="text-[10px] uppercase font-bold text-gray-400 mb-1 block">Valor do Contrato</label>
+                  <label className="text-[10px] uppercase font-bold text-gray-400 mb-1 block">
+                    {isVendaNegocio ? 'Valor da venda' : 'Valor do Contrato'}
+                  </label>
                   <div className="relative">
                     <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 font-bold">R$</span>
                     <input 
@@ -1782,20 +2177,49 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
                   </div>
                 </div>
 
-                <div>
-                  <label className="text-[10px] uppercase font-bold text-gray-400 mb-1 block">Motivo do Fechamento / Notas</label>
-                  <textarea 
-                    value={winNotes}
-                    onChange={(e) => setWinNotes(e.target.value)}
-                    className="w-full bg-gray-50 border border-black/[0.05] rounded-2xl p-4 text-sm font-medium focus:ring-2 focus:ring-brand-green/20 outline-none h-24 resize-none"
-                    placeholder="Ex: Cliente fechou pacote trimestral..."
-                  />
-                </div>
+                {isVendaNegocio ? (
+                  <>
+                    <div>
+                      <label className="text-[10px] uppercase font-bold text-gray-400 mb-1 block">Forma de pagamento</label>
+                      <input 
+                        type="text"
+                        value={vendaPagamento}
+                        onChange={(e) => setVendaPagamento(e.target.value)}
+                        className="w-full bg-gray-50 border border-black/[0.05] rounded-2xl p-3 text-sm font-medium focus:ring-2 focus:ring-brand-green/20 outline-none"
+                        placeholder="Ex: À vista, Entrada de 50% + 10x..."
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-[10px] uppercase font-bold text-gray-400 mb-1 block">Observações da venda</label>
+                      <textarea 
+                        value={vendaObservacoes}
+                        onChange={(e) => setVendaObservacoes(e.target.value)}
+                        className="w-full bg-gray-50 border border-black/[0.05] rounded-2xl p-3 text-sm font-medium focus:ring-2 focus:ring-brand-green/20 outline-none h-20 resize-none"
+                        placeholder="Condições, acordos, termos..."
+                      />
+                    </div>
+                  </>
+                ) : (
+                  <div>
+                    <label className="text-[10px] uppercase font-bold text-gray-400 mb-1 block">Motivo do Fechamento / Notas</label>
+                    <textarea 
+                      value={winNotes}
+                      onChange={(e) => setWinNotes(e.target.value)}
+                      className="w-full bg-gray-50 border border-black/[0.05] rounded-2xl p-4 text-sm font-medium focus:ring-2 focus:ring-brand-green/20 outline-none h-24 resize-none"
+                      placeholder="Ex: Cliente fechou pacote trimestral..."
+                    />
+                  </div>
+                )}
               </div>
 
               <div className="flex gap-3">
                 <button 
-                  onClick={() => setIsWonModalOpen(false)}
+                  onClick={() => {
+                    setIsWonModalOpen(false);
+                    setLeadToWin(null);
+                    loadData();
+                  }}
                   className="flex-1 py-3 rounded-xl font-bold text-gray-500 hover:bg-gray-100 transition-colors"
                 >
                   Cancelar
@@ -1937,6 +2361,7 @@ interface LeadCardProps {
   onUpdateDealValue: (id: string, val: number) => void;
   getSourceIcon: (source?: string) => React.ReactNode;
   onView: () => void;
+  isVendaNegocio?: boolean;
 }
 
 const LeadCard: React.FC<LeadCardProps & { isOverlay?: boolean }> = ({ 
@@ -1948,11 +2373,12 @@ const LeadCard: React.FC<LeadCardProps & { isOverlay?: boolean }> = ({
   onUpdateDealValue, 
   getSourceIcon,
   onView,
+  isVendaNegocio,
   isOverlay 
 }) => {
-  const isClosed = lead.kanban_stage === 'Fechado';
+  const isClosed = isVendaNegocio ? lead.kanban_stage === 'Vendido' : lead.kanban_stage === 'Fechado';
   const isLost = lead.kanban_stage === 'Perdido';
-  const isContractStage = lead.kanban_stage && isContractSentStage(lead.kanban_stage);
+  const isContractStage = lead.kanban_stage && isContractSentStage(lead.kanban_stage, isVendaNegocio);
   const showValueField = isClosed || isContractStage || lead.quote_sent;
 
   const {
@@ -2026,32 +2452,63 @@ const LeadCard: React.FC<LeadCardProps & { isOverlay?: boolean }> = ({
       </div>
 
       {/* Badges */}
-      <div className="flex flex-wrap gap-1.5 mb-3">
-        {lead.potential === 'alto' && (
-          <span className="px-2 py-0.5 rounded-md bg-green-100 text-green-700 text-[10px] font-bold">🔥 Alto</span>
-        )}
-        {lead.potential === 'medio' && (
-          <span className="px-2 py-0.5 rounded-md bg-yellow-100 text-yellow-800 text-[10px] font-bold">⚡ Médio</span>
-        )}
-        {lead.potential === 'baixo' && (
-          <span className="px-2 py-0.5 rounded-md bg-gray-100 text-gray-600 text-[10px] font-bold">❄️ Baixo</span>
-        )}
-        {lead.specialty && (
-          <span className="px-2 py-0.5 rounded-md bg-brand-dark/5 text-brand-dark text-[10px] font-bold truncate max-w-[120px]">
-            {lead.specialty}
-          </span>
-        )}
-        {lead.origin && (
-          <span className="px-2 py-0.5 rounded-md bg-gray-100 text-gray-600 text-[10px] font-bold">
-            {lead.origin}
-          </span>
-        )}
-        {lead.source && (
-          <span className="px-2 py-0.5 rounded-md bg-blue-50 text-blue-600 text-[10px] font-bold flex items-center gap-1" title={lead.source}>
-            {getSourceIcon(lead.source)}
-          </span>
-        )}
-      </div>
+      {isVendaNegocio ? (
+        <div className="flex flex-wrap gap-1.5 mb-3">
+          {lead.potential === 'alto' && (
+            <span className="px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-800 text-[10px] font-bold">
+              Alto potencial
+            </span>
+          )}
+          {lead.form_data?.capital && (
+            <span className="px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 text-[10px] font-bold border border-emerald-200/50">
+              {lead.form_data.capital}
+            </span>
+          )}
+          {lead.form_data?.perfil && (
+            <span className="px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 text-[10px] font-bold">
+              {lead.form_data.perfil}
+            </span>
+          )}
+          {lead.form_data?.prazo && (
+            <span className="px-2 py-0.5 rounded-md bg-amber-50 text-amber-700 text-[10px] font-bold">
+              {lead.form_data.prazo}
+            </span>
+          )}
+          {lead.source && (
+            <span className="px-2 py-0.5 rounded-md bg-gray-100 text-gray-600 text-[10px] font-bold flex items-center gap-1" title={lead.source}>
+              {getSourceIcon(lead.source)}
+              <span>{lead.source}</span>
+            </span>
+          )}
+        </div>
+      ) : (
+        <div className="flex flex-wrap gap-1.5 mb-3">
+          {lead.potential === 'alto' && (
+            <span className="px-2 py-0.5 rounded-md bg-green-100 text-green-700 text-[10px] font-bold">🔥 Alto</span>
+          )}
+          {lead.potential === 'medio' && (
+            <span className="px-2 py-0.5 rounded-md bg-yellow-100 text-yellow-800 text-[10px] font-bold">⚡ Médio</span>
+          )}
+          {lead.potential === 'baixo' && (
+            <span className="px-2 py-0.5 rounded-md bg-gray-100 text-gray-600 text-[10px] font-bold">❄️ Baixo</span>
+          )}
+          {lead.specialty && (
+            <span className="px-2 py-0.5 rounded-md bg-brand-dark/5 text-brand-dark text-[10px] font-bold truncate max-w-[120px]">
+              {lead.specialty}
+            </span>
+          )}
+          {lead.origin && (
+            <span className="px-2 py-0.5 rounded-md bg-gray-100 text-gray-600 text-[10px] font-bold">
+              {lead.origin}
+            </span>
+          )}
+          {lead.source && (
+            <span className="px-2 py-0.5 rounded-md bg-blue-50 text-blue-600 text-[10px] font-bold flex items-center gap-1" title={lead.source}>
+              {getSourceIcon(lead.source)}
+            </span>
+          )}
+        </div>
+      )}
 
       {/* Notes Snippet */}
       {lead.notes && (
@@ -2076,7 +2533,7 @@ const LeadCard: React.FC<LeadCardProps & { isOverlay?: boolean }> = ({
           onPointerDown={e => e.stopPropagation()}
         >
           <span className="text-[10px] font-bold uppercase">
-            {isClosed ? 'Valor Fechado' : isLost ? 'Valor Perdido' : 'Valor Estimado'}
+            {isClosed ? (isVendaNegocio ? 'Valor da Venda' : 'Valor Fechado') : isLost ? 'Valor Perdido' : 'Valor Estimado'}
           </span>
           <div className="flex items-center gap-1">
             <span className="text-xs font-bold">R$</span>
@@ -2100,7 +2557,9 @@ const LeadCard: React.FC<LeadCardProps & { isOverlay?: boolean }> = ({
       {/* Loss Reason (If Lost) */}
       {isLost && lead.loss_reason && (
         <div className="mb-3 bg-red-50 rounded-lg p-2 border border-red-100">
-          <span className="text-[10px] font-bold text-red-700 uppercase block mb-0.5">Motivo da perda</span>
+          <span className="text-[10px] font-bold text-red-700 uppercase block mb-0.5">
+            {isVendaNegocio ? 'Motivo de não seguir' : 'Motivo da perda'}
+          </span>
           <span className="text-xs text-red-600 font-medium">{lead.loss_reason}</span>
         </div>
       )}
@@ -2124,7 +2583,7 @@ const LeadCard: React.FC<LeadCardProps & { isOverlay?: boolean }> = ({
             <option value="Perdido">Perdido</option>
           </select>
           <div className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-gray-500 hover:text-brand-dark transition-colors pointer-events-none">
-            Mover para <ChevronDown size={12} />
+            {isVendaNegocio ? 'Mover interessado' : 'Mover para'} <ChevronDown size={12} />
           </div>
         </div>
       </div>

@@ -491,6 +491,9 @@ export interface ClientLeadConfig {
   location_options: string[];
   kanban_stages?: string[];
   specialty_options?: string[];
+  crm_profile?: 'padrao' | 'venda_negocio';
+  loss_reasons?: string[] | null;
+  lead_fields?: { key: string; label: string; type: 'select' | 'textarea'; options?: string[] }[] | null;
   created_at: string;
   updated_at: string;
 }
@@ -502,6 +505,8 @@ export interface ClientLead {
   origin: string;
   lead_name?: string;
   phone?: string;
+  email?: string | null;
+  city?: string | null;
   source?: string;
   specialty?: string;
   potential?: 'alto' | 'medio' | 'baixo' | null;
@@ -514,6 +519,8 @@ export interface ClientLead {
   deal_value: number;
   notes: string | null;
   closed_at?: string | null;
+  form_data?: Record<string, string> | null;
+  utm?: Record<string, string> | null;
   created_at: string;
 }
 
