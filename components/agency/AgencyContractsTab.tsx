@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase, useAuth } from '../../lib/supabase';
+import { openStoredFile } from '../../lib/storage';
 import { ContractForm, Client } from '../../types';
 import { parseCurrencyInput } from '../../lib/currencyUtils';
 import dayjs from 'dayjs';
@@ -89,7 +90,7 @@ const ContractDataViewer: React.FC<{ data: any, onClose: () => void }> = ({ data
       if (key === 'cartao_cnpj_url') {
         filledFields.push({ 
           label, 
-          value: <a href={value} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline">Ver Documento</a> 
+          value: <button type="button" onClick={() => openStoredFile(String(value))} className="text-blue-500 hover:underline">Ver Documento</button> 
         });
       } else {
         filledFields.push({ label, value: String(value) });
@@ -415,6 +416,8 @@ interface ClientWithContract extends Client {
   contract?: ContractForm | null;
 }
 
+const hasFormData = (c: any) => !!c?.form_data && Object.keys(c.form_data).filter((k: string) => k !== 'value_history').length > 3;
+
 export const AgencyContractsTab: React.FC = () => {
   const { agencyId } = useAuth();
   const [clients, setClients] = useState<ClientWithContract[]>([]);
@@ -463,9 +466,15 @@ export const AgencyContractsTab: React.FC = () => {
                  (statusOrder[b.status as keyof typeof statusOrder] ?? 99);
         });
         
+        const primary = sortedContracts[0] || null;
+        // Se o contrato assinado não tem os dados do formulário, herda do formulário enviado
+        const withData = sortedContracts.find(cf => cf.form_data && Object.keys(cf.form_data).filter(k => k !== 'value_history').length > 3);
+        const contract = primary && withData && primary !== withData
+          ? { ...primary, form_data: { ...withData.form_data, ...(primary.form_data || {}) }, submitted_at: primary.submitted_at || withData.submitted_at }
+          : primary;
         return {
           ...c,
-          contract: sortedContracts[0] || null
+          contract
         };
       });
       setClients(merged);
@@ -839,9 +848,17 @@ export const AgencyContractsTab: React.FC = () => {
 
                   {isSigned && client.contract && (
                     <>
+                      {hasFormData(client.contract) && (
+                        <button
+                          onClick={() => { setSelectedClient(client); setViewDataModalOpen(true); }}
+                          className="inline-flex flex-1 justify-center items-center gap-1.5 px-3 py-1.5 rounded-lg border border-brand-dark/20 text-brand-dark hover:bg-brand-dark hover:text-white transition-colors text-xs font-bold"
+                        >
+                          <Eye size={14} /> Ver Dados
+                        </button>
+                      )}
                       {client.contract.signed_contract_url && (
                         <button
-                          onClick={() => window.open(client.contract!.signed_contract_url!, '_blank')}
+                          onClick={() => openStoredFile(client.contract!.signed_contract_url!)}
                           className="flex-1 flex justify-center items-center gap-1.5 py-2 rounded-xl border border-brand-dark text-brand-dark hover:bg-brand-dark hover:text-white transition-colors text-xs font-bold"
                         >
                           <FileText size={14} /> Ver PDF
@@ -1002,9 +1019,17 @@ export const AgencyContractsTab: React.FC = () => {
 
                         {isSigned && client.contract && (
                           <>
+                            {hasFormData(client.contract) && (
+                              <button
+                                onClick={() => { setSelectedClient(client); setViewDataModalOpen(true); }}
+                                className="inline-flex flex-1 justify-center items-center gap-1.5 px-3 py-1.5 rounded-lg border border-brand-dark/20 text-brand-dark hover:bg-brand-dark hover:text-white transition-colors text-xs font-bold"
+                              >
+                                <Eye size={14} /> Ver Dados
+                              </button>
+                            )}
                             {client.contract.signed_contract_url && (
                               <button
-                                onClick={() => window.open(client.contract!.signed_contract_url!, '_blank')}
+                                onClick={() => openStoredFile(client.contract!.signed_contract_url!)}
                                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-brand-dark text-brand-dark hover:bg-brand-dark hover:text-white transition-colors text-xs font-bold"
                               >
                                 <FileText size={14} /> Ver PDF
@@ -1097,7 +1122,7 @@ export const AgencyContractsTab: React.FC = () => {
                           {client.contract.signed_contract_url && (
                             <button
                               type="button"
-                              onClick={() => window.open(client.contract!.signed_contract_url!, '_blank')}
+                              onClick={() => openStoredFile(client.contract!.signed_contract_url!)}
                               className="flex-1 flex justify-center items-center gap-1.5 py-2 rounded-xl border border-gray-200 text-gray-600 hover:text-brand-dark transition-colors text-xs font-bold"
                             >
                               <FileText size={14} /> Ver PDF
@@ -1168,7 +1193,7 @@ export const AgencyContractsTab: React.FC = () => {
                               {client.contract?.signed_contract_url && (
                                 <button
                                   type="button"
-                                  onClick={() => window.open(client.contract!.signed_contract_url!, '_blank')}
+                                  onClick={() => openStoredFile(client.contract!.signed_contract_url!)}
                                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-200 text-gray-600 hover:text-brand-dark hover:border-brand-dark transition-colors text-xs font-bold"
                                 >
                                   <FileText size={14} /> Ver PDF

@@ -12,7 +12,8 @@ import {
   Menu, 
   X, 
   Shield, 
-  Users, 
+  Users,
+  UserCog, 
   LayoutDashboard,
   Calendar,
   Globe,
@@ -63,7 +64,7 @@ export const Navigation: React.FC<SidebarProps> = ({
   const [isClientDropdownOpen, setIsClientDropdownOpen] = useState(false);
   const [availableClients, setAvailableClients] = useState<Client[]>([]);
   const [hasCredentials, setHasCredentials] = useState<boolean>(false);
-  const { userRole, logout, agencyId, agencyName } = useAuth();
+  const { userRole, logout, agencyId, agencyName, agencies, switchAgency, can } = useAuth();
 
   useEffect(() => {
     if (userRole === 'admin' && agencyId) {
@@ -117,7 +118,12 @@ export const Navigation: React.FC<SidebarProps> = ({
     { id: 'onboarding', label: 'Onboarding', icon: Target },
     { id: 'contratos', label: 'Contratos', icon: FileText },
     { id: 'clientes', label: 'Clientes', icon: Users },
-  ];
+    { id: 'equipe', label: 'Equipe & Acessos', icon: UserCog },
+  ].filter(item => {
+    if (item.id === 'financeiro' || item.id === 'metas') return can('view_finance');
+    if (item.id === 'equipe') return can('manage_team');
+    return true;
+  });
 
   const getClientItems = () => {
     if (!activeClient) return [];
@@ -253,9 +259,20 @@ export const Navigation: React.FC<SidebarProps> = ({
             <span className="text-[10px] uppercase tracking-[0.3em] text-gray-400 font-bold whitespace-nowrap">
               {view === 'agency' ? 'Painel Interno' : userRole === 'admin' ? 'Explorando Cliente' : 'Painel do Cliente'}
             </span>
-            <span className="text-sm font-bold text-brand-dark uppercase tracking-widest whitespace-nowrap">
-              {agencyName || 'Canguru Digital'}
-            </span>
+            {view === 'agency' && agencies.length > 1 ? (
+              <select
+                value={agencyId ?? ''}
+                onChange={(e) => { switchAgency(parseInt(e.target.value, 10)); window.location.reload(); }}
+                className="text-sm font-bold text-brand-dark uppercase tracking-widest bg-transparent border-none p-0 pr-6 focus:ring-0 cursor-pointer max-w-[190px]"
+                title="Trocar de agência"
+              >
+                {agencies.map(a => <option key={a.agency_id} value={a.agency_id}>{a.agency_name}</option>)}
+              </select>
+            ) : (
+              <span className="text-sm font-bold text-brand-dark uppercase tracking-widest whitespace-nowrap">
+                {agencyName || 'Canguru Digital'}
+              </span>
+            )}
           </div>
         )}
         {userRole === 'admin' && (

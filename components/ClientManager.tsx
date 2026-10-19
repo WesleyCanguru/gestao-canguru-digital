@@ -1,7 +1,9 @@
 
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { supabase, hashPassword, useAuth } from '../lib/supabase';
+import { supabase, useAuth } from '../lib/supabase';
+import { ClientAccessPanel } from './agency/ClientAccessPanel';
+import { openStoredFile } from '../lib/storage';
 import { Client, ClientLeadConfig } from '../types';
 import { getAnnualOverviewTemplate } from '../constants';
 import { parseCurrencyInput } from '../lib/currencyUtils';
@@ -146,7 +148,7 @@ const REORDERABLE_MODULES = [
 ];
 
 export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
-  const { agencyId } = useAuth();
+  const { agencyId, viewAsClient } = useAuth();
   const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -329,51 +331,6 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
         }));
         setClients(updatedData as Client[]);
 
-        // Buscar mapeamento de chaves de acesso dos clientes
-        try {
-          const keysMap: Record<string, string> = {};
-
-          // 1. client_users
-          try {
-            const { data: usersData } = await supabase
-              .from('client_users')
-              .select('client_id, access_key')
-              .eq('agency_id', agencyId)
-              .not('access_key', 'is', null);
-            if (usersData) {
-              usersData.forEach((u: any) => {
-                if (u.client_id && u.access_key) keysMap[u.client_id] = u.access_key;
-              });
-            }
-          } catch (e) {}
-
-          // 2. client_credentials
-          try {
-            const { data: credsData } = await supabase
-              .from('client_credentials')
-              .select('client_id, password_encrypted')
-              .eq('agency_id', agencyId)
-              .eq('platform', 'portal');
-            if (credsData) {
-              credsData.forEach((c: any) => {
-                if (c.client_id && c.password_encrypted && !keysMap[c.client_id]) {
-                  keysMap[c.client_id] = c.password_encrypted;
-                }
-              });
-            }
-          } catch (e) {}
-
-          // 3. traffic_strategy_data fallback
-          updatedData.forEach((cl: any) => {
-            if (!keysMap[cl.id] && cl.traffic_strategy_data?.client_access_key) {
-              keysMap[cl.id] = cl.traffic_strategy_data.client_access_key;
-            }
-          });
-
-          setAccessKeysMap(keysMap);
-        } catch (keysErr) {
-          console.warn('Erro ao carregar mapa de chaves de acesso:', keysErr);
-        }
       }
     } catch (err) {
       console.error('Error fetching clients:', err);
@@ -654,54 +611,7 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
         }
       }
 
-      // 4. Criar usuário de acesso se preenchido (apenas se não existir ou se quiser atualizar senha)
-      let userCreated = false;
-      if (form.password.trim()) {
-        const hashedPassword = await hashPassword(form.password.trim());
-        
-        if (editingClientId) {
-          // Tentar atualizar ou inserir se não existir
-          const { data: existingUser } = await supabase
-            .from('client_users')
-            .select('id')
-            .eq('client_id', editingClientId)
-            .single();
-          
-          if (existingUser) {
-            await supabase
-              .from('client_users')
-              .update({ password_hash: hashedPassword })
-              .eq('id', existingUser.id);
-          } else {
-            const placeholderUsername = `user_${form.initials.toLowerCase()}_${Date.now().toString().slice(-4)}`;
-            await supabase
-              .from('client_users')
-              .insert([{
-                client_id: editingClientId,
-                username: placeholderUsername,
-                password_hash: hashedPassword,
-                role: 'approver',
-                is_active: true,
-                agency_id: agencyId
-              }]);
-          }
-          userCreated = true;
-        } else {
-          const placeholderUsername = `user_${form.initials.toLowerCase()}_${Date.now().toString().slice(-4)}`;
-          const { error: userError } = await supabase
-            .from('client_users')
-            .insert([{
-              client_id: clientData.id,
-              username: placeholderUsername,
-              password_hash: hashedPassword,
-              role: 'approver',
-              is_active: true,
-              agency_id: agencyId
-            }]);
-          
-          if (!userError) userCreated = true;
-        }
-      }
+      const userCreated = false;
 
       let msg = editingClientId
         ? `Cliente "${form.name}" atualizado com sucesso!`
@@ -871,50 +781,12 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
     const linkedinHandle = client.linkedin || client.social_networks?.find(s => s.startsWith('linkedin_handle:'))?.split(':')[1] || '';
     
     setLoadingContract(true);
-    setLoadingAccessKey(true);
-    setClientAccessKey(null);
-    setCopiedKey(false);
-    setShowAccessKey(false);
-
-    // Buscar chave de acesso para exibição ao abrir o detalhe do cliente
-    let key = accessKeysMap[client.id] || null;
-    if (!key) {
-      try {
-        const { data: uData } = await supabase
-          .from('client_users')
-          .select('access_key')
-          .eq('client_id', client.id)
-          .order('created_at', { ascending: false })
-          .limit(1)
-          .maybeSingle();
-        if (uData?.access_key) key = uData.access_key;
-      } catch (e) {}
-    }
-    if (!key) {
-      try {
-        const { data: cData } = await supabase
-          .from('client_credentials')
-          .select('password_encrypted')
-          .eq('client_id', client.id)
-          .eq('platform', 'portal')
-          .order('created_at', { ascending: false })
-          .limit(1)
-          .maybeSingle();
-        if (cData?.password_encrypted) key = cData.password_encrypted;
-      } catch (e) {}
-    }
-    if (!key && (client as any)?.traffic_strategy_data?.client_access_key) {
-      key = (client as any).traffic_strategy_data.client_access_key;
-    }
-    setClientAccessKey(key);
-    setLoadingAccessKey(false);
-
     let config = null;
     let contract = null;
     try {
       const [configResponse, contractResponse] = await Promise.all([
         supabase.from('client_lead_configs').select('*').eq('client_id', client.id).single(),
-        supabase.from('contract_forms').select('*').eq('client_id', client.id).maybeSingle()
+        supabase.from('contract_forms').select('*').eq('client_id', client.id).order('signed_at', { ascending: false, nullsFirst: false }).limit(1).maybeSingle()
       ]);
       config = configResponse.data;
       contract = contractResponse.data;
@@ -1168,57 +1040,18 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
               <h2 className="text-xl font-bold text-brand-dark">{editingClientId ? 'Editar Cliente' : 'Novo Cliente'}</h2>
 
-              {/* Chave de acesso mascarada + revelar + copiar + Reset Access Key */}
               {editingClientId && (
-                <div className="flex flex-wrap items-center gap-2 bg-slate-50 border border-slate-200/90 px-3.5 py-2 rounded-2xl shadow-2xs">
-                  <KeyRound size={16} className="text-brand-dark flex-shrink-0" />
-                  <div className="text-left">
-                    <span className="text-[9px] font-bold text-gray-400 uppercase tracking-wider block">Access Key / Senha</span>
-                    {loadingAccessKey ? (
-                      <span className="text-xs font-mono text-gray-400">Buscando...</span>
-                    ) : clientAccessKey ? (
-                      <input
-                        type={showAccessKey ? 'text' : 'password'}
-                        readOnly
-                        value={clientAccessKey}
-                        className="bg-transparent border-none p-0 text-xs font-mono font-bold text-brand-dark focus:outline-none w-28"
-                      />
-                    ) : (
-                      <span className="text-xs font-mono text-gray-400">Não cadastrada</span>
-                    )}
-                  </div>
-                  {clientAccessKey && (
-                    <>
-                      <button
-                        type="button"
-                        onClick={() => setShowAccessKey(prev => !prev)}
-                        className="p-1.5 bg-white hover:bg-slate-100 rounded-xl text-gray-500 hover:text-brand-dark transition-all border border-slate-200 cursor-pointer shadow-2xs"
-                        title={showAccessKey ? 'Ocultar chave' : 'Revelar chave'}
-                      >
-                        {showAccessKey ? <EyeOff size={13} /> : <Eye size={13} />}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleCopyKey(clientAccessKey)}
-                        className="inline-flex items-center gap-1 px-2.5 py-1 bg-white hover:bg-slate-100 rounded-xl text-gray-600 hover:text-brand-dark transition-all border border-slate-200 cursor-pointer text-[10px] font-bold shadow-2xs"
-                        title="Copiar chave de acesso"
-                      >
-                        {copiedKey ? <Check size={13} className="text-emerald-600" /> : <Copy size={13} />}
-                        <span>{copiedKey ? 'Copiado!' : 'Copiar'}</span>
-                      </button>
-                    </>
-                  )}
-                  <button
-                    type="button"
-                    onClick={handleGenerateResetKeyLink}
-                    disabled={generatingResetLink}
-                    className="inline-flex items-center gap-1 px-2.5 py-1 bg-white hover:bg-slate-100 rounded-xl text-slate-700 hover:text-brand-dark transition-all border border-slate-200 cursor-pointer text-[10px] font-bold shadow-2xs"
-                    title="Gerar link para redefinir a Access Key"
-                  >
-                    <RefreshCw size={12} className={generatingResetLink ? 'animate-spin' : ''} />
-                    <span>Reset Access Key</span>
-                  </button>
-                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const c = clients.find(cl => cl.id === editingClientId);
+                    if (c) viewAsClient(c);
+                  }}
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200 rounded-2xl text-xs font-bold transition-all"
+                  title="Abre o painel exatamente como o cliente vê (somente leitura)"
+                >
+                  <Eye size={14} /> Ver como cliente
+                </button>
               )}
             </div>
             
@@ -1681,99 +1514,19 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
                 <>
               {/* Seção de Acesso */}
               <div className="sm:col-span-2 mt-4 pt-6 border-t border-gray-100">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-sm font-bold text-gray-700 uppercase tracking-wider">
-                    Acesso do Cliente (Portal Bolsa)
-                  </h3>
-                  {editingClientId && clientAccessKey && (
-                    <button
-                      type="button"
-                      onClick={() => handleCopyKey(clientAccessKey)}
-                      className="inline-flex items-center gap-1.5 px-3 py-1 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-all shadow-2xs cursor-pointer"
-                    >
-                      {copiedKey ? <Check size={14} className="text-emerald-600" /> : <Copy size={14} />}
-                      <span>{copiedKey ? 'Copiado!' : 'Copiar Chave'}</span>
-                    </button>
-                  )}
-                </div>
-
-                {/* Exibição da chave de acesso mascarada (somente leitura) com revelar, copiar e Reset Access Key */}
-                {editingClientId && (
-                  <div className="mb-6 p-5 bg-slate-50 border border-slate-200 rounded-2xl flex flex-col gap-4">
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                      <div className="flex items-center gap-3">
-                        <div className="p-2.5 bg-brand-dark/10 text-brand-dark rounded-xl">
-                          <KeyRound size={22} />
-                        </div>
-                        <div>
-                          <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">
-                            Access Key Atual (Somente Leitura)
-                          </span>
-                          <p className="text-[11px] text-gray-500 mt-0.5">
-                            A senha fica oculta por segurança. Use o ícone de olho para revelar ou envie um link de redefinição.
-                          </p>
-                        </div>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={handleGenerateResetKeyLink}
-                        disabled={generatingResetLink}
-                        className="inline-flex items-center gap-2 px-4 py-2.5 bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 rounded-xl text-xs font-bold transition-all shadow-2xs cursor-pointer self-start sm:self-auto"
-                      >
-                        <RefreshCw size={14} className={generatingResetLink ? 'animate-spin' : ''} />
-                        <span>Reset Access Key</span>
-                      </button>
-                    </div>
-
-                    <div className="flex flex-wrap items-center gap-2">
-                      <div className="relative flex-1 min-w-[200px] max-w-xs">
-                        <input
-                          type={showAccessKey && clientAccessKey ? 'text' : 'password'}
-                          readOnly
-                          value={loadingAccessKey ? 'Buscando...' : clientAccessKey || ''}
-                          placeholder="Nenhuma chave cadastrada"
-                          className="w-full pl-3.5 pr-10 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-mono font-bold text-brand-dark focus:outline-none select-all"
-                        />
-                        {clientAccessKey && (
-                          <button
-                            type="button"
-                            onClick={() => setShowAccessKey(prev => !prev)}
-                            className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-brand-dark transition-colors cursor-pointer"
-                            title={showAccessKey ? 'Ocultar senha' : 'Revelar senha'}
-                          >
-                            {showAccessKey ? <EyeOff size={16} /> : <Eye size={16} />}
-                          </button>
-                        )}
-                      </div>
-
-                      {clientAccessKey && (
-                        <button
-                          type="button"
-                          onClick={() => handleCopyKey(clientAccessKey)}
-                          className="inline-flex items-center gap-2 px-4 py-2.5 bg-brand-dark hover:bg-opacity-90 text-white rounded-xl text-xs font-bold transition-all shadow-2xs cursor-pointer"
-                        >
-                          {copiedKey ? <Check size={14} className="text-emerald-400" /> : <Copy size={14} />}
-                          <span>{copiedKey ? 'Chave copiada!' : 'Copiar'}</span>
-                        </button>
-                      )}
-                    </div>
-                  </div>
+                {editingClientId ? (
+                  <ClientAccessPanel
+                    clientId={editingClientId}
+                    clientName={form.name}
+                    defaultEmail={form.email}
+                    onViewAs={() => {
+                      const c = clients.find(cl => cl.id === editingClientId);
+                      if (c) viewAsClient(c);
+                    }}
+                  />
+                ) : (
+                  <p className="text-sm text-gray-500">Salve o cliente primeiro. Depois você cria o login de acesso dele aqui.</p>
                 )}
-
-                <div className="max-w-xs">
-                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">
-                    Redefinir Senha de Acesso
-                  </label>
-                  <div className="relative">
-                    <Lock className="absolute left-3 top-3 text-gray-400" size={16} />
-                    <input type="password" value={form.password} onChange={e => setForm(f => ({...f, password: e.target.value}))}
-                      placeholder="Mínimo 6 caracteres"
-                      className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                  </div>
-                </div>
-                <p className="mt-2 text-[10px] text-gray-400 italic">
-                  Se preenchido, o cliente poderá acessar o portal apenas com esta senha.
-                </p>
               </div>
 
               {/* Preview */}
@@ -1878,9 +1631,9 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
                                         return (
                                             <div key={key} className="col-span-2">
                                                 <span className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Cartão CNPJ</span>
-                                                <a href={value as string} target="_blank" rel="noreferrer" className="text-blue-500 hover:underline font-medium text-xs flex items-center gap-1">
+                                                <button type="button" onClick={() => openStoredFile(value as string)} className="text-blue-500 hover:underline font-medium text-xs flex items-center gap-1">
                                                     <FileText size={14} /> Abrir documento anexo
-                                                </a>
+                                                </button>
                                             </div>
                                         );
                                     }

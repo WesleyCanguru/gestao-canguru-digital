@@ -1,42 +1,150 @@
-
-import { createClient } from '@supabase/supabase-js';
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import { createClient, Session } from '@supabase/supabase-js';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { UserRole, Client } from '../types';
 import OneSignal from 'react-onesignal';
-
 
 const SUPABASE_URL = 'https://wtzphiyybitcucwkfpgv.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_uLQGmz7lWazPN1Uqb4_4vQ_HggVpMz9';
 
-export const supabase = createClient(SUPABASE_URL, SUPABASE_KEY, {
+const rawClient = createClient(SUPABASE_URL, SUPABASE_KEY, {
   auth: {
-    persistSession: false,
-    autoRefreshToken: false,
-    detectSessionInUrl: false
-  }
+    persistSession: true,
+    autoRefreshToken: true,
+    detectSessionInUrl: true,
+    storageKey: 'bolsa-auth',
+  },
 });
 
-import SHA256 from 'crypto-js/sha256';
+// ---------------------------------------------------------------------
+// Modo "Ver como cliente": bloqueia qualquer escrita enquanto ativo.
+// ---------------------------------------------------------------------
+let readOnlyMode = false;
+export const isReadOnlyMode = () => readOnlyMode;
 
-export const hashPassword = async (password: string): Promise<string> => {
-  return SHA256(password).toString();
+const READ_ONLY_ERROR = { message: 'Modo visualização: nada é salvo enquanto você vê como o cliente.', code: 'READ_ONLY' };
+
+const blockedBuilder = (): any => {
+  const result = Promise.resolve({ data: null, error: READ_ONLY_ERROR, count: null, status: 403, statusText: 'READ_ONLY' });
+  const handler: ProxyHandler<any> = {
+    get(_t, prop) {
+      if (prop === 'then') return result.then.bind(result);
+      if (prop === 'catch') return result.catch.bind(result);
+      if (prop === 'finally') return result.finally.bind(result);
+      return () => proxy;
+    },
+  };
+  const proxy: any = new Proxy({}, handler);
+  return proxy;
 };
+
+const WRITE_METHODS = new Set(['insert', 'update', 'upsert', 'delete']);
+
+export const supabase: typeof rawClient = new Proxy(rawClient, {
+  get(target, prop, receiver) {
+    if (prop === 'from') {
+      return (table: string) => {
+        const qb: any = target.from(table);
+        if (!readOnlyMode) return qb;
+        return new Proxy(qb, {
+          get(q, p) {
+            if (typeof p === 'string' && WRITE_METHODS.has(p)) return () => blockedBuilder();
+            const v = (q as any)[p];
+            return typeof v === 'function' ? v.bind(q) : v;
+          },
+        });
+      };
+    }
+    if (prop === 'rpc' && readOnlyMode) {
+      return (fn: string, args?: any, opts?: any) => {
+        // leitura via RPC continua liberada; RPCs de escrita conhecidas são bloqueadas
+        if (/^(create|update|delete|insert|set|claim)_/.test(fn)) return blockedBuilder();
+        return (target as any).rpc(fn, args, opts);
+      };
+    }
+    const v = Reflect.get(target, prop, receiver);
+    return typeof v === 'function' ? v.bind(target) : v;
+  },
+}) as typeof rawClient;
+
+// Mantido só para compatibilidade com telas antigas (não é mais usado no login).
+import SHA256 from 'crypto-js/sha256';
+export const hashPassword = async (password: string): Promise<string> => SHA256(password).toString();
 
 export const setupNotifications = async (agencyUser: { id: string; agency_id: number }) => {
   try {
-    // Identificar o usuário pelo ID único
     await OneSignal.login(agencyUser.id);
-
-    // Adicionar tag com o agency_id para direcionamento das notificações
     await OneSignal.User.addTag('agency_id', String(agencyUser.agency_id));
-
-    // Solicitar permissão de notificação (aparece o popup do browser/iOS)
     await OneSignal.Notifications.requestPermission();
   } catch (error) {
-    console.warn('OneSignal setup warning (pode ser ignorado se Web Push não estiver configurado no painel):', error);
+    console.warn('OneSignal setup warning:', error);
   }
 };
 
+// ---------------------------------------------------------------------
+// Links públicos (aprovação de post, mapa, temas, roteiro, NPS, contrato)
+// Cria uma sessão anônima e libera só aquele item.
+// ---------------------------------------------------------------------
+export type PublicLinkScope = 'mapa' | 'post' | 'temas' | 'roteiro' | 'nps' | 'contrato';
+
+export const ensurePublicAccess = async (scope: PublicLinkScope, token: string): Promise<{ ok: boolean; error?: string }> => {
+  try {
+    const { data: { session } } = await rawClient.auth.getSession();
+    if (!session) {
+      const { error } = await rawClient.auth.signInAnonymously();
+      if (error) return { ok: false, error: 'Não foi possível abrir o link. Tente novamente.' };
+    }
+    const { error } = await rawClient.rpc('claim_public_link', { p_scope: scope, p_token: token });
+    if (error) return { ok: false, error: 'Link inválido ou expirado.' };
+    return { ok: true };
+  } catch {
+    return { ok: false, error: 'Não foi possível abrir o link.' };
+  }
+};
+
+/** Chama uma Edge Function com a sessão atual. */
+export const callFunction = async <T = any>(name: string, body: any): Promise<{ data: T | null; error: string | null }> => {
+  const { data, error } = await rawClient.functions.invoke(name, { body });
+  if (error) {
+    let msg = error.message;
+    try {
+      const ctx: any = (error as any).context;
+      if (ctx && typeof ctx.json === 'function') {
+        const j = await ctx.json();
+        if (j?.error) msg = j.error;
+      }
+    } catch { /* ignore */ }
+    return { data: null, error: msg };
+  }
+  if (data && (data as any).error) return { data: null, error: (data as any).error };
+  return { data: data as T, error: null };
+};
+
+// ---------------------------------------------------------------------
+// Contexto de autenticação
+// ---------------------------------------------------------------------
+export type PermissionKey =
+  | 'view_finance' | 'edit_finance' | 'edit_contracts' | 'manage_clients' | 'delete_clients'
+  | 'manage_team' | 'send_signup_links' | 'manage_proposals' | 'manage_crm';
+
+export interface AgencyMembership {
+  agency_id: number;
+  agency_name: string;
+  slug: string;
+  logo_url: string | null;
+  primary_color: string | null;
+  role: 'master' | 'partner' | 'team';
+  display_name: string | null;
+  ref_code: string | null;
+  permissions: Record<PermissionKey, boolean>;
+}
+
+interface MyContext {
+  user_id: string;
+  email: string;
+  is_master: boolean;
+  agencies: AgencyMembership[];
+  clients: { client_id: string; agency_id: number; display_name: string | null }[];
+}
 
 interface AuthContextType {
   userRole: UserRole | null;
@@ -45,358 +153,239 @@ interface AuthContextType {
   agencyId: number | null;
   agencyName: string | null;
   userName: string | null;
+  userId: string | null;
+  userEmail: string | null;
   currentUser?: { name?: string; email?: string } | null;
   logoUrl: string | null;
-  login: (role: UserRole) => void;
+  isMaster: boolean;
+  memberRole: 'master' | 'partner' | 'team' | null;
+  agencies: AgencyMembership[];
+  currentMembership: AgencyMembership | null;
+  can: (perm: PermissionKey) => boolean;
+  switchAgency: (agencyId: number) => void;
+  signIn: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
+  claimLegacyKey: (key: string, email: string, password: string, name?: string) => Promise<{ success: boolean; error?: string }>;
+  requestPasswordReset: (email: string) => Promise<{ success: boolean; error?: string }>;
+  /** @deprecated login antigo por chave. Mantido só para não quebrar telas antigas. */
   loginByPassword: (password: string) => Promise<{ success: boolean; error?: string }>;
+  login: (role: UserRole) => void;
   logout: () => void;
   setActiveClient: (client: Client | null) => void;
   refreshActiveClient: () => Promise<void>;
+  reloadContext: () => Promise<void>;
   isAuthenticated: boolean;
+  authLoading: boolean;
+  isViewingAsClient: boolean;
+  viewAsClient: (client: Client) => void;
+  exitViewAsClient: () => void;
 }
 
+const noop = async () => ({ success: false });
 const AuthContext = createContext<AuthContextType>({
-  userRole: null,
-  activeClient: null,
-  userType: null,
-  agencyId: null,
-  agencyName: null,
-  userName: null,
-  currentUser: null,
-  logoUrl: null,
-  login: () => {},
-  loginByPassword: async () => ({ success: false }),
-  logout: () => {},
-  setActiveClient: () => {},
-  refreshActiveClient: async () => {},
-  isAuthenticated: false,
+  userRole: null, activeClient: null, userType: null, agencyId: null, agencyName: null, userName: null,
+  userId: null, userEmail: null, currentUser: null, logoUrl: null, isMaster: false, memberRole: null,
+  agencies: [], currentMembership: null, can: () => false, switchAgency: () => {},
+  signIn: noop, claimLegacyKey: noop, requestPasswordReset: noop, loginByPassword: noop, login: () => {},
+  logout: () => {}, setActiveClient: () => {}, refreshActiveClient: async () => {}, reloadContext: async () => {},
+  isAuthenticated: false, authLoading: true, isViewingAsClient: false, viewAsClient: () => {}, exitViewAsClient: () => {},
 });
 
+const LS_AGENCY = 'bolsa_selected_agency';
+const LS_CLIENT = 'next_app_client';
+const LS_VIEW_AS = 'bolsa_view_as_client';
+
+const safeParse = <T,>(raw: string | null): T | null => {
+  try { return raw && raw !== 'undefined' && raw !== 'null' ? JSON.parse(raw) as T : null; } catch { return null; }
+};
+
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [userRole, setUserRole] = useState<UserRole | null>(() =>
-    localStorage.getItem('next_app_role') as UserRole | null
-  );
-  const [userType, setUserType] = useState<'agency' | 'client' | null>(() => 
-    localStorage.getItem('next_app_user_type') as 'agency' | 'client' | null
-  );
-  const [agencyId, setAgencyId] = useState<number | null>(() => {
-    const aid = localStorage.getItem('next_app_agency_id');
-    return aid ? parseInt(aid, 10) : null;
+  const [session, setSession] = useState<Session | null>(null);
+  const [ctx, setCtx] = useState<MyContext | null>(null);
+  const [authLoading, setAuthLoading] = useState(true);
+  const [selectedAgencyId, setSelectedAgencyId] = useState<number | null>(() => {
+    const v = localStorage.getItem(LS_AGENCY); return v ? parseInt(v, 10) : null;
   });
-  const [agencyName, setAgencyName] = useState<string | null>(() =>
-    localStorage.getItem('next_app_agency_name')
-  );
-  const [userName, setUserName] = useState<string | null>(() =>
-    localStorage.getItem('next_app_user_name')
-  );
-  const [logoUrl, setLogoUrl] = useState<string | null>(() =>
-    localStorage.getItem('next_app_logo_url')
-  );
+  const [activeClient, setActiveClientState] = useState<Client | null>(() => safeParse<Client>(localStorage.getItem(LS_CLIENT)));
+  const [viewAsClientState, setViewAsClientState] = useState<Client | null>(() => safeParse<Client>(sessionStorage.getItem(LS_VIEW_AS)));
+  const notifiedRef = useRef<string | null>(null);
 
-  const [activeClient, setActiveClientState] = useState<Client | null>(() => {
-    try {
-      const stored = localStorage.getItem('next_app_client');
-      return (stored && stored !== 'undefined' && stored !== 'null') ? JSON.parse(stored) : null;
-    } catch (e) {
-      console.warn('Failed to parse activeClient from localStorage', e);
-      localStorage.removeItem('next_app_client');
-      return null;
-    }
-  });
+  readOnlyMode = !!viewAsClientState;
 
-  useEffect(() => {
-    // 1. Suporte a rota pública por parâmetro ?client=UUID na URL
-    const searchParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
-    const clientUrlParam = searchParams?.get('client') || searchParams?.get('client_id') || searchParams?.get('cliente');
-
-    if (clientUrlParam) {
-      const loadPublicClient = async () => {
-        try {
-          const { data, error } = await supabase
-            .from('clients')
-            .select('*')
-            .eq('id', clientUrlParam)
-            .single();
-
-          if (!error && data) {
-            setActiveClientState(data as Client);
-            localStorage.setItem('next_app_client', JSON.stringify(data));
-            
-            // Se o usuário não tiver um papel autenticado de agência/admin, definir acesso público de approver
-            const currentRole = localStorage.getItem('next_app_role');
-            if (!currentRole || currentRole === 'client' || currentRole === 'approver') {
-              setUserRole('approver');
-              setUserType('client');
-              setAgencyId(data.agency_id);
-              localStorage.setItem('next_app_role', 'approver');
-              localStorage.setItem('next_app_user_type', 'client');
-              localStorage.setItem('next_app_agency_id', String(data.agency_id));
-            }
-          }
-        } catch (err) {
-          console.error('Erro ao carregar cliente público da URL:', err);
-        }
-      };
-      loadPublicClient();
-    } else if (activeClient?.id) {
-      // Refresh client in background on app load if we have one from localStorage
-      supabase
-        .from('clients')
-        .select('*')
-        .eq('id', activeClient.id)
-        .single()
-        .then(({ data, error }) => {
-          if (!error && data) {
-            setActiveClientState(data as Client);
-            localStorage.setItem('next_app_client', JSON.stringify(data));
-          }
-        });
-    }
-
-    // Refresh agency user data in background if logged in as agency
-    const storedUserType = localStorage.getItem('next_app_user_type');
-    const storedUserId = localStorage.getItem('next_app_user_id');
-    const storedAgencyId = localStorage.getItem('next_app_agency_id');
-
-    if (storedUserType === 'agency') {
-      const query = storedUserId
-        ? supabase.from('agency_users').select('id, name, email, agency_name, logo_url, role').eq('id', storedUserId).maybeSingle()
-        : storedAgencyId
-        ? supabase.from('agency_users').select('id, name, email, agency_name, logo_url, role').eq('agency_id', parseInt(storedAgencyId, 10)).limit(1).maybeSingle()
-        : null;
-
-      if (query) {
-        query.then(({ data, error }) => {
-          if (!error && data) {
-            if (data.name) {
-              setUserName(data.name);
-              localStorage.setItem('next_app_user_name', data.name);
-            }
-            if (data.agency_name) {
-              setAgencyName(data.agency_name);
-              localStorage.setItem('next_app_agency_name', data.agency_name);
-            }
-            if (data.logo_url) {
-              setLogoUrl(data.logo_url);
-              localStorage.setItem('next_app_logo_url', data.logo_url);
-            }
-          }
-        });
-      }
-    }
-
-    // Configurar OneSignal para usuário da agência persistido
-    if (storedUserType === 'agency' && storedUserId && storedAgencyId) {
-      setupNotifications({
-        id: storedUserId,
-        agency_id: parseInt(storedAgencyId, 10)
-      }).catch(err => {
-        console.error('Erro ao restaurar OneSignal do localStorage:', err);
-      });
-    }
+  const loadContext = useCallback(async (s: Session | null) => {
+    if (!s || (s.user as any).is_anonymous) { setCtx(null); return; }
+    const { data, error } = await rawClient.rpc('get_my_context');
+    if (error || !data) { console.error('get_my_context', error); setCtx(null); return; }
+    setCtx(data as MyContext);
   }, []);
 
-
-  const login = (role: UserRole) => {
-    // Fallback/Legacy direct login mechanism (usually won't be used now without agency context)
-    setUserRole(role);
-    localStorage.setItem('next_app_role', role);
-  };
-
-  const loginByPassword = async (password: string): Promise<{ success: boolean; error?: string }> => {
-    try {
-      const cleanPass = password.trim();
-      const hashedPassword = await hashPassword(cleanPass);
-      
-      console.log('Tentando login com senha hash:', hashedPassword);
-
-      // 1. Tentar encontrar na tabela agency_users
-      const { data: agencyUser, error: agencyError } = await supabase
-        .from('agency_users')
-        .select('id, agency_id, name, role, agency_name, logo_url')
-        .eq('password_hash', hashedPassword)
-        .eq('is_active', true)
-        .limit(1)
-        .maybeSingle();
-
-      if (agencyError) {
-        console.error('Erro ao buscar agency_user:', agencyError);
-      }
-
-      if (agencyUser) {
-          console.log('Login admin bem sucedido:', agencyUser.name || agencyUser.agency_name);
-          setUserType('agency');
-          setAgencyId(agencyUser.agency_id);
-          setAgencyName(agencyUser.agency_name);
-          setUserName(agencyUser.name || null);
-          setLogoUrl(agencyUser.logo_url);
-          
-          setUserRole(agencyUser.role as UserRole);
-          
-          localStorage.setItem('next_app_user_type', 'agency');
-          localStorage.setItem('next_app_user_id', String(agencyUser.id));
-          localStorage.setItem('next_app_agency_id', String(agencyUser.agency_id));
-          localStorage.setItem('next_app_agency_name', agencyUser.agency_name || '');
-          if (agencyUser.name) {
-            localStorage.setItem('next_app_user_name', agencyUser.name);
-          } else {
-            localStorage.removeItem('next_app_user_name');
-          }
-          if (agencyUser.logo_url) {
-              localStorage.setItem('next_app_logo_url', agencyUser.logo_url);
-          } else {
-              localStorage.removeItem('next_app_logo_url');
-          }
-          localStorage.setItem('next_app_role', agencyUser.role);
-          
-          // Chamar configuração de notificações do OneSignal
-          setupNotifications({ id: String(agencyUser.id), agency_id: agencyUser.agency_id }).catch(err => {
-              console.error('Erro ao configurar notificações no login:', err);
-          });
-          
-          return { success: true };
-      }
-
-
-      // 2. Verificar senhas de clientes no banco de dados
-      const { data, error } = await supabase
-        .from('client_users')
-        .select('id, client_id, role, password_hash, agency_id')
-        .eq('password_hash', hashedPassword)
-        .eq('is_active', true)
-        .limit(1)
-        .maybeSingle();
-
-      if (error) {
-        console.error('Erro ao buscar client_user:', error);
-        return { success: false, error: 'Erro ao validar acesso. Tente novamente.' };
-      }
-
-      if (!data) {
-        console.log('Nenhum usuário encontrado com este hash.');
-        return { success: false, error: 'Chave de acesso inválida.' };
-      }
-
-      console.log('Usuário cliente encontrado, buscando dados do cliente...');
-
-      const { data: clientResult, error: clientError } = await supabase
-        .from('clients')
-        .select('*')
-        .eq('id', data.client_id)
-        .single();
-
-      if (clientError || !clientResult) {
-        console.error('Erro ao buscar cliente:', clientError);
-        return { success: false, error: 'Cliente não encontrado.' };
-      }
-
-      const { data: clientAgency, error: clientAgencyError } = await supabase
-        .from('agency_users')
-        .select('agency_name, logo_url')
-        .eq('agency_id', data.agency_id)
-        .limit(1)
-        .maybeSingle();
-
-      if (clientAgencyError) {
-        console.warn('Aviso: Erro ao buscar dados da agência do cliente:', clientAgencyError);
-      }
-
-      setUserType('client');
-      setAgencyId(data.agency_id);
-      setAgencyName(clientAgency?.agency_name || null);
-      setLogoUrl(clientAgency?.logo_url || null);
-      
-      const role = data.role as UserRole;
-      setUserRole(role);
-      setActiveClientState(clientResult as Client);
-      
-      localStorage.setItem('next_app_user_type', 'client');
-      localStorage.setItem('next_app_agency_id', String(data.agency_id));
-      if (clientAgency?.agency_name) localStorage.setItem('next_app_agency_name', clientAgency.agency_name);
-      if (clientAgency?.logo_url) localStorage.setItem('next_app_logo_url', clientAgency.logo_url);
-      
-      localStorage.setItem('next_app_role', role);
-      localStorage.setItem('next_app_client', JSON.stringify(clientResult));
-
-      console.log('Login cliente bem sucedido:', clientResult.name);
-      return { success: true };
-    } catch (fatalErr: any) {
-      console.error('Erro fatal no loginByPassword:', fatalErr);
-      return { success: false, error: 'Houve um erro técnico. Verifique sua conexão.' };
-    }
-  };
-
-  const logout = () => {
-    setUserRole(null);
-    setUserType(null);
-    setAgencyId(null);
-    setAgencyName(null);
-    setUserName(null);
-    setLogoUrl(null);
-    setActiveClientState(null);
-    
-    localStorage.removeItem('next_app_role');
-    localStorage.removeItem('next_app_client');
-    localStorage.removeItem('next_app_user_type');
-    localStorage.removeItem('next_app_agency_id');
-    localStorage.removeItem('next_app_agency_name');
-    localStorage.removeItem('next_app_user_name');
-    localStorage.removeItem('next_app_logo_url');
-    localStorage.removeItem('next_app_user_id');
-    
-    // Desvincular identidade no OneSignal ao fazer logout
-    OneSignal.logout().catch(err => {
-      console.warn('Aviso no logout do OneSignal (pode ser ignorado se não inicializado):', err);
+  useEffect(() => {
+    let mounted = true;
+    rawClient.auth.getSession().then(async ({ data }) => {
+      if (!mounted) return;
+      setSession(data.session);
+      await loadContext(data.session);
+      setAuthLoading(false);
     });
-    
+    const { data: sub } = rawClient.auth.onAuthStateChange((event, s) => {
+      setSession(s);
+      if (event === 'SIGNED_IN' || event === 'USER_UPDATED' || event === 'SIGNED_OUT') {
+        setTimeout(() => { loadContext(s).finally(() => setAuthLoading(false)); }, 0);
+      }
+    });
+    return () => { mounted = false; sub.subscription.unsubscribe(); };
+  }, [loadContext]);
+
+  const agencies = ctx?.agencies ?? [];
+  const isStaff = agencies.length > 0;
+  const currentMembership = isStaff
+    ? (agencies.find(a => a.agency_id === selectedAgencyId) ?? agencies[0])
+    : null;
+
+  // Cliente logado: carrega o próprio cliente
+  useEffect(() => {
+    if (!ctx || isStaff || ctx.clients.length === 0) return;
+    const wanted = activeClient && ctx.clients.some(c => c.client_id === activeClient.id) ? activeClient.id : ctx.clients[0].client_id;
+    rawClient.from('clients').select('*').eq('id', wanted).single().then(({ data }) => {
+      if (data) { setActiveClientState(data as Client); localStorage.setItem(LS_CLIENT, JSON.stringify(data)); }
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ctx, isStaff]);
+
+  // Notificações push para a equipe
+  useEffect(() => {
+    if (ctx && currentMembership && notifiedRef.current !== `${ctx.user_id}-${currentMembership.agency_id}`) {
+      notifiedRef.current = `${ctx.user_id}-${currentMembership.agency_id}`;
+      setupNotifications({ id: ctx.user_id, agency_id: currentMembership.agency_id });
+    }
+  }, [ctx, currentMembership]);
+
+  const can = useCallback((perm: PermissionKey) => {
+    if (ctx?.is_master) return true;
+    return !!currentMembership?.permissions?.[perm];
+  }, [ctx, currentMembership]);
+
+  const switchAgency = (id: number) => {
+    setSelectedAgencyId(id);
+    localStorage.setItem(LS_AGENCY, String(id));
+    setActiveClientState(null);
+    localStorage.removeItem(LS_CLIENT);
+  };
+
+  const signIn = async (email: string, password: string) => {
+    const { error } = await rawClient.auth.signInWithPassword({ email: email.trim().toLowerCase(), password });
+    if (error) {
+      return { success: false, error: error.message.includes('Invalid login') ? 'E-mail ou senha incorretos.' : error.message };
+    }
+    return { success: true };
+  };
+
+  const claimLegacyKey = async (key: string, email: string, password: string, name?: string) => {
+    const { data: s } = await rawClient.auth.getSession();
+    if (s.session && (s.session.user as any).is_anonymous) await rawClient.auth.signOut();
+    const { error } = await callFunction('auth-legacy-claim', { legacy_key: key, email, password, name });
+    if (error) return { success: false, error };
+    return signIn(email, password);
+  };
+
+  const requestPasswordReset = async (email: string) => {
+    const { error } = await rawClient.auth.resetPasswordForEmail(email.trim().toLowerCase(), {
+      redirectTo: `${window.location.origin}/nova-senha`,
+    });
+    if (error) return { success: false, error: error.message };
+    return { success: true };
+  };
+
+  const logout = async () => {
+    sessionStorage.removeItem(LS_VIEW_AS);
+    localStorage.removeItem(LS_CLIENT);
+    localStorage.removeItem(LS_AGENCY);
+    // limpa chaves do login antigo
+    ['next_app_role', 'next_app_user_type', 'next_app_agency_id', 'next_app_agency_name', 'next_app_user_name', 'next_app_logo_url', 'next_app_user_id']
+      .forEach(k => localStorage.removeItem(k));
+    OneSignal.logout().catch(() => {});
+    await rawClient.auth.signOut();
     window.location.href = '/';
   };
 
   const setActiveClient = (client: Client | null) => {
     setActiveClientState(client);
-    if (client) {
-      localStorage.setItem('next_app_client', JSON.stringify(client));
-    } else {
-      localStorage.removeItem('next_app_client');
-    }
+    if (client) localStorage.setItem(LS_CLIENT, JSON.stringify(client));
+    else localStorage.removeItem(LS_CLIENT);
   };
 
   const refreshActiveClient = async () => {
-    if (!activeClient?.id) return;
-    const { data, error } = await supabase
-      .from('clients')
-      .select('*')
-      .eq('id', activeClient.id)
-      .single();
-    if (!error && data) {
-      setActiveClientState(data as Client);
-      localStorage.setItem('next_app_client', JSON.stringify(data));
+    const target = viewAsClientState ?? activeClient;
+    if (!target?.id) return;
+    const { data } = await rawClient.from('clients').select('*').eq('id', target.id).single();
+    if (data) {
+      if (viewAsClientState) { setViewAsClientState(data as Client); sessionStorage.setItem(LS_VIEW_AS, JSON.stringify(data)); }
+      else setActiveClient(data as Client);
     }
   };
 
-  // Auto-login from URL (?chave=XXX&destino=YYY)
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const chave = params.get('chave');
-    
-    if (chave) {
-      const performAutoLogin = async () => {
-        const result = await loginByPassword(chave);
-        if (result.success) {
-          const newUrl = new URL(window.location.href);
-          newUrl.searchParams.delete('chave');
-          window.history.replaceState({}, '', newUrl.toString());
-        }
-      };
-      performAutoLogin();
-    }
-  }, []);
+  const viewAsClient = (client: Client) => {
+    sessionStorage.setItem(LS_VIEW_AS, JSON.stringify(client));
+    readOnlyMode = true;
+    setViewAsClientState(client);
+    rawClient.from('activity_log').insert({
+      agency_id: client.agency_id, client_id: client.id, user_id: ctx?.user_id,
+      actor_name: currentMembership?.display_name ?? ctx?.email, action: 'view_as', entity: 'clients', entity_id: client.id,
+    }).then(() => {});
+  };
 
-  return React.createElement(
-    AuthContext.Provider,
-    { value: { userRole, activeClient, userType, agencyId, agencyName, userName, currentUser: userName ? { name: userName } : null, logoUrl, login, loginByPassword, logout, setActiveClient, refreshActiveClient, isAuthenticated: !!userRole } },
-    children
-  );
+  const exitViewAsClient = () => {
+    sessionStorage.removeItem(LS_VIEW_AS);
+    readOnlyMode = false;
+    setViewAsClientState(null);
+  };
+
+  const legacyLoginRemoved = async () => ({ success: false, error: 'O acesso agora é por e-mail e senha.' });
+
+  // ---------- valores derivados no formato que o app já usa ----------
+  const isViewingAsClient = !!viewAsClientState && isStaff;
+  const isAuthenticated = !!ctx && (isStaff || ctx.clients.length > 0);
+
+  let userType: 'agency' | 'client' | null = null;
+  let userRole: UserRole | null = null;
+  if (isAuthenticated) {
+    if (isViewingAsClient) { userType = 'client'; userRole = 'approver'; }
+    else if (isStaff) { userType = 'agency'; userRole = currentMembership?.role === 'team' && !ctx?.is_master ? 'team' : 'admin'; }
+    else { userType = 'client'; userRole = 'approver'; }
+  }
+
+  const effectiveClient = isViewingAsClient ? viewAsClientState : activeClient;
+  const agencyId = isViewingAsClient
+    ? (viewAsClientState?.agency_id ?? null)
+    : isStaff ? (currentMembership?.agency_id ?? null)
+    : (ctx?.clients.find(c => c.client_id === activeClient?.id)?.agency_id ?? ctx?.clients[0]?.agency_id ?? null);
+  const agencyRow = isStaff ? currentMembership : null;
+  const userName = isStaff
+    ? (currentMembership?.display_name ?? session?.user?.user_metadata?.name ?? ctx?.email ?? null)
+    : (ctx?.clients[0]?.display_name ?? session?.user?.user_metadata?.name ?? null);
+
+  const [clientAgencyBrand, setClientAgencyBrand] = useState<{ name: string; logo_url: string | null } | null>(null);
+  useEffect(() => {
+    if (!isStaff && agencyId) {
+      rawClient.from('agencies').select('name, logo_url').eq('id', agencyId).single()
+        .then(({ data }) => { if (data) setClientAgencyBrand(data as any); });
+    }
+  }, [isStaff, agencyId]);
+
+  const agencyName = agencyRow?.agency_name ?? clientAgencyBrand?.name ?? null;
+  const logoUrl = agencyRow?.logo_url ?? clientAgencyBrand?.logo_url ?? null;
+
+  const value: AuthContextType = {
+    userRole, activeClient: effectiveClient, userType, agencyId, agencyName, userName,
+    userId: ctx?.user_id ?? null, userEmail: ctx?.email ?? null,
+    currentUser: userName ? { name: userName, email: ctx?.email } : null,
+    logoUrl, isMaster: !!ctx?.is_master, memberRole: currentMembership?.role ?? null,
+    agencies, currentMembership, can, switchAgency, signIn, claimLegacyKey, requestPasswordReset,
+    loginByPassword: legacyLoginRemoved, login: () => {}, logout,
+    setActiveClient, refreshActiveClient, reloadContext: () => loadContext(session),
+    isAuthenticated, authLoading, isViewingAsClient, viewAsClient, exitViewAsClient,
+  };
+
+  return React.createElement(AuthContext.Provider, { value }, children);
 };
 
 export const useAuth = () => useContext(AuthContext);

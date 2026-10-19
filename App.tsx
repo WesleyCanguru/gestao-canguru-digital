@@ -35,7 +35,9 @@ import { NpsPublicScreen } from './components/nps/NpsPublicScreen';
 import { ClientNpsSection } from './components/nps/ClientNpsSection';
 import { PublicClientOnboarding } from './components/PublicClientOnboarding';
 import { OnboardingChecklist } from './components/OnboardingChecklist';
-import { ResetAccessKeyPage } from './components/ResetAccessKeyPage';
+import { ResetPasswordPage } from './components/ResetPasswordPage';
+import { ViewAsClientBanner } from './components/ViewAsClientBanner';
+import { PublicLinkGate } from './components/PublicLinkGate';
 
 import { AgencyHome } from './components/agency/AgencyHome';
 import { AgencyDashboard } from './components/agency/AgencyDashboard';
@@ -639,31 +641,33 @@ const MainApp: React.FC<MainAppProps> = ({ initialView, onExitAgencyDashboard, o
 };
 
 const AppContent: React.FC = () => {
-  const { isAuthenticated, userRole, activeClient, logout, setActiveClient } = useAuth();
+  const { isAuthenticated, authLoading, userRole, activeClient, logout, setActiveClient, isViewingAsClient } = useAuth();
   const [showClientManager, setShowClientManager] = useState(false);
   const [showAgencyDashboard, setShowAgencyDashboard] = useState(false);
   // Default to agencyHome but we'll bypass it in the render if admin
   const [adminView, setAdminView] = useState<'agencyHome' | 'clientSelector'>('agencyHome');
 
-  const params = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
-  const hasClientParam = !!(params?.get('client') || params?.get('client_id') || params?.get('cliente'));
-
-  // Se a rota for pública de cliente (?client=...) e ainda estiver carregando os dados do cliente
-  if (!isAuthenticated && hasClientParam) {
-    if (!activeClient) {
-      return (
-        <div className="min-h-screen flex items-center justify-center bg-[#F4F3EF]">
-          <div className="flex flex-col items-center gap-3">
-            <Loader2 className="w-8 h-8 animate-spin text-[#13284D]" />
-            <p className="text-sm font-medium text-stone-500">Carregando painel do cliente...</p>
-          </div>
-        </div>
-      );
-    }
+  if (authLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#FDFDFD]">
+        <Loader2 className="w-8 h-8 animate-spin text-[#13284D]" />
+      </div>
+    );
   }
 
-  if (!isAuthenticated && !hasClientParam) {
+  if (!isAuthenticated) {
     return <LoginScreen />;
+  }
+
+  if (isViewingAsClient) {
+    return (
+      <>
+        <ViewAsClientBanner />
+        <div className="pt-11">
+          <MainApp />
+        </div>
+      </>
+    );
   }
 
   // Se for admin e não tiver cliente selecionado, mostrar dashboard da agência por padrão
@@ -824,11 +828,18 @@ const App: React.FC = () => {
   const gateParam = searchParams.get('gate');
   const mesParam = searchParams.get('mes');
   const anoParam = searchParams.get('ano');
+  const publicPostId = searchParams.get('id');
 
   const isPublicMonthLink = !!clientIdParam && (abaParam === 'mapa' || gateParam === 'nome');
+  const isNewPasswordRoute = typeof window !== 'undefined' && window.location.pathname.startsWith('/nova-senha');
+
+  if (isNewPasswordRoute) {
+    return <ResetPasswordPage />;
+  }
 
   if (isResetKeyRoute) {
-    return <ResetAccessKeyPage token={resetKeyParams.token} clientId={resetKeyParams.clientId} />;
+    // Link antigo de "redefinir chave": agora o acesso é por e-mail e senha.
+    return <ResetPasswordPage legacyLink />;
   }
 
   if (isCadastroRoute) {
@@ -836,31 +847,49 @@ const App: React.FC = () => {
   }
 
   if (npsToken) {
-    return <NpsPublicScreen token={npsToken} />;
+    return (
+      <PublicLinkGate scope="nps" token={npsToken}>
+        <NpsPublicScreen token={npsToken} />
+      </PublicLinkGate>
+    );
   }
 
   if (isPublicMonthLink && clientIdParam) {
     const mesNum = parseInt(mesParam ?? String(new Date().getMonth() + 1), 10);
     const anoNum = parseInt(anoParam ?? String(new Date().getFullYear()), 10);
     return (
-      <PublicMonthPage
-        clientId={clientIdParam}
-        mes={isNaN(mesNum) || mesNum < 1 || mesNum > 12 ? (new Date().getMonth() + 1) : mesNum}
-        ano={isNaN(anoNum) ? new Date().getFullYear() : anoNum}
-      />
+      <PublicLinkGate scope="mapa" token={clientIdParam}>
+        <PublicMonthPage
+          clientId={clientIdParam}
+          mes={isNaN(mesNum) || mesNum < 1 || mesNum > 12 ? (new Date().getMonth() + 1) : mesNum}
+          ano={isNaN(anoNum) ? new Date().getFullYear() : anoNum}
+        />
+      </PublicLinkGate>
     );
   }
 
   if (contractToken) {
-    return <ContractFormScreen formToken={contractToken} />;
+    return (
+      <PublicLinkGate scope="contrato" token={contractToken}>
+        <ContractFormScreen formToken={contractToken} />
+      </PublicLinkGate>
+    );
   }
 
   if (themeToken) {
-    return <ThemeApprovalPublic sessionToken={themeToken} />;
+    return (
+      <PublicLinkGate scope="temas" token={themeToken}>
+        <ThemeApprovalPublic sessionToken={themeToken} />
+      </PublicLinkGate>
+    );
   }
 
   if (roteiroToken) {
-    return <ScriptApprovalPublic scriptId={roteiroToken} />;
+    return (
+      <PublicLinkGate scope="roteiro" token={roteiroToken}>
+        <ScriptApprovalPublic scriptId={roteiroToken} />
+      </PublicLinkGate>
+    );
   }
 
   if (fotosClientId) {
@@ -871,8 +900,12 @@ const App: React.FC = () => {
     );
   }
 
-  if (isPublicMode) {
-    return <PublicApprovalScreen />;
+  if (isPublicMode && publicPostId) {
+    return (
+      <PublicLinkGate scope="post" token={publicPostId}>
+        <PublicApprovalScreen />
+      </PublicLinkGate>
+    );
   }
 
   return (

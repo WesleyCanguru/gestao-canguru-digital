@@ -134,13 +134,10 @@ export const TutorialCenter: React.FC<TutorialCenterProps> = ({ clientId, userRo
                       {isAdmin && (
                         <button 
                           onClick={() => {
-                            const chave = window.prompt('Para gerar o link direto, preciso da senha (chave) deste cliente:');
-                            if (chave) {
-                              const baseUrl = `${window.location.protocol}//${window.location.host}`;
-                              const directLink = `${baseUrl}/?chave=${chave}&destino=tutorial&id=${tutorial_slug}`;
-                              navigator.clipboard.writeText(directLink);
-                              alert('Link direto copiado para a área de transferência!');
-                            }
+                            const baseUrl = `${window.location.protocol}//${window.location.host}`;
+                            const directLink = `${baseUrl}/?destino=tutorial&id=${tutorial_slug}`;
+                            navigator.clipboard.writeText(directLink);
+                            alert('Link copiado! O cliente entra com o login dele e cai direto neste tutorial.');
                           }}
                           className="p-2 text-blue-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
                           title="Copiar Link Direto"
