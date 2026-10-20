@@ -76,6 +76,12 @@ create index if not exists activity_log_agency_idx on public.activity_log(agency
 alter table public.clients add column if not exists acquired_by_user_id uuid;
 alter table public.clients add column if not exists acquisition_ref text;
 
+-- Tarefas: responsável (equipe ou freelancer sem login) e frente (Canguru/Joey)
+alter table public.agency_tasks add column if not exists assignee_name text;
+alter table public.agency_tasks add column if not exists assignee_user_id uuid;
+alter table public.agency_tasks add column if not exists front text;
+alter table public.agency_tasks add column if not exists created_by uuid default auth.uid();
+
 -- ---------------------------------------------------------------------
 -- 2. Funções auxiliares (SECURITY DEFINER, schema app não exposto)
 -- ---------------------------------------------------------------------

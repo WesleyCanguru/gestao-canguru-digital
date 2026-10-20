@@ -285,6 +285,28 @@ const getWeeklyDaysLabel = (days: any[]) => {
   return numericDays.map(d => shortLabels[d]).join(', ');
 };
 
+// Frentes de trabalho por agência (tarefas da Joey são organizadas dentro da Canguru)
+const FRONTS_BY_AGENCY: Record<number, string[]> = { 1: ['Canguru', 'Joey'] };
+const getFronts = (agencyId: number | null | undefined) => (agencyId && FRONTS_BY_AGENCY[agencyId]) || [];
+
+/** Nomes da equipe (logins) + responsáveis já usados (freelancers sem login). */
+const useAssigneeOptions = (agencyId: number | null | undefined) => {
+  const [options, setOptions] = useState<{ name: string; user_id: string | null }[]>([]);
+  useEffect(() => {
+    if (!agencyId) return;
+    Promise.all([
+      supabase.from('agency_members').select('user_id, display_name, email').eq('agency_id', agencyId).eq('is_active', true),
+      supabase.from('agency_tasks').select('assignee_name').eq('agency_id', agencyId).not('assignee_name', 'is', null).limit(500),
+    ]).then(([m, t]) => {
+      const map = new Map<string, string | null>();
+      ((m.data as any[]) || []).forEach(x => { const n = x.display_name || x.email; if (n) map.set(n, x.user_id); });
+      ((t.data as any[]) || []).forEach(x => { if (x.assignee_name && !map.has(x.assignee_name)) map.set(x.assignee_name, null); });
+      setOptions(Array.from(map.entries()).map(([name, user_id]) => ({ name, user_id })).sort((a, b) => a.name.localeCompare(b.name)));
+    });
+  }, [agencyId]);
+  return options;
+};
+
 export const AgencyTasksTab: React.FC = () => {
   const { agencyId } = useAuth();
   const { startFocus, openTaskSelector, setTodayTasks: setGlobalTodayTasks } = useFocus();
@@ -1582,7 +1604,11 @@ const TodasTasks: React.FC<{
   const [loading, setLoading] = useState(true);
   const [filterClient, setFilterClient] = useState('all');
   const [filterProcessOnly, setFilterProcessOnly] = useState(false);
+  const [filterAssignee, setFilterAssignee] = useState('all');
+  const [filterFront, setFilterFront] = useState('all');
   const [isCompletedExpanded, setIsCompletedExpanded] = useState(false);
+  const { userName } = useAuth();
+  const fronts = getFronts(agencyId);
 
   const sensors = useSensors(
     useSensor(SmartMouseSensor, {
@@ -1754,10 +1780,17 @@ const TodasTasks: React.FC<{
       if (!isProcess) return false;
     }
 
+    if (filterAssignee === 'mine' && (t.assignee_name || '') !== (userName || '')) return false;
+    if (filterAssignee === 'none' && t.assignee_name) return false;
+    if (!['all', 'mine', 'none'].includes(filterAssignee) && t.assignee_name !== filterAssignee) return false;
+    if (filterFront === 'none' && t.front) return false;
+    if (!['all', 'none'].includes(filterFront) && t.front !== filterFront) return false;
+
     if (filterClient === 'internal') return !t.client_id;
     if (filterClient !== 'all') return t.client_id === filterClient;
     return true;
   });
+  const assigneeNames = Array.from(new Set(tasks.map(t => t.assignee_name).filter(Boolean))) as string[];
 
   const completedTasks = filtered.filter(t => t.status === 'completed');
 
@@ -1891,6 +1924,27 @@ const TodasTasks: React.FC<{
               <option key={c.id} value={c.id}>{c.name}</option>
             ))}
           </select>
+          <select
+            value={filterAssignee}
+            onChange={(e) => setFilterAssignee(e.target.value)}
+            className="px-4 py-2.5 bg-white border border-gray-100 rounded-xl text-sm font-medium text-brand-dark outline-none cursor-pointer shadow-sm appearance-none"
+          >
+            <option value="all">Todos os responsáveis</option>
+            <option value="mine">Minhas tarefas</option>
+            <option value="none">Sem responsável</option>
+            {assigneeNames.map(n => <option key={n} value={n}>{n}</option>)}
+          </select>
+          {fronts.length > 0 && (
+            <select
+              value={filterFront}
+              onChange={(e) => setFilterFront(e.target.value)}
+              className="px-4 py-2.5 bg-white border border-gray-100 rounded-xl text-sm font-medium text-brand-dark outline-none cursor-pointer shadow-sm appearance-none"
+            >
+              <option value="all">Todas as frentes</option>
+              {fronts.map(f => <option key={f} value={f}>{f}</option>)}
+              <option value="none">Sem frente</option>
+            </select>
+          )}
         </div>
 
         <button
@@ -2221,6 +2275,18 @@ const TaskListItem: React.FC<{
               <span className={`px-2 py-0.5 rounded-md border text-[9px] font-bold uppercase tracking-wider whitespace-nowrap ${getPriorityColor(task.priority)}`}>
                 {task.priority || 'Normal'}
               </span>
+
+              {task.front && (
+                <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider whitespace-nowrap border ${task.front === 'Joey' ? 'bg-sky-50 text-sky-800 border-sky-200' : 'bg-slate-50 text-slate-700 border-slate-200'}`}>
+                  {task.front}
+                </span>
+              )}
+
+              {task.assignee_name && (
+                <span className="px-2 py-0.5 rounded-md text-[10px] font-bold whitespace-nowrap bg-amber-50 text-amber-800 border border-amber-200">
+                  {task.assignee_name}
+                </span>
+              )}
 
               {hasSubtasks && (
                 <span className="flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider whitespace-nowrap bg-purple-50 text-purple-700 border border-purple-200">
@@ -2663,6 +2729,8 @@ const TaskFormDrawer: React.FC<{
   onStartFocus?: (task: AgencyTask) => void;
 }> = ({ clients, task, onClose, onSuccess, onStartFocus }) => {
   const { agencyId } = useAuth();
+  const assigneeOptions = useAssigneeOptions(agencyId);
+  const fronts = getFronts(agencyId);
   const [suggestedProcess, setSuggestedProcess] = useState<ProcessTypeInfo | null>(() => task ? null : matchProcessTemplate(task?.title || ''));
   const [selectedProcess, setSelectedProcess] = useState<string | null>(task?.task_type || null);
   const [dismissedSuggestion, setDismissedSuggestion] = useState(false);
@@ -2676,7 +2744,11 @@ const TaskFormDrawer: React.FC<{
     description: string;
     recurrence_type: AgencyTaskRecurrenceType;
     recurrence_days: number[];
+    assignee_name: string;
+    front: string;
   }>({
+    assignee_name: task?.assignee_name || '',
+    front: task?.front || '',
     title: task?.title || '',
     client_id: task?.client_id || '',
     priority: (task?.priority as AgencyTaskPriority) || 'normal',
@@ -2747,7 +2819,10 @@ const TaskFormDrawer: React.FC<{
           : (form.recurrence_type === 'monthly' 
               ? (form.recurrence_days.length > 0 ? form.recurrence_days : [1]) 
               : null),
-        agency_id: agencyId
+        agency_id: agencyId,
+        assignee_name: form.assignee_name.trim() || null,
+        assignee_user_id: assigneeOptions.find(o => o.name === form.assignee_name.trim())?.user_id ?? null,
+        front: form.front || null
       };
       
       if (task) {
@@ -2908,6 +2983,31 @@ const TaskFormDrawer: React.FC<{
                 <option value="">Nenhum (Agência Interno)</option>
                 {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
               </select>
+            </div>
+
+            <div className={`grid gap-4 ${fronts.length ? 'grid-cols-2' : 'grid-cols-1'}`}>
+              <div className="space-y-2">
+                <label className="text-[10px] font-bold uppercase tracking-widest text-gray-500">Responsável</label>
+                <input
+                  list="task-assignee-options"
+                  value={form.assignee_name}
+                  onChange={e => setForm({ ...form, assignee_name: e.target.value })}
+                  placeholder="Quem executa (equipe ou freelancer)"
+                  className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-brand-dark/20 outline-none"
+                />
+                <datalist id="task-assignee-options">
+                  {assigneeOptions.map(o => <option key={o.name} value={o.name} />)}
+                </datalist>
+              </div>
+              {fronts.length > 0 && (
+                <div className="space-y-2">
+                  <label className="text-[10px] font-bold uppercase tracking-widest text-gray-500">Frente</label>
+                  <select value={form.front} onChange={e => setForm({ ...form, front: e.target.value })} className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-brand-dark/20 outline-none cursor-pointer">
+                    <option value="">Sem frente</option>
+                    {fronts.map(f => <option key={f} value={f}>{f}</option>)}
+                  </select>
+                </div>
+              )}
             </div>
             
             <div className="grid grid-cols-2 gap-4">

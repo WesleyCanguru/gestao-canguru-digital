@@ -32,7 +32,7 @@ const PERMS: { key: PermissionKey; label: string; hint: string }[] = [
   { key: 'edit_contracts', label: 'Editar valores e contratos', hint: 'Mensalidade, vencimento, contrato assinado' },
   { key: 'manage_clients', label: 'Cadastrar e editar clientes', hint: 'Dados, serviços, módulos, logins' },
   { key: 'delete_clients', label: 'Excluir ou cancelar clientes', hint: '' },
-  { key: 'send_signup_links', label: 'Enviar links de cadastro', hint: 'Link pessoal com rastreio de quem trouxe' },
+  { key: 'send_signup_links', label: 'Enviar links de cadastro', hint: 'Copiar e mandar o link de cadastro para novos clientes' },
   { key: 'manage_proposals', label: 'Criar e enviar propostas', hint: '' },
   { key: 'manage_crm', label: 'Movimentar o CRM comercial', hint: '' },
   { key: 'manage_team', label: 'Gerenciar equipe e logins', hint: 'Só para quem administra a agência' },
@@ -87,8 +87,7 @@ export const TeamTab: React.FC = () => {
   useEffect(() => { load(); /* eslint-disable-next-line */ }, [agencyId]);
 
   const origin = `${window.location.protocol}//${window.location.host}`;
-  const signupLink = (ref: string | null) =>
-    `${origin}/cadastro?agency=${currentMembership?.slug ?? ''}${ref ? `&ref=${ref}` : ''}`;
+  const signupLink = (_ref?: string | null) => `${origin}/cadastro?agency=${currentMembership?.slug ?? ''}`;
 
   const copy = (text: string, id: string) => {
     navigator.clipboard.writeText(text);
@@ -247,14 +246,13 @@ export const TeamTab: React.FC = () => {
 
                 {effective(m, 'send_signup_links') && (
                   <div className="rounded-2xl bg-slate-50 border border-slate-100 p-3">
-                    <p className="text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-1 flex items-center gap-1"><Link2 size={12} /> Link pessoal de cadastro</p>
+                    <p className="text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-1 flex items-center gap-1"><Link2 size={12} /> Link de cadastro de clientes</p>
                     <div className="flex items-center gap-2">
                       <code className="text-[11px] text-slate-700 truncate flex-1">{signupLink(m.ref_code)}</code>
                       <button onClick={() => copy(signupLink(m.ref_code), m.id)} className="p-1.5 bg-white border border-slate-200 rounded-lg shrink-0">
                         {copied === m.id ? <Check size={13} className="text-emerald-600" /> : <Copy size={13} />}
                       </button>
                     </div>
-                    {!m.ref_code && <p className="text-[11px] text-amber-700 mt-1">Salve qualquer ajuste nesta pessoa para gerar o código de rastreio.</p>}
                   </div>
                 )}
 
