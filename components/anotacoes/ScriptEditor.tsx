@@ -1,4 +1,5 @@
 import React, { useEffect, useCallback, useState, Component, ReactNode, ErrorInfo } from 'react';
+import { getAppUrl } from '../../lib/appUrl';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Color from '@tiptap/extension-color';
@@ -117,7 +118,7 @@ function FallbackScriptEditor({ script, onUpdate, onBack, clientName, isPublicVi
   };
 
   const copyShareLink = () => {
-    const link = `${window.location.origin}/?roteiro=${script.id}`;
+    const link = `${getAppUrl()}/?roteiro=${script.id}`;
     navigator.clipboard.writeText(link);
     setCopyFeedback(true);
     setTimeout(() => setCopyFeedback(false), 2000);
@@ -423,7 +424,7 @@ function ScriptEditorRich({ script, onUpdate, onBack, clientName, isPublicView =
   };
 
   const copyShareLink = () => {
-    const link = `${window.location.origin}/?roteiro=${script.id}`;
+    const link = `${getAppUrl()}/?roteiro=${script.id}`;
     navigator.clipboard.writeText(link);
     setCopyFeedback(true);
     setTimeout(() => setCopyFeedback(false), 2000);

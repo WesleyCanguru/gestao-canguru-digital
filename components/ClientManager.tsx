@@ -1,8 +1,10 @@
 
 import React, { useState, useEffect } from 'react';
+import { getAppUrl } from '../lib/appUrl';
 import { motion, AnimatePresence } from 'motion/react';
 import { supabase, useAuth } from '../lib/supabase';
 import { ClientAccessPanel } from './agency/ClientAccessPanel';
+import { RowActionsMenu } from './agency/RowActionsMenu';
 import { openStoredFile } from '../lib/storage';
 import { Client, ClientLeadConfig } from '../types';
 import { getAnnualOverviewTemplate } from '../constants';
@@ -148,7 +150,7 @@ const REORDERABLE_MODULES = [
 ];
 
 export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
-  const { agencyId, viewAsClient } = useAuth();
+  const { agencyId, viewAsClient, can } = useAuth();
   const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -2152,73 +2154,39 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
                         </div>
                       )}
                     </div>
-                    <div className="flex-shrink-0 flex items-center gap-3 sm:gap-4 self-end sm:self-auto mt-4 sm:mt-0">
-                      <button 
-                        onClick={() => setHealthModalClient(client)}
-                        className="flex flex-col items-center justify-center gap-1 p-2 text-gray-400 hover:text-emerald-600 transition-colors"
-                        title="Ver e Ajustar Saúde do Cliente (Health Score)"
+                    <div className="flex-shrink-0 flex items-center gap-2 self-end sm:self-auto mt-4 sm:mt-0">
+                      <button
+                        onClick={() => viewAsClient(client)}
+                        className="inline-flex items-center gap-1.5 px-3 py-2.5 rounded-xl border border-amber-200 bg-amber-50 text-amber-900 hover:bg-amber-100 text-xs font-bold transition-colors"
+                        title="Abre o painel exatamente como o cliente vê"
                       >
-                        <Activity size={18} />
-                        <span className="text-[9px] font-bold uppercase tracking-widest">Saúde</span>
+                        <Eye size={15} /> Ver como cliente
                       </button>
-                      <button 
-                        onClick={async () => {
-                          const res = await sendNpsSurvey(client.id, client.agency_id);
-                          if (res.success) {
-                            setCopiedNpsClientId(client.id);
-                            setTimeout(() => setCopiedNpsClientId(null), 3000);
-                            refreshNps();
-                          }
-                        }}
-                        className={`flex flex-col items-center justify-center gap-1 p-2 transition-colors ${
-                          copiedNpsClientId === client.id ? 'text-emerald-600' : 'text-gray-400 hover:text-amber-600'
-                        }`}
-                        title={npsMap[client.id]?.sent_at ? "Copiar link da pesquisa NPS" : "Enviar pesquisa de satisfação"}
-                      >
-                        {copiedNpsClientId === client.id ? (
-                          <Check size={18} className="text-emerald-500" />
-                        ) : (
-                          <HeartHandshake size={18} />
-                        )}
-                        <span className="text-[9px] font-bold uppercase tracking-widest">
-                          {copiedNpsClientId === client.id ? 'Copiado' : 'NPS'}
-                        </span>
-                      </button>
-                      <button 
-                        onClick={() => handleEdit(client, 'onboarding_ia')}
-                        className="flex flex-col items-center justify-center gap-1 p-2 text-gray-400 hover:text-blue-600 transition-colors"
-                        title="Abrir Onboarding IA do Cliente"
-                      >
-                        <Sparkles size={18} />
-                        <span className="text-[9px] font-bold uppercase tracking-widest">Onboarding</span>
-                      </button>
-                      <button 
+                      <button
                         onClick={() => handleEdit(client)}
-                        className="flex flex-col items-center justify-center gap-1 p-2 text-gray-400 hover:text-brand-dark transition-colors"
-                        title="Editar Cliente"
+                        className="inline-flex items-center gap-1.5 px-3 py-2.5 rounded-xl bg-brand-dark text-white hover:bg-black text-xs font-bold transition-colors"
                       >
-                        <Edit2 size={18} />
-                        <span className="text-[9px] font-bold uppercase tracking-widest">Editar</span>
+                        <Edit2 size={14} /> Editar
                       </button>
-                      <button 
-                        onClick={() => openCancelModal(client)}
-                        className="flex flex-col items-center justify-center gap-1 p-2 text-gray-400 hover:text-[#dc2626] transition-colors"
-                        title="Cancelar Cliente"
-                      >
-                        <XCircle size={18} />
-                        <span className="text-[9px] font-bold uppercase tracking-widest">Cancelar</span>
-                      </button>
-                      <button 
-                        onClick={() => {
-                          setDeletingClient(client);
-                          setIsDeleteModalOpen(true);
-                        }}
-                        className="flex flex-col items-center justify-center gap-1 p-2 text-gray-400 hover:text-red-500 transition-colors"
-                        title="Excluir Cliente"
-                      >
-                        <Trash2 size={18} />
-                        <span className="text-[9px] font-bold uppercase tracking-widest">Excluir</span>
-                      </button>
+                      <RowActionsMenu actions={[
+                        { label: 'Saúde do cliente', icon: <Activity size={15} />, onClick: () => setHealthModalClient(client) },
+                        { label: 'Onboarding IA', icon: <Sparkles size={15} />, onClick: () => handleEdit(client, 'onboarding_ia') },
+                        {
+                          label: npsMap[client.id]?.sent_at ? 'Copiar link do NPS' : 'Enviar pesquisa NPS',
+                          icon: <HeartHandshake size={15} />,
+                          onClick: async () => {
+                            const res = await sendNpsSurvey(client.id, client.agency_id);
+                            if (res.success) {
+                              setCopiedNpsClientId(client.id);
+                              setToastMsg('Link da pesquisa NPS copiado.');
+                              setTimeout(() => { setCopiedNpsClientId(null); setToastMsg(null); }, 3000);
+                              refreshNps();
+                            }
+                          },
+                        },
+                        { label: 'Cancelar cliente', icon: <XCircle size={15} />, onClick: () => openCancelModal(client), danger: true, dividerBefore: true, hidden: !can('delete_clients') },
+                        { label: 'Excluir cliente', icon: <Trash2 size={15} />, onClick: () => { setDeletingClient(client); setIsDeleteModalOpen(true); }, danger: true, hidden: !can('delete_clients') },
+                      ]} />
                       {client.is_active ? (
                         <span className="text-[10px] px-3 py-1.5 bg-green-50 text-green-600 border border-green-100 rounded-xl font-bold uppercase tracking-widest h-fit">
                           Ativo
@@ -2384,11 +2352,11 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
             
             <div className="bg-gray-50 p-4 rounded-xl border border-gray-200 flex items-center justify-between gap-4 mb-6">
               <span className="text-sm font-mono text-gray-700 truncate select-all flex-1">
-                {`${window.location.host}/contrato/${newContractLinkInfo.token}`}
+                {`${getAppUrl().replace(/^https?:\/\//, '')}/contrato/${newContractLinkInfo.token}`}
               </span>
               <button
                 onClick={() => {
-                  navigator.clipboard.writeText(`${window.location.protocol}//${window.location.host}/contrato/${newContractLinkInfo.token}`);
+                  navigator.clipboard.writeText(`${getAppUrl()}/contrato/${newContractLinkInfo.token}`);
                   alert('Link copiado!');
                 }}
                 className="w-10 h-10 rounded-lg bg-white border border-gray-200 flex items-center justify-center text-gray-600 hover:text-brand-dark hover:border-brand-dark transition-colors flex-shrink-0"

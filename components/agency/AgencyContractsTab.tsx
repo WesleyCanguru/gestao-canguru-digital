@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { getAppUrl } from '../../lib/appUrl';
 import { supabase, useAuth } from '../../lib/supabase';
 import { openStoredFile } from '../../lib/storage';
 import { ContractForm, Client } from '../../types';
@@ -507,7 +508,7 @@ export const AgencyContractsTab: React.FC = () => {
   };
 
   const copyToClipboard = (token: string) => {
-    navigator.clipboard.writeText(`${window.location.protocol}//${window.location.host}/contrato/${token}`);
+    navigator.clipboard.writeText(`${getAppUrl()}/contrato/${token}`);
     alert('Link copiado para a área de transferência!');
   };
 

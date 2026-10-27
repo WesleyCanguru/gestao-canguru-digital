@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { UserCog, Plus, Loader2, KeyRound, Copy, Check, Link2, ShieldCheck, History, UserX, UserCheck, X } from 'lucide-react';
+import { getAppUrl } from '../../lib/appUrl';
+import { UserCog, Plus, Loader2, KeyRound, Copy, Check, Link2, ShieldCheck, History, UserX, UserCheck, X, Pencil } from 'lucide-react';
 import { supabase, callFunction, useAuth, PermissionKey } from '../../lib/supabase';
 import dayjs from 'dayjs';
 
@@ -44,6 +45,16 @@ const ROLE_DEFAULTS: Record<Member['role'], Partial<Record<PermissionKey, boolea
   team: {},
 };
 
+const PERM_GROUPS: { title: string; keys: PermissionKey[] }[] = [
+  { title: 'Comercial', keys: ['send_signup_links', 'manage_proposals', 'manage_crm'] },
+  { title: 'Financeiro e contratos', keys: ['view_finance', 'edit_finance', 'edit_contracts'] },
+  { title: 'Clientes', keys: ['manage_clients', 'delete_clients'] },
+  { title: 'Administração', keys: ['manage_team'] },
+];
+
+const LABEL_CLS = 'text-[10px] font-bold uppercase tracking-widest text-gray-500';
+const INPUT_CLS = 'w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:bg-white focus:ring-2 focus:ring-brand-dark/20 outline-none';
+
 const ROLE_LABEL: Record<Member['role'], string> = { master: 'Administrador', partner: 'Sócio', team: 'Equipe' };
 
 const genPassword = () => {
@@ -58,7 +69,7 @@ const ENTITY_LABEL: Record<string, string> = {
 const ACTION_LABEL: Record<string, string> = { insert: 'criou', update: 'alterou', delete: 'excluiu', view_as: 'visualizou como' };
 
 export const TeamTab: React.FC = () => {
-  const { agencyId, currentMembership, userId, isMaster } = useAuth();
+  const { agencyId, currentMembership, userId, isMaster, can } = useAuth();
   const [members, setMembers] = useState<Member[]>([]);
   const [logs, setLogs] = useState<LogRow[]>([]);
   const [clientNames, setClientNames] = useState<Record<string, string>>({});
@@ -68,6 +79,31 @@ export const TeamTab: React.FC = () => {
   const [share, setShare] = useState<string | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
+  const [editing, setEditing] = useState<Member | null>(null);
+  const [draft, setDraft] = useState<{ display_name: string; role: Member['role']; permissions: Partial<Record<PermissionKey, boolean>> } | null>(null);
+
+  const openEdit = (m: Member) => {
+    setEditing(m);
+    setDraft({
+      display_name: m.display_name || '',
+      role: m.role,
+      permissions: Object.fromEntries(PERMS.map(p => [p.key, m.role === 'master' ? true : (m.permissions?.[p.key] ?? ROLE_DEFAULTS[m.role]?.[p.key] ?? false)])),
+    });
+  };
+
+  const saveEdit = async () => {
+    if (!editing || !draft) return;
+    setBusy(true); setMsg(null);
+    const { error } = await callFunction('admin-users', {
+      action: 'update_member', member_id: editing.id,
+      display_name: draft.display_name.trim(), role: draft.role, permissions: draft.permissions,
+    });
+    setBusy(false);
+    if (error) return setMsg({ type: 'err', text: error });
+    setEditing(null);
+    setMsg({ type: 'ok', text: 'Alterações salvas.' });
+    load();
+  };
   const [form, setForm] = useState({ email: '', display_name: '', role: 'partner' as Member['role'], password: genPassword() });
 
   const load = async () => {
@@ -86,7 +122,7 @@ export const TeamTab: React.FC = () => {
 
   useEffect(() => { load(); /* eslint-disable-next-line */ }, [agencyId]);
 
-  const origin = `${window.location.protocol}//${window.location.host}`;
+  const origin = getAppUrl();
   const signupLink = (_ref?: string | null) => `${origin}/cadastro?agency=${currentMembership?.slug ?? ''}`;
 
   const copy = (text: string, id: string) => {
@@ -211,64 +247,124 @@ export const TeamTab: React.FC = () => {
         <div className="grid gap-5 lg:grid-cols-2">
           {members.map(m => {
             const isSelf = m.user_id === userId;
+            const enabled = PERMS.filter(p => effective(m, p.key));
             return (
-              <div key={m.id} className={`bg-white rounded-3xl border border-black/[0.04] shadow-sm p-6 space-y-5 ${m.is_active ? '' : 'opacity-60'}`}>
+              <div key={m.id} className={`bg-white rounded-3xl border border-black/[0.04] shadow-sm p-6 flex flex-col gap-4 ${m.is_active ? '' : 'opacity-60'}`}>
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <p className="font-bold text-brand-dark truncate">{m.display_name || m.email} {isSelf && <span className="text-xs text-gray-400 font-medium">(você)</span>}</p>
                     <p className="text-xs text-gray-500 truncate">{m.email}</p>
                   </div>
-                  <select value={m.role} disabled={busy || isSelf || (m.role === 'master' && !isMaster)}
-                    onChange={e => updateMember(m, { role: e.target.value as Member['role'] })}
-                    className="text-xs font-bold border border-gray-200 rounded-lg px-2 py-1.5 bg-white">
-                    <option value="partner">{ROLE_LABEL.partner}</option>
-                    <option value="team">{ROLE_LABEL.team}</option>
-                    {(isMaster || m.role === 'master') && <option value="master">{ROLE_LABEL.master}</option>}
-                  </select>
+                  <span className="shrink-0 text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full bg-slate-100 text-slate-700">
+                    {ROLE_LABEL[m.role]}{m.is_active ? '' : ' · inativo'}
+                  </span>
                 </div>
 
-                {m.role !== 'master' ? (
-                  <div className="space-y-1.5">
-                    {PERMS.map(p => (
-                      <label key={p.key} className="flex items-center justify-between gap-3 py-1.5 cursor-pointer group">
-                        <span className="min-w-0">
-                          <span className="text-sm text-gray-700 font-medium">{p.label}</span>
-                          {p.hint && <span className="block text-[11px] text-gray-400">{p.hint}</span>}
-                        </span>
-                        <input type="checkbox" checked={effective(m, p.key)} disabled={busy}
-                          onChange={() => togglePerm(m, p.key)} className="w-4 h-4 accent-brand-dark shrink-0" />
-                      </label>
+                {m.role === 'master' ? (
+                  <p className="text-xs text-gray-500 flex items-center gap-1.5"><ShieldCheck size={14} /> Acesso total a esta agência.</p>
+                ) : (
+                  <div className="flex flex-wrap gap-1.5">
+                    {enabled.length === 0 && <span className="text-xs text-gray-400">Só operação (tarefas, conteúdo, clientes)</span>}
+                    {enabled.map(p => (
+                      <span key={p.key} className="text-[11px] font-medium px-2 py-1 rounded-lg bg-slate-50 border border-slate-100 text-slate-600">{p.label}</span>
                     ))}
                   </div>
-                ) : (
-                  <p className="text-xs text-gray-500 flex items-center gap-1.5"><ShieldCheck size={14} /> Acesso total a esta agência.</p>
                 )}
 
-                {effective(m, 'send_signup_links') && (
-                  <div className="rounded-2xl bg-slate-50 border border-slate-100 p-3">
-                    <p className="text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-1 flex items-center gap-1"><Link2 size={12} /> Link de cadastro de clientes</p>
-                    <div className="flex items-center gap-2">
-                      <code className="text-[11px] text-slate-700 truncate flex-1">{signupLink(m.ref_code)}</code>
-                      <button onClick={() => copy(signupLink(m.ref_code), m.id)} className="p-1.5 bg-white border border-slate-200 rounded-lg shrink-0">
-                        {copied === m.id ? <Check size={13} className="text-emerald-600" /> : <Copy size={13} />}
+                <div className="flex flex-wrap gap-2 pt-1 mt-auto">
+                  {(!isSelf || isMaster) && (
+                    <button disabled={busy} onClick={() => openEdit(m)} className="inline-flex items-center gap-1.5 px-3 py-2 bg-brand-dark text-white rounded-xl text-xs font-bold hover:bg-black">
+                      <Pencil size={13} /> Editar pessoa
+                    </button>
+                  )}
+                  {!isSelf && (
+                    <>
+                      <button disabled={busy} onClick={() => resetPassword(m)} className="inline-flex items-center gap-1.5 px-3 py-2 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 hover:bg-slate-50">
+                        <KeyRound size={13} /> Nova senha
                       </button>
-                    </div>
-                  </div>
-                )}
-
-                {!isSelf && (
-                  <div className="flex flex-wrap gap-2 pt-1">
-                    <button disabled={busy} onClick={() => resetPassword(m)} className="inline-flex items-center gap-1.5 px-3 py-2 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 hover:bg-slate-50">
-                      <KeyRound size={13} /> Nova senha
-                    </button>
-                    <button disabled={busy} onClick={() => updateMember(m, { is_active: !m.is_active })} className="inline-flex items-center gap-1.5 px-3 py-2 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 hover:bg-slate-50">
-                      {m.is_active ? <><UserX size={13} /> Desativar</> : <><UserCheck size={13} /> Reativar</>}
-                    </button>
-                  </div>
-                )}
+                      <button disabled={busy} onClick={() => updateMember(m, { is_active: !m.is_active })} className="inline-flex items-center gap-1.5 px-3 py-2 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 hover:bg-slate-50">
+                        {m.is_active ? <><UserX size={13} /> Desativar</> : <><UserCheck size={13} /> Reativar</>}
+                      </button>
+                    </>
+                  )}
+                </div>
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* Link de cadastro da agência */}
+      {can('send_signup_links') && (
+        <div className="bg-white rounded-3xl border border-black/[0.04] shadow-sm p-6">
+          <p className="text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-2 flex items-center gap-1"><Link2 size={12} /> Link de cadastro de novos clientes</p>
+          <div className="flex items-center gap-2">
+            <code className="text-xs text-slate-700 truncate flex-1 bg-slate-50 border border-slate-100 rounded-xl px-3 py-2.5">{signupLink()}</code>
+            <button onClick={() => copy(signupLink(), 'signup')} className="inline-flex items-center gap-1.5 px-3 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-bold shrink-0">
+              {copied === 'signup' ? <Check size={13} className="text-emerald-600" /> : <Copy size={13} />} Copiar
+            </button>
+          </div>
+        </div>
+      )}
+
+      {editing && draft && (
+        <div className="fixed inset-0 z-[120] bg-black/40 flex items-end sm:items-center justify-center p-0 sm:p-6" onClick={() => setEditing(null)}>
+          <div className="bg-white w-full sm:max-w-lg rounded-t-3xl sm:rounded-3xl shadow-2xl max-h-[92vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+            <div className="p-6 border-b border-gray-100 flex items-center justify-between">
+              <h3 className="font-bold text-brand-dark text-lg">Editar pessoa</h3>
+              <button onClick={() => setEditing(null)} className="p-2 rounded-xl hover:bg-gray-50 text-gray-400"><X size={18} /></button>
+            </div>
+            <div className="p-6 space-y-5">
+              <div className="space-y-1.5">
+                <label className={LABEL_CLS}>Nome completo</label>
+                <input value={draft.display_name} onChange={e => setDraft({ ...draft, display_name: e.target.value })} className={INPUT_CLS} />
+              </div>
+              <div className="space-y-1.5">
+                <label className={LABEL_CLS}>E-mail de acesso</label>
+                <input value={editing.email || ''} disabled className={`${INPUT_CLS} opacity-60`} />
+              </div>
+              <div className="space-y-1.5">
+                <label className={LABEL_CLS}>Papel</label>
+                <select value={draft.role} disabled={editing.user_id === userId}
+                  onChange={e => {
+                    const role = e.target.value as Member['role'];
+                    setDraft({ ...draft, role, permissions: { ...ROLE_DEFAULTS[role] } });
+                  }} className={INPUT_CLS}>
+                  <option value="partner">Sócio</option>
+                  <option value="team">Equipe</option>
+                  {isMaster && <option value="master">Administrador (acesso total)</option>}
+                </select>
+              </div>
+              {draft.role !== 'master' && (
+                <div className="space-y-4">
+                  {PERM_GROUPS.map(g => (
+                    <div key={g.title}>
+                      <p className={`${LABEL_CLS} mb-1`}>{g.title}</p>
+                      <div className="rounded-2xl border border-gray-100 divide-y divide-gray-50">
+                        {PERMS.filter(p => g.keys.includes(p.key)).map(p => (
+                          <label key={p.key} className="flex items-center justify-between gap-3 px-4 py-3 cursor-pointer">
+                            <span className="min-w-0">
+                              <span className="text-sm text-gray-800 font-medium">{p.label}</span>
+                              {p.hint && <span className="block text-[11px] text-gray-400">{p.hint}</span>}
+                            </span>
+                            <input type="checkbox" checked={!!draft.permissions[p.key]}
+                              onChange={() => setDraft({ ...draft, permissions: { ...draft.permissions, [p.key]: !draft.permissions[p.key] } })}
+                              className="w-4 h-4 accent-brand-dark shrink-0" />
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div className="p-6 border-t border-gray-100 flex gap-3">
+              <button onClick={() => setEditing(null)} className="flex-1 py-3 border border-gray-200 rounded-xl text-sm font-bold text-gray-600">Cancelar</button>
+              <button disabled={busy} onClick={saveEdit} className="flex-1 py-3 bg-brand-dark text-white rounded-xl text-sm font-bold disabled:opacity-60">
+                {busy ? 'Salvando...' : 'Salvar'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

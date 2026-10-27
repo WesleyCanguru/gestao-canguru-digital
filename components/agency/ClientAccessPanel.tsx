@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { getAppUrl } from '../../lib/appUrl';
 import { Eye, KeyRound, Loader2, Mail, Plus, ShieldCheck, UserX, UserCheck, Copy, Check } from 'lucide-react';
 import { supabase, callFunction, useAuth } from '../../lib/supabase';
 
@@ -47,7 +48,7 @@ export const ClientAccessPanel: React.FC<{
 
   useEffect(() => { load(); /* eslint-disable-next-line */ }, [clientId]);
 
-  const loginUrl = `${window.location.protocol}//${window.location.host}`;
+  const loginUrl = getAppUrl();
 
   const buildShare = (e: string, p: string) =>
     `Olá! Seu acesso à Bolsa (${clientName}) está pronto.\n\nAcesse: ${loginUrl}\nE-mail: ${e}\nSenha provisória: ${p}\n\nDepois de entrar, você pode trocar a senha em "Esqueci minha senha".`;

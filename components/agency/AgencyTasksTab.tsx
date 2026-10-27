@@ -2730,6 +2730,7 @@ const TaskFormDrawer: React.FC<{
 }> = ({ clients, task, onClose, onSuccess, onStartFocus }) => {
   const { agencyId } = useAuth();
   const assigneeOptions = useAssigneeOptions(agencyId);
+  const [assigneeMode, setAssigneeMode] = useState<'list' | 'other'>('list');
   const fronts = getFronts(agencyId);
   const [suggestedProcess, setSuggestedProcess] = useState<ProcessTypeInfo | null>(() => task ? null : matchProcessTemplate(task?.title || ''));
   const [selectedProcess, setSelectedProcess] = useState<string | null>(task?.task_type || null);
@@ -2932,7 +2933,7 @@ const TaskFormDrawer: React.FC<{
               <select 
                 value={selectedProcess || ''} 
                 onChange={e => setSelectedProcess(e.target.value || null)}
-                className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-brand-dark/20 outline-none cursor-pointer text-sm font-medium text-brand-dark"
+                className="bolsa-select"
                 disabled={Boolean(task)}
               >
                 <option value="">Nenhum processo (Tarefa avulsa)</option>
@@ -2979,7 +2980,7 @@ const TaskFormDrawer: React.FC<{
             
             <div className="space-y-2">
               <label className="text-[10px] font-bold uppercase tracking-widest text-gray-500">Cliente (Opcional)</label>
-              <select value={form.client_id} onChange={e => setForm({...form, client_id: e.target.value})} className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-brand-dark/20 outline-none cursor-pointer">
+              <select value={form.client_id} onChange={e => setForm({...form, client_id: e.target.value})} className="bolsa-select">
                 <option value="">Nenhum (Agência Interno)</option>
                 {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
               </select>
@@ -2988,21 +2989,35 @@ const TaskFormDrawer: React.FC<{
             <div className={`grid gap-4 ${fronts.length ? 'grid-cols-2' : 'grid-cols-1'}`}>
               <div className="space-y-2">
                 <label className="text-[10px] font-bold uppercase tracking-widest text-gray-500">Responsável</label>
-                <input
-                  list="task-assignee-options"
-                  value={form.assignee_name}
-                  onChange={e => setForm({ ...form, assignee_name: e.target.value })}
-                  placeholder="Quem executa (equipe ou freelancer)"
-                  className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-brand-dark/20 outline-none"
-                />
-                <datalist id="task-assignee-options">
-                  {assigneeOptions.map(o => <option key={o.name} value={o.name} />)}
-                </datalist>
+                <select
+                  value={assigneeMode === 'other' ? '__other__' : form.assignee_name}
+                  onChange={e => {
+                    if (e.target.value === '__other__') { setAssigneeMode('other'); setForm({ ...form, assignee_name: '' }); }
+                    else { setAssigneeMode('list'); setForm({ ...form, assignee_name: e.target.value }); }
+                  }}
+                  className="bolsa-select"
+                >
+                  <option value="">Sem responsável</option>
+                  {assigneeOptions.map(o => <option key={o.name} value={o.name}>{o.name}{o.user_id ? '' : ' (externo)'}</option>)}
+                  {form.assignee_name && assigneeMode === 'list' && !assigneeOptions.some(o => o.name === form.assignee_name) && (
+                    <option value={form.assignee_name}>{form.assignee_name}</option>
+                  )}
+                  <option value="__other__">Outra pessoa (freelancer)...</option>
+                </select>
+                {assigneeMode === 'other' && (
+                  <input
+                    autoFocus
+                    value={form.assignee_name}
+                    onChange={e => setForm({ ...form, assignee_name: e.target.value })}
+                    placeholder="Nome do freelancer"
+                    className="bolsa-input mt-2"
+                  />
+                )}
               </div>
               {fronts.length > 0 && (
                 <div className="space-y-2">
                   <label className="text-[10px] font-bold uppercase tracking-widest text-gray-500">Frente</label>
-                  <select value={form.front} onChange={e => setForm({ ...form, front: e.target.value })} className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-brand-dark/20 outline-none cursor-pointer">
+                  <select value={form.front} onChange={e => setForm({ ...form, front: e.target.value })} className="bolsa-select">
                     <option value="">Sem frente</option>
                     {fronts.map(f => <option key={f} value={f}>{f}</option>)}
                   </select>
@@ -3013,7 +3028,7 @@ const TaskFormDrawer: React.FC<{
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <label className="text-[10px] font-bold uppercase tracking-widest text-gray-500">Prioridade</label>
-                <select value={form.priority} onChange={e => setForm({...form, priority: e.target.value as AgencyTaskPriority})} className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-brand-dark/20 outline-none cursor-pointer">
+                <select value={form.priority} onChange={e => setForm({...form, priority: e.target.value as AgencyTaskPriority})} className="bolsa-select">
                   <option value="baixa">Baixa</option>
                   <option value="normal">Normal</option>
                   <option value="alta">Alta</option>
@@ -3036,7 +3051,7 @@ const TaskFormDrawer: React.FC<{
                     recurrence_type: val,
                     recurrence_days: val === 'monthly' ? [1] : []
                   }));
-                }} className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-brand-dark/20 outline-none cursor-pointer">
+                }} className="bolsa-select">
                   <option value="none">Não recorrente</option>
                   <option value="daily">Diária</option>
                   <option value="weekly">Semanal</option>
@@ -3238,7 +3253,7 @@ const ProcessFormModal: React.FC<{ clients: any[], onClose: () => void, onSucces
           <form onSubmit={handleSubmit} className="space-y-6">
             <div className="space-y-2">
               <label className="text-[10px] font-bold uppercase tracking-widest text-gray-500">Cliente</label>
-              <select value={form.client_id} onChange={e => setForm({...form, client_id: e.target.value})} className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-brand-dark/20 outline-none cursor-pointer" required>
+              <select value={form.client_id} onChange={e => setForm({...form, client_id: e.target.value})} className="bolsa-select" required>
                 <option value="">Selecione o Cliente</option>
                 {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
               </select>

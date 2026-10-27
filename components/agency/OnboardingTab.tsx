@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { getAppUrl } from '../../lib/appUrl';
 import { supabase, useAuth } from '../../lib/supabase';
 import { Client, ContractForm, ClientBriefing, OnboardingChecklist } from '../../types';
 import { CheckCircle, Clock, FileText, Target, ChevronRight, Check, Link as LinkIcon, Copy, Settings, ChevronLeft, Download, Sparkles } from 'lucide-react';
@@ -93,7 +94,7 @@ export const OnboardingTab: React.FC<{ onNavigateToClients: (client: Client) => 
   };
 
   const copyBriefingLink = (type: string) => {
-    const baseUrl = window.location.origin;
+    const baseUrl = getAppUrl();
     let link = '';
     if (type === 'ALL') {
       link = `${baseUrl}/?view=strategic-briefings`;

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { getAppUrl } from '../../lib/appUrl';
 import { motion, AnimatePresence } from 'motion/react';
 import { supabase, useAuth } from '../../lib/supabase';
 import { SocialMetric } from '../../types';
@@ -109,7 +110,7 @@ export const OrganicMetricsDashboard: React.FC<OrganicMetricsDashboardProps> = (
       params.set('platform', selectedPlatform);
     }
     params.set('period', selectedPeriod);
-    const url = `${window.location.origin}/?${params.toString()}`;
+    const url = `${getAppUrl()}/?${params.toString()}`;
     navigator.clipboard.writeText(url).then(() => {
       setLinkCopied(true);
       setTimeout(() => setLinkCopied(false), 2500);

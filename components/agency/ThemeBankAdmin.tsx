@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { getAppUrl } from '../../lib/appUrl';
 import { supabase, useAuth } from '../../lib/supabase';
 import { motion, AnimatePresence } from 'motion/react';
 import { Plus, Trash, Link2, Copy, Save, AlertCircle, Sparkles, X, ChevronDown, ChevronRight, MessageSquare, Target, CheckCircle2, XCircle, LayoutList, GripVertical, Edit2, FileText } from 'lucide-react';
@@ -125,7 +126,7 @@ export const ThemeBankAdmin: React.FC<ThemeBankProps> = ({ onTransferTheme }) =>
 
   const copyApprovalLink = (token: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    const url = `${window.location.origin}/temas/${token}`;
+    const url = `${getAppUrl()}/temas/${token}`;
     navigator.clipboard.writeText(url);
     alert('Link copiado!');
   };

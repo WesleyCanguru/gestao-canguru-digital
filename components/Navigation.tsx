@@ -25,6 +25,8 @@ import {
   BookOpen,
   Camera,
   ChevronDown,
+  Eye,
+  Check,
   LogOut,
   Building2,
   CheckCircle2,
@@ -64,7 +66,8 @@ export const Navigation: React.FC<SidebarProps> = ({
   const [isClientDropdownOpen, setIsClientDropdownOpen] = useState(false);
   const [availableClients, setAvailableClients] = useState<Client[]>([]);
   const [hasCredentials, setHasCredentials] = useState<boolean>(false);
-  const { userRole, logout, agencyId, agencyName, agencies, switchAgency, can } = useAuth();
+  const { userRole, logout, agencyId, agencyName, agencies, switchAgency, can, viewAsClient } = useAuth();
+  const [isAgencyDropdownOpen, setIsAgencyDropdownOpen] = useState(false);
 
   useEffect(() => {
     if (userRole === 'admin' && agencyId) {
@@ -260,14 +263,39 @@ export const Navigation: React.FC<SidebarProps> = ({
               {view === 'agency' ? 'Painel Interno' : userRole === 'admin' ? 'Explorando Cliente' : 'Painel do Cliente'}
             </span>
             {view === 'agency' && agencies.length > 1 ? (
-              <select
-                value={agencyId ?? ''}
-                onChange={(e) => { switchAgency(parseInt(e.target.value, 10)); window.location.reload(); }}
-                className="text-sm font-bold text-brand-dark uppercase tracking-widest bg-transparent border-none p-0 pr-6 focus:ring-0 cursor-pointer max-w-[190px]"
-                title="Trocar de agência"
-              >
-                {agencies.map(a => <option key={a.agency_id} value={a.agency_id}>{a.agency_name}</option>)}
-              </select>
+              <div className="relative">
+                <button
+                  onClick={() => setIsAgencyDropdownOpen(v => !v)}
+                  className="flex items-center gap-1.5 text-sm font-bold text-brand-dark uppercase tracking-widest whitespace-nowrap hover:opacity-70 transition-opacity"
+                  title="Trocar de agência"
+                >
+                  <span className="truncate max-w-[170px]">{agencyName}</span>
+                  <ChevronDown size={14} className={`transition-transform ${isAgencyDropdownOpen ? 'rotate-180' : ''}`} />
+                </button>
+                <AnimatePresence>
+                  {isAgencyDropdownOpen && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 6 }}
+                      className="absolute left-0 top-full mt-2 w-60 bg-white rounded-2xl shadow-xl border border-gray-100 z-[60] py-2"
+                    >
+                      <p className="px-4 pt-1 pb-2 text-[10px] font-bold text-gray-400 uppercase tracking-widest">Agências</p>
+                      {agencies.map(a => (
+                        <button
+                          key={a.agency_id}
+                          onClick={() => { setIsAgencyDropdownOpen(false); if (a.agency_id !== agencyId) { switchAgency(a.agency_id); window.location.reload(); } }}
+                          className={`w-full px-4 py-2.5 flex items-center gap-3 text-left hover:bg-gray-50 transition-colors ${a.agency_id === agencyId ? 'bg-gray-50' : ''}`}
+                        >
+                          <span className="w-7 h-7 rounded-lg flex items-center justify-center text-[10px] font-black text-white shrink-0" style={{ backgroundColor: a.primary_color || '#13284D' }}>
+                            {a.agency_name.split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase()}
+                          </span>
+                          <span className="text-xs font-bold text-gray-700 truncate flex-1">{a.agency_name}</span>
+                          {a.agency_id === agencyId && <Check size={14} className="text-brand-dark shrink-0" />}
+                        </button>
+                      ))}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
             ) : (
               <span className="text-sm font-bold text-brand-dark uppercase tracking-widest whitespace-nowrap">
                 {agencyName || 'Canguru Digital'}
@@ -316,24 +344,41 @@ export const Navigation: React.FC<SidebarProps> = ({
                   className="absolute top-full left-0 right-0 mt-2 bg-white rounded-2xl shadow-xl border border-gray-100 z-50 py-2 max-h-[300px] overflow-y-auto"
                 >
                   {availableClients.map(client => (
-                    <button
-                      key={client.id}
-                      onClick={() => {
-                        onSwitchClient?.(client);
-                        setIsClientDropdownOpen(false);
-                      }}
-                      className="w-full px-4 py-2 hover:bg-gray-50 flex items-center gap-3 transition-colors text-left"
-                    >
-                      <div className="w-6 h-6 rounded-md bg-gray-100 flex items-center justify-center text-brand-dark font-bold text-[10px]" style={{ backgroundColor: `${client.color}20`, color: client.color }}>
-                        {client.initials}
-                      </div>
-                      <span className="text-xs font-bold text-gray-700 truncate">{client.name}</span>
-                    </button>
+                    <div key={client.id} className="flex items-center hover:bg-gray-50 transition-colors group/row">
+                      <button
+                        onClick={() => {
+                          onSwitchClient?.(client);
+                          setIsClientDropdownOpen(false);
+                        }}
+                        className="flex-1 min-w-0 px-4 py-2 flex items-center gap-3 text-left"
+                      >
+                        <div className="w-6 h-6 rounded-md bg-gray-100 flex items-center justify-center text-brand-dark font-bold text-[10px]" style={{ backgroundColor: `${client.color}20`, color: client.color }}>
+                          {client.initials}
+                        </div>
+                        <span className="text-xs font-bold text-gray-700 truncate">{client.name}</span>
+                      </button>
+                      <button
+                        onClick={() => { setIsClientDropdownOpen(false); viewAsClient(client); }}
+                        className="mr-2 p-1.5 rounded-lg text-gray-300 hover:text-amber-700 hover:bg-amber-50 transition-colors"
+                        title={`Ver como ${client.name}`}
+                      >
+                        <Eye size={14} />
+                      </button>
+                    </div>
                   ))}
                 </motion.div>
               )}
             </AnimatePresence>
           </div>
+          {view !== 'agency' && activeClient && (
+            <button
+              onClick={() => viewAsClient(activeClient)}
+              className="mt-2 w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl bg-amber-50 hover:bg-amber-100 border border-amber-200 text-amber-900 text-[11px] font-bold uppercase tracking-wider transition-colors"
+              title="Abre o painel exatamente como o cliente vê (somente leitura)"
+            >
+              <Eye size={14} /> Ver como cliente
+            </button>
+          )}
         </div>
       )}
 

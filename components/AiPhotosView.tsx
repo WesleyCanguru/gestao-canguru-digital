@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { getAppUrl } from '../lib/appUrl';
 import { useAuth, supabase } from '../lib/supabase';
 import { motion } from 'motion/react';
 import { Camera, Upload, Check, X, MessageSquare, Trash2, Settings, AlertCircle, Sparkles, Share2 } from 'lucide-react';
@@ -44,7 +45,7 @@ export const AiPhotosView: React.FC = () => {
 
   const handleCopyShareLink = () => {
     if (!activeClient) return;
-    const link = `${window.location.origin}/?fotos=${activeClient.id}`;
+    const link = `${getAppUrl()}/?fotos=${activeClient.id}`;
     navigator.clipboard.writeText(link);
     setCopyFeedback(true);
     setTimeout(() => setCopyFeedback(false), 2000);
