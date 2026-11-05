@@ -24,7 +24,7 @@ Deno.serve(async (req) => {
     };
 
     if (action === "agency") {
-      const { data } = await admin.from("agencies").select("id, name, slug, logo_url, primary_color, is_active")
+      const { data } = await admin.from("agencies").select("id, name, slug, logo_url, primary_color, is_active, access_email")
         .eq("slug", str(body.agency_slug, 60).toLowerCase()).eq("is_active", true).maybeSingle();
       if (!data) return json({ error: "Agência não encontrada." }, 404);
       let referrer: string | null = null;
@@ -90,18 +90,51 @@ Deno.serve(async (req) => {
       return json({ client_id: created.id, token });
     }
 
-    // Passos 2 e 3: atualiza dados (aceite de contrato, briefing)
+    // Etapas intermediárias: dados, negócio, acessos, aceite do contrato
     if (action === "update") {
       const c = await loadByToken(body.client_id, body.token);
       if (!c) return json({ error: "Cadastro não encontrado." }, 404);
       const step = Number(body.step) || 2;
-      const tsd = { ...(c.traffic_strategy_data ?? {}), registration_step: step };
+      const tsd = { ...(c.traffic_strategy_data ?? {}), registration_step: Math.max(step, Number(c.traffic_strategy_data?.registration_step) || 0) };
       const patch: Record<string, unknown> = {};
 
-      if (body.contract_accepted) {
-        tsd.contract_accepted_at = new Date().toISOString();
-        patch.onboarding_status = "em_andamento";
+      if (body.company) {
+        const d = body.company;
+        const company = str(d.companyName, 120);
+        if (company) patch.name = company;
+        if (str(d.responsible, 120)) patch.responsible = str(d.responsible, 120);
+        if (isEmail(str(d.email, 160))) patch.email = normEmail(str(d.email, 160));
+        patch.instagram = strOrNull(d.instagram_url);
+        Object.assign(tsd, {
+          website_url: strOrNull(d.website), phone: strOrNull(d.phone, 40),
+          instagram_url: strOrNull(d.instagram_url), google_business_url: strOrNull(d.google_business_url),
+        });
       }
+
+      if (body.business) {
+        const b = body.business;
+        const briefing = {
+          oferta: str(b.offer, 2000), ticket_medio: str(b.ticket, 100), objetivo: str(b.objective, 120),
+          regiao: str(b.region, 300), publico: str(b.audience, 1500),
+          faixas_etarias: Array.isArray(b.ageRanges) ? b.ageRanges.slice(0, 10).map((x: unknown) => str(x, 20)) : [],
+          diferencial: str(b.differentiator, 1500), concorrentes: str(b.competitors, 1500),
+          investimento_mensal: str(b.budget, 80), ja_anunciou: str(b.advertisedBefore, 80),
+          historico: str(b.history, 2000), canal_de_venda: str(b.salesChannel, 300), observacoes: str(b.notes, 2000),
+        };
+        Object.assign(tsd, {
+          onboarding_briefing: briefing,
+          target_age_ranges: briefing.faixas_etarias,
+          target_location: briefing.regiao || null,
+          target_interests: briefing.publico || null,
+        });
+        const { data: existing } = await admin.from("client_briefings").select("id")
+          .eq("client_id", c.id).eq("briefing_type", "onboarding").maybeSingle();
+        const row = { responses: briefing, is_completed: true, completed_at: new Date().toISOString() };
+        if (existing) await admin.from("client_briefings").update(row).eq("id", existing.id);
+        else await admin.from("client_briefings").insert({ client_id: c.id, agency_id: c.agency_id, briefing_type: "onboarding", ...row });
+      }
+
+      // Formato antigo do formulário (mantido enquanto a versão anterior estiver no ar)
       if (body.briefing) {
         const b = body.briefing;
         const onboarding_briefing = {
@@ -110,18 +143,34 @@ Deno.serve(async (req) => {
           target_location: str(b.targetLocation), target_interests: str(b.targetInterests, 1000),
           concorrentes: str(b.competitors, 1000), diferencial: str(b.differentiator, 1000), observacoes: str(b.notes, 2000),
         };
-        Object.assign(tsd, {
-          target_age_ranges: onboarding_briefing.target_age_ranges,
-          target_location: onboarding_briefing.target_location || null,
-          target_interests: onboarding_briefing.target_interests || null,
-          onboarding_briefing,
-        });
-        if (onboarding_briefing.nicho) patch.segment = onboarding_briefing.nicho;
+        Object.assign(tsd, { onboarding_briefing });
         await admin.from("client_briefings").insert({
           client_id: c.id, agency_id: c.agency_id, briefing_type: "onboarding",
           responses: onboarding_briefing, is_completed: true, completed_at: new Date().toISOString(),
         });
       }
+
+      if (body.access && typeof body.access === "object") {
+        for (const platform of ["meta", "google"]) {
+          const a = body.access[platform];
+          if (!a || typeof a !== "object") continue;
+          const situation = ["has_account", "needs_account"].includes(a.situation) ? a.situation : "unknown";
+          const status = ["pending", "client_done", "help", "agency_creating"].includes(a.status) ? a.status : "pending";
+          const { data: cur } = await admin.from("client_platform_access").select("status")
+            .eq("client_id", c.id).eq("platform", platform).maybeSingle();
+          await admin.from("client_platform_access").upsert({
+            client_id: c.id, agency_id: c.agency_id, platform, situation,
+            status: cur?.status === "verified" ? "verified" : status,
+            account_ref: strOrNull(a.account_ref, 80), updated_at: new Date().toISOString(),
+          }, { onConflict: "client_id,platform" });
+        }
+      }
+
+      if (body.contract_accepted) {
+        tsd.contract_accepted_at = new Date().toISOString();
+        patch.onboarding_status = "em_andamento";
+      }
+
       patch.traffic_strategy_data = tsd;
       const { error } = await admin.from("clients").update(patch).eq("id", c.id);
       if (error) return json({ error: "Erro ao salvar." }, 400);
@@ -152,7 +201,7 @@ Deno.serve(async (req) => {
         });
       }
 
-      const tsd = { ...(c.traffic_strategy_data ?? {}), registration_step: 4 };
+      const tsd = { ...(c.traffic_strategy_data ?? {}), registration_step: 5 };
       await admin.from("clients").update({
         onboarding_status: "concluido",
         onboarding_completed_at: new Date().toISOString(),

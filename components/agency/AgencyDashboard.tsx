@@ -23,6 +23,7 @@ import { AgencyCRMTab } from './AgencyCRMTab';
 import { AgencyTasksTab } from './AgencyTasksTab';
 import { AgencyContractsTab } from './AgencyContractsTab';
 import { OnboardingTab } from './OnboardingTab';
+import { OnboardingPipeline } from './OnboardingPipeline';
 import { ClientesTab } from './ClientesTab';
 import { AnotacoesTab } from './AnotacoesTab';
 import { PainelConteudo } from './PainelConteudo';
@@ -122,7 +123,7 @@ export const AgencyDashboard: React.FC<AgencyDashboardProps> = ({ onBack, onSele
               )}
               {activeTab === 'contratos' && <AgencyContractsTab />}
               {activeTab === 'equipe' && <TeamTab />}
-              {activeTab === 'onboarding' && <OnboardingTab onNavigateToClients={(client) => onSelectClient(client)} />}
+              {activeTab === 'onboarding' && <OnboardingArea onSelectClient={onSelectClient} />}
               {activeTab === 'tasks' && <AgencyTasksTab />}
               {activeTab === 'financeiro' && (
                 <FinanceiroTab 
@@ -148,6 +149,21 @@ export const AgencyDashboard: React.FC<AgencyDashboardProps> = ({ onBack, onSele
           </AnimatePresence>
         </div>
       </main>
+    </div>
+  );
+};
+
+const OnboardingArea: React.FC<{ onSelectClient: (c: any) => void }> = ({ onSelectClient }) => {
+  const [sub, setSub] = React.useState<'novos' | 'jornada'>('novos');
+  return (
+    <div className="space-y-6">
+      <div className="inline-flex p-1 rounded-xl bg-gray-100">
+        {([['novos', 'Novos clientes'], ['jornada', 'Jornada completa']] as const).map(([id, label]) => (
+          <button key={id} onClick={() => setSub(id)}
+            className={`px-4 py-2 rounded-lg text-sm font-semibold transition ${sub === id ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-800'}`}>{label}</button>
+        ))}
+      </div>
+      {sub === 'novos' ? <OnboardingPipeline onOpenClient={onSelectClient} /> : <OnboardingTab onNavigateToClients={(client) => onSelectClient(client)} />}
     </div>
   );
 };
