@@ -120,6 +120,7 @@ Deno.serve(async (req) => {
       "Escreva para o cliente ler: frases curtas, sem jargão, sem travessão (—). Use \"para\", nunca \"pra\".",
       "Se faltar informação, faça a melhor suposição e registre a dúvida em pontos_em_aberto (isso é só para a agência).",
       "Se houver estratégia anterior com feedback do cliente, corrija o que ele pediu.",
+      "Entregue o resultado chamando a ferramenta salvar_estrategia uma única vez, sem texto antes ou depois.",
       english ? "The client is in the United States: write every field in English and use USD." : "Escreva em português do Brasil.",
     ].join("\n");
 
@@ -134,7 +135,7 @@ Deno.serve(async (req) => {
         max_tokens: 6000,
         system,
         tools: [STRATEGY_TOOL],
-        tool_choice: { type: "tool", name: STRATEGY_TOOL.name },
+        tool_choice: { type: "auto" },
         messages: [{ role: "user", content: userMsg }],
       }),
     });
@@ -144,15 +145,21 @@ Deno.serve(async (req) => {
       const msg = out?.error?.message ?? "Erro ao chamar o Claude.";
       return json({ error: `Claude: ${msg}` }, 502);
     }
-    const toolUse = (out.content ?? []).find((c: { type: string }) => c.type === "tool_use");
-    if (!toolUse) return json({ error: "O Claude não devolveu a estratégia. Tente de novo." }, 502);
+    let strategyContent = (out.content ?? []).find((c: { type: string }) => c.type === "tool_use")?.input ?? null;
+    if (!strategyContent) {
+      // Plano B: o modelo respondeu em texto; tenta achar o JSON
+      const text = (out.content ?? []).filter((c: { type: string }) => c.type === "text").map((c: { text: string }) => c.text).join("\n");
+      const m = text.match(/\{[\s\S]*\}/);
+      try { strategyContent = m ? JSON.parse(m[0]) : null; } catch { strategyContent = null; }
+    }
+    if (!strategyContent || !strategyContent.resumo) return json({ error: "O Claude não devolveu a estratégia. Tente de novo." }, 502);
 
     const { data: saved, error } = await admin.from("client_strategies").insert({
       client_id: clientId,
       agency_id: client.agency_id,
       version: (last?.version ?? 0) + 1,
       status: "draft",
-      content: toolUse.input,
+      content: strategyContent,
       model: out.model ?? MODEL,
       created_by: user.id,
     }).select("*").single();
