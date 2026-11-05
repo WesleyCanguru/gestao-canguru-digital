@@ -163,31 +163,6 @@ footer { font-size: 13px; color: var(--muted); }
   <footer>Canguru Digital · Proposta válida por 15 dias.</footer>
 </main>
 
-<script>
-(function () {
-  var SLUG = 'alvaro-petrus';
-  var URL_ = 'https://wtzphiyybitcucwkfpgv.supabase.co/functions/v1/proposal-track';
-  var KEY = 'sb_publishable_uLQGmz7lWazPN1Uqb4_4vQ_HggVpMz9';
-  var sid;
-  try { sid = sessionStorage.getItem('pt_sid'); if (!sid) { sid = Math.random().toString(36).slice(2) + Date.now().toString(36); sessionStorage.setItem('pt_sid', sid); } }
-  catch (e) { sid = Math.random().toString(36).slice(2) + Date.now().toString(36); }
-  function send(event, extra) {
-    var payload = JSON.stringify(Object.assign({ slug: SLUG, event: event, session: sid }, extra || {}));
-    try {
-      fetch(URL_, { method: 'POST', keepalive: true, headers: { 'Content-Type': 'application/json', apikey: KEY, Authorization: 'Bearer ' + KEY }, body: payload }).catch(function () {});
-    } catch (e) {}
-  }
-  send('open');
-  var visible = 0, last = Date.now(), active = !document.hidden;
-  function tick() { if (active) { visible += (Date.now() - last) / 1000; } last = Date.now(); }
-  document.addEventListener('visibilitychange', function () {
-    tick(); active = !document.hidden;
-    if (document.hidden) send('read_time', { seconds: Math.round(visible) });
-  });
-  setInterval(function () { tick(); send('read_time', { seconds: Math.round(visible) }); }, 30000);
-  var cta = document.getElementById('cta-whatsapp');
-  if (cta) cta.addEventListener('click', function () { send('whatsapp_click'); });
-})();
-</script>
+<script src="/propostas/track.js" data-slug="alvaro-petrus"></script>
 </body>
 </html>
