@@ -672,6 +672,11 @@ export interface AgencyTask {
   task_type?: string | null;
   sla_days?: number | null;
   subtasks?: AgencyTask[];
+  /** Quem executa: pessoa da equipe ou freelancer sem login */
+  assignee_name?: string | null;
+  assignee_user_id?: string | null;
+  /** Frente de trabalho (ex.: Canguru, Joey) */
+  front?: string | null;
 }
 
 export type ProcessResponsible = 'wesley' | 'sarah' | 'client';

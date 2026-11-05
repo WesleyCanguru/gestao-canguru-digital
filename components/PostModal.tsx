@@ -1,5 +1,6 @@
 
 import React, { useState, useEffect, useRef } from 'react';
+import { getAppUrl } from '../lib/appUrl';
 import { motion, AnimatePresence } from 'motion/react';
 import { DailyContent, PostData, PostComment, PostStatus, PostRevision } from '../types';
 import { useAuth, supabase, parseImageUrl, stringifyImageUrl } from '../lib/supabase';
@@ -1125,7 +1126,7 @@ export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, group
   };
 
   const handleCopyLink = () => {
-    const link = `${window.location.origin}?mode=public&id=${dateKey}`;
+    const link = `${getAppUrl()}?mode=public&id=${dateKey}`;
     navigator.clipboard.writeText(link);
     setCopiedLink(true);
     setTimeout(() => setCopiedLink(false), 2000);

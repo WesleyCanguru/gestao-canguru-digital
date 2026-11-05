@@ -1,5 +1,6 @@
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { getAppUrl } from '../lib/appUrl';
 import { MonthlyDetailedPlan, DailyContent, PostStatus, PostData, PostTheme } from '../types';
 import { Instagram, Linkedin, CalendarDays, Target, BarChart3, Repeat, FileCheck, CheckCircle2, ArrowLeft, MessageCircle, List, Calendar as CalendarIcon, Plus, Loader2, Check, Edit2, Edit3, RefreshCw, Save, X, Trash, Sparkles, FileText, Clock, ChevronLeft, ChevronRight, ChevronDown, Lock, Link2 } from 'lucide-react';
 import { PostModal } from './PostModal';
@@ -140,7 +141,7 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({
     const mesFormatado = String(monthIndex + 1).padStart(2, '0'); // 01-12
     const anoAtual = pickerYear || year;
     const clientParam = activeClient?.id ? `client=${activeClient.id}&` : '';
-    const baseUrl = `${window.location.protocol}//${window.location.host}`;
+    const baseUrl = getAppUrl();
     const url = `${baseUrl}/?${clientParam}aba=mapa&mes=${mesFormatado}&ano=${anoAtual}&gate=nome`;
 
     navigator.clipboard.writeText(url).then(() => {

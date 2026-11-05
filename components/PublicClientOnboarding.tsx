@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { supabase } from '../lib/supabase';
+import { supabase, callFunction } from '../lib/supabase';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   Building2,
@@ -36,10 +36,6 @@ interface AgencyData {
 }
 
 // SHA-256 via SubtleCrypto (browser nativo)
-async function sha256(text: string): Promise<string> {
-  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
-  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
-}
 
 const AGE_RANGE_OPTIONS = [
   'Under 18',
@@ -77,6 +73,9 @@ export const PublicClientOnboarding: React.FC<PublicClientOnboardingProps> = ({ 
   // Step 2: Contrato
   const [contractAccepted, setContractAccepted] = useState(false);
   const [createdClientId, setCreatedClientId] = useState<string | null>(null);
+  const [regToken, setRegToken] = useState<string | null>(null);
+  const [submittingStep1, setSubmittingStep1] = useState(false);
+  const refCode = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('ref') : null;
   const [submittingStep2, setSubmittingStep2] = useState(false);
 
   // Step 3: Briefing
@@ -141,7 +140,7 @@ export const PublicClientOnboarding: React.FC<PublicClientOnboardingProps> = ({ 
   const brandColor = agency?.primary_color || (isEnglish ? '#1A3A5C' : '#456da1');
 
   // Validação Etapa 1
-  const handleContinueStep1 = (e: React.FormEvent) => {
+  const handleContinueStep1 = async (e: React.FormEvent) => {
     e.preventDefault();
     const errors: Record<string, string> = {};
 
@@ -169,96 +168,36 @@ export const PublicClientOnboarding: React.FC<PublicClientOnboardingProps> = ({ 
     }
 
     setStep1Errors({});
+
+    // Já salva o lead (mesmo que a pessoa pare no meio do cadastro)
+    if (createdClientId && regToken) { setStep(2); return; }
+    setSubmittingStep1(true);
+    const { data, error } = await callFunction<{ client_id: string; token: string }>('public-onboarding', {
+      action: 'start', agency_slug: agency?.slug, ref: refCode, data: formData,
+    });
+    setSubmittingStep1(false);
+    if (error || !data) {
+      alert(isEnglish ? 'Could not save your data. Please try again.' : 'Não foi possível salvar os dados. Tente novamente.');
+      return;
+    }
+    setCreatedClientId(data.client_id);
+    setRegToken(data.token);
     setStep(2);
   };
 
-  // Aceitar contrato (Etapa 2) e inserir em `clients`
+  // Aceitar contrato (Etapa 2)
   const handleAcceptContract = async () => {
-    if (!contractAccepted || !agency) return;
-
-    try {
-      setSubmittingStep2(true);
-
-      // Gerar iniciais automáticas
-      const cleanCompany = formData.companyName.trim();
-      const initials = cleanCompany
-        .split(/\s+/)
-        .map(w => w[0])
-        .slice(0, 2)
-        .join('')
-        .toUpperCase() || 'CL';
-
-      const currency = agency.id === 7 ? 'USD' : 'BRL';
-
-      const baseTrafficStrategyData = {
-        website_url: formData.website.trim(),
-        phone: formData.phone.trim(),
-        instagram_url: formData.instagram_url.trim() || null,
-        linkedin_url: formData.linkedin_url.trim() || null,
-        tiktok_url: formData.tiktok_url.trim() || null,
-        google_business_url: formData.google_business_url.trim() || null,
-        created_via: 'public_onboarding',
-        agency_slug: agency.slug
-      };
-
-      const baseClientPayload: any = {
-        name: cleanCompany,
-        responsible: formData.responsible.trim(),
-        email: formData.email.trim(),
-        instagram: formData.instagram_url.trim() || null,
-        linkedin: formData.linkedin_url.trim() || null,
-        tiktok: formData.tiktok_url.trim() || null,
-        agency_id: agency.id,
-        client_status: 'prospect',
-        onboarding_status: 'em_andamento',
-        services: ['Tráfego Pago'],
-        traffic_platforms: ['meta', 'google'],
-        currency,
-        is_active: false,
-        initials,
-        color: brandColor,
-        traffic_strategy_data: baseTrafficStrategyData
-      };
-
-      const fullClientPayload: any = {
-        ...baseClientPayload,
-        instagram_url: formData.instagram_url.trim() || null,
-        linkedin_url: formData.linkedin_url.trim() || null,
-        tiktok_url: formData.tiktok_url.trim() || null,
-        google_business_url: formData.google_business_url.trim() || null
-      };
-
-      let { data, error } = await supabase
-        .from('clients')
-        .insert(fullClientPayload)
-        .select('id')
-        .single();
-
-      if (error) {
-        console.warn('Insert with new social URL columns returned warning, retrying with base schema:', error.message);
-        const retryRes = await supabase
-          .from('clients')
-          .insert(baseClientPayload)
-          .select('id')
-          .single();
-        data = retryRes.data;
-        error = retryRes.error;
-      }
-
-      if (error || !data) {
-        console.error('Error creating client during onboarding:', error);
-        alert(isEnglish ? 'Could not create registration. Please try again.' : 'Não foi possível salvar os dados. Tente novamente.');
-        return;
-      }
-
-      setCreatedClientId(data.id);
-      setStep(3);
-    } catch (err) {
-      console.error('Unexpected error in step 2:', err);
-      alert(isEnglish ? 'An unexpected error occurred.' : 'Ocorreu um erro inesperado.');
-    } finally {
-      setSubmittingStep2(false);
+    if (!contractAccepted || !agency || !createdClientId || !regToken) return;
+    setSubmittingStep2(true);
+    const { error } = await callFunction('public-onboarding', {
+      action: 'update', client_id: createdClientId, token: regToken, step: 2, contract_accepted: true,
+    });
+    setSubmittingStep2(false);
+    if (error) {
+      alert(isEnglish ? 'Could not save. Please try again.' : 'Não foi possível salvar. Tente novamente.');
+      return;
     }
+    setStep(3);
   };
 
   const toggleAgeRange = (range: string) => {
@@ -276,210 +215,42 @@ export const PublicClientOnboarding: React.FC<PublicClientOnboardingProps> = ({ 
   // Salvar Briefing (Etapa 3)
   const handleSaveBriefing = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!createdClientId || !agency) return;
-
-    try {
-      setSubmittingStep3(true);
-
-      const onboarding_briefing = {
-        nicho: briefingData.niche.trim(),
-        objetivo: briefingData.objective.trim(),
-        target_age_ranges: briefingData.targetAgeRanges,
-        target_location: briefingData.targetLocation.trim(),
-        target_interests: briefingData.targetInterests.trim(),
-        concorrentes: briefingData.competitors.trim(),
-        diferencial: briefingData.differentiator.trim(),
-        observacoes: briefingData.notes.trim()
-      };
-
-      const updatedStrategyData = {
-        website_url: formData.website.trim(),
-        phone: formData.phone.trim(),
-        instagram_url: formData.instagram_url.trim() || null,
-        linkedin_url: formData.linkedin_url.trim() || null,
-        tiktok_url: formData.tiktok_url.trim() || null,
-        google_business_url: formData.google_business_url.trim() || null,
-        target_age_ranges: briefingData.targetAgeRanges,
-        target_location: briefingData.targetLocation.trim() || null,
-        target_interests: briefingData.targetInterests.trim() || null,
-        created_via: 'public_onboarding',
-        agency_slug: agency.slug,
-        onboarding_briefing
-      };
-
-      // Atualizar clients com as novas colunas + fallback
-      const { error: updateErr } = await supabase
-        .from('clients')
-        .update({
-          segment: briefingData.niche.trim() || undefined,
-          target_age_ranges: briefingData.targetAgeRanges,
-          target_location: briefingData.targetLocation.trim() || null,
-          target_interests: briefingData.targetInterests.trim() || null,
-          traffic_strategy_data: updatedStrategyData
-        })
-        .eq('id', createdClientId);
-
-      if (updateErr) {
-        await supabase
-          .from('clients')
-          .update({
-            segment: briefingData.niche.trim() || undefined,
-            traffic_strategy_data: updatedStrategyData
-          })
-          .eq('id', createdClientId);
-      }
-
-      // Inserir opcionalmente em client_briefings
-      try {
-        await supabase.from('client_briefings').insert({
-          client_id: createdClientId,
-          agency_id: agency.id,
-          briefing_type: 'onboarding',
-          responses: onboarding_briefing,
-          is_completed: true,
-          completed_at: new Date().toISOString()
-        });
-      } catch (briefingErr) {
-        console.warn('client_briefings table optional insert warning:', briefingErr);
-      }
-
-      setStep(4);
-    } catch (err) {
-      console.error('Error saving briefing:', err);
+    if (!createdClientId || !regToken || !agency) return;
+    setSubmittingStep3(true);
+    const { error } = await callFunction('public-onboarding', {
+      action: 'update', client_id: createdClientId, token: regToken, step: 3, briefing: briefingData,
+    });
+    setSubmittingStep3(false);
+    if (error) {
       alert(isEnglish ? 'Could not save briefing. Please try again.' : 'Erro ao salvar briefing. Tente novamente.');
-    } finally {
-      setSubmittingStep3(false);
+      return;
     }
+    setStep(4);
   };
 
-  // Finalizar Cadastro (Etapa 4)
+  // Finalizar Cadastro (Etapa 4): cria o login com e-mail + senha
   const handleFinishRegistration = async (e: React.FormEvent) => {
     e.preventDefault();
     setKeyError('');
-
-    if (accessKey.length < 6) {
-      setKeyError(isEnglish ? 'Access key must be at least 6 characters' : 'A chave de acesso deve ter no mínimo 6 caracteres');
+    if (accessKey.length < 8) {
+      setKeyError(isEnglish ? 'Password must be at least 8 characters' : 'A senha precisa ter no mínimo 8 caracteres');
       return;
     }
-
     if (accessKey !== confirmKey) {
-      setKeyError(isEnglish ? 'Access keys do not match' : 'As chaves de acesso não coincidem');
+      setKeyError(isEnglish ? 'Passwords do not match' : 'As senhas não coincidem');
       return;
     }
-
-    if (!createdClientId || !agency) return;
-
-    try {
-      setSubmittingStep4(true);
-
-      // 1. Calcular SHA-256 da chave informada usando SubtleCrypto nativo
-      const passwordHash = await sha256(accessKey);
-
-      // 2. Inserir na tabela client_users
-      const userPayloadWithColumns: any = {
-        client_id: createdClientId,
-        agency_id: agency.id,
-        name: formData.responsible.trim(),
-        email: formData.email.trim(),
-        access_key: accessKey.trim(),
-        password_hash: passwordHash,
-        role: 'client',
-        is_active: true
-      };
-
-      const { error: userError } = await supabase.from('client_users').insert(userPayloadWithColumns);
-
-      if (userError) {
-        console.warn('Direct insert into client_users with name/email/access_key error, using fallback:', userError);
-        // Fallback para schema legado com username caso as colunas name/email/access_key não estejam cacheadas
-        const fallbackUser: any = {
-          client_id: createdClientId,
-          agency_id: agency.id,
-          username: formData.email.trim() || formData.responsible.trim(),
-          password_hash: passwordHash,
-          role: 'client',
-          is_active: true
-        };
-        await supabase.from('client_users').insert(fallbackUser);
-      }
-
-      // Salvar também em client_credentials para garantia de acesso e suporte
-      try {
-        await supabase.from('client_credentials').insert({
-          client_id: createdClientId,
-          agency_id: agency.id,
-          platform: 'portal',
-          label: 'Chave de Acesso Bolsa',
-          username: formData.email.trim(),
-          password_encrypted: accessKey.trim(),
-          notes: 'Chave de acesso gerada no auto-cadastro'
-        });
-      } catch (credErr) {
-        console.warn('client_credentials save note:', credErr);
-      }
-
-      // 3. Atualizar clients onde id = client_id
-      const nowIso = new Date().toISOString();
-      const finalStrategyData = {
-        website_url: formData.website.trim(),
-        phone: formData.phone.trim(),
-        instagram_url: formData.instagram_url.trim() || null,
-        linkedin_url: formData.linkedin_url.trim() || null,
-        tiktok_url: formData.tiktok_url.trim() || null,
-        google_business_url: formData.google_business_url.trim() || null,
-        target_age_ranges: briefingData.targetAgeRanges,
-        target_location: briefingData.targetLocation.trim() || null,
-        target_interests: briefingData.targetInterests.trim() || null,
-        client_access_key: accessKey.trim(),
-        created_via: 'public_onboarding',
-        agency_slug: agency.slug,
-        onboarding_briefing: {
-          nicho: briefingData.niche.trim(),
-          objetivo: briefingData.objective.trim(),
-          target_age_ranges: briefingData.targetAgeRanges,
-          target_location: briefingData.targetLocation.trim(),
-          target_interests: briefingData.targetInterests.trim(),
-          concorrentes: briefingData.competitors.trim(),
-          diferencial: briefingData.differentiator.trim(),
-          observacoes: briefingData.notes.trim()
-        }
-      };
-
-      const { error: finalErr } = await supabase
-        .from('clients')
-        .update({
-          onboarding_status: 'concluido',
-          onboarding_completed_at: nowIso,
-          target_age_ranges: briefingData.targetAgeRanges,
-          target_location: briefingData.targetLocation.trim() || null,
-          target_interests: briefingData.targetInterests.trim() || null,
-          instagram_url: formData.instagram_url.trim() || null,
-          linkedin_url: formData.linkedin_url.trim() || null,
-          tiktok_url: formData.tiktok_url.trim() || null,
-          google_business_url: formData.google_business_url.trim() || null,
-          traffic_strategy_data: finalStrategyData
-        })
-        .eq('id', createdClientId);
-
-      if (finalErr) {
-        await supabase
-          .from('clients')
-          .update({
-            onboarding_status: 'concluido',
-            onboarding_completed_at: nowIso,
-            traffic_strategy_data: finalStrategyData
-          })
-          .eq('id', createdClientId);
-      }
-
-      // Ir para a tela de confirmação
-      setStep(5);
-    } catch (err) {
-      console.error('Error finalizing registration:', err);
-      setKeyError(isEnglish ? 'Failed to finalize registration. Please try again.' : 'Falha ao finalizar o cadastro. Tente novamente.');
-    } finally {
-      setSubmittingStep4(false);
+    if (!createdClientId || !regToken || !agency) return;
+    setSubmittingStep4(true);
+    const { error } = await callFunction('public-onboarding', {
+      action: 'finish', client_id: createdClientId, token: regToken, password: accessKey,
+    });
+    setSubmittingStep4(false);
+    if (error) {
+      setKeyError(error);
+      return;
     }
+    setStep(5);
   };
 
   // Carregamento inicial
@@ -521,7 +292,7 @@ export const PublicClientOnboarding: React.FC<PublicClientOnboardingProps> = ({ 
     { num: 1, label: isEnglish ? 'Company Info' : 'Dados' },
     { num: 2, label: isEnglish ? 'Agreement' : 'Contrato' },
     { num: 3, label: isEnglish ? 'Briefing' : 'Briefing' },
-    { num: 4, label: isEnglish ? 'Access Key' : 'Chave de Acesso' }
+    { num: 4, label: isEnglish ? 'Password' : 'Senha' }
   ];
 
   return (
@@ -815,9 +586,11 @@ export const PublicClientOnboarding: React.FC<PublicClientOnboardingProps> = ({ 
                   <div className="pt-4 flex justify-end">
                     <button
                       type="submit"
-                      className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-8 py-3.5 text-white font-bold text-xs uppercase tracking-wider rounded-xl transition-all shadow-md hover:shadow-lg hover:-translate-y-0.5 cursor-pointer"
+                      disabled={submittingStep1}
+                      className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-8 py-3.5 text-white font-bold text-xs uppercase tracking-wider rounded-xl transition-all shadow-md hover:shadow-lg hover:-translate-y-0.5 cursor-pointer disabled:opacity-60"
                       style={{ backgroundColor: brandColor }}
                     >
+                      {submittingStep1 ? <Loader2 size={16} className="animate-spin" /> : null}
                       <span>{isEnglish ? 'Continue' : 'Continuar'}</span>
                       <ArrowRight size={16} />
                     </button>
@@ -1168,50 +941,50 @@ export const PublicClientOnboarding: React.FC<PublicClientOnboardingProps> = ({ 
                     {isEnglish ? 'Step 4 of 4' : 'Etapa 4 de 4'}
                   </div>
                   <h2 className="text-2xl font-bold text-gray-900 tracking-tight">
-                    {isEnglish ? 'Create Your Access Key' : 'Criar Chave de Acesso'}
+                    {isEnglish ? 'Create Your Password' : 'Crie sua senha'}
                   </h2>
                   <p className="text-sm text-gray-500 mt-1">
                     {isEnglish
-                      ? 'Create a secure key to access your client portal once activated.'
-                      : 'Defina sua chave de acesso para consultar seu portal de cliente.'}
+                      ? `You will sign in to your client portal with ${formData.email} and this password.`
+                      : `Você vai entrar no seu portal com o e-mail ${formData.email} e esta senha.`}
                   </p>
                 </div>
 
                 <form onSubmit={handleFinishRegistration} className="space-y-4">
                   <div>
                     <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1.5">
-                      {isEnglish ? 'Create your access key *' : 'Crie sua chave de acesso *'}
+                      {isEnglish ? 'Create your password *' : 'Crie sua senha *'}
                     </label>
                     <div className="relative">
                       <Lock size={16} className="absolute left-3.5 top-3.5 text-gray-400" />
                       <input
                         type="password"
                         required
-                        minLength={6}
+                        minLength={8}
                         value={accessKey}
                         onChange={e => setAccessKey(e.target.value)}
-                        placeholder={isEnglish ? 'Minimum 6 characters' : 'Mínimo 6 caracteres'}
+                        placeholder={isEnglish ? 'Minimum 8 characters' : 'Mínimo 8 caracteres'}
                         className="w-full pl-10 pr-4 py-3 bg-gray-50/60 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:bg-white transition-all"
                       />
                     </div>
                     <p className="text-[11px] text-gray-400 mt-1">
-                      {isEnglish ? 'Minimum 6 characters.' : 'Mínimo de 6 caracteres.'}
+                      {isEnglish ? 'Minimum 8 characters.' : 'Mínimo de 8 caracteres.'}
                     </p>
                   </div>
 
                   <div>
                     <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1.5">
-                      {isEnglish ? 'Confirm your access key *' : 'Confirme sua chave de acesso *'}
+                      {isEnglish ? 'Confirm your password *' : 'Confirme sua senha *'}
                     </label>
                     <div className="relative">
                       <Lock size={16} className="absolute left-3.5 top-3.5 text-gray-400" />
                       <input
                         type="password"
                         required
-                        minLength={6}
+                        minLength={8}
                         value={confirmKey}
                         onChange={e => setConfirmKey(e.target.value)}
-                        placeholder={isEnglish ? 'Repeat your access key' : 'Repita a chave de acesso'}
+                        placeholder={isEnglish ? 'Repeat your password' : 'Repita a senha'}
                         className="w-full pl-10 pr-4 py-3 bg-gray-50/60 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:bg-white transition-all"
                       />
                     </div>

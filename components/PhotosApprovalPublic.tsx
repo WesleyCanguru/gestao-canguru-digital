@@ -16,9 +16,10 @@ export const PhotosApprovalPublic: React.FC<PhotosApprovalPublicProps> = ({ clie
     userRole, 
     activeClient, 
     setActiveClient, 
-    loginByPassword, 
+    signIn, 
     logout 
   } = useAuth();
+  const [email, setEmail] = useState('');
 
   const [clientInfo, setClientInfo] = useState<any>(null);
   const [loadingClient, setLoadingClient] = useState(true);
@@ -33,11 +34,7 @@ export const PhotosApprovalPublic: React.FC<PhotosApprovalPublicProps> = ({ clie
     const fetchClient = async () => {
       setLoadingClient(true);
       try {
-        const { data, error: err } = await supabase
-          .from('clients')
-          .select('*')
-          .eq('id', clientId)
-          .single();
+        const { data, error: err } = await supabase.rpc('get_public_client_brand', { p_client: clientId });
 
         if (err || !data) {
           setError('Cliente não encontrado.');
@@ -90,46 +87,17 @@ export const PhotosApprovalPublic: React.FC<PhotosApprovalPublicProps> = ({ clie
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!password.trim()) return;
+    if (!password.trim() || !email.trim()) return;
 
     setError('');
     setLoadingLogin(true);
 
     try {
-      const result = await loginByPassword(password.trim());
-      
+      const result = await signIn(email, password);
       if (!result.success) {
-        setError(result.error || 'Chave de acesso inválida.');
-        setLoadingLogin(false);
-        return;
+        setError(result.error || 'E-mail ou senha incorretos.');
       }
-
-      // Re-fetch active client state to verify if matches
-      // Since loginByPassword updates activeClient in localStorage and supabase context,
-      // it should be available now. Let's make an explicit check.
-      const storedClientStr = localStorage.getItem('next_app_client');
-      let storedClientObj: any = null;
-      if (storedClientStr) {
-        try {
-          storedClientObj = JSON.parse(storedClientStr);
-        } catch (_) {}
-      }
-
-      const role = localStorage.getItem('next_app_role');
-
-      if (role === 'admin') {
-        // Logged in as admin, switch active client to this one
-        if (clientInfo) {
-          setActiveClient(clientInfo);
-        }
-        setIsSuccessfullyAuthorized(true);
-      } else if (storedClientObj && storedClientObj.id === clientId) {
-        setIsSuccessfullyAuthorized(true);
-      } else {
-        // Password works but is for another client
-        setError('Esta chave de acesso pertence a outro cliente. Por favor, use a chave correta.');
-        logout(); // Logout to clean up stale context
-      }
+      // A autorização (cliente certo ou equipe) é conferida pelo efeito acima.
     } catch (err) {
       console.error(err);
       setError('Erro ao validar acesso. Tente novamente.');
@@ -226,14 +194,25 @@ export const PhotosApprovalPublic: React.FC<PhotosApprovalPublicProps> = ({ clie
                     {clientInfo?.name}
                   </h2>
                   <p className="text-xs text-gray-500 font-medium">
-                    Para visualizar e aprovar suas fotos geradas por inteligência artificial, digite sua chave de acesso.
+                    Para visualizar e aprovar suas fotos geradas por inteligência artificial, entre com o seu e-mail e senha da Bolsa.
                   </p>
                 </div>
 
                 <form onSubmit={handleLogin} className="space-y-4">
                   <div className="space-y-1">
                     <label className="text-[10px] uppercase tracking-[0.2em] font-bold text-gray-400 ml-1">
-                      Chave de Acesso
+                      E-mail
+                    </label>
+                    <input
+                      type="email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      className="w-full px-4 py-3.5 bg-gray-50 border border-gray-100 rounded-2xl focus:border-fuchsia-500 focus:bg-white outline-none text-sm font-medium mb-3"
+                      placeholder="voce@empresa.com"
+                      required
+                    />
+                    <label className="text-[10px] uppercase tracking-[0.2em] font-bold text-gray-400 ml-1">
+                      Senha
                     </label>
                     <div className="relative group">
                       <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300 group-focus-within:text-fuchsia-500 transition-colors" size={18} />
@@ -242,7 +221,7 @@ export const PhotosApprovalPublic: React.FC<PhotosApprovalPublicProps> = ({ clie
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
                         className="w-full pl-12 pr-12 py-3.5 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-fuchsia-500/5 focus:border-fuchsia-500 focus:bg-white outline-none transition-all text-sm font-medium tracking-wide"
-                        placeholder="Insira sua chave de acesso..."
+                        placeholder="Sua senha"
                         required
                       />
                       <button
