@@ -1,3 +1,4 @@
+import { ClientStartCard } from './strategy/ClientStartCard';
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useAuth, supabase } from '../lib/supabase';
 import {
@@ -82,7 +83,7 @@ export const ClientHome: React.FC<ClientHomeProps> = ({
   onNavigateToOrganico,
   onRefreshClient,
 }) => {
-  const { activeClient, userRole } = useAuth();
+  const { activeClient, userRole, userType, isViewingAsClient } = useAuth();
   const [smartLoading, setSmartLoading] = useState(true);
   const [leadConfig, setLeadConfig] = useState<ClientLeadConfig | null>(null);
   const [monthLeadsCount, setMonthLeadsCount] = useState<number>(0);
@@ -813,6 +814,8 @@ export const ClientHome: React.FC<ClientHomeProps> = ({
           </div>
         </motion.div>
       )}
+
+      {activeClient && <ClientStartCard client={activeClient} readOnly={isViewingAsClient || userType !== 'client'} />}
 
       {/* SECAO 2 - Cards de ação rápida */}
       <motion.div
