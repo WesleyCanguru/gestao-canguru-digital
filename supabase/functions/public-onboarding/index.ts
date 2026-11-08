@@ -24,7 +24,7 @@ Deno.serve(async (req) => {
     };
 
     if (action === "agency") {
-      const { data } = await admin.from("agencies").select("id, name, slug, logo_url, primary_color, is_active, access_email")
+      const { data } = await admin.from("agencies").select("id, name, slug, logo_url, primary_color, is_active, access_email, contact_whatsapp")
         .eq("slug", str(body.agency_slug, 60).toLowerCase()).eq("is_active", true).maybeSingle();
       if (!data) return json({ error: "Agência não encontrada." }, 404);
       let referrer: string | null = null;
@@ -82,6 +82,7 @@ Deno.serve(async (req) => {
           tiktok_url: strOrNull(d.tiktok_url),
           google_business_url: strOrNull(d.google_business_url),
           created_via: "public_onboarding",
+          language: ["pt", "en", "es"].includes(body.lang) ? body.lang : "pt",
           agency_slug: agency.slug,
           registration_step: 1,
         },
@@ -111,8 +112,24 @@ Deno.serve(async (req) => {
         });
       }
 
+      if (["pt", "en", "es"].includes(body.lang)) tsd.language = body.lang;
+
       if (body.business) {
         const b = body.business;
+        const marked: string[] = Array.isArray(b.services) ? b.services.slice(0, 10).map((x: unknown) => str(x, 40)) : [];
+        const REAL = ["Tráfego Pago", "Social Media", "Website", "Identidade Visual", "E-mail Marketing", "Fotos com IA"];
+        const realServices = marked.filter((x) => REAL.includes(x));
+        tsd.servicos_marcados = marked;
+        if (realServices.length) patch.services = realServices;
+        // Briefings complementares: só o que o cadastro não cobre (tráfego e público já vieram daqui)
+        const EXTRA: Record<string, string[]> = {
+          "Social Media": ["persona", "tom_voz", "posicionamento", "conteudo_bastidores"],
+          "Website": ["site"],
+          "Identidade Visual": ["persona", "posicionamento"],
+          "E-mail Marketing": ["tom_voz"],
+        };
+        const types = [...new Set(realServices.flatMap((x) => EXTRA[x] ?? []))];
+        patch.features_settings = { ...(c.features_settings ?? {}), active_briefing_types: types };
         const briefing = {
           oferta: str(b.offer, 2000), ticket_medio: str(b.ticket, 100), objetivo: str(b.objective, 120),
           regiao: str(b.region, 300), publico: str(b.audience, 1500),
@@ -120,6 +137,7 @@ Deno.serve(async (req) => {
           diferencial: str(b.differentiator, 1500), concorrentes: str(b.competitors, 1500),
           investimento_mensal: str(b.budget, 80), ja_anunciou: str(b.advertisedBefore, 80),
           historico: str(b.history, 2000), canal_de_venda: str(b.salesChannel, 300), observacoes: str(b.notes, 2000),
+          servicos: marked,
         };
         Object.assign(tsd, {
           onboarding_briefing: briefing,
@@ -205,6 +223,8 @@ Deno.serve(async (req) => {
       await admin.from("clients").update({
         onboarding_status: "concluido",
         onboarding_completed_at: new Date().toISOString(),
+        // Sem briefings complementares, o portal não precisa travar em briefings
+        onboarding_completed: !((c.features_settings?.active_briefing_types ?? []).length),
         registration_token_hash: null,
         traffic_strategy_data: tsd,
       }).eq("id", c.id);

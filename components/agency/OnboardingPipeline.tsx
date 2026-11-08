@@ -29,7 +29,7 @@ const STAGES: { id: Stage; label: string; hint: string }[] = [
 const ACCESS_LABEL: Record<AccessRow['status'], { text: string; cls: string }> = {
   pending: { text: 'Pendente', cls: 'bg-gray-100 text-gray-600' },
   client_done: { text: 'Cliente enviou', cls: 'bg-sky-50 text-sky-700' },
-  help: { text: 'Pediu ajuda', cls: 'bg-amber-50 text-amber-700' },
+  help: { text: 'Pediu ajuda / chamada', cls: 'bg-amber-100 text-amber-800' },
   agency_creating: { text: 'Nós criamos', cls: 'bg-violet-50 text-violet-700' },
   verified: { text: 'Conferido', cls: 'bg-emerald-50 text-emerald-700' },
 };
@@ -100,6 +100,7 @@ export const OnboardingPipeline: React.FC<{ onOpenClient: (c: Client) => void }>
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clients, strategies]);
 
+  const helpClients = clients.filter(c => accessOf(c.id).some(a => a.status === 'help'));
   const signupLink = `${getAppUrl()}/cadastro?agency=${currentMembership?.slug ?? ''}`;
   const copyLink = () => { navigator.clipboard?.writeText(signupLink); setCopied(true); setTimeout(() => setCopied(false), 1800); };
 
@@ -125,6 +126,19 @@ export const OnboardingPipeline: React.FC<{ onOpenClient: (c: Client) => void }>
           <button onClick={load} className="p-2.5 rounded-xl border border-gray-200 bg-white text-gray-500 hover:text-gray-900" title="Atualizar"><RefreshCw size={16} /></button>
         </div>
       </div>
+
+      {!loading && helpClients.length > 0 && (
+        <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200">
+          <p className="text-sm font-bold text-amber-900 flex items-center gap-2"><AlertCircle size={16} /> {helpClients.length === 1 ? '1 cliente pediu ajuda com os acessos' : `${helpClients.length} clientes pediram ajuda com os acessos`}</p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {helpClients.map(c => (
+              <button key={c.id} onClick={() => setOpenId(c.id)} className="px-3 py-1.5 rounded-lg bg-white border border-amber-200 text-xs font-semibold text-amber-900 hover:border-amber-300">
+                {c.name} · {accessOf(c.id).filter(a => a.status === 'help').map(a => (a.platform === 'meta' ? 'Meta' : 'Google')).join(' e ')}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {loading ? (
         <div className="py-20 flex justify-center text-gray-400"><Loader2 className="animate-spin" /></div>
@@ -200,7 +214,9 @@ const ClientDrawer: React.FC<{
   const [notes, setNotes] = useState('');
   const [showNotes, setShowNotes] = useState(false);
   const tsd = (client as any).traffic_strategy_data || {};
-  const english = client.agency_id === 7;
+  const lang = (tsd.language as 'pt' | 'en' | 'es') || (client.agency_id === 7 ? 'en' : 'pt');
+  const phoneDigits = String(tsd.phone || '').replace(/\D/g, '');
+  const waClient = phoneDigits ? `https://wa.me/${phoneDigits.length <= 11 && client.agency_id !== 7 ? '55' + phoneDigits : phoneDigits}` : null;
 
   const run = async (key: string, fn: () => Promise<string | null | void>) => {
     setBusy(key); setErr('');
@@ -260,7 +276,10 @@ const ClientDrawer: React.FC<{
             <p className="font-bold text-gray-900 truncate">{client.name}</p>
             <p className="text-xs text-gray-500 truncate">{client.responsible} · {client.email} {tsd.phone ? `· ${tsd.phone}` : ''}</p>
           </div>
-          <button onClick={onOpenClient} className="ml-auto hidden sm:inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-gray-200 text-xs font-semibold text-gray-700 hover:border-gray-300">Abrir cliente <ChevronRight size={14} /></button>
+          {waClient && (
+            <a href={waClient} target="_blank" rel="noopener noreferrer" className="ml-auto inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-600 text-white text-xs font-semibold hover:bg-emerald-700">WhatsApp</a>
+          )}
+          <button onClick={onOpenClient} className={`${waClient ? '' : 'ml-auto '}hidden sm:inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-gray-200 text-xs font-semibold text-gray-700 hover:border-gray-300`}>Abrir cliente <ChevronRight size={14} /></button>
           <button onClick={onClose} className="p-2 rounded-xl hover:bg-gray-100 text-gray-500"><X size={18} /></button>
         </div>
 
@@ -367,7 +386,7 @@ const ClientDrawer: React.FC<{
 
             {strategy && (
               <div className="p-5 rounded-2xl border border-gray-200">
-                <StrategyView content={strategy.content} internal english={english} />
+                <StrategyView content={strategy.content} internal lang={lang} />
               </div>
             )}
           </section>

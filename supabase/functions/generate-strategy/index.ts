@@ -98,6 +98,7 @@ Deno.serve(async (req) => {
     const english = client.agency_id === 7;
     const tsd = client.traffic_strategy_data ?? {};
     const last = previous?.[0];
+    const lang: string = ["pt", "en", "es"].includes(tsd.language) ? tsd.language : (english ? "en" : "pt");
 
     const context = {
       empresa: client.name,
@@ -121,8 +122,9 @@ Deno.serve(async (req) => {
       "Se faltar informação, faça a melhor suposição e registre a dúvida em pontos_em_aberto (isso é só para a agência).",
       "Se houver estratégia anterior com feedback do cliente, corrija o que ele pediu.",
       "Entregue o resultado chamando a ferramenta salvar_estrategia uma única vez, sem texto antes ou depois.",
-      english ? "The client is in the United States: write every field in English and use USD." : "Escreva em português do Brasil.",
-    ].join("\n");
+      lang === "en" ? "Write every field in English." : lang === "es" ? "Escribe todos los campos en español neutro (latinoamericano)." : "Escreva em português do Brasil.",
+      english ? "O cliente é atendido nos Estados Unidos: use valores em USD." : "",
+    ].filter(Boolean).join("\n");
 
     const userMsg = `Dados do cliente (JSON):\n${JSON.stringify(context, null, 2)}` +
       (extra ? `\n\nInstruções ou anotações da equipe (por exemplo, resumo da reunião):\n${extra}` : "");
