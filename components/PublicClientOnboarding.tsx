@@ -24,6 +24,7 @@ const labelCls = 'block text-xs font-semibold text-gray-600 mb-1.5';
 
 export const PublicClientOnboarding: React.FC<PublicClientOnboardingProps> = ({ agencySlug }) => {
   const [loading, setLoading] = useState(true);
+  const [referrer, setReferrer] = useState<{ name: string | null; whatsapp: string | null } | null>(null);
   const [agency, setAgency] = useState<AgencyData | null>(null);
   const [notFound, setNotFound] = useState(false);
   const [logoError, setLogoError] = useState(false);
@@ -61,8 +62,9 @@ export const PublicClientOnboarding: React.FC<PublicClientOnboardingProps> = ({ 
     (async () => {
       const slug = (agencySlug || '').trim().toLowerCase();
       if (!slug) { setNotFound(true); setLoading(false); return; }
-      const { data, error: err } = await callFunction<{ agency: AgencyData }>('public-onboarding', { action: 'agency', agency_slug: slug });
-      if (err || !data?.agency) setNotFound(true); else setAgency(data.agency);
+      const ref = new URLSearchParams(window.location.search).get('ref');
+      const { data, error: err } = await callFunction<{ agency: AgencyData; referrer_info?: { name: string | null; whatsapp: string | null } }>('public-onboarding', { action: 'agency', agency_slug: slug, ref });
+      if (err || !data?.agency) setNotFound(true); else { setAgency(data.agency); setReferrer(data.referrer_info ?? null); }
       setLoading(false);
     })();
   }, [agencySlug]);
@@ -276,8 +278,10 @@ export const PublicClientOnboarding: React.FC<PublicClientOnboardingProps> = ({ 
   const showsTraffic = business.services.includes('Tráfego Pago') || business.services.includes('Não sei');
 
   const pendingAccess = (['meta', 'google'] as Platform[]).filter(p => access[p].status === 'pending' || access[p].situation === null);
-  const waLink = agency.contact_whatsapp
-    ? `https://wa.me/${agency.contact_whatsapp}?text=${encodeURIComponent(t(`Olá! Acabei de fazer o cadastro da ${company.companyName}.`, `Hi! I just signed up ${company.companyName}.`, `¡Hola! Acabo de registrar ${company.companyName}.`))}`
+  // Quem mandou o link recebe o contato; sem indicação, vai para o WhatsApp da agência
+  const waNumber = referrer?.whatsapp || agency.contact_whatsapp;
+  const waLink = waNumber
+    ? `https://wa.me/${waNumber}?text=${encodeURIComponent(t(`Olá! Acabei de fazer o cadastro da ${company.companyName}.`, `Hi! I just signed up ${company.companyName}.`, `¡Hola! Acabo de registrar ${company.companyName}.`))}`
     : null;
 
   const langPicker = (compact = false) => (
@@ -286,7 +290,7 @@ export const PublicClientOnboarding: React.FC<PublicClientOnboardingProps> = ({ 
       {LANGS.map(l => (
         <button key={l.id} type="button" onClick={() => chooseLang(l.id)}
           className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold transition ${lang === l.id ? 'bg-gray-900 text-white' : 'text-gray-600 hover:bg-gray-50'}`}>
-          {compact ? l.id.toUpperCase() : `${l.flag} ${l.label}`}
+          {compact ? l.id.toUpperCase() : l.label}
         </button>
       ))}
     </div>
@@ -334,9 +338,8 @@ export const PublicClientOnboarding: React.FC<PublicClientOnboardingProps> = ({ 
                   <div className="grid sm:grid-cols-3 gap-3 max-w-xl mx-auto">
                     {LANGS.map(l => (
                       <button key={l.id} type="button" onClick={() => { chooseLang(l.id); go(1); }}
-                        className={`p-5 rounded-2xl border-2 text-left transition hover:shadow-sm ${lang === l.id ? 'border-gray-900' : 'border-gray-200 hover:border-gray-300'}`}>
-                        <span className="text-2xl">{l.flag}</span>
-                        <p className="mt-2 font-semibold text-gray-900">{l.label}</p>
+                        className={`py-5 px-4 rounded-2xl border-2 text-center transition hover:shadow-sm ${lang === l.id ? 'border-gray-900' : 'border-gray-200 hover:border-gray-300'}`}>
+                        <p className="font-semibold text-gray-900">{l.label}</p>
                       </button>
                     ))}
                   </div>

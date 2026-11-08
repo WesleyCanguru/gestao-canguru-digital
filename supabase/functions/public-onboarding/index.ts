@@ -28,12 +28,14 @@ Deno.serve(async (req) => {
         .eq("slug", str(body.agency_slug, 60).toLowerCase()).eq("is_active", true).maybeSingle();
       if (!data) return json({ error: "Agência não encontrada." }, 404);
       let referrer: string | null = null;
+      let referrer_info: { name: string | null; whatsapp: string | null } | null = null;
       if (body.ref) {
-        const { data: m } = await admin.from("agency_members").select("display_name")
+        const { data: m } = await admin.from("agency_members").select("display_name, contact_whatsapp")
           .eq("agency_id", data.id).eq("ref_code", str(body.ref, 60)).eq("is_active", true).maybeSingle();
         referrer = m?.display_name ?? null;
+        if (m) referrer_info = { name: m.display_name ?? null, whatsapp: m.contact_whatsapp ?? null };
       }
-      return json({ agency: data, referrer });
+      return json({ agency: data, referrer, referrer_info });
     }
 
     // Passo 1: cria o cliente como lead parcial
