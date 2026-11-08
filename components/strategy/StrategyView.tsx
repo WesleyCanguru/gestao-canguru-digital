@@ -38,8 +38,16 @@ const Section: React.FC<{ icon: React.ReactNode; title: string; children: React.
 );
 
 /** Mostra a estratégia de forma legível. `internal` exibe os pontos em aberto (só equipe). */
-export const StrategyView: React.FC<{ content: StrategyContent; internal?: boolean; english?: boolean }> = ({ content: c, internal, english }) => {
-  const t = (pt: string, en: string) => (english ? en : pt);
+const ES: Record<string, string> = {
+  'Objetivo principal': 'Objetivo principal', 'Investimento em anúncios': 'Inversión en anuncios', 'Oferta': 'Oferta',
+  'Públicos': 'Públicos', 'Campanhas': 'Campañas', 'da verba': 'del presupuesto', 'Objetivo: ': 'Objetivo: ',
+  'Público: ': 'Público: ', 'Anúncios: ': 'Anuncios: ', 'Por que esse investimento': 'Por qué esta inversión',
+  'Como vamos medir': 'Cómo vamos a medir', 'Cronograma': 'Cronograma', 'O que precisamos de você': 'Lo que necesitamos de ti',
+};
+
+export const StrategyView: React.FC<{ content: StrategyContent; internal?: boolean; english?: boolean; lang?: 'pt' | 'en' | 'es' }> = ({ content: c, internal, english, lang }) => {
+  const l = lang ?? (english ? 'en' : 'pt');
+  const t = (pt: string, en: string) => (l === 'en' ? en : l === 'es' ? (ES[pt] ?? pt) : pt);
   return (
     <div className="space-y-7 text-sm text-gray-700 leading-relaxed">
       {c.resumo && <p className="text-base text-gray-900">{c.resumo}</p>}

@@ -11,6 +11,7 @@ import { ClientSelectorScreen } from './components/ClientSelectorScreen';
 import { ClientManager } from './components/ClientManager';
 import { ClientChecklistView } from './components/agency/ClientChecklistView';
 import { BriefingOnboarding } from './components/BriefingOnboarding';
+import { ClientStartCard, isStarterClient } from './components/strategy/ClientStartCard';
 import { ClientHome } from './components/ClientHome';
 import { BriefingsView } from './components/BriefingsView';
 import { PaidTrafficView } from './components/PaidTrafficView';
@@ -94,7 +95,7 @@ const MainApp: React.FC<MainAppProps> = ({ initialView, onExitAgencyDashboard, o
     return null;
   });
   const [isNavCollapsed, setIsNavCollapsed] = useState(false);
-  const { userRole, logout, activeClient, setActiveClient, refreshActiveClient } = useAuth();
+  const { userRole, logout, activeClient, setActiveClient, refreshActiveClient, isViewingAsClient } = useAuth();
   const { monthlyPlans } = useEditorialData();
 
   // Deep linking: Handle direct links to briefings or other views
@@ -151,6 +152,8 @@ const MainApp: React.FC<MainAppProps> = ({ initialView, onExitAgencyDashboard, o
     if (hasAba || hasMes || hasGate) return;
 
     if (userRole === 'approver' && activeClient) {
+      // Cliente novo do cadastro público usa o portal de começo, sem travar em briefings
+      if (isStarterClient(activeClient)) return;
       if (!activeClient.onboarding_completed && !activeClient.briefings_waived && view !== 'strategic-briefings') {
         setView('strategic-briefings');
       }
@@ -209,7 +212,8 @@ const MainApp: React.FC<MainAppProps> = ({ initialView, onExitAgencyDashboard, o
   const searchParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
   const isGateActive = searchParams?.get('gate') === 'nome' && typeof window !== 'undefined' && !sessionStorage.getItem('visitor_name');
   
-  const clientDoingOnboarding = userRole === 'approver' && activeClient && !activeClient.onboarding_completed && !activeClient.briefings_waived;
+  const starterClient = userRole === 'approver' && isStarterClient(activeClient);
+  const clientDoingOnboarding = userRole === 'approver' && activeClient && (starterClient || (!activeClient.onboarding_completed && !activeClient.briefings_waived));
   const showClientNav = userRole === 'approver' && view !== 'dashboard' && !clientDoingOnboarding && !isGateActive;
   const showNav = !isGateActive && (userRole === 'admin' || userRole === 'team' || showClientNav);
 
@@ -454,7 +458,7 @@ const MainApp: React.FC<MainAppProps> = ({ initialView, onExitAgencyDashboard, o
                   </div>
                 ) : view === 'strategic-briefings' ? (
                   <div className="bg-white rounded-[2.5rem] border border-black/[0.03] shadow-sm min-h-[80vh]">
-                    {!(userRole === 'approver' && !activeClient?.onboarding_completed) && (
+                    {(starterClient || !(userRole === 'approver' && !activeClient?.onboarding_completed)) && (
                       <div className="p-6 border-b border-gray-100 flex items-center gap-4">
                         <button 
                           onClick={() => setView('dashboard')}
@@ -518,6 +522,8 @@ const MainApp: React.FC<MainAppProps> = ({ initialView, onExitAgencyDashboard, o
                       />
                     )}
                   </div>
+                ) : starterClient && (view === 'dashboard' || view === 'home') ? (
+                  <ClientStartCard client={activeClient} full readOnly={isViewingAsClient} onOpenBriefings={() => setView('strategic-briefings')} />
                 ) : view === 'dashboard' ? (
                   <ClientHome
                     initialActiveView="dashboard"
