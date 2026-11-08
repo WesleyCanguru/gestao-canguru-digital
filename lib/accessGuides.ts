@@ -4,10 +4,10 @@
 export type Lang = 'pt' | 'en' | 'es';
 export type Platform = 'meta' | 'google';
 
-export const LANGS: { id: Lang; label: string; flag: string }[] = [
-  { id: 'pt', label: 'Português', flag: '🇧🇷' },
-  { id: 'en', label: 'English', flag: '🇺🇸' },
-  { id: 'es', label: 'Español', flag: '🇪🇸' },
+export const LANGS: { id: Lang; label: string }[] = [
+  { id: 'pt', label: 'Português' },
+  { id: 'en', label: 'English' },
+  { id: 'es', label: 'Español' },
 ];
 
 export const pickLang = (l?: string | null): Lang => (l === 'en' || l === 'es' || l === 'pt' ? l : 'pt');

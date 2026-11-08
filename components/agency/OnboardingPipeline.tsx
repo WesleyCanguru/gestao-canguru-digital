@@ -49,6 +49,7 @@ export const OnboardingPipeline: React.FC<{ onOpenClient: (c: Client) => void }>
   const [strategies, setStrategies] = useState<StrategyRow[]>([]);
   const [briefings, setBriefings] = useState<Briefing[]>([]);
   const [loading, setLoading] = useState(true);
+  const [members, setMembers] = useState<Record<string, string>>({});
   const [openId, setOpenId] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
@@ -61,6 +62,8 @@ export const OnboardingPipeline: React.FC<{ onOpenClient: (c: Client) => void }>
       .order('created_at', { ascending: false });
     const list = ((cl as Client[]) || []).filter(c =>
       (c as any).traffic_strategy_data?.created_via === 'public_onboarding' || c.client_status === 'prospect' || (c as any).campaign_live_at);
+    const { data: mem } = await supabase.from('agency_members').select('user_id, display_name').eq('agency_id', agencyId);
+    setMembers(Object.fromEntries(((mem as any[]) || []).map(m => [m.user_id, (m.display_name || '').split(' ')[0]])));
     const ids = list.map(c => c.id);
     setClients(list);
     if (ids.length) {
@@ -101,7 +104,8 @@ export const OnboardingPipeline: React.FC<{ onOpenClient: (c: Client) => void }>
   }, [clients, strategies]);
 
   const helpClients = clients.filter(c => accessOf(c.id).some(a => a.status === 'help'));
-  const signupLink = `${getAppUrl()}/cadastro?agency=${currentMembership?.slug ?? ''}`;
+  // Cada pessoa copia o próprio link: o cliente fica marcado como trazido por ela e o contato final vai para ela
+  const signupLink = `${getAppUrl()}/cadastro?agency=${currentMembership?.slug ?? ''}${currentMembership?.ref_code ? `&ref=${currentMembership.ref_code}` : ''}`;
   const copyLink = () => { navigator.clipboard?.writeText(signupLink); setCopied(true); setTimeout(() => setCopied(false), 1800); };
 
   const open = clients.find(c => c.id === openId) || null;
@@ -168,6 +172,7 @@ export const OnboardingPipeline: React.FC<{ onOpenClient: (c: Client) => void }>
                       <p className="mt-1.5 text-[11px] text-gray-500">
                         {st.id === 'cadastro' ? `Parou na etapa ${Math.min(step + 1, 5)} de 5 · ` : ''}{dayjs(c.created_at).format('DD/MM')}
                         {s?.status === 'changes' ? ' · pediu ajustes' : ''}
+                        {(c as any).acquired_by_user_id && members[(c as any).acquired_by_user_id] ? ` · via ${members[(c as any).acquired_by_user_id]}` : ''}
                       </p>
                       {acc.length > 0 && (
                         <div className="mt-2 flex flex-wrap gap-1">
@@ -215,8 +220,7 @@ const ClientDrawer: React.FC<{
   const [showNotes, setShowNotes] = useState(false);
   const tsd = (client as any).traffic_strategy_data || {};
   const lang = (tsd.language as 'pt' | 'en' | 'es') || (client.agency_id === 7 ? 'en' : 'pt');
-  const phoneDigits = String(tsd.phone || '').replace(/\D/g, '');
-  const waClient = phoneDigits ? `https://wa.me/${phoneDigits.length <= 11 && client.agency_id !== 7 ? '55' + phoneDigits : phoneDigits}` : null;
+
 
   const run = async (key: string, fn: () => Promise<string | null | void>) => {
     setBusy(key); setErr('');
@@ -276,10 +280,7 @@ const ClientDrawer: React.FC<{
             <p className="font-bold text-gray-900 truncate">{client.name}</p>
             <p className="text-xs text-gray-500 truncate">{client.responsible} · {client.email} {tsd.phone ? `· ${tsd.phone}` : ''}</p>
           </div>
-          {waClient && (
-            <a href={waClient} target="_blank" rel="noopener noreferrer" className="ml-auto inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-600 text-white text-xs font-semibold hover:bg-emerald-700">WhatsApp</a>
-          )}
-          <button onClick={onOpenClient} className={`${waClient ? '' : 'ml-auto '}hidden sm:inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-gray-200 text-xs font-semibold text-gray-700 hover:border-gray-300`}>Abrir cliente <ChevronRight size={14} /></button>
+          <button onClick={onOpenClient} className={`ml-auto hidden sm:inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-gray-200 text-xs font-semibold text-gray-700 hover:border-gray-300`}>Abrir cliente <ChevronRight size={14} /></button>
           <button onClick={onClose} className="p-2 rounded-xl hover:bg-gray-100 text-gray-500"><X size={18} /></button>
         </div>
 
@@ -314,6 +315,11 @@ const ClientDrawer: React.FC<{
                       {st !== 'verified' && (
                         <button disabled={!!busy} onClick={() => setAccessStatus(p, 'verified')} className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-emerald-600 text-white text-xs font-semibold disabled:opacity-50">
                           {busy === `acc-${p}` ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} />} Acesso conferido
+                        </button>
+                      )}
+                      {st === 'help' && (
+                        <button disabled={!!busy} onClick={() => setAccessStatus(p, 'client_done')} className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-amber-500 text-white text-xs font-semibold disabled:opacity-50">
+                          <Check size={12} /> Ajuda feita
                         </button>
                       )}
                       {st === 'verified' && (
