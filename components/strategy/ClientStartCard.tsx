@@ -113,8 +113,8 @@ export const ClientStartCard: React.FC<{
     { label: t('Briefing', 'Briefing', 'Briefing'), done: trafficDone },
     { label: t('Acessos', 'Access', 'Accesos'), done: accessOk('meta') && accessOk('google') },
     { label: t('Estratégia', 'Strategy', 'Estrategia'), done: !!strategy },
-    { label: t('Sua aprovação', 'Your approval', 'Tu aprobación'), done: strategy?.status === 'approved' },
-    { label: t('Campanha no ar', 'Campaign live', 'Campaña al aire'), done: false },
+    { label: t('Aprovação', 'Approval', 'Aprobación'), done: strategy?.status === 'approved' },
+    { label: t('No ar', 'Live', 'Al aire'), done: false },
   ] : [
     { label: t('Cadastro', 'Sign-up', 'Registro'), done: client.onboarding_status === 'concluido' },
     { label: t('Acessos', 'Access', 'Accesos'), done: accessOk('meta') && accessOk('google') },
@@ -138,7 +138,7 @@ export const ClientStartCard: React.FC<{
           <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 tracking-tight">
             {firstName ? t(`Olá, ${firstName}!`, `Hi, ${firstName}!`, `¡Hola, ${firstName}!`) : t('Olá!', 'Hi!', '¡Hola!')}
           </h1>
-          <p className="text-gray-500 mt-1">{t('Aqui você acompanha o começo do trabalho.', 'Here you can follow how we are getting started.', 'Aquí sigues el comienzo del trabalho.')}</p>
+          <p className="text-gray-500 mt-1">{t('Aqui você acompanha o começo do trabalho.', 'Here you can follow how we are getting started.', 'Aquí sigues el comienzo del trabajo.')}</p>
         </div>
       )}
 

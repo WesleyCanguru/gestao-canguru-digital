@@ -738,7 +738,7 @@ export const BriefingOnboarding: React.FC<{ isDashboardView?: boolean }> = ({ is
                   <div key={q.key} className="bg-gray-50/40 p-4 sm:p-5 rounded-2xl border border-black/[0.03]">
                     <label className="block text-sm font-bold text-gray-800 mb-1">
                       {tb(q.label)}
-                      {q.optional && <span className="text-gray-400 font-normal ml-1">({tb('(opcional)')})</span>}
+                      {q.optional && <span className="text-gray-400 font-normal ml-1">{tb('(opcional)')}</span>}
                     </label>
                     {q.help && <p className="text-[11px] text-gray-500 mb-3 leading-relaxed">{tb(q.help)}</p>}
                     

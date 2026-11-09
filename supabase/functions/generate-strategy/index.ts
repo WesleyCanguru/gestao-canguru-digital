@@ -89,12 +89,13 @@ Deno.serve(async (req) => {
 
     const [{ data: agency }, { data: briefings }, { data: access }, { data: previous }] = await Promise.all([
       admin.from("agencies").select("name").eq("id", client.agency_id).maybeSingle(),
-      admin.from("client_briefings").select("briefing_type, responses").eq("client_id", clientId),
+      admin.from("client_briefings").select("briefing_type, responses, is_completed").eq("client_id", clientId),
       admin.from("client_platform_access").select("platform, situation, status").eq("client_id", clientId),
       admin.from("client_strategies").select("version, status, client_feedback, content").eq("client_id", clientId)
         .order("version", { ascending: false }).limit(1),
     ]);
 
+    const trafego = (briefings ?? []).find((b) => b.briefing_type === "trafego_pago");
     const english = client.agency_id === 7;
     const tsd = client.traffic_strategy_data ?? {};
     const last = previous?.[0];
@@ -108,7 +109,10 @@ Deno.serve(async (req) => {
       site: tsd.website_url ?? null,
       instagram: client.instagram ?? tsd.instagram_url ?? null,
       cadastro: tsd.onboarding_briefing ?? null,
-      briefings: (briefings ?? []).map((b) => ({ tipo: b.briefing_type, respostas: b.responses })),
+      briefing_de_trafego: trafego?.responses ?? null,
+      briefing_de_trafego_respondido: !!trafego?.is_completed,
+      outros_briefings: (briefings ?? []).filter((b) => b.briefing_type !== "trafego_pago" && b.briefing_type !== "onboarding")
+        .map((b) => ({ tipo: b.briefing_type, respostas: b.responses })),
       acessos: access ?? [],
       estrategia_anterior: last ? { versao: last.version, status: last.status, feedback_do_cliente: last.client_feedback, conteudo: last.content } : null,
     };
@@ -117,6 +121,9 @@ Deno.serve(async (req) => {
       `Você é o estrategista de tráfego pago da agência ${agency?.name ?? ""}.`,
       "Monte uma estratégia de anúncios no Meta Ads e no Google Ads, prática e pronta para executar, a partir do cadastro do cliente.",
       "Seja específico para o negócio dele: públicos, palavras-chave, ângulos de criativo e divisão de verba que façam sentido para essa oferta e região.",
+      "O cadastro traz o básico (oferta, região, idade, investimento). O briefing de tráfego aprofunda: gênero, renda, profissão, onde o público passa o tempo, maior problema, motivo da busca, ciclo de vendas, gatilho para agir, quem atende os contatos e que materiais o cliente já tem. Use os dois juntos.",
+      "Adapte a estratégia ao atendimento e aos materiais: se o cliente demora para responder ou não tem fotos e vídeos, diga isso e ajuste campanhas e criativos.",
+      "Se o briefing de tráfego não foi respondido, registre em pontos_em_aberto quais respostas fazem falta.",
       "Use o investimento que o cliente indicou como referência. Se não houver, sugira um valor inicial realista e explique.",
       "Escreva para o cliente ler: frases curtas, sem jargão, sem travessão (—). Use \"para\", nunca \"pra\".",
       "Se faltar informação, faça a melhor suposição e registre a dúvida em pontos_em_aberto (isso é só para a agência).",
