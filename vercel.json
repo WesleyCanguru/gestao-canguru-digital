@@ -1,6 +1,12 @@
 {
   "rewrites": [
-    { "source": "/p/alvaro-petrus", "destination": "/propostas/alvaro-petrus.html" },
-    { "source": "/(.*)", "destination": "/index.html" }
+    {
+      "source": "/p/alvaro-petrus",
+      "destination": "/propostas/alvaro-petrus.html"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
   ]
 }
