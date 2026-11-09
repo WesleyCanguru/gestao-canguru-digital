@@ -7,7 +7,7 @@ import { parseCurrencyInput } from '../../lib/currencyUtils';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 import ptBr from 'dayjs/locale/pt-br';
-import { FileText, Link as LinkIcon, Upload, Eye, FileSignature, CheckCircle, Clock, DollarSign, Copy, TrendingUp, Trash2 } from 'lucide-react';
+import { FileText, Link as LinkIcon, Upload, Eye, FileSignature, CheckCircle, Clock, DollarSign, Copy, TrendingUp, Trash2, Search, MoreHorizontal, ChevronDown } from 'lucide-react';
 import { motion } from 'motion/react';
 
 const fieldLabels: Record<string, string> = {
@@ -417,6 +417,19 @@ interface ClientWithContract extends Client {
   contract?: ContractForm | null;
 }
 
+type StatusKey = 'signed' | 'submitted' | 'pending' | 'none';
+const STATUS_ORDER: Record<StatusKey, number> = { submitted: 0, pending: 1, none: 2, signed: 3 };
+const STATUS_META: Record<StatusKey, { label: string; dot: string }> = {
+  signed: { label: 'Assinado', dot: 'bg-emerald-500' },
+  submitted: { label: 'Dados recebidos', dot: 'bg-sky-500' },
+  pending: { label: 'Aguardando o cliente', dot: 'bg-amber-500' },
+  none: { label: 'Sem contrato', dot: 'bg-gray-300' },
+};
+const FILTERS: { id: 'all' | StatusKey; label: string }[] = [
+  { id: 'all', label: 'Todos' }, { id: 'signed', label: 'Assinados' }, { id: 'submitted', label: 'Dados recebidos' },
+  { id: 'pending', label: 'Aguardando' }, { id: 'none', label: 'Sem contrato' },
+];
+
 const hasFormData = (c: any) => !!c?.form_data && Object.keys(c.form_data).filter((k: string) => k !== 'value_history').length > 3;
 
 export const AgencyContractsTab: React.FC = () => {
@@ -428,6 +441,10 @@ export const AgencyContractsTab: React.FC = () => {
   const [viewDataModalOpen, setViewDataModalOpen] = useState(false);
   const [isCancelledExpanded, setIsCancelledExpanded] = useState(false);
   const [historyModalOpen, setHistoryModalOpen] = useState(false);
+  const [filter, setFilter] = useState<'all' | StatusKey>('all');
+  const [search, setSearch] = useState('');
+  const [menuFor, setMenuFor] = useState<string | null>(null);
+  const [toast, setToast] = useState<string | null>(null);
 
   // Form states
   const [contractValue, setContractValue] = useState('');
@@ -693,533 +710,274 @@ export const AgencyContractsTab: React.FC = () => {
     }
   };
 
+  // ---------- Visual (redesenho 09/11) ----------
+  const money = (client: ClientWithContract | null, v: number, compact = false) =>
+    new Intl.NumberFormat((client as any)?.currency === 'USD' ? 'en-US' : 'pt-BR', {
+      style: 'currency', currency: (client as any)?.currency === 'USD' ? 'USD' : 'BRL', maximumFractionDigits: compact ? 0 : 2,
+    }).format(v || 0);
+  const statusOf = (c: ClientWithContract): StatusKey =>
+    c.contract?.status === 'signed' ? 'signed' : c.contract?.status === 'submitted' ? 'submitted' : c.contract?.status === 'pending' ? 'pending' : 'none';
+  const signedList = activeClientsList.filter(c => statusOf(c) === 'signed');
+  const mrrByCurrency = signedList.reduce<Record<string, number>>((acc, c) => {
+    const cur = (c as any).currency === 'USD' ? 'USD' : 'BRL';
+    acc[cur] = (acc[cur] || 0) + getCurrentContractValue(c);
+    return acc;
+  }, {});
+  const mainCur = (mrrByCurrency.USD || 0) > (mrrByCurrency.BRL || 0) ? 'USD' : 'BRL';
+  const sameCur = signedList.filter(c => ((c as any).currency === 'USD' ? 'USD' : 'BRL') === mainCur);
+  const ticket = sameCur.length ? (mrrByCurrency[mainCur] || 0) / sameCur.length : 0;
+  const avgMonths = signedList.length
+    ? Math.round(signedList.reduce((a, c) => a + (dayjs().diff(dayjs(c.contract?.contract_start_date || c.created_at), 'month') + 1), 0) / signedList.length)
+    : 0;
+  const fmtCur = (cur: string, v: number) => new Intl.NumberFormat(cur === 'USD' ? 'en-US' : 'pt-BR', { style: 'currency', currency: cur, maximumFractionDigits: 0 }).format(v);
+  const counts = {
+    all: activeClientsList.length,
+    signed: signedList.length,
+    submitted: activeClientsList.filter(c => statusOf(c) === 'submitted').length,
+    pending: activeClientsList.filter(c => statusOf(c) === 'pending').length,
+    none: activeClientsList.filter(c => statusOf(c) === 'none').length,
+  };
+  const q = search.trim().toLowerCase();
+  const visible = activeClientsList
+    .filter(c => filter === 'all' || statusOf(c) === filter)
+    .filter(c => !q || c.name.toLowerCase().includes(q) || (c.segment || '').toLowerCase().includes(q))
+    .sort((a, b) => STATUS_ORDER[statusOf(a)] - STATUS_ORDER[statusOf(b)] || a.name.localeCompare(b.name));
+
+  const notify = (text: string) => { setToast(text); setTimeout(() => setToast(null), 2200); };
+  const copyLink = (token: string) => { navigator.clipboard.writeText(`${getAppUrl()}/contrato/${token}`); notify('Link do contrato copiado.'); };
+  const generateLink = async (clientId: string) => {
+    const token = Array.from(crypto.getRandomValues(new Uint8Array(20))).map(b => b.toString(16).padStart(2, '0')).join('');
+    const { data, error } = await supabase.from('contract_forms').insert({ client_id: clientId, agency_id: agencyId, form_token: token, status: 'pending' }).select().single();
+    if (error) { notify(`Erro ao gerar o link: ${error.message}`); return; }
+    if (data) {
+      setClients(prev => prev.map(c => c.id === clientId ? { ...c, contract: data } : c));
+      navigator.clipboard.writeText(`${getAppUrl()}/contrato/${token}`);
+      notify('Link gerado e copiado. É só mandar para o cliente.');
+    }
+  };
+
+  const ActionMenu: React.FC<{ client: ClientWithContract }> = ({ client }) => {
+    const st = statusOf(client);
+    const items: { label: string; icon: React.ReactNode; onClick: () => void }[] = [];
+    if (client.contract && (st === 'submitted' || hasFormData(client.contract))) items.push({ label: 'Ver dados do formulário', icon: <Eye size={14} />, onClick: () => { setSelectedClient(client); setViewDataModalOpen(true); } });
+    if (st === 'pending' && client.contract) items.push({ label: 'Copiar link de novo', icon: <Copy size={14} />, onClick: () => copyLink(client.contract!.form_token) });
+    if (st === 'signed') items.push({ label: 'Reajustes de valor', icon: <TrendingUp size={14} />, onClick: () => { setSelectedClient(client); setHistoryModalOpen(true); } });
+    if (st === 'signed') items.push({ label: 'Substituir contrato assinado', icon: <Upload size={14} />, onClick: () => { setSelectedClient(client); setUploadModalOpen(true); } });
+    if (st === 'pending' || st === 'none') items.push({ label: 'Subir contrato já assinado', icon: <Upload size={14} />, onClick: () => { setSelectedClient(client); setUploadModalOpen(true); } });
+    if (!items.length) return null;
+    const open = menuFor === client.id;
+    return (
+      <div className="relative">
+        <button onClick={e => { e.stopPropagation(); setMenuFor(open ? null : client.id); }}
+          className="p-2 rounded-lg text-gray-400 hover:text-gray-900 hover:bg-gray-100" aria-label="Mais ações"><MoreHorizontal size={16} /></button>
+        {open && (
+          <div className="absolute right-0 top-full mt-1 w-56 bg-white rounded-xl border border-gray-100 shadow-xl z-30 py-1.5" onClick={e => e.stopPropagation()}>
+            {items.map(it => (
+              <button key={it.label} onClick={() => { setMenuFor(null); it.onClick(); }}
+                className="w-full px-3.5 py-2 flex items-center gap-2.5 text-left text-[13px] text-gray-700 hover:bg-gray-50">
+                <span className="text-gray-400">{it.icon}</span>{it.label}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const PrimaryAction: React.FC<{ client: ClientWithContract }> = ({ client }) => {
+    const st = statusOf(client);
+    const base = 'inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors';
+    if (st === 'none') return <button onClick={() => generateLink(client.id)} className={`${base} bg-gray-900 text-white hover:bg-gray-800`}><LinkIcon size={14} /> Gerar link</button>;
+    if (st === 'pending') return <button onClick={() => copyLink(client.contract!.form_token)} className={`${base} border border-gray-200 text-gray-700 hover:border-gray-300`}><Copy size={14} /> Copiar link</button>;
+    if (st === 'submitted') return <button onClick={() => { setSelectedClient(client); setUploadModalOpen(true); }} className={`${base} bg-gray-900 text-white hover:bg-gray-800`}><Upload size={14} /> Subir assinado</button>;
+    if (client.contract?.signed_contract_url) return <button onClick={() => openStoredFile(client.contract!.signed_contract_url!)} className={`${base} border border-gray-200 text-gray-700 hover:border-gray-300`}><FileText size={14} /> Ver PDF</button>;
+    return null;
+  };
+
+  const StatusLine: React.FC<{ client: ClientWithContract }> = ({ client }) => {
+    const st = statusOf(client);
+    const meta = STATUS_META[st];
+    const when = st === 'signed' ? client.contract?.signed_at : st === 'submitted' ? client.contract?.submitted_at : st === 'pending' ? (client.contract as any)?.created_at : null;
+    return (
+      <div className="flex flex-col">
+        <span className="inline-flex items-center gap-2 text-[13px] font-medium text-gray-800">
+          <span className={`w-2 h-2 rounded-full ${meta.dot}`} />{meta.label}
+        </span>
+        {when && <span className="text-[11px] text-gray-400 mt-0.5 pl-4">{st === 'pending' ? `link de ${dayjs(when).fromNow()}` : dayjs(when).format('DD/MM/YYYY')}</span>}
+      </div>
+    );
+  };
+
+  const Avatar: React.FC<{ client: ClientWithContract; muted?: boolean }> = ({ client, muted }) => (
+    <span className="w-9 h-9 rounded-xl text-white text-[11px] font-bold flex items-center justify-center shrink-0"
+      style={{ backgroundColor: muted ? '#9CA3AF' : (client.color || '#456da1') }}>
+      {client.initials || client.name.slice(0, 2).toUpperCase()}
+    </span>
+  );
+
+  const ValueCell: React.FC<{ client: ClientWithContract }> = ({ client }) => {
+    if (statusOf(client) !== 'signed') return <span className="text-gray-300">—</span>;
+    const hist = (client.features_settings?.value_history || client.contract?.form_data?.value_history || []) as any[];
+    return (
+      <div className="flex flex-col">
+        <span className="font-semibold text-gray-900 tabular-nums">{money(client, getCurrentContractValue(client))}<span className="text-gray-400 font-normal">/mês</span></span>
+        <span className="text-[11px] text-gray-400 mt-0.5" title={formatValueHistory(client) || undefined}>
+          {formatClientPermanence(client)} de casa{hist.length ? ` · ${hist.length} ${hist.length === 1 ? 'reajuste' : 'reajustes'}` : ''}
+        </span>
+      </div>
+    );
+  };
+
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
+    <div className="space-y-6" onClick={() => menuFor && setMenuFor(null)}>
+      <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-bold text-brand-dark">Contratos</h2>
-          <p className="text-sm text-gray-500 mt-1">Gerencie os contratos e links enviados aos clientes.</p>
+          <h2 className="text-2xl font-bold text-gray-900 tracking-tight">Contratos</h2>
+          <p className="text-sm text-gray-500 mt-1">Quem já assinou, quem falta e quanto entra por mês.</p>
+        </div>
+        <div className="relative sm:w-72">
+          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar cliente"
+            className="w-full pl-9 pr-3 py-2.5 rounded-xl border border-gray-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-black/5" />
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm flex items-center gap-4">
-          <div className="w-12 h-12 bg-green-50 text-green-600 rounded-xl flex items-center justify-center">
-            <DollarSign size={24} />
-          </div>
-          <div>
-            <p className="text-xs text-gray-500 font-bold uppercase tracking-wider mb-1">MRR Total</p>
-            <p className="text-2xl font-black text-brand-dark">
-              {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(mrrTotal)}
-            </p>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm flex items-center gap-4">
-          <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center">
-            <FileSignature size={24} />
-          </div>
-          <div>
-            <p className="text-xs text-gray-500 font-bold uppercase tracking-wider mb-1">Contratos Ativos</p>
-            <p className="text-2xl font-black text-brand-dark">{activeContracts}</p>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm flex items-center gap-4">
-          <div className="w-12 h-12 bg-orange-50 text-orange-600 rounded-xl flex items-center justify-center">
-            <Clock size={24} />
-          </div>
-          <div>
-            <p className="text-xs text-gray-500 font-bold uppercase tracking-wider mb-1">Cliente Mais Antigo</p>
-            <p className="text-lg font-black text-brand-dark truncate max-w-[150px]" title={oldestContract?.name}>
-              {oldestContract ? oldestContract.name : 'Nenhum'}
-            </p>
-            {oldestContract && oldestContract.contract?.contract_start_date && (
-              <p className="text-xs text-gray-400">
-                Desde {dayjs(oldestContract.contract.contract_start_date).format('MMM YYYY')}
-              </p>
-            )}
-          </div>
-        </div>
-      </div>
-
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-        {/* Mobile View */}
-        <div className="block md:hidden p-4 space-y-4 bg-gray-50/30">
-          {activeClientsList.map(client => {
-            const isSigned = client.contract?.status === 'signed';
-            const isPending = client.contract?.status === 'pending';
-            const isSubmitted = client.contract?.status === 'submitted';
-            const hasContractForm = !!client.contract;
-
-            const startDate = client.contract?.contract_start_date;
-
-            return (
-              <div key={client.id} className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm flex flex-col gap-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h3 className="font-bold text-brand-dark">{client.name}</h3>
-                    {client.segment && <p className="text-xs text-gray-400">{client.segment}</p>}
-                  </div>
-                  <div>
-                    {isSigned ? (
-                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest bg-green-50 text-green-600">
-                        <CheckCircle size={12} /> Assinado
-                      </span>
-                    ) : isSubmitted ? (
-                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest bg-blue-50 text-blue-600">
-                        <Eye size={12} /> Recebido
-                      </span>
-                    ) : isPending ? (
-                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest bg-yellow-50 text-yellow-600">
-                        <Clock size={12} /> Aguarda
-                      </span>
-                    ) : (
-                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest bg-gray-100 text-gray-500">
-                        Sem cont.
-                      </span>
-                    )}
-                  </div>
-                </div>
-
-                {isSigned && startDate && (
-                  <div className="grid grid-cols-2 gap-3 pt-3 border-t border-gray-50 text-sm">
-                    <div>
-                      <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1">Mensalidade</p>
-                      <p className="font-bold text-brand-dark">
-                        {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(getCurrentContractValue(client))}
-                      </p>
-                      <p className="text-xs text-gray-500">{formatClientPermanence(client)}</p>
-                      {formatValueHistory(client) && (
-                        <p className="text-[9px] text-gray-400 italic mt-1 leading-tight">{formatValueHistory(client)}</p>
-                      )}
-                    </div>
-                    <div>
-                      <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1">Estimativa LTV</p>
-                      <p className="font-bold text-gray-600">
-                        {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(calculateClientLTV(client))}
-                      </p>
-                    </div>
-                  </div>
-                )}
-
-                <div className="flex flex-wrap gap-2 pt-3 border-t border-gray-50">
-                  {!hasContractForm && (
-                    <button
-                      onClick={() => handleGenerateLink(client.id)}
-                      className="flex-1 bg-brand-dark text-white py-2 rounded-xl text-xs font-bold hover:bg-brand-dark/90 transition-colors text-center"
-                    >
-                      Gerar Link
-                    </button>
-                  )}
-                  
-                  {isPending && client.contract && (
-                    <>
-                      <button
-                        onClick={() => copyToClipboard(client.contract!.form_token)}
-                        className="flex-1 flex justify-center items-center gap-1.5 py-2 rounded-xl border border-gray-200 text-gray-600 hover:text-brand-dark hover:border-brand-dark transition-colors text-xs font-bold"
-                      >
-                        <Copy size={14} /> Copiar Link
-                      </button>
-                      <button
-                        onClick={() => { setSelectedClient(client); setUploadModalOpen(true); }}
-                        className="flex-1 flex justify-center items-center gap-1.5 bg-gray-50 text-gray-600 border border-gray-200 py-2 rounded-xl text-xs font-bold hover:bg-gray-100 transition-colors"
-                      >
-                        <Upload size={14} /> Fazer upload
-                      </button>
-                    </>
-                  )}
-
-                  {isSubmitted && client.contract && (
-                    <>
-                      <button
-                        onClick={() => { setSelectedClient(client); setViewDataModalOpen(true); }}
-                        className="flex-1 flex justify-center items-center gap-1.5 py-2 rounded-xl border border-brand-dark/20 text-brand-dark hover:bg-brand-dark hover:text-white transition-colors text-xs font-bold"
-                      >
-                        <Eye size={14} /> Ver Dados
-                      </button>
-                      <button
-                        onClick={() => { setSelectedClient(client); setUploadModalOpen(true); }}
-                        className="flex-1 flex justify-center items-center gap-1.5 bg-brand-dark text-white py-2 rounded-xl text-xs font-bold hover:bg-brand-dark/90 transition-colors"
-                      >
-                        <Upload size={14} /> Assinado
-                      </button>
-                    </>
-                  )}
-
-                  {isSigned && client.contract && (
-                    <>
-                      {hasFormData(client.contract) && (
-                        <button
-                          onClick={() => { setSelectedClient(client); setViewDataModalOpen(true); }}
-                          className="inline-flex flex-1 justify-center items-center gap-1.5 px-3 py-1.5 rounded-lg border border-brand-dark/20 text-brand-dark hover:bg-brand-dark hover:text-white transition-colors text-xs font-bold"
-                        >
-                          <Eye size={14} /> Ver Dados
-                        </button>
-                      )}
-                      {client.contract.signed_contract_url && (
-                        <button
-                          onClick={() => openStoredFile(client.contract!.signed_contract_url!)}
-                          className="flex-1 flex justify-center items-center gap-1.5 py-2 rounded-xl border border-brand-dark text-brand-dark hover:bg-brand-dark hover:text-white transition-colors text-xs font-bold"
-                        >
-                          <FileText size={14} /> Ver PDF
-                        </button>
-                      )}
-                      <button
-                        onClick={() => { setSelectedClient(client); setHistoryModalOpen(true); }}
-                        className="flex-1 flex justify-center items-center gap-1.5 py-2 rounded-xl border border-gray-200 text-gray-600 hover:text-brand-dark hover:border-brand-dark transition-colors text-xs font-bold"
-                      >
-                        <TrendingUp size={14} /> Reajustes
-                      </button>
-                      <button
-                        onClick={() => { setSelectedClient(client); setUploadModalOpen(true); }}
-                        className="flex-1 flex justify-center items-center gap-1.5 bg-gray-50 text-gray-600 border border-gray-200 py-2 rounded-xl text-xs font-bold hover:bg-gray-100 transition-colors"
-                      >
-                        <Upload size={14} /> Substituir
-                      </button>
-                    </>
-                  )}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-
-        {/* Desktop View */}
-        <div className="hidden md:block overflow-x-auto">
-          <table className="w-full text-left text-sm whitespace-nowrap">
-            <thead className="bg-gray-50/50 border-b border-gray-100">
-              <tr>
-                <th className="px-6 py-4 font-bold text-gray-500 uppercase tracking-wider text-xs">Cliente</th>
-                <th className="px-6 py-4 font-bold text-gray-500 uppercase tracking-wider text-xs">Status</th>
-                <th className="px-6 py-4 font-bold text-gray-500 uppercase tracking-wider text-xs">Valor / Tempo</th>
-                <th className="px-6 py-4 font-bold text-gray-500 uppercase tracking-wider text-xs">Estimativa LTV</th>
-                <th className="px-6 py-4 font-bold text-gray-500 uppercase tracking-wider text-xs">Ações</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-50">
-              {activeClientsList.map(client => {
-                const isSigned = client.contract?.status === 'signed';
-                const isPending = client.contract?.status === 'pending';
-                const isSubmitted = client.contract?.status === 'submitted';
-                const hasContractForm = !!client.contract;
-
-                const startDate = client.contract?.contract_start_date;
-
-                return (
-                  <tr key={client.id} className="hover:bg-gray-50/50 transition-colors">
-                    <td className="px-6 py-4">
-                      <div className="flex flex-col">
-                        <span className="font-bold text-brand-dark">{client.name}</span>
-                        {client.segment && <span className="text-xs text-gray-400">{client.segment}</span>}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      {isSigned ? (
-                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest bg-green-50 text-green-600">
-                          <CheckCircle size={12} /> Assinado
-                        </span>
-                      ) : isSubmitted ? (
-                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest bg-blue-50 text-blue-600">
-                          <Eye size={12} /> Dados Recebidos
-                        </span>
-                      ) : isPending ? (
-                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest bg-yellow-50 text-yellow-600">
-                          <Clock size={12} /> Aguardando
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest bg-gray-100 text-gray-500">
-                          Sem contrato
-                        </span>
-                      )}
-                      
-                      {isSubmitted && client.contract?.submitted_at && (
-                        <div className="text-[10px] text-gray-400 mt-1">
-                          Enviado em {dayjs(client.contract.submitted_at).format('DD/MM/YYYY [às] HH:mm')}
-                        </div>
-                      )}
-                      {isSigned && client.contract?.signed_at && (
-                        <div className="text-[10px] text-gray-400 mt-1">
-                          Assinado em {dayjs(client.contract.signed_at).format('DD/MM/YYYY [às] HH:mm')}
-                        </div>
-                      )}
-                    </td>
-                    <td className="px-6 py-4">
-                      {isSigned && startDate ? (
-                        <div className="flex flex-col">
-                          <span className="font-bold text-brand-dark">
-                            {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(getCurrentContractValue(client))}/mês
-                          </span>
-                          <span className="text-xs text-gray-500 mt-0.5">
-                            Desde {dayjs(startDate).format('MMM YYYY')} ({formatClientPermanence(client)})
-                          </span>
-                          {formatValueHistory(client) && (
-                            <span className="text-[10px] text-gray-400 italic mt-1 bg-gray-50 px-2 py-0.5 rounded border border-gray-100 max-w-md whitespace-normal leading-relaxed">
-                              {formatValueHistory(client)}
-                            </span>
-                          )}
-                        </div>
-                      ) : (
-                        <span className="text-gray-400 text-sm">-</span>
-                      )}
-                    </td>
-                    <td className="px-6 py-4">
-                      {isSigned && startDate ? (
-                        <span className="font-bold text-gray-600">
-                          {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(calculateClientLTV(client))}
-                        </span>
-                      ) : (
-                        <span className="text-gray-400 text-sm">-</span>
-                      )}
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-2">
-                        {!hasContractForm && (
-                          <button
-                            onClick={() => handleGenerateLink(client.id)}
-                            className="bg-brand-dark text-white px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-brand-dark/90 transition-colors"
-                          >
-                            Gerar Link
-                          </button>
-                        )}
-                        
-                        {isPending && client.contract && (
-                          <>
-                            <button
-                              onClick={() => copyToClipboard(client.contract!.form_token)}
-                              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-200 text-gray-600 hover:text-brand-dark hover:border-brand-dark transition-colors text-xs font-bold"
-                              title="Copiar link"
-                            >
-                              <Copy size={14} /> Link
-                            </button>
-                            <button
-                              onClick={() => { setSelectedClient(client); setUploadModalOpen(true); }}
-                              className="flex items-center gap-1.5 bg-gray-50 text-gray-600 border border-gray-200 px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-gray-100 transition-colors"
-                            >
-                              <Upload size={14} /> Fazer upload
-                            </button>
-                          </>
-                        )}
-
-                        {isSubmitted && client.contract && (
-                          <>
-                            <button
-                              onClick={() => { setSelectedClient(client); setViewDataModalOpen(true); }}
-                              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-brand-dark/20 text-brand-dark hover:bg-brand-dark hover:text-white transition-colors text-xs font-bold"
-                            >
-                              <Eye size={14} /> Ver Dados
-                            </button>
-                            <button
-                              onClick={() => { setSelectedClient(client); setUploadModalOpen(true); }}
-                              className="flex items-center gap-1.5 bg-brand-dark text-white px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-brand-dark/90 transition-colors"
-                            >
-                              <Upload size={14} /> Assinado
-                            </button>
-                          </>
-                        )}
-
-                        {isSigned && client.contract && (
-                          <>
-                            {hasFormData(client.contract) && (
-                              <button
-                                onClick={() => { setSelectedClient(client); setViewDataModalOpen(true); }}
-                                className="inline-flex flex-1 justify-center items-center gap-1.5 px-3 py-1.5 rounded-lg border border-brand-dark/20 text-brand-dark hover:bg-brand-dark hover:text-white transition-colors text-xs font-bold"
-                              >
-                                <Eye size={14} /> Ver Dados
-                              </button>
-                            )}
-                            {client.contract.signed_contract_url && (
-                              <button
-                                onClick={() => openStoredFile(client.contract!.signed_contract_url!)}
-                                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-brand-dark text-brand-dark hover:bg-brand-dark hover:text-white transition-colors text-xs font-bold"
-                              >
-                                <FileText size={14} /> Ver PDF
-                              </button>
-                            )}
-                            <button
-                              onClick={() => { setSelectedClient(client); setHistoryModalOpen(true); }}
-                              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-200 text-gray-600 hover:text-brand-dark hover:border-brand-dark transition-colors text-xs font-bold"
-                              title="Histórico de reajustes de valor"
-                            >
-                              <TrendingUp size={14} /> Reajustes
-                            </button>
-                            <button
-                              onClick={() => { setSelectedClient(client); setUploadModalOpen(true); }}
-                              className="flex items-center gap-1.5 bg-gray-50 text-gray-600 border border-gray-200 px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-gray-100 transition-colors"
-                            >
-                              <Upload size={14} /> Substituir
-                            </button>
-                          </>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* Seção Colapsável de Contratos Encerrados */}
-      {cancelledClientsList.length > 0 && (
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden mt-6">
-          <button
-            type="button"
-            onClick={() => setIsCancelledExpanded(!isCancelledExpanded)}
-            className="w-full px-6 py-5 flex items-center justify-between bg-gray-50/50 hover:bg-gray-50 transition-colors text-left outline-none"
-          >
-            <div className="flex items-center gap-2.5">
-              <span className="w-2.5 h-2.5 rounded-full bg-gray-400 animate-pulse" />
-              <h3 className="text-base font-bold text-gray-700">Contratos Encerrados ({cancelledClientsList.length})</h3>
-            </div>
-            <span className="text-xs font-bold text-gray-400 uppercase tracking-widest">
-              {isCancelledExpanded ? 'Ocultar ▴' : 'Visualizar ▾'}
-            </span>
-          </button>
-
-          {isCancelledExpanded && (
-            <div className="border-t border-gray-100">
-              {/* Mobile View para Cancelados */}
-              <div className="block md:hidden p-4 space-y-4 bg-gray-50/30">
-                {cancelledClientsList.map(client => {
-                  const start = dayjs(client.created_at);
-                  const end = client.cancelled_at ? dayjs(client.cancelled_at) : dayjs();
-                  const ltvValue = calculateClientLTV(client);
-
-                  return (
-                    <div key={client.id} className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm flex flex-col gap-4">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <h4 className="font-bold text-gray-700">{client.name}</h4>
-                          {client.segment && <p className="text-xs text-gray-400">{client.segment}</p>}
-                        </div>
-                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest bg-gray-100 text-gray-500">
-                          Encerrado
-                        </span>
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-3 pt-3 border-t border-gray-50 text-sm">
-                        <div>
-                          <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1">Última Mensalidade</p>
-                          <p className="font-bold text-gray-500">
-                            {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(getCurrentContractValue(client))}
-                          </p>
-                          <p className="text-xs text-gray-400">Permanência: {formatClientPermanence(client)}</p>
-                          {formatValueHistory(client) && (
-                            <p className="text-[9px] text-gray-400 italic mt-1 leading-tight">{formatValueHistory(client)}</p>
-                          )}
-                        </div>
-                        <div>
-                          <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1">LTV Real</p>
-                          <p className="font-bold text-brand-dark">
-                            {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(ltvValue)}
-                          </p>
-                        </div>
-                      </div>
-
-                      {client.contract && (
-                        <div className="flex gap-2 pt-3 border-t border-gray-50">
-                          {client.contract.signed_contract_url && (
-                            <button
-                              type="button"
-                              onClick={() => openStoredFile(client.contract!.signed_contract_url!)}
-                              className="flex-1 flex justify-center items-center gap-1.5 py-2 rounded-xl border border-gray-200 text-gray-600 hover:text-brand-dark transition-colors text-xs font-bold"
-                            >
-                              <FileText size={14} /> Ver PDF
-                            </button>
-                          )}
-                          <button
-                            type="button"
-                            onClick={() => { setSelectedClient(client); setViewDataModalOpen(true); }}
-                            className="flex-1 flex justify-center items-center gap-1.5 py-2 rounded-xl bg-gray-50 text-gray-600 hover:bg-gray-100 transition-colors text-xs font-bold"
-                          >
-                            <Eye size={14} /> Ver Dados
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-
-              {/* Desktop View para Cancelados */}
-              <div className="hidden md:block overflow-x-auto">
-                <table className="w-full text-left text-sm whitespace-nowrap">
-                  <thead className="bg-gray-50/50 border-b border-gray-100">
-                    <tr>
-                      <th className="px-6 py-4 font-bold text-gray-500 uppercase tracking-wider text-xs">Cliente</th>
-                      <th className="px-6 py-4 font-bold text-gray-500 uppercase tracking-wider text-xs">Status</th>
-                      <th className="px-6 py-4 font-bold text-gray-500 uppercase tracking-wider text-xs">Período Ativo</th>
-                      <th className="px-6 py-4 font-bold text-gray-500 uppercase tracking-wider text-xs">Permanência</th>
-                      <th className="px-6 py-4 font-bold text-gray-500 uppercase tracking-wider text-xs">LTV Real</th>
-                      <th className="px-6 py-4 font-bold text-gray-500 uppercase tracking-wider text-xs">Contrato</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-50">
-                    {cancelledClientsList.map(client => {
-                      const start = dayjs(client.created_at);
-                      const end = client.cancelled_at ? dayjs(client.cancelled_at) : dayjs();
-                      const ltvValue = calculateClientLTV(client);
-
-                      return (
-                        <tr key={client.id} className="hover:bg-gray-50/50 transition-colors">
-                          <td className="px-6 py-4">
-                            <div className="flex flex-col">
-                              <span className="font-bold text-gray-600">{client.name}</span>
-                              {client.segment && <span className="text-xs text-gray-400">{client.segment}</span>}
-                            </div>
-                          </td>
-                          <td className="px-6 py-4">
-                            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest bg-gray-100 text-gray-500">
-                              Encerrado
-                            </span>
-                          </td>
-                          <td className="px-6 py-4 text-xs text-gray-500">
-                            {dayjs(client.created_at).format('DD/MM/YYYY')} até {client.cancelled_at ? dayjs(client.cancelled_at).format('DD/MM/YYYY') : '-'}
-                          </td>
-                          <td className="px-6 py-4 text-xs text-gray-500 flex flex-col justify-center">
-                            <span>{formatClientPermanence(client)}</span>
-                            {formatValueHistory(client) && (
-                              <span className="text-[10px] text-gray-400 italic mt-0.5 max-w-xs whitespace-normal leading-tight">
-                                {formatValueHistory(client)}
-                              </span>
-                            )}
-                          </td>
-                          <td className="px-6 py-4 font-bold text-brand-dark">
-                            {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(ltvValue)}
-                          </td>
-                          <td className="px-6 py-4">
-                            <div className="flex items-center gap-2">
-                              {client.contract?.signed_contract_url && (
-                                <button
-                                  type="button"
-                                  onClick={() => openStoredFile(client.contract!.signed_contract_url!)}
-                                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-200 text-gray-600 hover:text-brand-dark hover:border-brand-dark transition-colors text-xs font-bold"
-                                >
-                                  <FileText size={14} /> Ver PDF
-                                </button>
-                              )}
-                              {client.contract && (
-                                <button
-                                  type="button"
-                                  onClick={() => { setSelectedClient(client); setViewDataModalOpen(true); }}
-                                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gray-50 text-gray-500 hover:bg-gray-100 transition-colors text-xs font-bold"
-                                >
-                                  <Eye size={14} /> Ver Dados
-                                </button>
-                              )}
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </div>
+      {/* Resumo */}
+      <div className="rounded-2xl border border-gray-100 shadow-sm overflow-hidden grid grid-cols-2 lg:grid-cols-4 gap-px bg-gray-100 [&>*]:bg-white">
+        <div className="p-5">
+          <p className="text-xs font-medium text-gray-500">Receita recorrente (MRR)</p>
+          <p className="mt-1 text-2xl font-bold text-gray-900 tabular-nums">{fmtCur(mainCur, mrrByCurrency[mainCur] || 0)}</p>
+          {Object.keys(mrrByCurrency).length > 1 && (
+            <p className="text-xs text-gray-400 mt-0.5">+ {fmtCur(mainCur === 'BRL' ? 'USD' : 'BRL', mrrByCurrency[mainCur === 'BRL' ? 'USD' : 'BRL'] || 0)}</p>
           )}
         </div>
+        <div className="p-5">
+          <p className="text-xs font-medium text-gray-500">Contratos assinados</p>
+          <p className="mt-1 text-2xl font-bold text-gray-900 tabular-nums">{counts.signed}</p>
+          <p className="text-xs text-gray-400 mt-0.5">de {counts.all} clientes ativos</p>
+        </div>
+        <div className="p-5">
+          <p className="text-xs font-medium text-gray-500">Ticket médio</p>
+          <p className="mt-1 text-2xl font-bold text-gray-900 tabular-nums">{fmtCur(mainCur, ticket)}</p>
+          <p className="text-xs text-gray-400 mt-0.5">por cliente, por mês</p>
+        </div>
+        <div className="p-5">
+          <p className="text-xs font-medium text-gray-500">Tempo médio de casa</p>
+          <p className="mt-1 text-2xl font-bold text-gray-900 tabular-nums">{avgMonths} {avgMonths === 1 ? 'mês' : 'meses'}</p>
+          {oldestContract && <p className="text-xs text-gray-400 mt-0.5 truncate">mais antigo: {oldestContract.name}</p>}
+        </div>
+      </div>
+
+      {/* Precisa de atenção */}
+      {(counts.submitted > 0 || counts.pending > 0 || counts.none > 0) && (
+        <div className="flex flex-wrap gap-2">
+          {counts.submitted > 0 && (
+            <button onClick={() => setFilter('submitted')} className="inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-sky-50 text-sky-800 text-xs font-semibold hover:bg-sky-100">
+              <span className="w-2 h-2 rounded-full bg-sky-500" /> {counts.submitted} com dados recebidos: falta subir o assinado
+            </button>
+          )}
+          {counts.pending > 0 && (
+            <button onClick={() => setFilter('pending')} className="inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-amber-50 text-amber-800 text-xs font-semibold hover:bg-amber-100">
+              <span className="w-2 h-2 rounded-full bg-amber-500" /> {counts.pending} aguardando o cliente preencher
+            </button>
+          )}
+          {counts.none > 0 && (
+            <button onClick={() => setFilter('none')} className="inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-gray-100 text-gray-700 text-xs font-semibold hover:bg-gray-200">
+              <span className="w-2 h-2 rounded-full bg-gray-400" /> {counts.none} sem contrato
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* Lista */}
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm">
+        <div className="px-4 sm:px-5 pt-4 flex gap-1 overflow-x-auto no-scrollbar border-b border-gray-100">
+          {FILTERS.map(f => (
+            <button key={f.id} onClick={() => setFilter(f.id)}
+              className={`px-3 py-2.5 text-[13px] font-semibold whitespace-nowrap border-b-2 -mb-px transition-colors ${filter === f.id ? 'border-gray-900 text-gray-900' : 'border-transparent text-gray-400 hover:text-gray-700'}`}>
+              {f.label} <span className="ml-1 text-gray-400 font-medium">{counts[f.id]}</span>
+            </button>
+          ))}
+        </div>
+
+        <div className="hidden md:grid grid-cols-[minmax(0,2.2fr)_minmax(0,1.3fr)_minmax(0,1.5fr)_minmax(0,1fr)_auto] gap-4 px-5 py-2.5 text-[11px] font-semibold text-gray-400 uppercase tracking-wider border-b border-gray-50">
+          <span>Cliente</span><span>Status</span><span>Mensalidade</span><span>LTV até hoje</span><span className="w-[150px] text-right">Ações</span>
+        </div>
+
+        {loading ? (
+          <p className="px-5 py-10 text-center text-sm text-gray-400">Carregando...</p>
+        ) : visible.length === 0 ? (
+          <p className="px-5 py-10 text-center text-sm text-gray-400">{q ? 'Nenhum cliente encontrado.' : 'Ninguém aqui.'}</p>
+        ) : (
+          <ul className="divide-y divide-gray-50">
+            {visible.map(client => (
+              <li key={client.id} className="px-4 sm:px-5 py-3.5 grid grid-cols-[auto_1fr_auto] md:grid-cols-[minmax(0,2.2fr)_minmax(0,1.3fr)_minmax(0,1.5fr)_minmax(0,1fr)_auto] gap-x-4 gap-y-2 items-center hover:bg-gray-50/60">
+                <div className="flex items-center gap-3 min-w-0 col-span-2 md:col-span-1">
+                  <Avatar client={client} />
+                  <div className="min-w-0">
+                    <p className="font-semibold text-gray-900 truncate">{client.name}</p>
+                    {client.segment && <p className="text-xs text-gray-400 truncate">{client.segment}</p>}
+                  </div>
+                </div>
+                <div className="col-start-1 col-span-3 md:col-auto pl-12 md:pl-0"><StatusLine client={client} /></div>
+                <div className={`col-start-1 col-span-3 md:col-auto pl-12 md:pl-0 ${statusOf(client) === 'signed' ? '' : 'hidden md:block'}`}><ValueCell client={client} /></div>
+                <div className="hidden md:block text-gray-600 tabular-nums">{statusOf(client) === 'signed' ? money(client, calculateClientLTV(client), true) : <span className="text-gray-300">—</span>}</div>
+                <div className="row-start-1 col-start-3 md:row-auto md:col-auto flex items-center justify-end gap-1 md:w-[150px]">
+                  <PrimaryAction client={client} />
+                  <ActionMenu client={client} />
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+
+      {/* Encerrados */}
+      {cancelledClientsList.length > 0 && (
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm">
+          <button type="button" onClick={() => setIsCancelledExpanded(!isCancelledExpanded)}
+            className="w-full px-5 py-4 flex items-center justify-between text-left">
+            <span className="text-sm font-semibold text-gray-700">Contratos encerrados <span className="text-gray-400 font-medium">{cancelledClientsList.length}</span></span>
+            <ChevronDown size={16} className={`text-gray-400 transition-transform ${isCancelledExpanded ? 'rotate-180' : ''}`} />
+          </button>
+          {isCancelledExpanded && (
+            <ul className="divide-y divide-gray-50 border-t border-gray-100">
+              {cancelledClientsList.map(client => (
+                <li key={client.id} className="px-4 sm:px-5 py-3.5 flex flex-wrap items-center gap-x-6 gap-y-2">
+                  <div className="flex items-center gap-3 min-w-0 flex-1 basis-56">
+                    <Avatar client={client} muted />
+                    <div className="min-w-0">
+                      <p className="font-semibold text-gray-600 truncate">{client.name}</p>
+                      <p className="text-xs text-gray-400">
+                        {dayjs(client.contract?.contract_start_date || client.created_at).format('MMM/YYYY')} a {client.cancelled_at ? dayjs(client.cancelled_at).format('MMM/YYYY') : '—'} · {formatClientPermanence(client)}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="text-sm">
+                    <p className="text-[11px] text-gray-400">Última mensalidade</p>
+                    <p className="font-semibold text-gray-600 tabular-nums">{money(client, getCurrentContractValue(client))}</p>
+                  </div>
+                  <div className="text-sm">
+                    <p className="text-[11px] text-gray-400">LTV real</p>
+                    <p className="font-semibold text-gray-900 tabular-nums">{money(client, calculateClientLTV(client), true)}</p>
+                  </div>
+                  <div className="flex gap-1 ml-auto">
+                    {client.contract?.signed_contract_url && (
+                      <button onClick={() => openStoredFile(client.contract!.signed_contract_url!)} className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-gray-200 text-xs font-semibold text-gray-600 hover:border-gray-300"><FileText size={14} /> PDF</button>
+                    )}
+                    {client.contract && (
+                      <button onClick={() => { setSelectedClient(client); setViewDataModalOpen(true); }} className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-gray-200 text-xs font-semibold text-gray-600 hover:border-gray-300"><Eye size={14} /> Dados</button>
+                    )}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+
+      {toast && (
+        <div className="fixed left-1/2 bottom-6 -translate-x-1/2 z-[70] bg-gray-900 text-white text-sm font-medium px-4 py-2.5 rounded-full shadow-lg">{toast}</div>
       )}
 
       {uploadModalOpen && selectedClient && (
