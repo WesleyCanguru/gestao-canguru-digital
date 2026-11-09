@@ -57,7 +57,7 @@ ul.clean li::before { content: ""; position: absolute; left: 4px; top: .7em; wid
 .price-card { background: var(--paper); border: 1px solid var(--brand); border-radius: 22px; box-shadow: 0 10px 30px rgba(19, 40, 77, .08); padding: 24px; display: flex; flex-direction: column; gap: 20px; }
 .price-head { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 12px; }
 .price { font-family: var(--display); font-size: 44px; font-weight: 600; line-height: 1; font-variant-numeric: tabular-nums; }
-.price small { font-family: var(--body); font-size: 14px; color: var(--muted); font-weight: 500; }
+.price small { display: inline-block; margin-top: 8px; font-family: var(--body); font-size: 14px; color: var(--muted); font-weight: 500; }
 .tag { align-self: flex-start; font-size: 11px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--brand); background: var(--brand-soft); padding: 4px 9px; border-radius: 999px; }
 .blocks { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 .block { border: 1px solid var(--line); border-radius: 16px; padding: 18px; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
@@ -98,7 +98,7 @@ footer { font-size: 13px; color: var(--muted); }
     <div class="eyebrow">O que mudou desde a primeira proposta</div>
     <div class="facts">
       <div class="fact"><span>O momento</span><strong>Transição da empresa, com gastos de estrutura agora. Não é hora de assumir um custo mensal novo.</strong></div>
-      <div class="fact"><span>A marca</span><strong>Você quer refazer logo, cores e identidade, com cara profissional de verdade.</strong></div>
+      <div class="fact"><span>A marca</span><strong>Você está pensando em refazer nome, logo, cores e identidade, com cara profissional de verdade.</strong></div>
       <div class="fact"><span>O CRM</span><strong>Você está avaliando sistemas prontos antes de pensar em ter o seu próprio.</strong></div>
       <div class="fact"><span>O jeito</span><strong>Passos pequenos, mas bem feitos, sem ter que refazer nada lá na frente.</strong></div>
     </div>
@@ -138,7 +138,7 @@ footer { font-size: 13px; color: var(--muted); }
           <span class="tag">Pagamento único</span>
           <h2 style="margin-top:10px">Implantação 360°</h2>
         </div>
-        <div class="price">R$ 3.000</div>
+        <div class="price">R$ 3.000<br><small>ou 3x de R$ 1.000 sem juros no cartão</small></div>
       </div>
 
       <div class="blocks">
@@ -150,6 +150,7 @@ footer { font-size: 13px; color: var(--muted); }
             <li>Manual de marca: como usar logo, cores e fontes</li>
             <li>Tom de comunicação: como a empresa fala</li>
             <li>Persona: quem é o cliente ideal e o que ele procura</li>
+            <li>Se você decidir trocar o nome, ajudamos a escolher o novo</li>
           </ul>
         </div>
         <div class="block">
