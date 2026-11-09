@@ -67,6 +67,8 @@ import { formatCompactLtv } from '../../lib/clientLtv';
 import { ReferralProgramSection } from './ReferralProgramSection';
 import { parseCurrencyInput } from '../../lib/currencyUtils';
 import dayjs from 'dayjs';
+import { CURRENCIES, CurrencyCode, RECEIVED_REASONS, asCurrency, formatMoney, toBase } from '../../lib/money';
+import { ReceivePaymentModal, ReceiveResult } from './ReceivePaymentModal';
 
 export interface FinanceiroTabProps {
   initialSubTab?: 'overview' | 'faturamento' | 'despesas' | 'indicacao';
@@ -192,8 +194,22 @@ export const FinanceiroTab: React.FC<FinanceiroTabProps> = ({
     updateExpenseFromMonthOnwards,
     deleteExpenseForMonth,
     deleteExpenseFromMonthOnwards,
-    deleteExpensePermanently
+    deleteExpensePermanently,
+    baseCurrency,
+    fxRates
   } = useAgencyFinanceiro(currentMonthYear);
+
+  // Moeda de cada cobrança (a do cliente) e conversão para a moeda base nos totais
+  const billCur = (b: any): CurrencyCode => asCurrency(b?.currency || b?.client?.currency, baseCurrency);
+  const inBase = (value: number, b: any) => toBase(value, billCur(b), baseCurrency, fxRates) ?? value;
+  const billTotal = (b: any) => Number(b.base_value || 0) + Number(b.extra_value || 0);
+  const billReceivedBase = (b: any) => {
+    if (b.status !== 'paid' && b.status !== 'partial') return 0;
+    if (b.received_amount_base != null) return Number(b.received_amount_base);
+    if (b.received_amount != null) return inBase(Number(b.received_amount), b);
+    return inBase(billTotal(b), b);
+  };
+  const [receiving, setReceiving] = useState<any>(null);
 
   const toggleHideValues = () => {
     setHideValues(prev => {
@@ -261,9 +277,14 @@ export const FinanceiroTab: React.FC<FinanceiroTabProps> = ({
   const [isUpdating, setIsUpdating] = useState(false);
 
   const stats = useMemo(() => {
-    const totalToReceive = billings.reduce((acc, b) => acc + (b.base_value + b.extra_value), 0);
-    const totalReceived = billings.filter(b => b.status === 'paid').reduce((acc, b) => acc + (b.base_value + b.extra_value), 0);
-    const totalOpen = totalToReceive - totalReceived;
+    // Tudo na moeda base da agência: o recebido usa o valor real (com a cotação do dia em que entrou)
+    const totalToReceive = billings.reduce((acc, b) => acc + inBase(billTotal(b), b), 0);
+    const totalReceived = billings.reduce((acc, b) => acc + billReceivedBase(b), 0);
+    const totalOpen = billings.reduce((acc, b) => {
+      if (b.status === 'paid') return acc;
+      const open = billTotal(b) - (b.status === 'partial' ? Number(b.received_amount || 0) : 0);
+      return acc + inBase(Math.max(0, open), b);
+    }, 0);
     
     const totalFixedExpenses = expenses.filter(e => e.category === 'fixed').reduce((acc, e) => acc + e.amount, 0);
     const totalVariableExpenses = expenses.filter(e => e.category === 'variable').reduce((acc, e) => acc + e.amount, 0);
@@ -304,7 +325,7 @@ export const FinanceiroTab: React.FC<FinanceiroTabProps> = ({
       taxaDespesasPagas,
       result 
     };
-  }, [billings, expenses]);
+  }, [billings, expenses, fxRates, baseCurrency]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const sortedBillings = useMemo(() => {
     const sorted = [...billings].sort((a, b) => (a.due_day || 0) - (b.due_day || 0));
@@ -375,14 +396,15 @@ export const FinanceiroTab: React.FC<FinanceiroTabProps> = ({
   const handlePrevMonth = () => setCurrentMonthYear(dayjs(currentMonthYear).subtract(1, 'month').format('YYYY-MM'));
   const handleNextMonth = () => setCurrentMonthYear(dayjs(currentMonthYear).add(1, 'month').format('YYYY-MM'));
 
-  const formatCurrency = (value: number | string | null | undefined) => {
-    if (hideValues) return 'R$ ••••••';
-    if (value === null || value === undefined || value === '') return 'R$ 0,00';
+  const formatCurrency = (value: number | string | null | undefined, currency?: CurrencyCode) => {
+    const cur = currency || baseCurrency;
+    if (hideValues) return `${CURRENCIES.find(c => c.code === cur)?.symbol || ''} ••••••`;
+    if (value === null || value === undefined || value === '') return formatMoney(0, cur);
     let numeric = typeof value === 'number' ? value : Number(String(value).replace(/\./g, '').replace(',', '.'));
     if (isNaN(numeric)) {
       numeric = typeof value === 'string' ? parseCurrencyInput(value) : 0;
     }
-    return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(numeric);
+    return formatMoney(numeric, cur);
   };
 
   const sporadicTotal = useMemo(() => {
@@ -451,6 +473,23 @@ export const FinanceiroTab: React.FC<FinanceiroTabProps> = ({
   const [markingBillingId, setMarkingBillingId] = useState<string | null>(null);
 
   const handleMarkBillingPaid = async (billing: any) => {
+    if (markingBillingId) return;
+    setReceiving(billing);
+  };
+
+  const confirmReceive = async (billing: any, r: ReceiveResult) => {
+    await updateBilling({
+      id: billing.id,
+      client_id: billing.client_id,
+      month_year: billing.month_year || currentMonthYear,
+      ...(r as any),
+    });
+    if (r.status === 'paid' && billing.client_id) {
+      try { await generateCommissionForBilling(billing); } catch (e) { console.error(e); }
+    }
+  };
+
+  const legacyMarkBillingPaid = async (billing: any) => {
     if (markingBillingId) return;
     setMarkingBillingId(billing.id);
     try {
@@ -711,6 +750,15 @@ export const FinanceiroTab: React.FC<FinanceiroTabProps> = ({
   const getStatusBadge = (billing: any) => {
     const info = getBillingStatusInfo(billing, currentMonthYear);
 
+    if (billing.status === 'partial') {
+      return (
+        <div className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-sky-50 text-sky-700 rounded-lg text-[9px] font-bold uppercase tracking-widest border border-sky-200/60 shadow-2xs">
+          <div className="w-1.5 h-1.5 rounded-full bg-sky-500" />
+          Parcial
+        </div>
+      );
+    }
+
     if (info.isPaid) {
       return (
         <div className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-emerald-50 text-emerald-700 rounded-lg text-[9px] font-bold uppercase tracking-widest border border-emerald-200/60 shadow-2xs">
@@ -734,6 +782,24 @@ export const FinanceiroTab: React.FC<FinanceiroTabProps> = ({
         <div className="w-1.5 h-1.5 rounded-full bg-amber-500" />
         Em dia
       </div>
+    );
+  };
+
+  const ReceivedDetail: React.FC<{ billing: any }> = ({ billing }) => {
+    if (billing.status !== 'paid' && billing.status !== 'partial') return null;
+    if (billing.received_amount == null) return null;
+    const cur = billCur(billing);
+    const reason = RECEIVED_REASONS.find(r => r.id === billing.received_reason)?.label;
+    const total = billTotal(billing);
+    const open = total - Number(billing.received_amount);
+    return (
+      <span className="block text-[11px] text-gray-500 mt-0.5 max-w-[240px] whitespace-normal leading-snug">
+        Recebido {formatCurrency(billing.received_amount, cur)}
+        {billing.status === 'partial' && open > 0 && <> · falta {formatCurrency(open, cur)}</>}
+        {reason && billing.status !== 'partial' && <> · {reason.toLowerCase()}</>}
+        {cur !== baseCurrency && billing.received_amount_base != null && <> · {formatCurrency(billing.received_amount_base, baseCurrency)}</>}
+        {billing.received_note && <span className="block text-gray-400 italic">{billing.received_note}</span>}
+      </span>
     );
   };
 
@@ -817,6 +883,10 @@ export const FinanceiroTab: React.FC<FinanceiroTabProps> = ({
 
   return (
     <div className="space-y-8">
+      {receiving && (
+        <ReceivePaymentModal billing={receiving} baseCurrency={baseCurrency} fxRates={fxRates}
+          onClose={() => setReceiving(null)} onConfirm={r => confirmReceive(receiving, r)} />
+      )}
       {/* Main Header */}
       <div className="flex flex-col lg:flex-row lg:justify-between lg:items-center gap-6">
         <div>
@@ -1507,15 +1577,15 @@ export const FinanceiroTab: React.FC<FinanceiroTabProps> = ({
                     <div className="grid grid-cols-2 gap-2 text-sm bg-white/90 backdrop-blur-xs p-3 rounded-xl border border-gray-100/80 shadow-2xs">
                       <div>
                         <p className="text-[9px] uppercase tracking-widest font-bold text-gray-400 mb-0.5">Base</p>
-                        <p className="font-medium text-brand-dark">{formatCurrency(billing.base_value)}</p>
+                        <p className="font-medium text-brand-dark">{formatCurrency(billing.base_value, billCur(billing))}</p>
                       </div>
                       <div>
                         <p className="text-[9px] uppercase tracking-widest font-bold text-gray-400 mb-0.5">Extra</p>
-                        <p className="font-medium text-brand-dark">{formatCurrency(billing.extra_value)}</p>
+                        <p className="font-medium text-brand-dark">{formatCurrency(billing.extra_value, billCur(billing))}</p>
                       </div>
                       <div>
                         <p className="text-[9px] uppercase tracking-widest font-bold text-gray-400 mb-0.5">Total</p>
-                        <p className="font-bold text-brand-dark">{formatCurrency(billing.base_value + billing.extra_value)}</p>
+                        <p className="font-bold text-brand-dark">{formatCurrency(billing.base_value + billing.extra_value, billCur(billing))}</p>
                       </div>
                       <div>
                         <p className="text-[9px] uppercase tracking-widest font-bold text-gray-400 mb-0.5">Vencimento</p>
@@ -1543,6 +1613,7 @@ export const FinanceiroTab: React.FC<FinanceiroTabProps> = ({
                           <span>{billing.paid_at ? `Fatura paga em ${dayjs(billing.paid_at).format('DD/MM/YYYY')}` : 'Fatura quitada'}</span>
                         </div>
                       )}
+                      <ReceivedDetail billing={billing} />
                     </div>
 
                     <div className="flex items-center gap-2 pt-1">
@@ -1560,7 +1631,7 @@ export const FinanceiroTab: React.FC<FinanceiroTabProps> = ({
                           onClick={() => handleMarkBillingPaid(billing)}
                           className="flex-1 py-2.5 bg-emerald-600 text-white rounded-xl text-[10px] font-bold uppercase tracking-widest hover:bg-emerald-700 transition-all text-center disabled:opacity-50 shadow-sm shadow-emerald-600/20"
                         >
-                          {markingBillingId === billing.id ? 'Salvando...' : 'Marcar Pago'}
+                          {markingBillingId === billing.id ? 'Salvando...' : billing.status === 'partial' ? 'Receber restante' : 'Recebido'}
                         </button>
                       ) : (
                         <button 
@@ -1646,13 +1717,13 @@ export const FinanceiroTab: React.FC<FinanceiroTabProps> = ({
                           )}
                         </td>
                         <td className="px-8 py-5">
-                          <span className="text-sm font-medium text-brand-dark">{formatCurrency(billing.base_value)}</span>
+                          <span className="text-sm font-medium text-brand-dark">{formatCurrency(billing.base_value, billCur(billing))}</span>
                         </td>
                         <td className="px-8 py-5">
-                          <span className="text-sm font-medium text-brand-dark">{formatCurrency(billing.extra_value)}</span>
+                          <span className="text-sm font-medium text-brand-dark">{formatCurrency(billing.extra_value, billCur(billing))}</span>
                         </td>
                         <td className="px-8 py-5 font-bold text-sm text-brand-dark">
-                          {formatCurrency(billing.base_value + billing.extra_value)}
+                          {formatCurrency(billing.base_value + billing.extra_value, billCur(billing))}
                         </td>
                         <td className="px-8 py-5">
                           <div className="flex flex-col">
@@ -1683,6 +1754,7 @@ export const FinanceiroTab: React.FC<FinanceiroTabProps> = ({
                                 {billing.paid_at ? `Pago em ${dayjs(billing.paid_at).format('DD/MM/YYYY')}` : 'Pago'}
                               </span>
                             )}
+                            <ReceivedDetail billing={billing} />
                           </div>
                         </td>
                         <td className="px-8 py-5">{getStatusBadge(billing)}</td>
@@ -1703,7 +1775,7 @@ export const FinanceiroTab: React.FC<FinanceiroTabProps> = ({
                                 onClick={() => handleMarkBillingPaid(billing)}
                                 className="px-4 py-2 bg-emerald-600 text-white rounded-xl text-[9px] font-bold uppercase tracking-widest hover:bg-emerald-700 transition-all shadow-md shadow-emerald-600/10 whitespace-nowrap disabled:opacity-50"
                               >
-                                {markingBillingId === billing.id ? 'Salvando...' : 'Marcar Pago'}
+                                {markingBillingId === billing.id ? 'Salvando...' : billing.status === 'partial' ? 'Receber restante' : 'Recebido'}
                               </button>
                             ) : (
                               <button 

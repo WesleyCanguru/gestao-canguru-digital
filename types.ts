@@ -431,13 +431,19 @@ export interface AgencyBilling {
   total_value: number;
   due_day: number;
   due_date?: string | null; // YYYY-MM-DD
-  status: 'paid' | 'pending' | 'overdue';
+  status: 'paid' | 'pending' | 'overdue' | 'partial';
   notes: string | null;
   paid_at: string | null;
   created_at: string;
   client?: Client;
   is_sporadic?: boolean;
   sporadic_name?: string | null;
+  currency?: string | null;
+  received_amount?: number | null;
+  received_reason?: 'extra' | 'desconto' | 'juros' | 'parcial' | null;
+  received_note?: string | null;
+  fx_rate?: number | null;
+  received_amount_base?: number | null;
 }
 
 export interface AgencyExpense {

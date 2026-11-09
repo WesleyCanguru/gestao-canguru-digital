@@ -4,6 +4,7 @@ import { supabase, useAuth } from '../lib/supabase';
 import { AgencyBilling, AgencyExpense } from '../types';
 import { parseExpenseRow, filterExpensesForMonth } from '../lib/expenses';
 import dayjs from 'dayjs';
+import { CurrencyCode, FxRates, asCurrency, fetchFxRates } from '../lib/money';
 
 export interface MonthFinancialSummary {
   monthYear: string;
@@ -52,6 +53,23 @@ export function useAgencyFinanceiro(monthYear: string) {
   const [faturamentoAcumulado, setFaturamentoAcumulado] = useState(0);
   const [history, setHistory] = useState<MonthFinancialSummary[]>([]);
   const [loading, setLoading] = useState(true);
+  const [baseCurrency, setBaseCurrency] = useState<CurrencyCode>('BRL');
+  const [fxRates, setFxRates] = useState<FxRates | null>(null);
+
+  // Moeda base da agência + cotações do dia (para os totais convertidos)
+  useEffect(() => {
+    if (!agencyId) return;
+    let alive = true;
+    (async () => {
+      const { data } = await supabase.from('agencies').select('base_currency').eq('id', agencyId).maybeSingle();
+      const base = asCurrency((data as any)?.base_currency, agencyId === 7 ? 'USD' : 'BRL');
+      if (!alive) return;
+      setBaseCurrency(base);
+      const rates = await fetchFxRates(base);
+      if (alive) setFxRates(rates);
+    })();
+    return () => { alive = false; };
+  }, [agencyId]);
 
   const fetchData = async () => {
     if (!agencyId) return;
@@ -291,6 +309,8 @@ export function useAgencyFinanceiro(monthYear: string) {
       } else if (newStatus === 'pending' || newStatus === 'overdue') {
         paidAt = null;
       }
+      // Parcial: ainda em aberto, mas com parte recebida (guarda a data do último recebimento)
+      if (newStatus === 'partial' && billing.paid_at) paidAt = billing.paid_at;
 
       const dueDayVal = billing.due_day !== undefined ? billing.due_day : (existing?.due_day || 10);
       const dueMonthYear = billing.month_year || existing?.month_year || monthYear;
@@ -309,7 +329,18 @@ export function useAgencyFinanceiro(monthYear: string) {
         paid_at: paidAt,
         is_sporadic: billing.is_sporadic !== undefined ? billing.is_sporadic : (existing?.is_sporadic || false),
         sporadic_name: billing.sporadic_name !== undefined ? billing.sporadic_name : (existing?.sporadic_name || null),
-        agency_id: agencyId
+        agency_id: agencyId,
+        // Moeda da cobrança (a do cliente) e o recebimento real
+        currency: (billing as any).currency ?? (existing as any)?.currency ?? (existing?.client as any)?.currency ?? null,
+        ...(newStatus === 'pending' || newStatus === 'overdue'
+          ? { received_amount: null, received_reason: null, received_note: null, fx_rate: null, received_amount_base: null }
+          : {
+              received_amount: (billing as any).received_amount !== undefined ? (billing as any).received_amount : ((existing as any)?.received_amount ?? null),
+              received_reason: (billing as any).received_reason !== undefined ? (billing as any).received_reason : ((existing as any)?.received_reason ?? null),
+              received_note: (billing as any).received_note !== undefined ? (billing as any).received_note : ((existing as any)?.received_note ?? null),
+              fx_rate: (billing as any).fx_rate !== undefined ? (billing as any).fx_rate : ((existing as any)?.fx_rate ?? null),
+              received_amount_base: (billing as any).received_amount_base !== undefined ? (billing as any).received_amount_base : ((existing as any)?.received_amount_base ?? null),
+            }),
       };
 
       let existingDbId = (billing.id && !billing.id.startsWith('temp-')) ? billing.id : null;
@@ -796,6 +827,8 @@ export function useAgencyFinanceiro(monthYear: string) {
     faturamentoAcumulado,
     history,
     loading,
+    baseCurrency,
+    fxRates,
     updateBilling,
     deleteBilling,
     addExpense,
