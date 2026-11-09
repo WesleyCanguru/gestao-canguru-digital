@@ -28,6 +28,7 @@ import {
   Target,
   Flame
 } from 'lucide-react';
+import { TASK_STAGES, stageInfo } from '../../lib/people';
 import { supabase, useAuth } from '../../lib/supabase';
 import { AgencyTask, AgencyTaskPriority, AgencyTaskRecurrenceType, ProcessInstance, ProcessChecklist } from '../../types';
 import { useFocus } from '../../lib/FocusContext';
@@ -297,9 +298,11 @@ const useAssigneeOptions = (agencyId: number | null | undefined) => {
     Promise.all([
       supabase.from('agency_members').select('user_id, display_name, email').eq('agency_id', agencyId).eq('is_active', true),
       supabase.from('agency_tasks').select('assignee_name').eq('agency_id', agencyId).not('assignee_name', 'is', null).limit(500),
-    ]).then(([m, t]) => {
+      supabase.from('agency_people').select('name').eq('agency_id', agencyId).eq('is_active', true),
+    ]).then(([m, t, p]) => {
       const map = new Map<string, string | null>();
       ((m.data as any[]) || []).forEach(x => { const n = x.display_name || x.email; if (n) map.set(n, x.user_id); });
+      ((p.data as any[]) || []).forEach(x => { if (x.name && !map.has(x.name)) map.set(x.name, null); });
       ((t.data as any[]) || []).forEach(x => { if (x.assignee_name && !map.has(x.assignee_name)) map.set(x.assignee_name, null); });
       setOptions(Array.from(map.entries()).map(([name, user_id]) => ({ name, user_id })).sort((a, b) => a.name.localeCompare(b.name)));
     });
@@ -2288,6 +2291,12 @@ const TaskListItem: React.FC<{
                 </span>
               )}
 
+              {stageInfo(task.stage) && (
+                <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold whitespace-nowrap border ${stageInfo(task.stage)!.cls}`}>
+                  {stageInfo(task.stage)!.short}
+                </span>
+              )}
+
               {hasSubtasks && (
                 <span className="flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider whitespace-nowrap bg-purple-50 text-purple-700 border border-purple-200">
                   <Clock size={11} className="text-purple-600" />
@@ -2747,7 +2756,9 @@ const TaskFormDrawer: React.FC<{
     recurrence_days: number[];
     assignee_name: string;
     front: string;
+    stage: string;
   }>({
+    stage: task?.stage || '',
     assignee_name: task?.assignee_name || '',
     front: task?.front || '',
     title: task?.title || '',
@@ -2823,7 +2834,11 @@ const TaskFormDrawer: React.FC<{
         agency_id: agencyId,
         assignee_name: form.assignee_name.trim() || null,
         assignee_user_id: assigneeOptions.find(o => o.name === form.assignee_name.trim())?.user_id ?? null,
-        front: form.front || null
+        front: form.front || null,
+        stage: form.stage || null,
+        ...(form.stage !== (task?.stage || '') ? { stage_changed_at: new Date().toISOString() } : {}),
+        // Aprovado conclui a tarefa (as que não se repetem)
+        ...(form.stage === 'aprovado' && (!form.recurrence_type || form.recurrence_type === 'none') ? { status: 'completed', completed_at: new Date().toISOString() } : {}),
       };
       
       if (task) {
@@ -3023,6 +3038,19 @@ const TaskFormDrawer: React.FC<{
                   </select>
                 </div>
               )}
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-[10px] font-bold uppercase tracking-widest text-gray-500">Etapa da entrega</label>
+              <div className="flex flex-wrap gap-1.5">
+                {[{ id: '', short: 'Sem etapa', cls: 'bg-white text-gray-500 border-gray-200' }, ...TASK_STAGES].map(st => (
+                  <button key={st.id || 'none'} type="button" onClick={() => setForm({ ...form, stage: st.id })}
+                    className={`px-3 py-1.5 rounded-full border text-xs font-semibold transition-all ${form.stage === st.id ? st.cls + ' ring-2 ring-offset-1 ring-black/10' : 'bg-white text-gray-400 border-gray-200 hover:text-gray-700'}`}>
+                    {st.short}
+                  </button>
+                ))}
+              </div>
+              <p className="text-[11px] text-gray-400">Para acompanhar entregas: a Sarah vê em Pessoas e prazos o que foi entregue, o que voltou para alteração e o que foi aprovado.</p>
             </div>
             
             <div className="grid grid-cols-2 gap-4">

@@ -120,7 +120,7 @@ export function playFocusChime(type: 'focus_end' | 'break_end' | 'task_completed
 }
 
 export const FocusProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { agencyId } = useAuth();
+  const { agencyId, userId } = useAuth();
   const [focusSession, setFocusSession] = useState<FocusSession | null>(null);
   const [isOpen, setIsOpen] = useState(false);
   const [todayTasks, setTodayTasks] = useState<AgencyTask[]>([]);
@@ -439,7 +439,7 @@ export const FocusProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         await supabase.from('task_sessions').insert([{
           task_id: focusSession.taskId,
           agency_id: curAgencyId,
-          user_id: null,
+          user_id: userId ?? null,
           started_at: startedAt.toISOString(),
           ended_at: now.toISOString(),
           duration_seconds: finalDuration,
@@ -471,7 +471,7 @@ export const FocusProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     } finally {
       setIsFinishing(false);
     }
-  }, [focusSession, agencyId]);
+  }, [focusSession, agencyId, userId]);
 
   // Exit Session without marking as completed
   const exitSession = useCallback(async (savePartial: boolean = true) => {
@@ -491,7 +491,7 @@ export const FocusProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           await supabase.from('task_sessions').insert([{
             task_id: focusSession.taskId,
             agency_id: curAgencyId,
-            user_id: null,
+            user_id: userId ?? null,
             started_at: startedAt.toISOString(),
             ended_at: now.toISOString(),
             duration_seconds: focusSession.totalAccumulatedSeconds,
@@ -510,7 +510,7 @@ export const FocusProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     } catch (err) {
       console.error('Erro ao sair da sessão de foco:', err);
     }
-  }, [focusSession, agencyId]);
+  }, [focusSession, agencyId, userId]);
 
   // Format MM:SS
   const formatTime = (seconds: number) => {
