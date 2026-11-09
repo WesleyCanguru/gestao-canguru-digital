@@ -22,6 +22,7 @@ import { FinanceiroTab } from './FinanceiroTab';
 import { AgencyCRMTab } from './AgencyCRMTab';
 import { AgencyTasksTab } from './AgencyTasksTab';
 import { AgencyContractsTab } from './AgencyContractsTab';
+import { PropostasTab } from './PropostasTab';
 import { OnboardingTab } from './OnboardingTab';
 import { OnboardingPipeline } from './OnboardingPipeline';
 import { ClientesTab } from './ClientesTab';
@@ -41,7 +42,7 @@ interface AgencyDashboardProps {
   onTabChange?: (tab: string) => void;
 }
 
-type Tab = 'equipe' | 'home' | 'tasks' | 'financeiro' | 'metas' | 'prospeccao' | 'contratos' | 'onboarding' | 'clientes' | 'anotacoes' | 'masterMap' | 'painelConteudo' | 'nosso-conteudo' | 'nossoConteudo';
+type Tab = 'propostas' | 'equipe' | 'home' | 'tasks' | 'financeiro' | 'metas' | 'prospeccao' | 'contratos' | 'onboarding' | 'clientes' | 'anotacoes' | 'masterMap' | 'painelConteudo' | 'nosso-conteudo' | 'nossoConteudo';
 
 export const AgencyDashboard: React.FC<AgencyDashboardProps> = ({ onBack, onSelectClient, activeTab, onTabChange }) => {
   const { userRole } = useAuth();
@@ -122,6 +123,7 @@ export const AgencyDashboard: React.FC<AgencyDashboardProps> = ({ onBack, onSele
                 <NossoConteudoTab />
               )}
               {activeTab === 'contratos' && <AgencyContractsTab />}
+              {activeTab === 'propostas' && <PropostasTab />}
               {activeTab === 'equipe' && <TeamTab />}
               {activeTab === 'onboarding' && <OnboardingArea onSelectClient={onSelectClient} />}
               {activeTab === 'tasks' && <AgencyTasksTab />}
