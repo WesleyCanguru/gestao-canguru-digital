@@ -1,3 +1,6 @@
+import { clientLang } from './strategy/ClientStartCard';
+import { trBriefing } from '../lib/briefingI18n';
+import { tr } from '../lib/accessGuides';
 import React, { useState, useEffect } from 'react';
 import { supabase, useAuth } from '../lib/supabase';
 import { CheckCircle, AlertCircle, ChevronRight, FileText, Send, ArrowLeft, Target, LogOut, Download } from 'lucide-react';
@@ -421,6 +424,10 @@ const SERVICE_TO_BRIEFINGS: Record<string, string[]> = {
 
 export const BriefingOnboarding: React.FC<{ isDashboardView?: boolean }> = ({ isDashboardView }) => {
   const { activeClient, refreshActiveClient, logout, userRole, agencyId } = useAuth();
+  // Idioma escolhido pelo cliente no cadastro: perguntas e opções aparecem traduzidas (respostas seguem salvas em português)
+  const lang = clientLang(activeClient);
+  const tb = trBriefing(lang);
+  const t = tr(lang);
   const [briefings, setBriefings] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedBriefingType, setSelectedBriefingType] = useState<string | null>(null);
@@ -588,7 +595,7 @@ export const BriefingOnboarding: React.FC<{ isDashboardView?: boolean }> = ({ is
         }
         
         if (hasMissing) {
-           setError("Por favor, preencha todas as perguntas antes de concluir o briefing.");
+           setError(t('Por favor, preencha todas as perguntas antes de concluir o briefing.', 'Please answer all questions before finishing the briefing.', 'Por favor, responde todas las preguntas antes de terminar el briefing.'));
            setTimeout(() => setError(null), 5000);
            return;
         }
@@ -690,16 +697,16 @@ export const BriefingOnboarding: React.FC<{ isDashboardView?: boolean }> = ({ is
   };
 
   const renderHeader = () => (
-    <header className="w-full max-w-7xl mx-auto px-4 sm:px-8 py-5 flex items-center justify-between border-b border-gray-100 bg-white/50 backdrop-blur-md">
+    <header className="w-full max-w-5xl mx-auto px-4 sm:px-8 py-3 flex items-center justify-between border-b border-gray-100 bg-white/50 backdrop-blur-md">
       <div className="flex items-center gap-3">
-        <Logo className="w-32 sm:w-44" />
+        <Logo className="w-24 sm:w-28" />
       </div>
       <div>
         <button 
           onClick={() => logout()}
           className="flex items-center gap-2 px-4 py-2 text-gray-400 hover:text-brand-dark transition-colors font-bold text-[10px] uppercase tracking-widest"
         >
-          <span>Sair</span>
+          <span>{t('Sair', 'Log out', 'Salir')}</span>
           <LogOut size={14} />
         </button>
       </div>
@@ -712,32 +719,32 @@ export const BriefingOnboarding: React.FC<{ isDashboardView?: boolean }> = ({ is
   if (selectedBriefingType) {
     const briefingSpec = customTemplates[selectedBriefingType] || BRIEFING_QUESTIONS[selectedBriefingType];
     const questions = briefingSpec ? briefingSpec.questions : [];
-    const title = briefingSpec ? briefingSpec.title : selectedBriefingType;
+    const title = tb(briefingSpec ? briefingSpec.title : selectedBriefingType);
 
     return (
       <div className="w-full min-h-screen bg-[#FDFDFD] flex flex-col">
         {renderHeader()}
 
-        <div className="flex-1 flex flex-col items-center justify-center py-8 px-4">
-          <div className="w-full max-w-3xl mx-auto p-5 sm:p-10 bg-white rounded-[2rem] sm:rounded-[2.5rem] shadow-[0_20px_50px_rgba(0,0,0,0.03)] border border-black/[0.02] flex flex-col pt-10">
+        <div className="flex-1 flex flex-col items-center py-6 px-4">
+          <div className="w-full max-w-3xl mx-auto p-5 sm:p-8 bg-white rounded-3xl shadow-[0_20px_50px_rgba(0,0,0,0.03)] border border-black/[0.04] flex flex-col">
             <button 
               onClick={() => setSelectedBriefingType(null)}
-              className="flex items-center gap-2 text-sm font-bold uppercase tracking-widest text-gray-500 hover:text-brand-dark transition-colors mb-8 w-fit"
+              className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-gray-500 hover:text-brand-dark transition-colors mb-5 w-fit"
             >
-              <ArrowLeft size={16} /> Voltar para os briefings
+              <ArrowLeft size={14} /> {t('Voltar para os briefings', 'Back to briefings', 'Volver a los briefings')}
             </button>
             
-            <h2 className="text-3xl font-black text-brand-dark mb-2 tracking-tight">{title}</h2>
-            <p className="text-gray-500 font-medium mb-10">Preencha as informações detalhadas para este módulo.</p>
+            <h2 className="text-2xl font-bold text-brand-dark mb-1 tracking-tight">{title}</h2>
+            <p className="text-gray-500 text-sm mb-6">{t('Preencha as informações deste módulo.', 'Fill in the information for this module.', 'Completa la información de este módulo.')}</p>
 
-            <div className="space-y-8 flex-1">
+            <div className="space-y-4 flex-1">
               {questions.map((q) => {
                 const options: string[] = q.options || [];
 
                 return (
-                  <div key={q.key} className="bg-gray-50/40 p-5 sm:p-6 rounded-2xl border border-black/[0.03]">
-                    <label className="block text-sm font-bold text-gray-800 mb-1">{q.label}</label>
-                    {q.help && <p className="text-[11px] text-gray-500 mb-3 leading-relaxed">{q.help}</p>}
+                  <div key={q.key} className="bg-gray-50/40 p-4 sm:p-5 rounded-2xl border border-black/[0.03]">
+                    <label className="block text-sm font-bold text-gray-800 mb-1">{tb(q.label)}</label>
+                    {q.help && <p className="text-[11px] text-gray-500 mb-3 leading-relaxed">{tb(q.help)}</p>}
                     
                     {q.type === 'multiselect' ? (
                       (() => {
@@ -781,7 +788,7 @@ export const BriefingOnboarding: React.FC<{ isDashboardView?: boolean }> = ({ is
                                   ) : (
                                     <div className="w-3.5 h-3.5 rounded-md border border-gray-300 bg-gray-50 shrink-0" />
                                   )}
-                                  <span>{opt}</span>
+                                  <span>{tb(opt)}</span>
                                 </button>
                               );
                             })}
@@ -810,7 +817,7 @@ export const BriefingOnboarding: React.FC<{ isDashboardView?: boolean }> = ({ is
                                   <div className={`w-3.5 h-3.5 rounded-full border flex items-center justify-center shrink-0 ${isSelected ? 'border-white bg-white' : 'border-gray-300 bg-gray-50'}`}>
                                     {isSelected && <div className="w-1.5 h-1.5 rounded-full bg-brand-dark" />}
                                   </div>
-                                  <span>{opt}</span>
+                                  <span>{tb(opt)}</span>
                                 </button>
                               );
                             })}
@@ -821,7 +828,7 @@ export const BriefingOnboarding: React.FC<{ isDashboardView?: boolean }> = ({ is
                       <div className="space-y-3 p-4 bg-gray-50/50 rounded-2xl border border-gray-200">
                         {q.objectKeys.map((objKey: string) => (
                           <div key={objKey} className="flex flex-col sm:flex-row sm:items-center gap-2">
-                             <label className="text-xs font-bold text-gray-500 uppercase w-32 shrink-0">{objKey}</label>
+                             <label className="text-xs font-bold text-gray-500 uppercase w-32 shrink-0">{tb(objKey)}</label>
                              <input
                                 type="text"
                                 value={(formData[q.key] && formData[q.key][objKey]) || ''}
@@ -836,7 +843,7 @@ export const BriefingOnboarding: React.FC<{ isDashboardView?: boolean }> = ({ is
                       </div>
                     ) : q.type === 'array' ? (
                       <div>
-                        <p className="text-[10px] text-gray-400 mb-2 italic">Separe os itens por vírgula</p>
+                        <p className="text-[10px] text-gray-400 mb-2 italic">{t('Separe os itens por vírgula', 'Separate items with commas', 'Separa los ítems con comas')}</p>
                         <textarea
                           value={Array.isArray(formData[q.key]) ? formData[q.key].join(', ') : (formData[q.key] || '')}
                           onChange={(e) => setFormData({ ...formData, [q.key]: e.target.value })}
@@ -849,7 +856,7 @@ export const BriefingOnboarding: React.FC<{ isDashboardView?: boolean }> = ({ is
                       <textarea
                         value={formData[q.key] || ''}
                         onChange={(e) => setFormData({ ...formData, [q.key]: e.target.value })}
-                        placeholder={q.placeholder}
+                        placeholder={tb(q.placeholder)}
                         className="w-full border border-gray-200 rounded-2xl px-5 py-4 text-sm focus:outline-none focus:ring-2 focus:ring-brand-dark resize-none shadow-sm transition-all bg-white"
                         rows={4}
                       />
@@ -858,7 +865,7 @@ export const BriefingOnboarding: React.FC<{ isDashboardView?: boolean }> = ({ is
                         type="text"
                         value={formData[q.key] || ''}
                         onChange={(e) => setFormData({ ...formData, [q.key]: e.target.value })}
-                        placeholder={q.placeholder}
+                        placeholder={tb(q.placeholder)}
                         className="w-full border border-gray-200 rounded-2xl px-5 py-4 text-sm focus:outline-none focus:ring-2 focus:ring-brand-dark shadow-sm transition-all bg-white"
                       />
                     )}
@@ -867,7 +874,7 @@ export const BriefingOnboarding: React.FC<{ isDashboardView?: boolean }> = ({ is
               })}
             </div>
 
-            <div className="mt-12 flex flex-col sm:flex-row gap-4 pt-8 border-t border-gray-100 pb-10 relative">
+            <div className="mt-8 flex flex-col sm:flex-row gap-3 pt-6 border-t border-gray-100 pb-2 relative">
               {error && (
                 <div className="absolute -top-16 left-0 right-0 p-4 bg-red-50 text-red-600 border border-red-100 rounded-2xl flex items-center justify-center gap-2 font-bold text-sm tracking-wide shadow-sm animate-in fade-in slide-in-from-bottom-2">
                   <AlertCircle size={18} /> {error}
@@ -878,14 +885,14 @@ export const BriefingOnboarding: React.FC<{ isDashboardView?: boolean }> = ({ is
                 disabled={saving}
                 className="flex-1 flex items-center justify-center gap-2 px-6 py-4 border border-gray-200 text-gray-700 rounded-2xl hover:bg-gray-50 transition-colors font-bold tracking-widest uppercase text-xs disabled:opacity-50"
               >
-                Salvar Rascunho
+                {t('Salvar rascunho', 'Save draft', 'Guardar borrador')}
               </button>
               <button
                 onClick={() => handleSave(true)}
                 disabled={saving}
                 className="flex-1 flex items-center justify-center gap-2 px-6 py-4 bg-brand-dark text-white rounded-2xl hover:opacity-90 transition-opacity font-bold tracking-widest uppercase text-xs shadow-lg disabled:opacity-50"
               >
-                {saving ? 'Salvando...' : <><CheckCircle size={16} /> Concluir Briefing</>}
+                {saving ? t('Salvando...', 'Saving...', 'Guardando...') : <><CheckCircle size={16} /> {t('Concluir briefing', 'Finish briefing', 'Terminar briefing')}</>}
               </button>
             </div>
           </div>
@@ -898,21 +905,19 @@ export const BriefingOnboarding: React.FC<{ isDashboardView?: boolean }> = ({ is
     <div className="w-full min-h-screen bg-[#FDFDFD] flex flex-col">
       {renderHeader()}
       
-      <div className="flex-1 flex flex-col items-center justify-center py-8 px-4 pb-16">
-        <div className="max-w-4xl w-full p-6 sm:p-10 bg-white rounded-[2rem] sm:rounded-[2.5rem] shadow-[0_20px_50px_rgba(0,0,0,0.03)] border border-black/[0.02]">
-          <div className="mb-10 text-center">
-            <div className="w-20 h-20 bg-brand-dark/5 rounded-[1.5rem] flex items-center justify-center mx-auto mb-6 shrink-0 text-brand-dark">
-              <Target size={32} />
+      <div className="flex-1 flex flex-col items-center py-6 px-4 pb-10">
+        <div className="max-w-4xl w-full p-5 sm:p-8 bg-white rounded-3xl shadow-[0_20px_50px_rgba(0,0,0,0.03)] border border-black/[0.04]">
+          <div className="mb-6 flex flex-col sm:flex-row sm:items-end gap-4 justify-between">
+            <div>
+              <h1 className="text-2xl font-bold text-brand-dark tracking-tight flex items-center gap-2"><Target size={20} /> {tb('Briefings Estratégicos')}</h1>
+              <p className="text-gray-500 text-sm mt-1 max-w-lg">
+                {isAdmin ? 'Gerenciamento de formulários estratégicos do cliente.' : t('Algumas perguntas para conhecermos bem a sua marca. Pode salvar e continuar depois.', 'A few questions so we get to know your brand. You can save and continue later.', 'Algunas preguntas para conocer bien tu marca. Puedes guardar y seguir después.')}
+              </p>
             </div>
-            <h1 className="text-3xl sm:text-4xl font-black text-brand-dark mb-4 tracking-tight">Briefings Estratégicos</h1>
-            <p className="text-gray-500 font-medium max-w-lg mx-auto text-sm sm:text-base mb-8">
-              {isAdmin ? 'Gerenciamento de formulários estratégicos do cliente.' : 'Antes de começar, precisamos de algumas informações estratégicas. Preencha os formulários abaixo.'}
-            </p>
-            
-            <div className="max-w-lg mx-auto">
-              <div className="mb-3 flex items-center justify-between text-[10px] font-bold uppercase tracking-widest text-gray-400">
-                <span>{isAdmin ? 'Status do Cliente' : 'Progresso Geral'}</span>
-                <span>{completedCount} de {briefings.length} concluídos</span>
+            <div className="w-full sm:w-64 shrink-0">
+              <div className="mb-2 flex items-center justify-between text-[10px] font-bold uppercase tracking-widest text-gray-400">
+                <span>{isAdmin ? 'Status do Cliente' : tb('Progresso geral')}</span>
+                <span>{completedCount}/{briefings.length} {tb('concluídos')}</span>
               </div>
               <div className="h-2 w-full bg-gray-100 rounded-full overflow-hidden">
                  <div className="h-full bg-brand-dark transition-all duration-500" style={{ width: `${briefings.length ? (completedCount / briefings.length) * 100 : 0}%` }} />
@@ -946,24 +951,24 @@ export const BriefingOnboarding: React.FC<{ isDashboardView?: boolean }> = ({ is
             </div>
           )}
 
-          <div className="grid gap-4 sm:grid-cols-2 mb-10 mx-auto w-full max-w-4xl">
+          <div className="grid gap-3 sm:grid-cols-2 mb-6 mx-auto w-full max-w-4xl">
             {briefings.map(b => {
                const spec = customTemplates[b.briefing_type] || BRIEFING_QUESTIONS[b.briefing_type];
-               const title = spec ? spec.title : b.briefing_type;
+               const title = tb(spec ? spec.title : b.briefing_type);
                return (
                 <div 
                   key={b.id} 
                   onClick={() => handleSelectBriefing(b)}
-                  className={`p-6 rounded-[1.5rem] border-2 cursor-pointer transition-all hover:-translate-y-1 ${b.is_completed ? 'border-green-100 bg-green-50/50 hover:bg-green-50' : 'border-gray-100/70 hover:border-brand-dark bg-white shadow-[0_4px_20px_rgba(0,0,0,0.02)]'}`}
+                  className={`p-4 rounded-2xl border cursor-pointer transition-all hover:-translate-y-0.5 ${b.is_completed ? 'border-green-100 bg-green-50/50 hover:bg-green-50' : 'border-gray-100/70 hover:border-brand-dark bg-white shadow-[0_4px_20px_rgba(0,0,0,0.02)]'}`}
                 >
                   <div className="flex items-center gap-4">
-                      <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 ${b.is_completed ? 'bg-green-100 text-green-600' : 'bg-brand-dark/5 text-brand-dark'}`}>
-                         {b.is_completed ? <CheckCircle size={24} /> : <FileText size={24} />}
+                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${b.is_completed ? 'bg-green-100 text-green-600' : 'bg-brand-dark/5 text-brand-dark'}`}>
+                         {b.is_completed ? <CheckCircle size={20} /> : <FileText size={20} />}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <h3 className="font-bold text-gray-900 text-base sm:text-lg leading-snug break-normal">{title}</h3>
+                        <h3 className="font-bold text-gray-900 text-sm sm:text-base leading-snug break-normal">{title}</h3>
                         <span className={`text-[10px] uppercase tracking-widest font-bold mt-1 block ${b.is_completed ? 'text-green-600' : 'text-gray-400'}`}>
-                            {b.is_completed ? 'Concluído' : 'Pendente'}
+                            {b.is_completed ? tb('Concluído') : tb('Pendente')}
                         </span>
                       </div>
                       {b.is_completed && (
@@ -983,12 +988,12 @@ export const BriefingOnboarding: React.FC<{ isDashboardView?: boolean }> = ({ is
           </div>
 
           {allCompleted && briefings.length > 0 && (
-            <div className="flex justify-center border-t border-gray-100 pt-10">
+            <div className="flex justify-center border-t border-gray-100 pt-6">
               <button
                 onClick={() => window.location.reload()}
                 className="flex items-center gap-3 px-8 py-4 bg-brand-dark text-white rounded-2xl font-bold uppercase tracking-widest text-sm hover:opacity-90 transition-all hover:shadow-xl shadow-brand-dark/20 hover:-translate-y-1"
               >
-                Acessar minha Bolsa <Send size={18} />
+                {t('Acessar minha Bolsa', 'Go to my portal', 'Entrar a mi portal')} <Send size={18} />
               </button>
             </div>
           )}
