@@ -52,6 +52,26 @@ interface SidebarProps {
   onSwitchClient?: (client: Client) => void;
 }
 
+/** Logo da agência (ou iniciais na cor da agência, se não tiver logo). */
+export const AgencyMark: React.FC<{ name: string; logo?: string | null; color?: string | null; small?: boolean }> = ({ name, logo, color, small }) => {
+  const size = small ? 'w-5 h-5 rounded-md text-[8px]' : 'w-7 h-7 rounded-lg text-[10px]';
+  if (logo) {
+    return (
+      <span className={`${size} bg-white border border-gray-100 flex items-center justify-center overflow-hidden shrink-0`}>
+        <img src={logo} alt={name} className="w-full h-full object-contain p-0.5" />
+      </span>
+    );
+  }
+  return (
+    <span className={`${size} flex items-center justify-center font-black text-white shrink-0`} style={{ backgroundColor: color || '#13284D' }}>
+      {name.split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase()}
+    </span>
+  );
+};
+
+type NavItem = { id: string; label: string; icon: any; isInactive?: boolean };
+type NavGroup = { id: string; label?: string; icon?: any; items: NavItem[] };
+
 export const Navigation: React.FC<SidebarProps> = ({ 
   view, 
   activeClient, 
@@ -68,6 +88,7 @@ export const Navigation: React.FC<SidebarProps> = ({
   const [hasCredentials, setHasCredentials] = useState<boolean>(false);
   const { userRole, logout, agencyId, agencyName, agencies, switchAgency, can, viewAsClient } = useAuth();
   const [isAgencyDropdownOpen, setIsAgencyDropdownOpen] = useState(false);
+  const currentAgency = agencies.find(a => a.agency_id === agencyId) || null;
 
   useEffect(() => {
     if (userRole === 'admin' && agencyId) {
@@ -109,24 +130,54 @@ export const Navigation: React.FC<SidebarProps> = ({
     if (data) setAvailableClients(data);
   };
 
-  const agencyItems = [
-    { id: 'home', label: 'Início', icon: Home },
-    { id: 'masterMap', label: 'Painel de Conteúdo', icon: LayoutDashboard },
-    { id: 'nosso-conteudo', label: 'Nosso Conteúdo', icon: Building2 },
-    { id: 'tasks', label: 'Processos & Tarefas', icon: ClipboardList },
-    { id: 'anotacoes', label: 'Anotações', icon: NotebookPen },
-    { id: 'prospeccao', label: 'CRM / Prospecção', icon: Kanban },
-    { id: 'financeiro', label: 'Financeiro', icon: DollarSign },
-    { id: 'metas', label: 'Metas', icon: TrendingUp },
-    { id: 'onboarding', label: 'Onboarding', icon: Target },
-    { id: 'contratos', label: 'Contratos', icon: FileText },
-    { id: 'clientes', label: 'Clientes', icon: Users },
-    { id: 'equipe', label: 'Equipe & Acessos', icon: UserCog },
-  ].filter(item => {
-    if (item.id === 'financeiro' || item.id === 'metas') return can('view_finance');
-    if (item.id === 'equipe') return can('manage_team');
+  // Menu da agência em grupos (submenus). Itens sem grupo ficam soltos no topo.
+  const allowed = (id: string) => {
+    if (id === 'financeiro' || id === 'metas') return can('view_finance');
+    if (id === 'equipe') return can('manage_team');
     return true;
+  };
+  const agencyGroups: NavGroup[] = ([
+    { id: 'g-home', items: [
+      { id: 'home', label: 'Início', icon: Home },
+      { id: 'clientes', label: 'Clientes', icon: Users },
+    ] },
+    { id: 'g-conteudo', label: 'Conteúdo', icon: LayoutDashboard, items: [
+      { id: 'masterMap', label: 'Painel de Conteúdo', icon: LayoutDashboard },
+      { id: 'nosso-conteudo', label: 'Nosso Conteúdo', icon: Building2 },
+    ] },
+    { id: 'g-comercial', label: 'Comercial', icon: Kanban, items: [
+      { id: 'prospeccao', label: 'CRM / Prospecção', icon: Kanban },
+      { id: 'onboarding', label: 'Onboarding', icon: Target },
+      { id: 'contratos', label: 'Contratos', icon: FileText },
+    ] },
+    { id: 'g-operacao', label: 'Operação', icon: ClipboardList, items: [
+      { id: 'tasks', label: 'Processos & Tarefas', icon: ClipboardList },
+      { id: 'anotacoes', label: 'Anotações', icon: NotebookPen },
+    ] },
+    { id: 'g-gestao', label: 'Gestão', icon: BarChart3, items: [
+      { id: 'financeiro', label: 'Financeiro', icon: DollarSign },
+      { id: 'metas', label: 'Metas', icon: TrendingUp },
+      { id: 'equipe', label: 'Equipe & Acessos', icon: UserCog },
+    ] },
+  ] as NavGroup[])
+    .map(g => ({ ...g, items: g.items.filter(i => allowed(i.id)) }))
+    .filter(g => g.items.length > 0);
+  const agencyItems = agencyGroups.flatMap(g => g.items);
+
+  // Grupos abertos: lembra a escolha; o grupo da tela atual abre sozinho.
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>(() => {
+    try { return JSON.parse(localStorage.getItem('bolsa_nav_groups') || '{}'); } catch { return {}; }
   });
+  const toggleGroup = (id: string) => setOpenGroups(prev => {
+    const next = { ...prev, [id]: !isGroupOpen(id, prev) };
+    try { localStorage.setItem('bolsa_nav_groups', JSON.stringify(next)); } catch { /* ignore */ }
+    return next;
+  });
+  const isGroupOpen = (id: string, state = openGroups) => {
+    const g = agencyGroups.find(x => x.id === id);
+    if (g?.items.some(i => i.id === activeTab)) return true;
+    return state[id] ?? false;
+  };
 
   const getClientItems = () => {
     if (!activeClient) return [];
@@ -253,6 +304,41 @@ export const Navigation: React.FC<SidebarProps> = ({
     setIsMobileOpen(false);
   };
 
+  const renderItem = (item: NavItem, sub = false) => {
+          const Icon = item.icon;
+          const isActive = activeTab === item.id;
+          return (
+            <button
+              key={item.id}
+              onClick={() => handleMobileTabChange(item.id)}
+              className={`
+                w-full flex items-center gap-3 ${sub ? 'px-3 py-2.5' : 'p-3'} rounded-2xl transition-all group relative
+                ${isActive 
+                  ? 'bg-brand-dark text-white shadow-lg shadow-brand-dark/20' 
+                  : (item as any).isInactive
+                    ? 'text-gray-300 hover:bg-gray-50/50 hover:text-gray-400 opacity-60 scale-95'
+                    : 'text-gray-400 hover:bg-gray-50 hover:text-brand-dark'
+                }
+                ${isCollapsed ? 'justify-center' : ''}
+              `}
+              title={isCollapsed ? item.label : undefined}
+            >
+              <Icon size={isCollapsed ? 20 : 18} className={isActive ? '' : 'group-hover:scale-110 transition-transform'} />
+              {!isCollapsed && (
+                <span className="text-[11px] font-bold uppercase tracking-widest">
+                  {item.label}
+                </span>
+              )}
+              {isActive && !isCollapsed && (
+                <motion.div 
+                  layoutId="indicator"
+                  className="absolute left-0 w-1 h-4 bg-white/40 rounded-full"
+                />
+              )}
+            </button>
+          );
+  };
+
   const SidebarContent = (
     <div className="flex flex-col h-full flex-1 overflow-hidden py-6">
       {/* Header */}
@@ -269,7 +355,8 @@ export const Navigation: React.FC<SidebarProps> = ({
                   className="flex items-center gap-1.5 text-sm font-bold text-brand-dark uppercase tracking-widest whitespace-nowrap hover:opacity-70 transition-opacity"
                   title="Trocar de agência"
                 >
-                  <span className="truncate max-w-[170px]">{agencyName}</span>
+                  {currentAgency && <AgencyMark name={currentAgency.agency_name} logo={currentAgency.logo_url} color={currentAgency.primary_color} small />}
+                  <span className="truncate max-w-[150px]">{agencyName}</span>
                   <ChevronDown size={14} className={`transition-transform ${isAgencyDropdownOpen ? 'rotate-180' : ''}`} />
                 </button>
                 <AnimatePresence>
@@ -285,9 +372,7 @@ export const Navigation: React.FC<SidebarProps> = ({
                           onClick={() => { setIsAgencyDropdownOpen(false); if (a.agency_id !== agencyId) { switchAgency(a.agency_id); window.location.reload(); } }}
                           className={`w-full px-4 py-2.5 flex items-center gap-3 text-left hover:bg-gray-50 transition-colors ${a.agency_id === agencyId ? 'bg-gray-50' : ''}`}
                         >
-                          <span className="w-7 h-7 rounded-lg flex items-center justify-center text-[10px] font-black text-white shrink-0" style={{ backgroundColor: a.primary_color || '#13284D' }}>
-                            {a.agency_name.split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase()}
-                          </span>
+                          <AgencyMark name={a.agency_name} logo={a.logo_url} color={a.primary_color} />
                           <span className="text-xs font-bold text-gray-700 truncate flex-1">{a.agency_name}</span>
                           {a.agency_id === agencyId && <Check size={14} className="text-brand-dark shrink-0" />}
                         </button>
@@ -384,40 +469,36 @@ export const Navigation: React.FC<SidebarProps> = ({
 
       {/* Nav Items */}
       <nav className="flex-1 px-4 space-y-1 overflow-y-auto no-scrollbar">
-        {navItems.map((item) => {
-          const Icon = item.icon;
-          const isActive = activeTab === item.id;
+        {view === 'agency' ? agencyGroups.map((g, gi) => {
+          if (!g.label || isCollapsed) {
+            return (
+              <div key={g.id} className={gi > 0 && isCollapsed ? 'pt-2 mt-2 border-t border-gray-100 space-y-1' : 'space-y-1'}>
+                {g.items.map(i => renderItem(i))}
+              </div>
+            );
+          }
+          const open = isGroupOpen(g.id);
+          const GIcon = g.icon;
+          const hasActive = g.items.some(i => i.id === activeTab);
           return (
-            <button
-              key={item.id}
-              onClick={() => handleMobileTabChange(item.id)}
-              className={`
-                w-full flex items-center gap-3 p-3 rounded-2xl transition-all group relative
-                ${isActive 
-                  ? 'bg-brand-dark text-white shadow-lg shadow-brand-dark/20' 
-                  : (item as any).isInactive
-                    ? 'text-gray-300 hover:bg-gray-50/50 hover:text-gray-400 opacity-60 scale-95'
-                    : 'text-gray-400 hover:bg-gray-50 hover:text-brand-dark'
-                }
-                ${isCollapsed ? 'justify-center' : ''}
-              `}
-              title={isCollapsed ? item.label : undefined}
-            >
-              <Icon size={isCollapsed ? 20 : 18} className={isActive ? '' : 'group-hover:scale-110 transition-transform'} />
-              {!isCollapsed && (
-                <span className="text-[11px] font-bold uppercase tracking-widest">
-                  {item.label}
-                </span>
+            <div key={g.id} className="pt-1">
+              <button
+                onClick={() => toggleGroup(g.id)}
+                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-2xl transition-all ${hasActive ? 'text-brand-dark' : 'text-gray-400 hover:bg-gray-50 hover:text-brand-dark'}`}
+                aria-expanded={open}
+              >
+                <GIcon size={18} />
+                <span className="text-[11px] font-bold uppercase tracking-widest flex-1 text-left">{g.label}</span>
+                <ChevronDown size={14} className={`transition-transform ${open ? 'rotate-180' : ''}`} />
+              </button>
+              {open && (
+                <div className="mt-1 ml-5 pl-3 border-l border-gray-100 space-y-1">
+                  {g.items.map(i => renderItem(i, true))}
+                </div>
               )}
-              {isActive && !isCollapsed && (
-                <motion.div 
-                  layoutId="indicator"
-                  className="absolute left-0 w-1 h-4 bg-white/40 rounded-full"
-                />
-              )}
-            </button>
+            </div>
           );
-        })}
+        }) : navItems.map(i => renderItem(i))}
       </nav>
 
       {/* Footer Items */}
