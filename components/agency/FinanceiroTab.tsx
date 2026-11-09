@@ -69,9 +69,14 @@ import { parseCurrencyInput } from '../../lib/currencyUtils';
 import dayjs from 'dayjs';
 import { CURRENCIES, CurrencyCode, RECEIVED_REASONS, asCurrency, formatMoney, toBase } from '../../lib/money';
 import { ReceivePaymentModal, ReceiveResult } from './ReceivePaymentModal';
+import { FluxoCaixaTab } from '../financeiro/FluxoCaixaTab';
+import { ResultadoMesTab } from '../financeiro/ResultadoMesTab';
+import { SociosTab } from '../financeiro/SociosTab';
+import { useAuth } from '../../lib/supabase';
+import { LineChart as LineChartIcon, Handshake } from 'lucide-react';
 
 export interface FinanceiroTabProps {
-  initialSubTab?: 'overview' | 'faturamento' | 'despesas' | 'indicacao';
+  initialSubTab?: 'overview' | 'faturamento' | 'despesas' | 'fluxo' | 'resultado' | 'socios' | 'indicacao';
   initialMonthYear?: string;
   initialClientFilter?: string;
   onNavigateToContracts?: (clientId?: string) => void;
@@ -149,8 +154,10 @@ export const FinanceiroTab: React.FC<FinanceiroTabProps> = ({
   onNavigateToClient
 }) => {
   const [currentMonthYear, setCurrentMonthYear] = useState(initialMonthYear || dayjs().format('YYYY-MM'));
-  const [activeSubTab, setActiveSubTab] = useState<'overview' | 'faturamento' | 'despesas' | 'indicacao'>(initialSubTab || 'overview');
+  const [activeSubTab, setActiveSubTab] = useState<'overview' | 'faturamento' | 'despesas' | 'fluxo' | 'resultado' | 'socios' | 'indicacao'>(initialSubTab || 'overview');
   const [clientSearchFilter, setClientSearchFilter] = useState(initialClientFilter || '');
+  const { agencyId } = useAuth();
+  const isPeriodTab = activeSubTab === 'fluxo' || activeSubTab === 'resultado' || activeSubTab === 'socios';
   const { ltvList, ltvMap } = useAgencyClientsLtv();
 
   useEffect(() => {
@@ -895,7 +902,7 @@ export const FinanceiroTab: React.FC<FinanceiroTabProps> = ({
         </div>
 
         {/* Subtabs Navigation (Clean, Professional, No Values) */}
-        <div className="flex items-center gap-1.5 p-1.5 bg-stone-100/90 rounded-[2rem] border border-black/[0.04] self-start lg:self-auto shadow-inner">
+        <div className="flex items-center gap-1.5 p-1.5 bg-stone-100/90 rounded-[2rem] border border-black/[0.04] self-start lg:self-auto shadow-inner max-w-full overflow-x-auto">
           <button
             type="button"
             onClick={() => setActiveSubTab('overview')}
@@ -937,6 +944,47 @@ export const FinanceiroTab: React.FC<FinanceiroTabProps> = ({
 
           <button
             type="button"
+            onClick={() => setActiveSubTab('fluxo')}
+            className={`flex items-center gap-2 px-5 py-2.5 rounded-full text-xs font-bold transition-all whitespace-nowrap ${
+              activeSubTab === 'fluxo'
+                ? 'bg-white text-brand-dark shadow-sm'
+                : 'text-gray-500 hover:text-brand-dark hover:bg-white/50'
+            }`}
+          >
+            <Wallet size={15} />
+            <span>Fluxo de caixa</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveSubTab('resultado')}
+            className={`flex items-center gap-2 px-5 py-2.5 rounded-full text-xs font-bold transition-all whitespace-nowrap ${
+              activeSubTab === 'resultado'
+                ? 'bg-white text-brand-dark shadow-sm'
+                : 'text-gray-500 hover:text-brand-dark hover:bg-white/50'
+            }`}
+          >
+            <LineChartIcon size={15} />
+            <span>Resultado do mês</span>
+          </button>
+
+          {agencyId === 7 && (
+          <button
+            type="button"
+            onClick={() => setActiveSubTab('socios')}
+            className={`flex items-center gap-2 px-5 py-2.5 rounded-full text-xs font-bold transition-all whitespace-nowrap ${
+              activeSubTab === 'socios'
+                ? 'bg-white text-brand-dark shadow-sm'
+                : 'text-gray-500 hover:text-brand-dark hover:bg-white/50'
+            }`}
+          >
+            <Handshake size={15} />
+            <span>Sócios</span>
+          </button>
+          )}
+
+          <button
+            type="button"
             onClick={() => setActiveSubTab('indicacao')}
             className={`flex items-center gap-2 px-5 py-2.5 rounded-full text-xs font-bold transition-all ${
               activeSubTab === 'indicacao'
@@ -954,7 +1002,7 @@ export const FinanceiroTab: React.FC<FinanceiroTabProps> = ({
       <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-4 bg-white p-3 sm:p-4 rounded-3xl border border-black/[0.04] shadow-sm">
         {/* Month Selector & Privacy Toggle */}
         <div className="flex flex-wrap items-center gap-3">
-          <div className="flex items-center gap-1 bg-stone-50 p-1 rounded-2xl border border-black/[0.03]">
+          {!isPeriodTab && <div className="flex items-center gap-1 bg-stone-50 p-1 rounded-2xl border border-black/[0.03]">
             <button 
               type="button"
               onClick={handlePrevMonth} 
@@ -977,7 +1025,7 @@ export const FinanceiroTab: React.FC<FinanceiroTabProps> = ({
             >
               <ChevronRight size={16} />
             </button>
-          </div>
+          </div>}
 
           {/* Privacy Eye Toggle */}
           <button
@@ -2091,6 +2139,16 @@ export const FinanceiroTab: React.FC<FinanceiroTabProps> = ({
       {/* ========================================================================= */}
       {activeSubTab === 'indicacao' && (
         <ReferralProgramSection formatCurrency={formatCurrency} />
+      )}
+
+      {activeSubTab === 'fluxo' && (
+        <FluxoCaixaTab baseCurrency={baseCurrency} fxRates={fxRates} hideValues={hideValues} onGoFaturamento={() => setActiveSubTab('faturamento')} />
+      )}
+      {activeSubTab === 'resultado' && (
+        <ResultadoMesTab baseCurrency={baseCurrency} fxRates={fxRates} hideValues={hideValues} />
+      )}
+      {activeSubTab === 'socios' && agencyId === 7 && (
+        <SociosTab baseCurrency={baseCurrency} fxRates={fxRates} hideValues={hideValues} />
       )}
       {showExpenseModal && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-brand-dark/20 backdrop-blur-sm">

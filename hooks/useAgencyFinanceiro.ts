@@ -4,7 +4,8 @@ import { supabase, useAuth } from '../lib/supabase';
 import { AgencyBilling, AgencyExpense } from '../types';
 import { parseExpenseRow, filterExpensesForMonth } from '../lib/expenses';
 import dayjs from 'dayjs';
-import { CurrencyCode, FxRates, asCurrency, fetchFxRates } from '../lib/money';
+import { CurrencyCode, FxRates, asCurrency, fetchFxRates, toBase } from '../lib/money';
+import { billReceivedBase, billOpenBase } from '../lib/financeRange';
 
 export interface MonthFinancialSummary {
   monthYear: string;
@@ -246,10 +247,11 @@ export function useAgencyFinanceiro(monthYear: string) {
         });
 
         const missingInMonth = mActiveClients.filter(c => !explicitClientIds.has(c.id));
-        const totalBaseMissing = missingInMonth.reduce((sum, c) => sum + (Number(c.base_value) || 0), 0);
+        const totalBaseMissing = missingInMonth.reduce((sum, c) => sum + (toBase(Number(c.base_value) || 0, asCurrency((c as any).currency, baseCurrency), baseCurrency, fxRates) ?? (Number(c.base_value) || 0)), 0);
         
-        const explicitTotal = mExplicitBillings.reduce((sum, b) => sum + (Number(b.base_value || 0) + Number(b.extra_value || 0)), 0);
-        const explicitReceived = mExplicitBillings.filter(b => b.status === 'paid').reduce((sum, b) => sum + (Number(b.base_value || 0) + Number(b.extra_value || 0)), 0);
+        // Na moeda base: recebido = valor real (com a cotação do dia em que entrou); previsto convertido pela cotação de hoje
+        const explicitTotal = mExplicitBillings.reduce((sum, b) => sum + (b.status === 'paid' ? billReceivedBase(b, baseCurrency, fxRates) : billReceivedBase(b, baseCurrency, fxRates) + billOpenBase(b, baseCurrency, fxRates)), 0);
+        const explicitReceived = mExplicitBillings.reduce((sum, b) => sum + billReceivedBase(b, baseCurrency, fxRates), 0);
 
         const totalRevenue = explicitTotal + totalBaseMissing;
         const totalRevenueReceived = explicitReceived;
@@ -286,7 +288,7 @@ export function useAgencyFinanceiro(monthYear: string) {
 
   useEffect(() => {
     fetchData();
-  }, [monthYear, agencyId]);
+  }, [monthYear, agencyId, baseCurrency, fxRates]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const updateBilling = async (billing: Partial<AgencyBilling> & { update_global_contract?: boolean }) => {
     try {
