@@ -13,7 +13,7 @@ import {
   X, 
   Shield, 
   Users,
-  UserCog, 
+  UserCheck, UserCog, 
   LayoutDashboard,
   Calendar,
   Globe,
@@ -133,7 +133,7 @@ export const Navigation: React.FC<SidebarProps> = ({
   // Menu da agência em grupos (submenus). Itens sem grupo ficam soltos no topo.
   const allowed = (id: string) => {
     if (id === 'financeiro' || id === 'metas') return can('view_finance');
-    if (id === 'equipe') return can('manage_team');
+    if (id === 'equipe' || id === 'pessoas') return can('manage_team');
     return true;
   };
   const agencyGroups: NavGroup[] = ([
@@ -156,6 +156,7 @@ export const Navigation: React.FC<SidebarProps> = ({
       { id: 'anotacoes', label: 'Anotações', icon: NotebookPen },
     ] },
     { id: 'g-gestao', label: 'Gestão', icon: BarChart3, items: [
+      { id: 'pessoas', label: 'Pessoas e prazos', icon: UserCheck },
       { id: 'financeiro', label: 'Financeiro', icon: DollarSign },
       { id: 'metas', label: 'Metas', icon: TrendingUp },
       { id: 'equipe', label: 'Equipe & Acessos', icon: UserCog },

@@ -683,6 +683,11 @@ export interface AgencyTask {
   assignee_user_id?: string | null;
   /** Frente de trabalho (ex.: Canguru, Joey) */
   front?: string | null;
+  /** Etapa da entrega: a_fazer, fazendo, entregue, alteracao, aprovado */
+  stage?: string | null;
+  stage_changed_at?: string | null;
+  last_nudged_at?: string | null;
+  nudge_count?: number | null;
 }
 
 export type ProcessResponsible = 'wesley' | 'sarah' | 'client';
