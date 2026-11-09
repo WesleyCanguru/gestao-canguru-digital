@@ -815,7 +815,19 @@ export const ClientHome: React.FC<ClientHomeProps> = ({
         </motion.div>
       )}
 
-      {activeClient && <ClientStartCard client={activeClient} readOnly={isViewingAsClient || userType !== 'client'} />}
+      {activeClient && (
+        <ClientStartCard
+          client={activeClient}
+          readOnly={isViewingAsClient || userType !== 'client'}
+          onOpenBriefings={(type) => {
+            if (type) {
+              const newUrl = `${window.location.pathname}?view=strategic-briefings&type=${type}`;
+              window.history.replaceState({}, document.title, newUrl);
+            }
+            onNavigateToStrategicBriefings();
+          }}
+        />
+      )}
 
       {/* SECAO 2 - Cards de ação rápida */}
       <motion.div

@@ -1,4 +1,4 @@
-import { clientLang } from './strategy/ClientStartCard';
+import { clientLang, isStarterClient } from './strategy/ClientStartCard';
 import { trBriefing } from '../lib/briefingI18n';
 import { tr } from '../lib/accessGuides';
 import React, { useState, useEffect } from 'react';
@@ -6,10 +6,19 @@ import { supabase, useAuth } from '../lib/supabase';
 import { CheckCircle, AlertCircle, ChevronRight, FileText, Send, ArrowLeft, Target, LogOut, Download } from 'lucide-react';
 import { Logo } from './Logo';
 
-export const handleDownloadBriefingPDF = (briefing: any, clientName: string, customTemplates: Record<string, any>) => {
+export const visibleQuestions = (type: string, spec: any, client: any) => {
+  if (!spec?.questions) return [];
+  const hasOnboardingBriefing = !!client?.traffic_strategy_data?.onboarding_briefing;
+  if (type === 'trafego_pago' && hasOnboardingBriefing) {
+    return spec.questions.filter((q: any) => !q.fromSignup);
+  }
+  return spec.questions;
+};
+
+export const handleDownloadBriefingPDF = (briefing: any, clientName: string, customTemplates: Record<string, any>, client?: any) => {
   const spec = customTemplates[briefing.briefing_type] || BRIEFING_QUESTIONS[briefing.briefing_type];
   const title = spec ? spec.title : briefing.briefing_type;
-  const questions = spec ? spec.questions : [];
+  const questions = spec ? visibleQuestions(briefing.briefing_type, spec, client) : [];
   
   const printWindow = window.open('', '_blank');
   if (!printWindow) return;
@@ -306,93 +315,36 @@ export const BRIEFING_QUESTIONS: Record<string, { title: string, questions: any[
   'trafego_pago': {
     title: 'Tráfego Pago',
     questions: [
-      { 
-        key: 'genero', 
-        label: 'Gênero do Público-Alvo', 
-        type: 'multiselect', 
-        options: ['Masculino', 'Feminino', 'Todos os gêneros'],
-        help: 'Para quem os anúncios devem ser segmentados?' 
-      },
-      { 
-        key: 'faixa_etaria', 
-        label: 'Faixa Etária do Público-Alvo', 
-        type: 'multiselect', 
-        options: ['18 a 24 anos', '25 a 34 anos', '35 a 44 anos', '45 a 54 anos', '55 a 64 anos', '65+ anos'],
-        help: 'Selecione as faixas etárias dos anúncios.' 
-      },
-      { 
-        key: 'renda_mensal', 
-        label: 'Renda Mensal do Público-Alvo', 
-        type: 'multiselect', 
+      { key: 'genero', label: 'Gênero do Público-Alvo', type: 'multiselect', options: ['Masculino', 'Feminino', 'Todos os gêneros'], help: 'Para quem os anúncios devem ser segmentados?' },
+      { key: 'faixa_etaria', fromSignup: true, label: 'Faixa Etária do Público-Alvo', type: 'multiselect', options: ['18 a 24 anos', '25 a 34 anos', '35 a 44 anos', '45 a 54 anos', '55 a 64 anos', '65+ anos'], help: 'Selecione as faixas etárias dos anúncios.' },
+      { key: 'renda_mensal', label: 'Renda Mensal do Público-Alvo', type: 'multiselect',
         options: ['Até R$ 2.500', 'R$ 2.500 a R$ 5.000', 'R$ 5.000 a R$ 10.000', 'R$ 10.000 a R$ 15.000', 'R$ 15.000 a R$ 20.000', 'R$ 20.000 a R$ 30.000', 'Acima de R$ 30.000'],
-        help: 'Qual é o poder aquisitivo estimado de quem compra a oferta?' 
-      },
-      { 
-        key: 'localizacao', 
-        label: 'Localização / Abrangência Geográfica', 
-        type: 'select', 
-        options: ['Local (bairro/cidade)', 'Regional (cidades da região)', 'Estadual', 'Nacional', 'Internacional'],
-        help: 'Onde rodaremos os anúncios?' 
-      },
-      { 
-        key: 'plataformas', 
-        label: 'Plataformas de Anúncios', 
-        type: 'multiselect', 
-        options: ['Google Search', 'Google Display', 'YouTube', 'Meta Ads (Facebook / Instagram)', 'TikTok Ads', 'LinkedIn Ads'],
-        help: 'Em quais canais pagos pretendemos anunciar?' 
-      },
-      { key: 'profissao_cargo', label: 'Profissão / Cargo do Público', type: 'text', help: 'Ex: Vamos atingir Médicos. Ou vamos focar em Diretores de empresas.' },
-      { 
-        key: 'onde_passa_tempo', 
-        label: 'Onde passa o tempo online?', 
-        type: 'multiselect', 
-        options: ['Instagram / Facebook', 'YouTube', 'TikTok', 'Google / Blogs de Pesquisa', 'LinkedIn', 'Portais de Notícias'],
-        help: 'Onde o público navega frequentemente?' 
-      },
-      { 
-        key: 'ticket_medio', 
-        label: 'Ticket Médio do Produto/Serviço', 
-        type: 'select', 
+        optionsUsd: ['Up to $3,000/mo', '$3,000 to $6,000/mo', '$6,000 to $10,000/mo', '$10,000 to $15,000/mo', 'Over $15,000/mo'],
+        help: 'Qual é o poder aquisitivo estimado de quem compra a oferta?' },
+      { key: 'localizacao', fromSignup: true, label: 'Localização / Abrangência Geográfica', type: 'select', options: ['Local (bairro/cidade)', 'Regional (cidades da região)', 'Estadual', 'Nacional', 'Internacional'], help: 'Qual o alcance geográfico da sua empresa?' },
+      { key: 'profissao', label: 'Profissão / Cargo do Público', type: 'textarea', placeholder: 'Ex: Médicos, advogados, donos de pequenas empresas...', help: 'Quem costuma comprar o seu produto ou serviço?' },
+      { key: 'ticket_medio', fromSignup: true, label: 'Ticket Médio do Produto/Serviço', type: 'select',
         options: ['Até R$ 100', 'R$ 100 a R$ 500', 'R$ 500 a R$ 2.000', 'R$ 2.000 a R$ 10.000', 'Acima de R$ 10.000'],
-        help: 'Qual o preço médio da solução anunciada?' 
-      },
-      { 
-        key: 'orcamento_midia', 
-        label: 'Orçamento Mensal em Mídia Paga', 
-        type: 'select', 
+        optionsUsd: ['Up to $50', '$50 to $200', '$200 to $500', '$500 to $2,000', 'Over $2,000'],
+        help: 'Qual o preço médio da solução anunciada?' },
+      { key: 'orcamento_midia', fromSignup: true, label: 'Orçamento Mensal em Mídia Paga', type: 'select',
         options: ['Até R$ 1.000', 'R$ 1.000 a R$ 3.000', 'R$ 3.000 a R$ 5.000', 'R$ 5.000 a R$ 10.000', 'Acima de R$ 10.000'],
-        help: 'Qual o valor estimado para investimento direto em anúncios?' 
-      },
-      { 
-        key: 'ciclo_vendas', 
-        label: 'Ciclo de Vendas', 
-        type: 'select', 
-        options: ['Imediato (mesmo dia)', 'Até 7 dias', '15 a 30 dias', '1 a 3 meses', 'Mais de 3 meses'],
-        help: 'Quanto tempo leva entre o 1º contato e o fechamento?' 
-      },
+        optionsUsd: ['Up to $500/mo', '$500 to $1,000/mo', '$1,000 to $2,500/mo', '$2,500 to $5,000/mo', 'Over $5,000/mo'],
+        help: 'Qual o valor estimado para investimento direto em anúncios?' },
+      { key: 'ciclo_vendas', label: 'Ciclo de Vendas', type: 'select', options: ['Imediato (mesmo dia)', 'Até 7 dias', '15 a 30 dias', '1 a 3 meses', 'Mais de 3 meses'], help: 'Quanto tempo leva entre o 1º contato e o fechamento?' },
+      { key: 'atendimento_leads', label: 'Quem responde os contatos que chegarem, e em quanto tempo?', type: 'select',
+        options: ['Respondo em até 1 hora', 'No mesmo dia', 'No dia seguinte ou depois', 'Ainda não tenho quem atenda'],
+        help: 'Anúncio bom com resposta lenta perde a venda. Seja sincero, isso muda a estratégia.' },
+      { key: 'materiais_disponiveis', label: 'Que materiais você já tem para os anúncios?', type: 'multiselect',
+        options: ['Fotos profissionais', 'Fotos de celular', 'Vídeos', 'Depoimentos de clientes', 'Antes e depois', 'Ainda não tenho nada'],
+        help: 'Marque tudo o que já existe. O que faltar, a gente combina.' },
       { key: 'maior_problema', label: 'Maior Problema do Cliente', type: 'textarea', help: 'Qual é a maior urgência ou "dor de cabeça" constante do cliente e que é resolvida pelo seu serviço?' },
-      { 
-        key: 'motivou_buscar', 
-        label: 'O que o motivou a buscar você?', 
-        type: 'multiselect', 
-        options: ['Urgência / Necessidade imediata', 'Desejo de crescimento / Oportunidade', 'Insatisfação com concorrente atual', 'Recomendação de terceiros', 'Preço / Oferta especial'],
-        help: 'Quais os motivos que levam à busca pela sua oferta?' 
-      },
-      { 
-        key: 'meta_principal', 
-        label: 'Objetivo Principal / Meta da Campanha', 
-        type: 'select', 
-        options: ['Gerar leads qualificados', 'Aumentar vendas diretas', 'Reconhecimento de marca', 'Tráfego para o site', 'Agendamentos / consultas'],
-        help: 'O que definirá o projeto como um Sucesso Absoluto?' 
-      },
-      { 
-        key: 'gatilho_agir', 
-        label: 'Gatilho para agir', 
-        type: 'multiselect', 
-        options: ['Bônus VIP', 'Desconto na 1ª Consulta / Compra', 'Escassez (Últimas Vagas / Estoque)', 'Autoridade / Prova Social', 'Garantia Incondicional'],
-        help: 'Qual oferta ou isca fará o usuário clicar no seu anúncio agora?' 
-      }
-    ]
+      { key: 'motivo_busca', label: 'O que o motivou a buscar você?', type: 'multiselect', options: ['Urgência / Necessidade imediata', 'Desejo de crescimento / Oportunidade', 'Insatisfação com concorrente atual', 'Recomendação de terceiros', 'Preço / Oferta especial'], help: 'Quais os motivos que levam à busca pela sua oferta?' },
+      { key: 'meta_principal', fromSignup: true, label: 'Objetivo Principal / Meta da Campanha', type: 'textarea', help: 'O que definirá o projeto como um Sucesso Absoluto?' },
+      { key: 'gatilho_acao', label: 'Gatilho para agir', type: 'multiselect', options: ['Bônus VIP', 'Desconto na 1ª Consulta / Compra', 'Escassez (Últimas Vagas / Estoque)', 'Autoridade / Prova Social', 'Garantia Incondicional'], help: 'Qual oferta ou isca fará o usuário clicar no seu anúncio agora?' },
+      { key: 'diferenciais_pratica', label: 'O que torna seu atendimento/produto diferente na prática?', type: 'textarea', help: 'Por que o cliente escolhe você e não o concorrente?' },
+      { key: 'sazonalidade', optional: true, label: 'Tem meses ou datas em que vende mais (ou menos)?', type: 'textarea', help: 'Ex.: Dezembro é o melhor mês, janeiro cai bastante. Se não souber, pode pular.' },
+    ],
   },
   'conteudo_bastidores': {
     title: 'Conteúdo, Bastidores e Autoridade',
@@ -431,6 +383,7 @@ export const BriefingOnboarding: React.FC<{ isDashboardView?: boolean }> = ({ is
   const [briefings, setBriefings] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedBriefingType, setSelectedBriefingType] = useState<string | null>(null);
+  const [justCompletedStarterTraffic, setJustCompletedStarterTraffic] = useState(false);
   const [formData, setFormData] = useState<Record<string, any>>({});
   const [saving, setSaving] = useState(false);
   const [customTemplates, setCustomTemplates] = useState<Record<string, any>>({});
@@ -512,6 +465,10 @@ export const BriefingOnboarding: React.FC<{ isDashboardView?: boolean }> = ({ is
         }
       }
 
+      if (isStarterClient(activeClient) && services.includes('Tráfego Pago')) {
+        requiredTypes.add('trafego_pago');
+      }
+
       let neededToCreate = [];
       for (const bType of requiredTypes) {
         const exists = currentBriefings.find((b: any) => b.briefing_type === bType);
@@ -569,10 +526,12 @@ export const BriefingOnboarding: React.FC<{ isDashboardView?: boolean }> = ({ is
     
     if (complete) {
       const currentSpec = customTemplates[selectedBriefingType] || BRIEFING_QUESTIONS[selectedBriefingType];
-      if (currentSpec && currentSpec.questions) {
+      if (currentSpec) {
+        const questionsToCheck = visibleQuestions(selectedBriefingType, currentSpec, activeClient);
         let hasMissing = false;
         
-        for (const q of currentSpec.questions) {
+        for (const q of questionsToCheck) {
+          if (q.optional) continue;
           const val = formData[q.key];
           
           if (q.type === 'object' && q.objectKeys) {
@@ -583,7 +542,7 @@ export const BriefingOnboarding: React.FC<{ isDashboardView?: boolean }> = ({ is
                 }
              }
              if (missingObj) hasMissing = true;
-          } else if (q.type === 'array') {
+          } else if (q.type === 'multiselect' || q.type === 'array') {
              if (!val || (Array.isArray(val) && val.length === 0) || (typeof val === 'string' && val.trim() === '')) {
                 hasMissing = true;
              }
@@ -628,8 +587,14 @@ export const BriefingOnboarding: React.FC<{ isDashboardView?: boolean }> = ({ is
         .eq('briefing_type', selectedBriefingType);
       
       await loadBriefings();
+      const isStarter = isStarterClient(activeClient);
+      const wasTraffic = selectedBriefingType === 'trafego_pago';
       if (complete) {
-        setSelectedBriefingType(null);
+        if (isStarter && wasTraffic) {
+          setJustCompletedStarterTraffic(true);
+        } else {
+          setSelectedBriefingType(null);
+        }
         window.scrollTo({ top: 0, behavior: 'smooth' });
       }
     } catch (err) {
@@ -693,7 +658,7 @@ export const BriefingOnboarding: React.FC<{ isDashboardView?: boolean }> = ({ is
 
   const handleDownloadPDF = (briefing: any, e: React.MouseEvent) => {
     e.stopPropagation();
-    handleDownloadBriefingPDF(briefing, activeClient?.name || 'Cliente', customTemplates);
+    handleDownloadBriefingPDF(briefing, activeClient?.name || 'Cliente', customTemplates, activeClient);
   };
 
   const renderHeader = () => (
@@ -716,10 +681,38 @@ export const BriefingOnboarding: React.FC<{ isDashboardView?: boolean }> = ({ is
   const allCompleted = briefings.length > 0 && briefings.every(b => b.is_completed);
   const completedCount = briefings.filter(b => b.is_completed).length;
 
+  if (justCompletedStarterTraffic) {
+    return (
+      <div className="w-full min-h-screen bg-[#FDFDFD] flex flex-col">
+        {renderHeader()}
+        <div className="flex-1 flex flex-col items-center justify-center py-12 px-4 text-center">
+          <div className="max-w-md w-full p-8 sm:p-10 bg-white rounded-3xl shadow-[0_20px_50px_rgba(0,0,0,0.03)] border border-black/[0.04] flex flex-col items-center">
+            <div className="w-16 h-16 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center mb-5">
+              <CheckCircle size={36} />
+            </div>
+            <h2 className="text-2xl font-bold text-gray-900 mb-2 tracking-tight">
+              {t('Pronto! Recebemos suas respostas.', 'Done! We got your answers.', '¡Listo! Recibimos tus respuestas.')}
+            </h2>
+            <p className="text-sm text-gray-500 mb-8 leading-relaxed">
+              {t('Agora a equipe monta a sua estratégia. Avisamos no WhatsApp quando ela estiver pronta.', 'Now the team builds your strategy. We will let you know on WhatsApp when it is ready.', 'Ahora el equipo arma tu estrategia. Te avisamos por WhatsApp cuando esté lista.')}
+            </p>
+            <button
+              onClick={() => { window.location.href = '/'; }}
+              className="w-full py-3.5 px-6 rounded-2xl bg-gray-900 text-white font-bold text-xs uppercase tracking-widest hover:opacity-90 transition-opacity"
+            >
+              {t('Voltar ao início', 'Back to start', 'Volver al inicio')}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   if (selectedBriefingType) {
     const briefingSpec = customTemplates[selectedBriefingType] || BRIEFING_QUESTIONS[selectedBriefingType];
-    const questions = briefingSpec ? briefingSpec.questions : [];
+    const questions = briefingSpec ? visibleQuestions(selectedBriefingType, briefingSpec, activeClient) : [];
     const title = tb(briefingSpec ? briefingSpec.title : selectedBriefingType);
+    const isUsd = activeClient?.agency_id === 7 || activeClient?.currency === 'USD';
 
     return (
       <div className="w-full min-h-screen bg-[#FDFDFD] flex flex-col">
@@ -739,11 +732,14 @@ export const BriefingOnboarding: React.FC<{ isDashboardView?: boolean }> = ({ is
 
             <div className="space-y-4 flex-1">
               {questions.map((q) => {
-                const options: string[] = q.options || [];
+                const options: string[] = (isUsd && q.optionsUsd) ? q.optionsUsd : (q.options || []);
 
                 return (
                   <div key={q.key} className="bg-gray-50/40 p-4 sm:p-5 rounded-2xl border border-black/[0.03]">
-                    <label className="block text-sm font-bold text-gray-800 mb-1">{tb(q.label)}</label>
+                    <label className="block text-sm font-bold text-gray-800 mb-1">
+                      {tb(q.label)}
+                      {q.optional && <span className="text-gray-400 font-normal ml-1">({tb('(opcional)')})</span>}
+                    </label>
                     {q.help && <p className="text-[11px] text-gray-500 mb-3 leading-relaxed">{tb(q.help)}</p>}
                     
                     {q.type === 'multiselect' ? (

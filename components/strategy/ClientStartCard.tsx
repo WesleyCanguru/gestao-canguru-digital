@@ -19,12 +19,13 @@ export const isStarterClient = (client: any) =>
  * estratégia para aprovar e briefings complementares. Em `full` vira a tela inicial inteira.
  */
 export const ClientStartCard: React.FC<{
-  client: any; readOnly?: boolean; full?: boolean; onOpenBriefings?: () => void;
+  client: any; readOnly?: boolean; full?: boolean; onOpenBriefings?: (type?: string) => void;
 }> = ({ client, readOnly, full, onOpenBriefings }) => {
   const [strategy, setStrategy] = useState<StrategyRow | null>(null);
   const [access, setAccess] = useState<Record<Platform, AccessChoice>>({ meta: emptyAccess(), google: emptyAccess() });
   const [agency, setAgency] = useState<{ name: string; access_email: string | null; contact_whatsapp: string | null; primary_color: string | null } | null>(null);
   const [briefingsPending, setBriefingsPending] = useState(0);
+  const [trafficDone, setTrafficDone] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [open, setOpen] = useState(false);
   const [mode, setMode] = useState<'view' | 'changes'>('view');
@@ -34,6 +35,8 @@ export const ClientStartCard: React.FC<{
   const refTimer = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
   const lang = clientLang(client);
   const t = tr(lang);
+
+  const needsTraffic = ((client?.services as string[]) || []).includes('Tráfego Pago');
 
   const load = useCallback(async () => {
     if (!client?.id) return;
@@ -56,11 +59,13 @@ export const ClientStartCard: React.FC<{
     });
     setAccess(next);
     setAgency((ag.data as any) || null);
+    const trafficRow = ((br.data as any[]) || []).find(b => b.briefing_type === 'trafego_pago');
+    setTrafficDone(!needsTraffic || !!trafficRow?.is_completed);
     const wanted: string[] = client.features_settings?.active_briefing_types || [];
     const done = new Set(((br.data as any[]) || []).filter(b => b.is_completed).map(b => b.briefing_type));
-    setBriefingsPending(wanted.filter(w => !done.has(w)).length);
+    setBriefingsPending(wanted.filter(w => w !== 'trafego_pago' && !done.has(w)).length);
     setLoaded(true);
-  }, [client?.id, client?.agency_id, client?.features_settings]);
+  }, [client?.id, client?.agency_id, client?.features_settings, needsTraffic]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -103,7 +108,14 @@ export const ClientStartCard: React.FC<{
   };
 
   const accessOk = (p: Platform) => ['verified', 'agency_creating', 'client_done'].includes(access[p].status);
-  const steps = [
+  const steps = needsTraffic ? [
+    { label: t('Cadastro', 'Sign-up', 'Registro'), done: client.onboarding_status === 'concluido' },
+    { label: t('Briefing', 'Briefing', 'Briefing'), done: trafficDone },
+    { label: t('Acessos', 'Access', 'Accesos'), done: accessOk('meta') && accessOk('google') },
+    { label: t('Estratégia', 'Strategy', 'Estrategia'), done: !!strategy },
+    { label: t('Sua aprovação', 'Your approval', 'Tu aprobación'), done: strategy?.status === 'approved' },
+    { label: t('Campanha no ar', 'Campaign live', 'Campaña al aire'), done: false },
+  ] : [
     { label: t('Cadastro', 'Sign-up', 'Registro'), done: client.onboarding_status === 'concluido' },
     { label: t('Acessos', 'Access', 'Accesos'), done: accessOk('meta') && accessOk('google') },
     { label: t('Estratégia', 'Strategy', 'Estrategia'), done: !!strategy },
@@ -117,7 +129,7 @@ export const ClientStartCard: React.FC<{
   const title = strategy?.status === 'sent' ? t('Sua estratégia está pronta para você aprovar', 'Your strategy is ready for your approval', 'Tu estrategia está lista para que la apruebes')
     : strategy?.status === 'approved' ? t('Estratégia aprovada. Estamos preparando as campanhas.', "Strategy approved. We're setting up your campaigns.", 'Estrategia aprobada. Estamos preparando las campañas.')
     : strategy?.status === 'changes' ? t('Recebemos seus ajustes. Já estamos revisando.', "We got your notes. We're revising it.", 'Recibimos tus ajustes. Ya los estamos revisando.')
-    : t('Estamos montando a sua estratégia', "We're building your strategy", 'Estamos armando tu estrategia');
+    : (!trafficDone ? t('Falta só você responder algumas perguntas', 'We just need a few answers from you', 'Solo faltan algunas respuestas tuyas') : t('Estamos montando a sua estratégia', "We're building your strategy", 'Estamos armando tu estrategia'));
 
   return (
     <div className={full ? 'max-w-3xl mx-auto space-y-6' : 'mb-6'}>
@@ -126,7 +138,7 @@ export const ClientStartCard: React.FC<{
           <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 tracking-tight">
             {firstName ? t(`Olá, ${firstName}!`, `Hi, ${firstName}!`, `¡Hola, ${firstName}!`) : t('Olá!', 'Hi!', '¡Hola!')}
           </h1>
-          <p className="text-gray-500 mt-1">{t('Aqui você acompanha o começo do trabalho.', 'Here you can follow how we are getting started.', 'Aquí sigues el comienzo del trabajo.')}</p>
+          <p className="text-gray-500 mt-1">{t('Aqui você acompanha o começo do trabalho.', 'Here you can follow how we are getting started.', 'Aquí sigues el comienzo del trabalho.')}</p>
         </div>
       )}
 
@@ -143,7 +155,7 @@ export const ClientStartCard: React.FC<{
             </button>
           )}
         </div>
-        <ol className="mt-5 grid grid-cols-5 gap-1.5">
+        <ol className={`mt-5 grid ${needsTraffic ? 'grid-cols-6' : 'grid-cols-5'} gap-1.5`}>
           {steps.map((s, i) => (
             <li key={i} className="flex flex-col gap-1.5">
               <span className={`h-1.5 rounded-full ${s.done ? 'bg-emerald-500' : 'bg-gray-200'}`} />
@@ -152,9 +164,37 @@ export const ClientStartCard: React.FC<{
           ))}
         </ol>
         {!strategy && (
-          <p className="mt-4 text-sm text-gray-500">{t('Avisamos no WhatsApp assim que a estratégia estiver pronta para você ver.', "We'll let you know on WhatsApp as soon as your strategy is ready.", 'Te avisamos por WhatsApp apenas tu estrategia esté lista.')}</p>
+          <p className="mt-4 text-sm text-gray-500">
+            {!trafficDone
+              ? t('Assim que você responder as perguntas, começamos a sua estratégia.', 'As soon as you answer the questions, we start on your strategy.', 'Apenas respondas las preguntas, empezamos tu estrategia.')
+              : t('Avisamos no WhatsApp assim que a estratégia estiver pronta para você ver.', "We'll let you know on WhatsApp as soon as your strategy is ready.", 'Te avisamos por WhatsApp apenas tu estrategia esté lista.')}
+          </p>
         )}
       </div>
+
+      {full && needsTraffic && !trafficDone && (
+        <div className="bg-gray-900 text-white rounded-2xl p-5 sm:p-6 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="space-y-1">
+            <span className="inline-block text-[10px] font-bold uppercase tracking-widest px-2.5 py-1 rounded-full bg-white/10 text-white/90">
+              {t('Próximo passo', 'Next step', 'Próximo paso')}
+            </span>
+            <h4 className="text-base font-bold text-white">
+              {t('Conte mais sobre os seus clientes', 'Tell us more about your customers', 'Cuéntanos más sobre tus clientes')}
+            </h4>
+            <p className="text-xs text-gray-300 leading-relaxed max-w-xl">
+              {t('São perguntas rápidas, cerca de 3 minutos. É com elas que montamos a sua estratégia.', 'Quick questions, about 3 minutes. This is what we use to build your strategy.', 'Son preguntas rápidas, unos 3 minutos. Con ellas armamos tu estrategia.')}
+            </p>
+          </div>
+          <button
+            onClick={() => !readOnly && onOpenBriefings?.('trafego_pago')}
+            disabled={readOnly}
+            className="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-white text-gray-900 text-xs font-bold uppercase tracking-widest hover:bg-gray-100 transition shrink-0 disabled:opacity-50"
+          >
+            <span>{t('Responder agora', 'Answer now', 'Responder ahora')}</span>
+            <ChevronRight size={14} />
+          </button>
+        </div>
+      )}
 
       {full && pendingPlatforms.length > 0 && (
         <section className="space-y-3">
@@ -173,7 +213,7 @@ export const ClientStartCard: React.FC<{
       )}
 
       {full && briefingsPending > 0 && onOpenBriefings && (
-        <button onClick={onOpenBriefings} className="w-full text-left bg-white rounded-2xl border border-gray-200 p-5 flex items-center gap-4 hover:border-gray-300">
+        <button onClick={() => onOpenBriefings?.()} className="w-full text-left bg-white rounded-2xl border border-gray-200 p-5 flex items-center gap-4 hover:border-gray-300">
           <span className="w-10 h-10 rounded-xl bg-gray-100 text-gray-700 flex items-center justify-center"><ClipboardList size={18} /></span>
           <div className="flex-1">
             <p className="font-semibold text-gray-900">{t('Para adiantar: perguntas sobre a sua marca', 'To get ahead: questions about your brand', 'Para adelantar: preguntas sobre tu marca')}</p>

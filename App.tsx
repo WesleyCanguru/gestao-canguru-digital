@@ -524,7 +524,18 @@ const MainApp: React.FC<MainAppProps> = ({ initialView, onExitAgencyDashboard, o
                     )}
                   </div>
                 ) : starterClient && (view === 'dashboard' || view === 'home') ? (
-                  <ClientStartCard client={activeClient} full readOnly={isViewingAsClient} onOpenBriefings={() => setView('strategic-briefings')} />
+                  <ClientStartCard
+                    client={activeClient}
+                    full
+                    readOnly={isViewingAsClient}
+                    onOpenBriefings={(type) => {
+                      if (type) {
+                        const newUrl = `${window.location.pathname}?view=strategic-briefings&type=${type}`;
+                        window.history.replaceState({}, document.title, newUrl);
+                      }
+                      setView('strategic-briefings');
+                    }}
+                  />
                 ) : view === 'dashboard' ? (
                   <ClientHome
                     initialActiveView="dashboard"

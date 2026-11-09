@@ -3,6 +3,7 @@ import { supabase, useAuth, callFunction } from '../../lib/supabase';
 import { getAppUrl } from '../../lib/appUrl';
 import { Client } from '../../types';
 import { StrategyRow, StrategyView } from '../strategy/StrategyView';
+import { BRIEFING_QUESTIONS } from '../BriefingOnboarding';
 import {
   Copy, Check, X, Loader2, Sparkles, Send, Rocket, ExternalLink, Megaphone, Search, AlertCircle, RefreshCw, ChevronRight, Trash2,
 } from 'lucide-react';
@@ -14,7 +15,7 @@ type AccessRow = {
   status: 'pending' | 'client_done' | 'help' | 'agency_creating' | 'verified';
   account_ref: string | null; updated_at: string;
 };
-type Briefing = { client_id: string; responses: Record<string, unknown> };
+type Briefing = { client_id: string; briefing_type: string; responses: Record<string, unknown>; is_completed?: boolean };
 
 type Stage = 'cadastro' | 'estrategia' | 'aprovacao' | 'subir' | 'no_ar';
 
@@ -70,7 +71,7 @@ export const OnboardingPipeline: React.FC<{ onOpenClient: (c: Client) => void }>
       const [a, s, b] = await Promise.all([
         supabase.from('client_platform_access').select('*').in('client_id', ids),
         supabase.from('client_strategies').select('*').in('client_id', ids).order('version', { ascending: false }),
-        supabase.from('client_briefings').select('client_id, responses').eq('briefing_type', 'onboarding').in('client_id', ids),
+        supabase.from('client_briefings').select('client_id, briefing_type, responses, is_completed').in('briefing_type', ['onboarding', 'trafego_pago']).in('client_id', ids),
       ]);
       setAccess((a.data as AccessRow[]) || []);
       setStrategies((s.data as StrategyRow[]) || []);
@@ -85,6 +86,8 @@ export const OnboardingPipeline: React.FC<{ onOpenClient: (c: Client) => void }>
 
   const latestStrategy = (clientId: string) => strategies.find(s => s.client_id === clientId) || null;
   const accessOf = (clientId: string) => access.filter(a => a.client_id === clientId);
+  const trafficBriefingOf = (clientId: string) => briefings.find(b => b.client_id === clientId && b.briefing_type === 'trafego_pago') || null;
+  const onboardingBriefingOf = (clientId: string) => briefings.find(b => b.client_id === clientId && b.briefing_type === 'onboarding')?.responses || (clients.find(c => c.id === clientId) as any)?.traffic_strategy_data?.onboarding_briefing || null;
 
   const stageOf = (c: Client): Stage | null => {
     const any = c as any;
@@ -174,8 +177,13 @@ export const OnboardingPipeline: React.FC<{ onOpenClient: (c: Client) => void }>
                         {s?.status === 'changes' ? ' · pediu ajustes' : ''}
                         {(c as any).acquired_by_user_id && members[(c as any).acquired_by_user_id] ? ` · via ${members[(c as any).acquired_by_user_id]}` : ''}
                       </p>
-                      {acc.length > 0 && (
+                      {((acc.length > 0) || (st.id === 'estrategia' && ((c.services as string[]) || []).includes('Tráfego Pago') && !trafficBriefingOf(c.id)?.is_completed)) && (
                         <div className="mt-2 flex flex-wrap gap-1">
+                          {st.id === 'estrategia' && ((c.services as string[]) || []).includes('Tráfego Pago') && !trafficBriefingOf(c.id)?.is_completed && (
+                            <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-md bg-amber-50 text-amber-800">
+                              Briefing pendente
+                            </span>
+                          )}
                           {acc.map(a => (
                             <span key={a.platform} className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-md ${ACCESS_LABEL[a.status].cls}`}>
                               {a.platform === 'meta' ? 'Meta' : 'Google'}: {ACCESS_LABEL[a.status].text}
@@ -199,7 +207,8 @@ export const OnboardingPipeline: React.FC<{ onOpenClient: (c: Client) => void }>
           stage={stageOf(open)}
           access={accessOf(open.id)}
           strategy={latestStrategy(open.id)}
-          briefing={briefings.find(b => b.client_id === open.id)?.responses || (open as any).traffic_strategy_data?.onboarding_briefing || null}
+          briefing={onboardingBriefingOf(open.id)}
+          trafficBriefing={trafficBriefingOf(open.id)}
           onClose={() => setOpenId(null)}
           onChanged={load}
           onOpenClient={() => onOpenClient(open)}
@@ -211,8 +220,9 @@ export const OnboardingPipeline: React.FC<{ onOpenClient: (c: Client) => void }>
 
 const ClientDrawer: React.FC<{
   client: Client; stage: Stage | null; access: AccessRow[]; strategy: StrategyRow | null;
-  briefing: Record<string, unknown> | null; onClose: () => void; onChanged: () => void; onOpenClient: () => void;
-}> = ({ client, stage, access, strategy, briefing, onClose, onChanged, onOpenClient }) => {
+  briefing: Record<string, unknown> | null; trafficBriefing: Briefing | null;
+  onClose: () => void; onChanged: () => void; onOpenClient: () => void;
+}> = ({ client, stage, access, strategy, briefing, trafficBriefing, onClose, onChanged, onOpenClient }) => {
   const { can } = useAuth();
   const [busy, setBusy] = useState<string | null>(null);
   const [err, setErr] = useState('');
@@ -220,6 +230,7 @@ const ClientDrawer: React.FC<{
   const [showNotes, setShowNotes] = useState(false);
   const tsd = (client as any).traffic_strategy_data || {};
   const lang = (tsd.language as 'pt' | 'en' | 'es') || (client.agency_id === 7 ? 'en' : 'pt');
+  const hasPaidTraffic = ((client.services as string[]) || []).includes('Tráfego Pago');
 
 
   const run = async (key: string, fn: () => Promise<string | null | void>) => {
@@ -346,6 +357,28 @@ const ClientDrawer: React.FC<{
               )}
             </div>
 
+            {hasPaidTraffic && !trafficBriefing?.is_completed && (!strategy || strategy.status === 'draft') && (
+              <div className="mb-4 p-4 rounded-2xl bg-amber-50 border border-amber-100 text-sm text-amber-900 space-y-2">
+                <p>O cliente ainda não respondeu o briefing de tráfego. A estratégia sai bem melhor com ele.</p>
+                {tsd.phone && (
+                  <a
+                    href={`https://wa.me/${String(tsd.phone).replace(/\D/g, '')}?text=${encodeURIComponent(
+                      lang === 'en'
+                        ? `Hi! Could you take 3 minutes to answer the quick questions in your portal so we can build your ad strategy? ${getAppUrl()}`
+                        : lang === 'es'
+                        ? `¡Hola! ¿Podrías responder las preguntas rápidas en tu portal para armar tu estrategia? ${getAppUrl()}`
+                        : `Olá! Consegue responder as perguntinhas rápidas no seu portal para começarmos a sua estratégia? ${getAppUrl()}`
+                    )}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 font-bold text-amber-950 underline hover:opacity-80"
+                  >
+                    Lembrar no WhatsApp
+                  </a>
+                )}
+              </div>
+            )}
+
             {strategy?.status === 'changes' && strategy.client_feedback && (
               <div className="mb-4 p-4 rounded-2xl bg-amber-50 border border-amber-100 text-sm text-amber-900">
                 <p className="font-semibold mb-1">O que o cliente pediu:</p>
@@ -358,7 +391,15 @@ const ClientDrawer: React.FC<{
                 <button disabled={!!busy || stage === 'cadastro'} onClick={() => (showNotes ? generate() : setShowNotes(true))}
                   className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gray-900 text-white text-sm font-semibold disabled:opacity-50">
                   {busy === 'gen' ? <Loader2 size={15} className="animate-spin" /> : <Sparkles size={15} />}
-                  {busy === 'gen' ? 'O Claude está montando (leva cerca de 1 minuto)...' : showNotes ? 'Gerar agora' : strategy ? 'Gerar nova versão com o Claude' : 'Gerar estratégia com o Claude'}
+                  {busy === 'gen'
+                    ? 'O Claude está montando (leva cerca de 1 minuto)...'
+                    : showNotes
+                    ? 'Gerar agora'
+                    : hasPaidTraffic && !trafficBriefing?.is_completed
+                    ? 'Gerar mesmo assim com o Claude'
+                    : strategy
+                    ? 'Gerar nova versão com o Claude'
+                    : 'Gerar estratégia com o Claude'}
                 </button>
               )}
               {strategy?.status === 'draft' && (
@@ -407,6 +448,21 @@ const ClientDrawer: React.FC<{
                 <Info key={k} label={BRIEFING_LABELS[k] || k} value={fmt(v)} wide={fmt(v).length > 60} />
               ))}
               {!briefing && <p className="text-gray-400 text-sm">Ainda não respondeu.</p>}
+            </div>
+
+            <div className="mt-4 pt-4 border-t border-gray-100">
+              <h4 className="text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">Briefing de tráfego</h4>
+              {trafficBriefing?.responses && Object.keys(trafficBriefing.responses).length > 0 ? (
+                <div className="grid sm:grid-cols-2 gap-2 text-sm">
+                  {Object.entries(trafficBriefing.responses).filter(([, v]) => fmt(v).trim()).map(([k, v]) => {
+                    const specQ = BRIEFING_QUESTIONS.trafego_pago?.questions.find((q: any) => q.key === k);
+                    const label = specQ?.label || k;
+                    return <Info key={k} label={label} value={fmt(v)} wide={fmt(v).length > 60} />;
+                  })}
+                </div>
+              ) : (
+                <p className="text-gray-400 text-sm">Ainda não respondeu.</p>
+              )}
             </div>
           </section>
 
