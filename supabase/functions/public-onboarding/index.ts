@@ -181,7 +181,7 @@ Deno.serve(async (req) => {
           await admin.from("client_platform_access").upsert({
             client_id: c.id, agency_id: c.agency_id, platform, situation,
             status: cur?.status === "verified" ? "verified" : status,
-            account_ref: strOrNull(a.account_ref, 80), updated_at: new Date().toISOString(),
+            account_ref: strOrNull(a.account_ref, 80), contact_email: strOrNull(a.contact_email, 160), updated_at: new Date().toISOString(),
           }, { onConflict: "client_id,platform" });
         }
       }
