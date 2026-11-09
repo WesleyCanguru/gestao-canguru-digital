@@ -128,6 +128,7 @@ Deno.serve(async (req) => {
       "Escreva para o cliente ler: frases curtas, sem jargão, sem travessão (—). Use \"para\", nunca \"pra\".",
       "Se faltar informação, faça a melhor suposição e registre a dúvida em pontos_em_aberto (isso é só para a agência).",
       "Se houver estratégia anterior com feedback do cliente, corrija o que ele pediu.",
+      "Se a equipe mandou um pedido de ajuste (instruções que começam com AJUSTE) e existe estratégia anterior, parta dela: mantenha tudo o que não foi citado e mude só o que foi pedido.",
       "Entregue o resultado chamando a ferramenta salvar_estrategia uma única vez, sem texto antes ou depois.",
       lang === "en" ? "Write every field in English." : lang === "es" ? "Escribe todos los campos en español neutro (latinoamericano)." : "Escreva em português do Brasil.",
       english ? "O cliente é atendido nos Estados Unidos: use valores em USD." : "",
