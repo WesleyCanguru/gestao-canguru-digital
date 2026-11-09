@@ -9,6 +9,7 @@ import { openStoredFile } from '../lib/storage';
 import { Client, ClientLeadConfig } from '../types';
 import { getAnnualOverviewTemplate } from '../constants';
 import { parseCurrencyInput } from '../lib/currencyUtils';
+import { CURRENCIES } from '../lib/money';
 import dayjs from 'dayjs';
 import { ClientMediaBudgetSection } from './client/ClientMediaBudgetSection';
 import { 
@@ -251,6 +252,7 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
     password: '',
     logo_url: '',
     base_value: '' as string | number,
+    currency: 'BRL' as string,
     due_day: 10,
     briefings_waived: false,
     is_lead_tracking_enabled: false,
@@ -401,6 +403,7 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
         traffic_platforms: form.traffic_platforms,
         logo_url: form.logo_url || null,
         base_value: parseCurrencyInput(form.base_value),
+        currency: form.currency || 'BRL',
         due_day: form.due_day,
         briefings_waived: form.briefings_waived,
         features_settings: form.features_settings,
@@ -652,6 +655,7 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
       password: '',
       logo_url: '',
       base_value: 0,
+      currency: agencyId === 7 ? 'USD' : 'BRL',
       due_day: 10,
       briefings_waived: false,
       is_lead_tracking_enabled: false,
@@ -817,6 +821,7 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
       password: '', // Não carregamos a senha
       logo_url: client.logo_url || '',
       base_value: client.base_value !== undefined && client.base_value !== null ? String(client.base_value).replace('.', ',') : '',
+      currency: (client as any).currency || 'BRL',
       due_day: client.due_day || 10,
       briefings_waived: client.briefings_waived || false,
       is_lead_tracking_enabled: leadConfig?.is_enabled || false,
@@ -1419,9 +1424,19 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
                 <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-4">
                   Configurações Financeiras (Padrão)
                 </h3>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                   <div>
-                    <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Valor Base Mensal (R$)</label>
+                    <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Moeda</label>
+                    <select
+                      value={form.currency || 'BRL'}
+                      onChange={e => setForm(f => ({ ...f, currency: e.target.value }))}
+                      className="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      {CURRENCIES.map(c => <option key={c.code} value={c.code}>{c.label}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Valor Base Mensal ({CURRENCIES.find(c => c.code === (form.currency || 'BRL'))?.symbol})</label>
                     <input 
                       type="text" 
                       inputMode="decimal"
