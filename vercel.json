@@ -1,6 +1,6 @@
 {
   "rewrites": [
-    { "source": "/p/:slug", "destination": "/propostas/:slug.html" },
+    { "source": "/p/alvaro-petrus", "destination": "/propostas/alvaro-petrus.html" },
     { "source": "/(.*)", "destination": "/index.html" }
   ]
 }

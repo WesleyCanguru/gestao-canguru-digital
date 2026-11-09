@@ -41,6 +41,7 @@ import { OnboardingChecklist } from './components/OnboardingChecklist';
 import { ResetPasswordPage } from './components/ResetPasswordPage';
 import { ViewAsClientBanner } from './components/ViewAsClientBanner';
 import { PublicLinkGate } from './components/PublicLinkGate';
+import { ProposalPublicPage } from './components/proposals/ProposalPublicPage';
 
 import { AgencyHome } from './components/agency/AgencyHome';
 import { AgencyDashboard } from './components/agency/AgencyDashboard';
@@ -869,6 +870,12 @@ const App: React.FC = () => {
   const strategyMatch = typeof window !== 'undefined' ? window.location.pathname.match(/^\/e\/([a-f0-9]{32})\/?$/) : null;
   if (strategyMatch) {
     return <StrategyPublicPage token={strategyMatch[1]} />;
+  }
+
+  // Proposta gerada na Bolsa: /p/<slug> (as estáticas, como a do Álvaro, continuam em public/propostas)
+  const proposalMatch = typeof window !== 'undefined' ? window.location.pathname.match(/^\/p\/([a-z0-9-]{3,80})\/?$/) : null;
+  if (proposalMatch) {
+    return <ProposalPublicPage slug={proposalMatch[1]} />;
   }
 
   if (npsToken) {
