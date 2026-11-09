@@ -149,7 +149,7 @@ export const ClientStartCard: React.FC<{
             <h3 className="text-lg font-bold text-gray-900">{title}</h3>
           </div>
           {strategy && (
-            <button onClick={() => { setOpen(true); setMode('view'); }}
+            <button onClick={() => { const tk = (strategy as any).public_token; if (tk) window.location.href = `/e/${tk}${readOnly ? '?preview' : ''}`; else { setOpen(true); setMode('view'); } }}
               className={`inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl text-sm font-semibold ${strategy.status === 'sent' ? 'bg-gray-900 text-white' : 'border border-gray-200 text-gray-800'}`}>
               <Sparkles size={16} /> {strategy.status === 'sent' ? t('Ver e aprovar', 'Review and approve', 'Ver y aprobar') : t('Ver estratégia', 'View strategy', 'Ver estrategia')}
             </button>

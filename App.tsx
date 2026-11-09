@@ -12,6 +12,7 @@ import { ClientManager } from './components/ClientManager';
 import { ClientChecklistView } from './components/agency/ClientChecklistView';
 import { BriefingOnboarding } from './components/BriefingOnboarding';
 import { ClientStartCard, isStarterClient, clientLang } from './components/strategy/ClientStartCard';
+import { StrategyPublicPage } from './components/strategy/StrategyPublicPage';
 import { tr } from './lib/accessGuides';
 import { ClientHome } from './components/ClientHome';
 import { BriefingsView } from './components/BriefingsView';
@@ -862,6 +863,12 @@ const App: React.FC = () => {
 
   if (isCadastroRoute) {
     return <PublicClientOnboarding agencySlug={cadastroAgencySlug} />;
+  }
+
+  // Estratégia como página pública: /e/<token>
+  const strategyMatch = typeof window !== 'undefined' ? window.location.pathname.match(/^\/e\/([a-f0-9]{32})\/?$/) : null;
+  if (strategyMatch) {
+    return <StrategyPublicPage token={strategyMatch[1]} />;
   }
 
   if (npsToken) {

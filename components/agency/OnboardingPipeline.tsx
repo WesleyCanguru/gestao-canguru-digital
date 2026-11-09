@@ -13,8 +13,23 @@ type AccessRow = {
   id: string; client_id: string; platform: 'meta' | 'google';
   situation: 'has_account' | 'needs_account' | 'unknown';
   status: 'pending' | 'client_done' | 'help' | 'agency_creating' | 'verified';
-  account_ref: string | null; updated_at: string;
+  account_ref: string | null; updated_at: string; contact_email?: string | null;
 };
+type StrategyFull = StrategyRow & {
+  public_token?: string; open_count?: number; last_opened_at?: string | null; read_seconds?: number;
+  responded_via?: string | null; responded_name?: string | null;
+};
+
+const fmtRead = (secs?: number) => {
+  const s = Math.round(secs || 0);
+  if (s < 60) return `${s} s`;
+  return `${Math.round(s / 60)} min`;
+};
+const strategyLink = (token?: string) => (token ? `${getAppUrl()}/e/${token}` : '');
+const strategyMessage = (lang: 'pt' | 'en' | 'es', client: string, link: string) =>
+  lang === 'en' ? `Hi everyone! The ad strategy for ${client} is ready. Everything is in this link, and at the end of the page you can approve it or ask for changes: ${link}`
+  : lang === 'es' ? `¡Hola a todos! La estrategia de anuncios de ${client} está lista. Está todo en este enlace, y al final de la página pueden aprobarla o pedir algún ajuste: ${link}`
+  : `Olá, pessoal! A estratégia de anúncios da ${client} está pronta. Está tudo neste link, e no final da página tem o botão para aprovar ou pedir algum ajuste: ${link}`;
 type Briefing = { client_id: string; briefing_type: string; responses: Record<string, unknown>; is_completed?: boolean };
 
 type Stage = 'cadastro' | 'estrategia' | 'aprovacao' | 'subir' | 'no_ar';
@@ -47,7 +62,7 @@ export const OnboardingPipeline: React.FC<{ onOpenClient: (c: Client) => void }>
   const { agencyId, currentMembership } = useAuth();
   const [clients, setClients] = useState<Client[]>([]);
   const [access, setAccess] = useState<AccessRow[]>([]);
-  const [strategies, setStrategies] = useState<StrategyRow[]>([]);
+  const [strategies, setStrategies] = useState<StrategyFull[]>([]);
   const [briefings, setBriefings] = useState<Briefing[]>([]);
   const [loading, setLoading] = useState(true);
   const [members, setMembers] = useState<Record<string, string>>({});
@@ -74,7 +89,7 @@ export const OnboardingPipeline: React.FC<{ onOpenClient: (c: Client) => void }>
         supabase.from('client_briefings').select('client_id, briefing_type, responses, is_completed').in('briefing_type', ['onboarding', 'trafego_pago']).in('client_id', ids),
       ]);
       setAccess((a.data as AccessRow[]) || []);
-      setStrategies((s.data as StrategyRow[]) || []);
+      setStrategies((s.data as StrategyFull[]) || []);
       setBriefings((b.data as Briefing[]) || []);
     } else {
       setAccess([]); setStrategies([]); setBriefings([]);
@@ -175,6 +190,7 @@ export const OnboardingPipeline: React.FC<{ onOpenClient: (c: Client) => void }>
                       <p className="mt-1.5 text-[11px] text-gray-500">
                         {st.id === 'cadastro' ? `Parou na etapa ${Math.min(step + 1, 5)} de 5 · ` : ''}{dayjs(c.created_at).format('DD/MM')}
                         {s?.status === 'changes' ? ' · pediu ajustes' : ''}
+                        {s?.status === 'sent' ? ((s.open_count || 0) > 0 ? ` · abriu ${s.open_count}x` : ' · ainda não abriu') : ''}
                         {(c as any).acquired_by_user_id && members[(c as any).acquired_by_user_id] ? ` · via ${members[(c as any).acquired_by_user_id]}` : ''}
                       </p>
                       {((acc.length > 0) || (st.id === 'estrategia' && ((c.services as string[]) || []).includes('Tráfego Pago') && !trafficBriefingOf(c.id)?.is_completed)) && (
@@ -219,7 +235,7 @@ export const OnboardingPipeline: React.FC<{ onOpenClient: (c: Client) => void }>
 };
 
 const ClientDrawer: React.FC<{
-  client: Client; stage: Stage | null; access: AccessRow[]; strategy: StrategyRow | null;
+  client: Client; stage: Stage | null; access: AccessRow[]; strategy: StrategyFull | null;
   briefing: Record<string, unknown> | null; trafficBriefing: Briefing | null;
   onClose: () => void; onChanged: () => void; onOpenClient: () => void;
 }> = ({ client, stage, access, strategy, briefing, trafficBriefing, onClose, onChanged, onOpenClient }) => {
@@ -228,6 +244,10 @@ const ClientDrawer: React.FC<{
   const [err, setErr] = useState('');
   const [notes, setNotes] = useState('');
   const [showNotes, setShowNotes] = useState(false);
+  const [showAdjust, setShowAdjust] = useState(false);
+  const [adjustText, setAdjustText] = useState('');
+  const [shareOpen, setShareOpen] = useState(false);
+  const [copiedWhat, setCopiedWhat] = useState<'link' | 'msg' | null>(null);
   const tsd = (client as any).traffic_strategy_data || {};
   const lang = (tsd.language as 'pt' | 'en' | 'es') || (client.agency_id === 7 ? 'en' : 'pt');
   const hasPaidTraffic = ((client.services as string[]) || []).includes('Tráfego Pago');
@@ -253,11 +273,27 @@ const ClientDrawer: React.FC<{
     return error;
   });
 
+  const askAdjust = () => run('adjust', async () => {
+    if (!adjustText.trim()) return 'Escreva o que mudar.';
+    const { error } = await callFunction('generate-strategy', { client_id: client.id, instructions: `AJUSTE PEDIDO PELA EQUIPE: ${adjustText.trim()}` });
+    if (!error) { setAdjustText(''); setShowAdjust(false); }
+    return error;
+  });
+
   const sendToClient = () => run('send', async () => {
     if (!strategy) return 'Gere a estratégia primeiro.';
     const { error } = await supabase.from('client_strategies').update({ status: 'sent', sent_at: new Date().toISOString(), updated_at: new Date().toISOString() }).eq('id', strategy.id);
+    if (!error) setShareOpen(true);
     return error?.message;
   });
+
+  const link = strategyLink(strategy?.public_token);
+  const message = strategyMessage(lang, client.name, link);
+  const previewUrl = strategy?.public_token ? `${window.location.origin}/e/${strategy.public_token}?preview` : '';
+  const copy = (what: 'link' | 'msg') => {
+    navigator.clipboard?.writeText(what === 'link' ? link : message);
+    setCopiedWhat(what); setTimeout(() => setCopiedWhat(null), 1800);
+  };
 
   const markApproved = () => run('approve', async () => {
     if (!strategy) return null;
@@ -322,6 +358,9 @@ const ClientDrawer: React.FC<{
                       {a?.situation === 'needs_account' ? 'Não tem conta: nós criamos.' : a?.situation === 'has_account' ? 'Já tem conta.' : 'Ainda não respondeu.'}
                       {a?.account_ref ? ` ID: ${a.account_ref}` : ''}
                     </p>
+                    {p === 'google' && a?.contact_email && (
+                      <p className="-mt-2 mb-3 text-xs text-gray-600 break-all">E-mail da conta Google: <span className="font-semibold">{a.contact_email}</span></p>
+                    )}
                     <div className="flex flex-wrap gap-1.5">
                       {st !== 'verified' && (
                         <button disabled={!!busy} onClick={() => setAccessStatus(p, 'verified')} className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-emerald-600 text-white text-xs font-semibold disabled:opacity-50">
@@ -353,6 +392,8 @@ const ClientDrawer: React.FC<{
               {strategy && (
                 <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-gray-100 text-gray-600">
                   v{strategy.version} · {{ draft: 'Rascunho', sent: 'Enviada ao cliente', approved: 'Aprovada', changes: 'Cliente pediu ajustes' }[strategy.status]}
+                  {strategy.responded_name && (strategy.status === 'approved' || strategy.status === 'changes') ? ` por ${strategy.responded_name}` : ''}
+                  {strategy.responded_via === 'page' && (strategy.status === 'approved' || strategy.status === 'changes') ? ' (pela página)' : ''}
                 </span>
               )}
             </div>
@@ -405,10 +446,23 @@ const ClientDrawer: React.FC<{
               {strategy?.status === 'draft' && (
                 <>
                   <button disabled={!!busy} onClick={sendToClient} className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-white text-sm font-semibold disabled:opacity-50" style={{ backgroundColor: '#456da1' }}>
-                    {busy === 'send' ? <Loader2 size={15} className="animate-spin" /> : <Send size={15} />} Enviar para o cliente aprovar
+                    {busy === 'send' ? <Loader2 size={15} className="animate-spin" /> : <Send size={15} />} Enviar para o cliente
+                  </button>
+                  <button disabled={!!busy} onClick={() => setShowAdjust(v => !v)} className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-gray-200 text-sm font-semibold text-gray-700">
+                    <Sparkles size={15} /> Pedir ajuste ao Claude
                   </button>
                   <button disabled={!!busy} onClick={discardDraft} className="inline-flex items-center gap-2 px-3 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-600"><Trash2 size={15} /> Descartar</button>
                 </>
+              )}
+              {strategy?.public_token && (
+                <a href={previewUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-gray-200 text-sm font-semibold text-gray-700 hover:border-gray-300">
+                  <ExternalLink size={15} /> Ver como página
+                </a>
+              )}
+              {strategy && strategy.status !== 'draft' && (
+                <button onClick={() => setShareOpen(true)} className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-gray-200 text-sm font-semibold text-gray-700 hover:border-gray-300">
+                  <Copy size={15} /> Copiar link e mensagem
+                </button>
               )}
               {strategy?.status === 'sent' && (
                 <button disabled={!!busy} onClick={markApproved} className="px-4 py-2.5 rounded-xl border border-gray-200 text-sm font-semibold text-gray-700">Cliente aprovou por fora (marcar aprovada)</button>
@@ -423,6 +477,30 @@ const ClientDrawer: React.FC<{
               <p className="text-xs text-amber-700 mb-4">Antes de subir: falta conferir algum acesso.</p>
             )}
             {stage === 'cadastro' && <p className="text-xs text-gray-500 mb-4">A estratégia libera quando o cliente terminar o cadastro.</p>}
+
+            {showAdjust && strategy?.status === 'draft' && (
+              <div className="mb-4 p-4 rounded-2xl border border-gray-200 space-y-2">
+                <label className="block text-xs font-semibold text-gray-600">O que mudar? O Claude parte desta versão e muda só o que você pedir.</label>
+                <textarea rows={4} autoFocus value={adjustText} onChange={e => setAdjustText(e.target.value)}
+                  placeholder="Ex.: tirar a campanha de YouTube, investimento de R$ 3.000, público mais jovem"
+                  className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-black/5" />
+                <div className="flex justify-end gap-2">
+                  <button onClick={() => setShowAdjust(false)} className="px-3 py-2 rounded-xl border border-gray-200 text-sm text-gray-600">Cancelar</button>
+                  <button disabled={!!busy || !adjustText.trim()} onClick={askAdjust} className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-gray-900 text-white text-sm font-semibold disabled:opacity-50">
+                    {busy === 'adjust' ? <Loader2 size={15} className="animate-spin" /> : <Sparkles size={15} />}
+                    {busy === 'adjust' ? 'O Claude está ajustando (cerca de 1 minuto)...' : 'Gerar versão ajustada'}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {strategy && strategy.status !== 'draft' && (
+              <p className="mb-4 text-xs text-gray-600">
+                {(strategy.open_count || 0) > 0
+                  ? `Aberta ${strategy.open_count} ${strategy.open_count === 1 ? 'vez' : 'vezes'}${strategy.last_opened_at ? ` · última em ${dayjs(strategy.last_opened_at).format('DD/MM [às] HH:mm')}` : ''} · leitura de ${fmtRead(strategy.read_seconds)}`
+                  : 'Ainda não abriu o link.'}
+              </p>
+            )}
 
             {showNotes && (
               <div className="mb-4">
@@ -465,6 +543,40 @@ const ClientDrawer: React.FC<{
               )}
             </div>
           </section>
+
+          {shareOpen && strategy && link && (
+            <div className="fixed inset-0 z-[60] bg-black/40 flex items-end sm:items-center justify-center p-0 sm:p-6" onClick={() => setShareOpen(false)}>
+              <div className="bg-white w-full max-w-lg rounded-t-3xl sm:rounded-3xl p-6 space-y-4" onClick={e => e.stopPropagation()}>
+                <div className="flex items-center gap-2">
+                  <p className="font-bold text-gray-900">Pronto para mandar no grupo</p>
+                  <button onClick={() => setShareOpen(false)} className="ml-auto p-2 rounded-xl hover:bg-gray-100 text-gray-500"><X size={18} /></button>
+                </div>
+                <div>
+                  <p className="text-xs font-semibold text-gray-500 mb-1.5">Link da estratégia</p>
+                  <div className="flex gap-2">
+                    <input readOnly value={link} className="flex-1 min-w-0 px-3 py-2.5 rounded-xl border border-gray-200 bg-gray-50 text-sm text-gray-700" onFocus={e => e.currentTarget.select()} />
+                    <button onClick={() => copy('link')} className="inline-flex items-center gap-1.5 px-3 py-2.5 rounded-xl border border-gray-200 text-sm font-semibold text-gray-700">
+                      {copiedWhat === 'link' ? <Check size={15} /> : <Copy size={15} />} {copiedWhat === 'link' ? 'Copiado' : 'Copiar link'}
+                    </button>
+                  </div>
+                </div>
+                <div>
+                  <p className="text-xs font-semibold text-gray-500 mb-1.5">Mensagem ({lang === 'en' ? 'inglês' : lang === 'es' ? 'espanhol' : 'português'})</p>
+                  <p className="p-3 rounded-xl bg-gray-50 border border-gray-100 text-sm text-gray-800 whitespace-pre-wrap break-words">{message}</p>
+                </div>
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <button onClick={() => copy('msg')} className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-gray-900 text-white text-sm font-semibold">
+                    {copiedWhat === 'msg' ? <Check size={15} /> : <Copy size={15} />} {copiedWhat === 'msg' ? 'Mensagem copiada' : 'Copiar mensagem'}
+                  </button>
+                  <a href={`https://wa.me/?text=${encodeURIComponent(message)}`} target="_blank" rel="noopener noreferrer"
+                    className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-emerald-600 text-white text-sm font-semibold">
+                    Abrir WhatsApp
+                  </a>
+                </div>
+                <p className="text-[11px] text-gray-400">Você vê aqui quando o cliente abrir. Para conferir sem contar abertura, use "Ver como página".</p>
+              </div>
+            </div>
+          )}
 
           {can('manage_clients') && <p className="text-[11px] text-gray-400">Cliente criado em {dayjs(client.created_at).format('DD/MM/YYYY HH:mm')}.</p>}
         </div>
