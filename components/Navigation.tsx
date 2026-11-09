@@ -149,6 +149,7 @@ export const Navigation: React.FC<SidebarProps> = ({
       { id: 'prospeccao', label: 'CRM / Prospecção', icon: Kanban },
       { id: 'onboarding', label: 'Onboarding', icon: Target },
       { id: 'contratos', label: 'Contratos', icon: FileText },
+      { id: 'propostas', label: 'Propostas', icon: Sparkles },
     ] },
     { id: 'g-operacao', label: 'Operação', icon: ClipboardList, items: [
       { id: 'tasks', label: 'Processos & Tarefas', icon: ClipboardList },
