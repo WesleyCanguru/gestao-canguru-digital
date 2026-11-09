@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { getAppUrl } from '../../lib/appUrl';
 import { UserCog, Plus, Loader2, KeyRound, Copy, Check, Link2, ShieldCheck, History, UserX, UserCheck, X, Pencil } from 'lucide-react';
 import { supabase, callFunction, useAuth, PermissionKey } from '../../lib/supabase';
+import { AgencyBrandCard } from './AgencyBrandCard';
 import dayjs from 'dayjs';
 
 interface Member {
@@ -205,6 +206,8 @@ export const TeamTab: React.FC = () => {
           {showForm ? <X size={16} /> : <Plus size={16} />} {showForm ? 'Fechar' : 'Adicionar pessoa'}
         </button>
       </div>
+
+      <AgencyBrandCard />
 
       {showForm && (
         <div className="bg-white rounded-3xl border border-black/[0.04] shadow-sm p-6 space-y-4">

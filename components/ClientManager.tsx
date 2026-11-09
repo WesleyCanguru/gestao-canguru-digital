@@ -2036,8 +2036,8 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
           </motion.div>
         )}
 
-        {/* Lista de clientes */}
-        {loading ? (
+        {/* Lista de clientes (fica escondida enquanto o formulário está aberto) */}
+        {showForm ? null : loading ? (
           <div className="text-center text-gray-400 py-12">Carregando...</div>
         ) : (() => {
           const activeClientsList = clients.filter(c => c.client_status !== 'cancelled' && c.client_status !== 'completed');
