@@ -456,6 +456,7 @@ export const PublicClientOnboarding: React.FC<PublicClientOnboardingProps> = ({ 
                   <div className="space-y-4">
                     {(['meta', 'google'] as Platform[]).map(p => (
                       <AccessGuideCard key={p} platform={p} lang={lang} accessEmail={accessEmail} brand={brand}
+                        signupEmail={company.email}
                         value={access[p]} onChange={patch => setPlat(p, patch)} />
                     ))}
                   </div>

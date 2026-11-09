@@ -23,15 +23,20 @@ export const browserLang = (): Lang => {
 /** Tradutor simples: tr(lang)('texto pt', 'text en', 'texto es') */
 export const tr = (lang: Lang) => (pt: string, en: string, es: string) => (lang === 'en' ? en : lang === 'es' ? es : pt);
 
+export interface GuideStep {
+  text: string;
+  sub?: string[];
+}
+
 export interface PlatformGuide {
   name: string;
   link: string;
   linkLabel: string;
-  hasAccount: string[];
+  hasAccount: GuideStep[];
   refLabel: string;
   refPlaceholder: string;
   noAccountIntro: string;
-  noAccount: string[];
+  noAccount: GuideStep[];
   noAccountLink?: string;
   noAccountLinkLabel?: string;
 }
@@ -44,18 +49,63 @@ export const platformGuide = (p: Platform, lang: Lang): PlatformGuide => {
       link: 'https://business.facebook.com/latest/settings/people',
       linkLabel: t('Abrir Meta Business', 'Open Meta Business', 'Abrir Meta Business'),
       hasAccount: [
-        t('Abra o Meta Business pelo botão abaixo. Se aparecer uma lista de empresas, escolha a da sua marca.',
-          'Open Meta Business with the button below. If you see a list of businesses, pick yours.',
-          'Abre Meta Business con el botón de abajo. Si aparece una lista de empresas, elige la tuya.'),
-        t('Se não abrir direto em "Pessoas": no menu da esquerda, clique em Configurações (engrenagem) e depois em "Configurações da empresa".',
-          'If it does not open on "People": in the left menu, click Settings (gear icon), then "Business settings".',
-          'Si no abre directo en "Personas": en el menú de la izquierda, haz clic en Configuración (engranaje) y luego en "Configuración del negocio".'),
-        t('Em "Usuários", clique em "Pessoas" e depois em "Convidar pessoas". Cole o e-mail da agência.',
-          'Under "Users", click "People", then "Invite people". Paste the agency email.',
-          'En "Usuarios", haz clic en "Personas" y luego en "Invitar personas". Pega el correo de la agencia.'),
-        t('Em "Ativos", marque a conta de anúncios, a Página e o Instagram, com controle total. Envie o convite. Pronto!',
-          'Under "Assets", select the ad account, Page and Instagram, with full control. Send the invite. Done!',
-          'En "Activos", marca la cuenta publicitaria, la Página e Instagram, con control total. Envía la invitación. ¡Listo!'),
+        {
+          text: t(
+            'Abra o Meta Business pelo botão abaixo. Se aparecer uma lista de empresas, escolha a da sua marca.',
+            'Open Meta Business with the button below. If you see a list of businesses, choose the one for your brand.',
+            'Abre Meta Business con el botón de abajo. Si aparece una lista de empresas, elige la de tu marca.'
+          ),
+        },
+        {
+          text: t(
+            'Se não abrir direto na tela "Pessoas":',
+            'If it does not open directly on the "People" screen:',
+            'Si no abre directamente en la pantalla "Personas":'
+          ),
+          sub: [
+            t('Clique na engrenagem (Configurações), no menu da esquerda.', 'Click the gear icon (Settings) in the left menu.', 'Haz clic en el engranaje (Configuración), en el menú de la izquierda.'),
+            t('Clique em "Configurações da empresa".', 'Click "Business settings".', 'Haz clic en "Configuración del negocio".'),
+            t('Em "Usuários", clique em "Pessoas".', 'Under "Users", click "People".', 'En "Usuarios", haz clic en "Personas".'),
+          ],
+        },
+        {
+          text: t(
+            'Clique no botão azul "Convidar pessoas" e cole o e-mail da agência.',
+            'Click the blue "Invite people" button and paste the agency email.',
+            'Haz clic en el botón azul "Invitar personas" y pega el correo de la agencia.'
+          ),
+        },
+        {
+          text: t(
+            'Em "Conceder acesso":',
+            'Under "Grant access":',
+            'En "Otorgar acceso":'
+          ),
+          sub: [
+            t('Em "Acesso total", ligue "Gerenciar".', 'Under "Full control", turn on "Manage".', 'En "Control total", activa "Gestionar".'),
+            t('Abra "Ver opções avançadas" e, em "Finanças", ligue "Gerenciar". Clique em "Avançar".', 'Open "View advanced options" and, under "Finance", turn on "Manage". Click "Next".', 'Abre "Ver opciones avanzadas" y, en "Finanzas", activa "Gestionar". Haz clic en "Siguiente".'),
+          ],
+        },
+        {
+          text: t(
+            'Em "Atribuir ativos", para cada tipo da lista da esquerda:',
+            'Under "Assign assets", for each type on the left list:',
+            'En "Asignar activos", para cada tipo de la lista de la izquierda:'
+          ),
+          sub: [
+            t('Páginas do Facebook: marque a sua Página e, embaixo, em "Acesso total", ligue "Tudo".', 'Facebook Pages: select your Page and, below under "Full control", turn on "Everything".', 'Páginas de Facebook: marca tu Página y, abajo en "Control total", activa "Todo".'),
+            t('Contas de anúncios: marque a conta e, em "Acesso total", ligue "Gerenciar contas de anúncios".', 'Ad accounts: select the account and, under "Full control", turn on "Manage ad accounts".', 'Cuentas publicitarias: marca la cuenta y, en "Control total", activa "Gestionar cuentas publicitarias".'),
+            t('Instagram e Pixels (se aparecerem): marque e ligue o acesso total.', 'Instagram and Pixels (if they appear): select them and turn on full control.', 'Instagram y Píxeles (si aparecen): márcalos y activa el control total.'),
+            t('Apps: não precisa marcar nada.', 'Apps: you do not need to select anything.', 'Apps: no es necesario marcar nada.'),
+          ],
+        },
+        {
+          text: t(
+            'Clique em "Avançar", confira o resumo e clique em "Convidar com X ativos". Pronto!',
+            'Click "Next", check the summary and click "Invite with X assets". Done!',
+            'Haz clic en "Siguiente", revisa el resumen y haz clic en "Invitar con X activos". ¡Listo!'
+          ),
+        },
       ],
       refLabel: t('ID da conta de anúncios (opcional)', 'Ad account ID (optional)', 'ID de la cuenta publicitaria (opcional)'),
       refPlaceholder: 'act_123456789',
@@ -63,21 +113,47 @@ export const platformGuide = (p: Platform, lang: Lang): PlatformGuide => {
         'You can create it yourself in a few minutes. You stay the owner of everything.',
         'Puedes crearla tú mismo en pocos minutos. Tú quedas como dueño de todo.'),
       noAccount: [
-        t('Abra o Meta Business pelo botão abaixo e entre com o seu Facebook pessoal. Clique em "Criar conta" (ou "Criar portfólio empresarial").',
-          'Open Meta Business with the button below and log in with your personal Facebook. Click "Create account" (or "Create business portfolio").',
-          'Abre Meta Business con el botón de abajo e inicia sesión con tu Facebook personal. Haz clic en "Crear cuenta" (o "Crear portfolio comercial").'),
-        t('Preencha o nome da empresa, o seu nome e o e-mail comercial.',
-          'Fill in the business name, your name and your work email.',
-          'Completa el nombre de la empresa, tu nombre y tu correo comercial.'),
-        t('Vá em Configurações > "Configurações da empresa" > Contas > "Contas de anúncios" > Adicionar > "Criar nova conta de anúncios". Escolha o fuso horário e a moeda certos (não dá para mudar depois).',
-          'Go to Settings > "Business settings" > Accounts > "Ad accounts" > Add > "Create a new ad account". Pick the right time zone and currency (they cannot be changed later).',
-          'Ve a Configuración > "Configuración del negocio" > Cuentas > "Cuentas publicitarias" > Agregar > "Crear una cuenta publicitaria". Elige bien la zona horaria y la moneda (no se pueden cambiar después).'),
-        t('Ainda em Contas, adicione a sua Página do Facebook e conecte o seu Instagram.',
-          'Still under Accounts, add your Facebook Page and connect your Instagram.',
-          'En Cuentas, agrega tu Página de Facebook y conecta tu Instagram.'),
-        t('Pronto: agora é só dar o acesso para a agência (Pessoas > Convidar pessoas), como no passo a passo de quem já tem conta.',
-          'Done: now just give the agency access (People > Invite people), like in the steps for existing accounts.',
-          'Listo: ahora solo da acceso a la agencia (Personas > Invitar personas), como en los pasos para quien ya tiene cuenta.'),
+        {
+          text: t(
+            'Abra o Meta Business pelo botão abaixo e entre com o seu Facebook pessoal.',
+            'Open Meta Business with the button below and log in with your personal Facebook.',
+            'Abre Meta Business con el botón de abajo e inicia sesión con tu Facebook personal.'
+          ),
+        },
+        {
+          text: t(
+            'Clique em "Criar conta" (ou "Criar portfólio empresarial") e preencha o nome da empresa, o seu nome e o e-mail comercial.',
+            'Click "Create account" (or "Create business portfolio") and fill in the company name, your name and your work email.',
+            'Haz clic en "Crear cuenta" (o "Crear portafolio comercial") y completa el nombre de la empresa, tu nombre y tu correo comercial.'
+          ),
+        },
+        {
+          text: t(
+            'Crie a conta de anúncios:',
+            'Create the ad account:',
+            'Crea la cuenta publicitaria:'
+          ),
+          sub: [
+            t('Clique na engrenagem (Configurações) e depois em "Configurações da empresa".', 'Click the gear icon (Settings) and then "Business settings".', 'Haz clic en el engranaje (Configuración) y luego en "Configuración del negocio".'),
+            t('No menu "Contas", clique em "Contas de anúncios".', 'In the "Accounts" menu, click "Ad accounts".', 'En el menú "Cuentas", haz clic en "Cuentas publicitarias".'),
+            t('Clique em "Adicionar" e depois em "Criar nova conta de anúncios".', 'Click "Add" and then "Create a new ad account".', 'Haz clic en "Añadir" y luego en "Crear nueva cuenta publicitaria".'),
+            t('Escolha o fuso horário e a moeda certos (não dá para mudar depois).', 'Choose the right time zone and currency (they cannot be changed later).', 'Elige la zona horaria y la moneda correctas (no se pueden cambiar después).'),
+          ],
+        },
+        {
+          text: t(
+            'Ainda em "Contas", adicione a sua Página do Facebook (em "Páginas") e conecte o seu Instagram (em "Contas do Instagram").',
+            'Still in "Accounts", add your Facebook Page (under "Pages") and connect your Instagram (under "Instagram accounts").',
+            'Todavía en "Cuentas", agrega tu Página de Facebook (en "Páginas") y conecta tu Instagram (en "Cuentas de Instagram").'
+          ),
+        },
+        {
+          text: t(
+            'Agora dê o acesso para a agência seguindo o passo a passo de quem já tem conta (a partir do passo 2).',
+            'Now give access to the agency following the steps for those who already have an account (starting from step 2).',
+            'Ahora dale acceso a la agencia siguiendo el paso a paso de quien ya tiene cuenta (a partir del paso 2).'
+          ),
+        },
       ],
       noAccountLink: 'https://business.facebook.com/overview',
       noAccountLinkLabel: t('Criar no Meta Business', 'Create in Meta Business', 'Crear en Meta Business'),
@@ -88,16 +164,30 @@ export const platformGuide = (p: Platform, lang: Lang): PlatformGuide => {
     link: 'https://ads.google.com/aw/accountaccess/users',
     linkLabel: t('Abrir Google Ads', 'Open Google Ads', 'Abrir Google Ads'),
     hasAccount: [
-      t('Abra o Google Ads pelo botão abaixo. Se tiver mais de uma conta, escolha a da empresa.',
-        'Open Google Ads with the button below. If you have more than one account, pick the business one.',
-        'Abre Google Ads con el botón de abajo. Si tienes más de una cuenta, elige la de la empresa.'),
-      t('Se não abrir direto: no menu da esquerda, clique em "Administrador" e depois em "Acesso e segurança".',
-        'If it does not open directly: in the left menu, click "Admin", then "Access and security".',
-        'Si no abre directo: en el menú de la izquierda, haz clic en "Administrador" y luego en "Acceso y seguridad".'),
-      t('Clique no botão azul "+", cole o e-mail da agência e escolha o nível "Administrador".',
-        'Click the blue "+" button, paste the agency email and choose the "Admin" access level.',
-        'Haz clic en el botón azul "+", pega el correo de la agencia y elige el nivel "Administrador".'),
-      t('Envie o convite. Pronto!', 'Send the invite. Done!', 'Envía la invitación. ¡Listo!'),
+      {
+        text: t(
+          'Abra o Google Ads pelo botão abaixo. Se tiver mais de uma conta, escolha a da empresa.',
+          'Open Google Ads with the button below. If you have more than one account, pick the business one.',
+          'Abre Google Ads con el botón de abajo. Si tienes más de una cuenta, elige la de la empresa.'
+        ),
+      },
+      {
+        text: t(
+          'Se não abrir direto: no menu da esquerda, clique em "Administrador" e depois em "Acesso e segurança".',
+          'If it does not open directly: in the left menu, click "Admin", then "Access and security".',
+          'Si no abre directo: en el menú de la izquierda, haz clic en "Administrador" y luego en "Acceso y seguridad".'
+        ),
+      },
+      {
+        text: t(
+          'Clique no botão azul "+", cole o e-mail da agência e escolha o nível "Administrador".',
+          'Click the blue "+" button, paste the agency email and choose the "Admin" access level.',
+          'Haz clic en el botón azul "+", pega el correo de la agencia y elige el nivel "Administrador".'
+        ),
+      },
+      {
+        text: t('Envie o convite. Pronto!', 'Send the invite. Done!', 'Envía la invitación. ¡Listo!'),
+      },
     ],
     refLabel: t('ID da conta, os 10 números no topo da tela (opcional)', 'Customer ID, the 10 digits at the top of the screen (optional)', 'ID de cliente, los 10 números arriba de la pantalla (opcional)'),
     refPlaceholder: '123-456-7890',

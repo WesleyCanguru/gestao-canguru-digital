@@ -5,7 +5,7 @@ import { AccessChoice, AccessGuideCard, emptyAccess } from './AccessGuideCard';
 import { Lang, Platform, pickLang, tr } from '../../lib/accessGuides';
 import { Sparkles, Check, X, Loader2, MessageSquare, Rocket, Clock, MessageCircle, ClipboardList, ChevronRight } from 'lucide-react';
 
-type AccessRow = { platform: Platform; situation: 'has_account' | 'needs_account' | 'unknown'; status: AccessChoice['status']; account_ref: string | null };
+type AccessRow = { platform: Platform; situation: 'has_account' | 'needs_account' | 'unknown'; status: AccessChoice['status']; account_ref: string | null; contact_email?: string | null };
 
 export const clientLang = (client: any): Lang =>
   pickLang(client?.traffic_strategy_data?.language ?? (client?.agency_id === 7 ? 'en' : 'pt'));
@@ -39,14 +39,20 @@ export const ClientStartCard: React.FC<{
     if (!client?.id) return;
     const [s, a, ag, br] = await Promise.all([
       supabase.from('client_strategies').select('*').eq('client_id', client.id).in('status', ['sent', 'approved', 'changes']).order('version', { ascending: false }).limit(1),
-      supabase.from('client_platform_access').select('platform, situation, status, account_ref').eq('client_id', client.id),
+      supabase.from('client_platform_access').select('platform, situation, status, account_ref, contact_email').eq('client_id', client.id),
       supabase.from('agencies').select('name, access_email, contact_whatsapp, primary_color').eq('id', client.agency_id).maybeSingle(),
       supabase.from('client_briefings').select('briefing_type, is_completed').eq('client_id', client.id),
     ]);
     setStrategy(((s.data as StrategyRow[]) || [])[0] || null);
     const next = { meta: emptyAccess(), google: emptyAccess() };
     ((a.data as AccessRow[]) || []).forEach(r => {
-      next[r.platform] = { situation: r.situation === 'unknown' ? null : r.situation, status: r.status, account_ref: r.account_ref || '' };
+      next[r.platform] = {
+        situation: r.situation === 'unknown' ? null : r.situation,
+        status: r.status,
+        account_ref: r.account_ref || '',
+        contact_email: r.contact_email || '',
+        later_clicked: r.status === 'pending' ? false : undefined,
+      };
     });
     setAccess(next);
     setAgency((ag.data as any) || null);
@@ -69,12 +75,15 @@ export const ClientStartCard: React.FC<{
       p_client: client.id, p_platform: p, p_status: v.status, p_account_ref: v.account_ref || null, p_situation: v.situation,
     });
     if (error) setErr(error.message);
+    if (p === 'google' && v.contact_email !== undefined) {
+      await supabase.from('client_platform_access').update({ contact_email: v.contact_email || null }).eq('client_id', client.id).eq('platform', 'google');
+    }
   };
   const changeAccess = (p: Platform, patch: Partial<AccessChoice>) => {
     const v = { ...access[p], ...patch };
     setAccess(a => ({ ...a, [p]: v }));
     if (!v.situation) return;
-    if ('account_ref' in patch && Object.keys(patch).length === 1) {
+    if (('account_ref' in patch || 'contact_email' in patch) && Object.keys(patch).length === 1) {
       clearTimeout(refTimer.current[p]);
       refTimer.current[p] = setTimeout(() => saveAccess(p, v), 900);
     } else {
@@ -157,6 +166,7 @@ export const ClientStartCard: React.FC<{
           {pendingPlatforms.map(p => (
             <AccessGuideCard key={p} platform={p} lang={lang} brand={brand} disabled={readOnly}
               accessEmail={agency?.access_email || 'contato@cangurudigital.com.br'}
+              signupEmail={client.email}
               value={access[p]} onChange={patch => changeAccess(p, patch)} />
           ))}
         </section>
