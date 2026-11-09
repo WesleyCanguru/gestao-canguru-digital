@@ -5,6 +5,10 @@
       "destination": "/propostas/alvaro-petrus.html"
     },
     {
+      "source": "/p/alvaro-petrus-360",
+      "destination": "/propostas/alvaro-petrus-360.html"
+    },
+    {
       "source": "/(.*)",
       "destination": "/index.html"
     }
