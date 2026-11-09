@@ -11,7 +11,8 @@ import { ClientSelectorScreen } from './components/ClientSelectorScreen';
 import { ClientManager } from './components/ClientManager';
 import { ClientChecklistView } from './components/agency/ClientChecklistView';
 import { BriefingOnboarding } from './components/BriefingOnboarding';
-import { ClientStartCard, isStarterClient } from './components/strategy/ClientStartCard';
+import { ClientStartCard, isStarterClient, clientLang } from './components/strategy/ClientStartCard';
+import { tr } from './lib/accessGuides';
 import { ClientHome } from './components/ClientHome';
 import { BriefingsView } from './components/BriefingsView';
 import { PaidTrafficView } from './components/PaidTrafficView';
@@ -272,7 +273,7 @@ const MainApp: React.FC<MainAppProps> = ({ initialView, onExitAgencyDashboard, o
           <header className={`bg-white/70 backdrop-blur-xl border-b border-black/[0.02] sticky ${showNav ? 'top-16 lg:top-0 z-40' : 'top-0 z-50'} shadow-[0_1px_10px_rgba(0,0,0,0.02)]`}>
             {/* Linha Superior: Logo e Botões de Navegação */}
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-              <div className="flex justify-between items-center h-20 sm:h-24">
+              <div className={`flex justify-between items-center ${starterClient ? 'h-16' : 'h-20 sm:h-24'}`}>
                 {/* Área de Logos */}
                 <div className="flex items-center gap-4 sm:gap-10 overflow-hidden">
                   <motion.div
@@ -284,7 +285,7 @@ const MainApp: React.FC<MainAppProps> = ({ initialView, onExitAgencyDashboard, o
                       activeClient.logo_url ? (
                         <img src={activeClient.logo_url} alt={activeClient.name} className="h-10 sm:h-20 w-auto max-w-[100px] sm:max-w-[200px] object-contain mix-blend-multiply" />
                       ) : (
-                        <span className="text-lg sm:text-3xl font-bold text-brand-dark tracking-tighter serif italic truncate max-w-[120px] sm:max-w-none">{activeClient.name}</span>
+                        <span className={starterClient ? "text-base sm:text-lg font-semibold text-brand-dark truncate max-w-[160px] sm:max-w-xs" : "text-lg sm:text-3xl font-bold text-brand-dark tracking-tighter serif italic truncate max-w-[120px] sm:max-w-none"}>{activeClient.name}</span>
                       )
                     ) : (
                       <Logo size="large" />
@@ -457,16 +458,16 @@ const MainApp: React.FC<MainAppProps> = ({ initialView, onExitAgencyDashboard, o
                     <PasswordVault clientId={activeClient?.id || ''} userRole={userRole} />
                   </div>
                 ) : view === 'strategic-briefings' ? (
-                  <div className="bg-white rounded-[2.5rem] border border-black/[0.03] shadow-sm min-h-[80vh]">
+                  <div className="bg-white rounded-3xl border border-black/[0.03] shadow-sm min-h-[80vh]">
                     {(starterClient || !(userRole === 'approver' && !activeClient?.onboarding_completed)) && (
-                      <div className="p-6 border-b border-gray-100 flex items-center gap-4">
-                        <button 
+                      <div className="px-4 sm:px-6 py-3 border-b border-gray-100">
+                        <button
                           onClick={() => setView('dashboard')}
-                          className="p-2 hover:bg-gray-50 rounded-xl transition-colors text-gray-400 hover:text-brand-dark"
+                          className="inline-flex items-center gap-1.5 text-sm font-semibold text-gray-500 hover:text-brand-dark transition-colors"
                         >
-                          <ChevronRight className="w-5 h-5 rotate-180" />
+                          <ChevronRight className="w-4 h-4 rotate-180" />
+                          {tr(clientLang(activeClient))('Voltar ao início', 'Back to home', 'Volver al inicio')}
                         </button>
-                        <h2 className="text-xl font-bold text-brand-dark">Voltar ao Dashboard</h2>
                       </div>
                     )}
                     <BriefingOnboarding />
