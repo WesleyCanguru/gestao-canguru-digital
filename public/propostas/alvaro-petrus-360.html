@@ -1,0 +1,225 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Proposta atualizada para Álvaro Pétrus · Canguru Digital</title>
+<meta name="robots" content="noindex, nofollow">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap">
+<style>
+/* Mesmo visual da primeira proposta (alvaro-petrus.html): coluna de leitura ~760px. */
+:root {
+  --bg: #F5F7FB; --paper: #FFFFFF; --ink: #13284D; --muted: #56647C; --line: #DCE3EE;
+  --brand: #456DA1; --brand-soft: #E9EFF8; --gold: #C8903C;
+  --display: "Fraunces", Georgia, "Times New Roman", serif;
+  --body: "Plus Jakarta Sans", "Segoe UI", system-ui, sans-serif;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #0D1626; --paper: #142036; --ink: #E8EEF8; --muted: #9FB0C8; --line: #24344F; --brand: #8FB0DD; --brand-soft: #1A2B47; --gold: #E2B26C; color-scheme: dark } }
+
+body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--body); font-size: 16px; line-height: 1.6; }
+.wrap { max-width: 760px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 40px 72px; display: flex; flex-direction: column; gap: 44px; }
+.brand { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: 13px; color: var(--muted); flex-wrap: wrap; }
+.brand b { color: var(--ink); letter-spacing: .14em; text-transform: uppercase; font-size: 12px; }
+h1, h2, h3 { font-family: var(--display); font-weight: 600; letter-spacing: -0.01em; text-wrap: balance; margin: 0; }
+h1 { font-size: clamp(34px, 7vw, 52px); line-height: 1.06; }
+h2 { font-size: clamp(24px, 4.5vw, 30px); line-height: 1.2; }
+.lead { font-size: 18px; color: var(--muted); max-width: 62ch; margin: 14px 0 0; }
+.eyebrow { font-size: 12px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: var(--brand); margin-bottom: 10px; }
+section { display: flex; flex-direction: column; gap: 16px; }
+p { margin: 0; max-width: 65ch; }
+.facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.fact { background: var(--paper); border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px; }
+.fact span { display: block; font-size: 12px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: .08em; }
+.fact strong { font-weight: 600; }
+ul.clean { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 9px; }
+ul.clean li { padding-left: 22px; position: relative; max-width: 65ch; }
+ul.clean li::before { content: ""; position: absolute; left: 4px; top: .7em; width: 7px; height: 7px; border-radius: 2px; background: var(--brand); }
+.quote { border-left: 3px solid var(--gold); padding: 4px 0 4px 18px; font-family: var(--display); font-size: 20px; line-height: 1.45; }
+.quote small { display: block; font-family: var(--body); font-size: 13px; color: var(--muted); margin-top: 6px; }
+
+/* Parceiro 360: de vários fornecedores para um time só */
+.compare { background: var(--paper); border: 1px solid var(--line); border-radius: 20px; padding: 22px; display: flex; flex-direction: column; gap: 18px; }
+.compare .label { font-size: 12px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+.three { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.three div { background: var(--bg); border-radius: 12px; padding: 14px 10px; text-align: center; font-size: 14px; }
+.three b { display: block; font-size: 15px; }
+.three small { color: var(--muted); }
+.flow { background: var(--brand-soft); border-radius: 14px; padding: 18px 16px; display: flex; flex-direction: column; align-items: center; gap: 12px; text-align: center; }
+.flow strong { font-family: var(--display); font-size: 20px; }
+.chips { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 8px; }
+.chip { background: var(--paper); border: 1px solid var(--line); border-radius: 999px; padding: 6px 12px; font-size: 14px; font-weight: 600; }
+.arrow { color: var(--muted); font-size: 14px; }
+.flow p { font-size: 14px; color: var(--muted); }
+
+/* Investimento */
+.price-card { background: var(--paper); border: 1px solid var(--brand); border-radius: 22px; box-shadow: 0 10px 30px rgba(19, 40, 77, .08); padding: 24px; display: flex; flex-direction: column; gap: 20px; }
+.price-head { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 12px; }
+.price { font-family: var(--display); font-size: 44px; font-weight: 600; line-height: 1; font-variant-numeric: tabular-nums; }
+.price small { font-family: var(--body); font-size: 14px; color: var(--muted); font-weight: 500; }
+.tag { align-self: flex-start; font-size: 11px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--brand); background: var(--brand-soft); padding: 4px 9px; border-radius: 999px; }
+.blocks { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.block { border: 1px solid var(--line); border-radius: 16px; padding: 18px; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.block h3 { font-family: var(--body); font-size: 15px; font-weight: 700; display: flex; align-items: center; gap: 8px; }
+.block h3 i { font-style: normal; width: 24px; height: 24px; border-radius: 50%; background: var(--ink); color: var(--paper); display: inline-grid; place-items: center; font-size: 12px; flex: none; }
+.block ul.clean li { font-size: 15px; }
+.block.bonus { background: var(--brand-soft); border-color: transparent; }
+.block .hint { font-size: 13px; color: var(--muted); }
+
+.note { background: var(--brand-soft); border-radius: 14px; padding: 16px 18px; font-size: 15px; display: flex; flex-direction: column; gap: 8px; }
+.steps { counter-reset: s; display: flex; flex-direction: column; gap: 12px; }
+.step { display: grid; grid-template-columns: 34px 1fr; gap: 12px; align-items: start; }
+.step::before { counter-increment: s; content: counter(s); width: 34px; height: 34px; border-radius: 50%; background: var(--ink); color: var(--paper); display: grid; place-items: center; font-weight: 700; font-size: 14px; }
+.step p strong { display: block; }
+
+.cta { background: var(--ink); color: var(--paper); border-radius: 22px; padding: 28px 24px; display: flex; flex-direction: column; gap: 14px; align-items: flex-start; }
+.cta h2 { color: var(--paper); }
+.cta p { color: color-mix(in srgb, var(--paper) 78%, var(--ink)); }
+.btn { display: inline-flex; align-items: center; gap: 10px; background: #25D366; color: #0B2416; font-weight: 700; text-decoration: none; padding: 14px 20px; border-radius: 12px; font-size: 16px; }
+.btn:focus-visible { outline: 3px solid var(--gold); outline-offset: 3px; }
+footer { font-size: 13px; color: var(--muted); }
+
+@media (max-width: 620px) { .facts, .blocks { grid-template-columns: 1fr; } .three { grid-template-columns: 1fr; } .wrap { gap: 36px; } .price-card { padding: 20px; } }
+</style>
+</head>
+<body>
+
+<main class="wrap">
+  <div class="brand"><b>Canguru Digital</b><span>Proposta atualizada para Álvaro Pétrus · novembro de 2026</span></div>
+
+  <header>
+    <div class="eyebrow">Proposta atualizada</div>
+    <h1>Começar pela base, um passo de cada vez, bem feito desde o começo.</h1>
+    <p class="lead">Depois da sua mensagem, refizemos a proposta. Em vez de começar pelos anúncios, começamos pelo que vem antes: a marca nova, a estrutura digital e o CRM. E você vê o marketing rodando por 15 dias antes de decidir o próximo passo.</p>
+  </header>
+
+  <section>
+    <div class="eyebrow">O que mudou desde a primeira proposta</div>
+    <div class="facts">
+      <div class="fact"><span>O momento</span><strong>Transição da empresa, com gastos de estrutura agora. Não é hora de assumir um custo mensal novo.</strong></div>
+      <div class="fact"><span>A marca</span><strong>Você quer refazer logo, cores e identidade, com cara profissional de verdade.</strong></div>
+      <div class="fact"><span>O CRM</span><strong>Você está avaliando sistemas prontos antes de pensar em ter o seu próprio.</strong></div>
+      <div class="fact"><span>O jeito</span><strong>Passos pequenos, mas bem feitos, sem ter que refazer nada lá na frente.</strong></div>
+    </div>
+    <p>Isso muda a ordem do projeto. Não faz sentido montar site, Instagram e campanhas com uma marca que vai mudar daqui a algumas semanas. Por isso a marca vem primeiro, e tudo o que vem depois já nasce com ela.</p>
+  </section>
+
+  <section>
+    <div class="eyebrow">Um time só, do começo ao fim</div>
+    <h2>Em vez de três fornecedores, uma estratégia só</h2>
+    <div class="compare">
+      <span class="label">O caminho mais comum</span>
+      <div class="three">
+        <div><b>Publicitária</b><small>Branding</small></div>
+        <div><b>Empresa de software</b><small>CRM</small></div>
+        <div><b>Agência</b><small>Marketing</small></div>
+      </div>
+      <span class="label">Com a Canguru</span>
+      <div class="flow">
+        <strong>Canguru Digital, parceira 360°</strong>
+        <div class="chips">
+          <span class="chip">Marca</span><span class="arrow">→</span>
+          <span class="chip">Estrutura digital</span><span class="arrow">→</span>
+          <span class="chip">CRM</span><span class="arrow">→</span>
+          <span class="chip">Marketing</span>
+        </div>
+        <p>Uma estratégia integrada, executada em etapas.</p>
+      </div>
+    </div>
+    <p>Quando cada parte é feita por alguém diferente, quem faz tudo conversar é você. Aqui, a marca já é pensada para o site e para o Instagram, o site já manda os contatos para o CRM, e os anúncios usam a marca e o CRM desde o primeiro dia.</p>
+  </section>
+
+  <section>
+    <div class="eyebrow">A proposta</div>
+    <div class="price-card">
+      <div class="price-head">
+        <div>
+          <span class="tag">Pagamento único</span>
+          <h2 style="margin-top:10px">Implantação 360°</h2>
+        </div>
+        <div class="price">R$ 3.000</div>
+      </div>
+
+      <div class="blocks">
+        <div class="block">
+          <h3><i>1</i> Marca nova</h3>
+          <ul class="clean">
+            <li>Paleta de cores</li>
+            <li>Logo novo</li>
+            <li>Manual de marca: como usar logo, cores e fontes</li>
+            <li>Tom de comunicação: como a empresa fala</li>
+            <li>Persona: quem é o cliente ideal e o que ele procura</li>
+          </ul>
+        </div>
+        <div class="block">
+          <h3><i>2</i> Estrutura digital</h3>
+          <ul class="clean">
+            <li>Site da agência, já com a marca nova</li>
+            <li>Landing pages para cada campanha</li>
+            <li>Criação e configuração das contas de anúncio no Meta e no Google, com rastreamento</li>
+            <li>Instagram ajustado: bio, destaques e padrão visual novo</li>
+          </ul>
+        </div>
+        <div class="block">
+          <h3><i>3</i> CRM</h3>
+          <ul class="clean">
+            <li>CRM da nossa plataforma configurado para a sua empresa</li>
+            <li>Quem preenche o site ou chega pelos anúncios entra direto no CRM, com aviso para responder rápido</li>
+            <li>Painel com os anúncios ao vivo: investimento, cliques e contatos</li>
+          </ul>
+          <p class="hint">Você não precisa contratar outra ferramenta nem desenvolver um sistema agora para começar.</p>
+        </div>
+        <div class="block bonus">
+          <h3><i>4</i> 15 dias no ar, incluídos</h3>
+          <ul class="clean">
+            <li>Gestão de tráfego pago por 15 dias, no Meta e no Google</li>
+            <li>6 publicações no Instagram, já com a marca nova</li>
+            <li>2 reels: ideias, roteiro e edição (você grava com a nossa orientação)</li>
+          </ul>
+          <p class="hint">Para você ver na prática como a gente trabalha, com números reais na mão.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="note">
+      <p><strong>Fora desse valor:</strong> o investimento em anúncios durante os 15 dias, pago direto ao Meta e ao Google. Definimos esse valor juntos, e ele pode começar pequeno.</p>
+      <p><strong>Sem mensalidade nesta etapa.</strong> A operação contínua de anúncios e Instagram só entra quando fizer sentido para você, depois dos 15 dias.</p>
+      <p><strong>Fica para depois:</strong> o WhatsApp com vários atendentes e as automações de atendimento. Por enquanto, uma pessoa atendendo dá conta, e os contatos já chegam organizados no CRM. Quando o volume crescer, a gente liga essa parte.</p>
+    </div>
+  </section>
+
+  <section>
+    <div class="eyebrow">Tudo num lugar só</div>
+    <h2>Você acompanha cada passo pela nossa plataforma</h2>
+    <ul class="clean">
+      <li>Aprova as propostas de logo, cores e o manual da marca.</li>
+      <li>Aprova cada publicação antes de ela ir ao ar.</li>
+      <li>Vê os anúncios ao vivo e cada contato que chegou.</li>
+    </ul>
+    <p>Nos últimos meses investimos pesado nessa plataforma justamente para estar junto do cliente de ponta a ponta, e não só lá na frente rodando anúncios.</p>
+  </section>
+
+  <section>
+    <div class="eyebrow">A ordem do trabalho</div>
+    <div class="steps">
+      <div class="step"><p><strong>Marca</strong>Começamos pela persona e pelo tom, depois cores, logo e manual. Nada segue sem a sua aprovação.</p></div>
+      <div class="step"><p><strong>Site e Instagram com a marca nova</strong>Site, landing pages e o perfil ajustado.</p></div>
+      <div class="step"><p><strong>CRM e contas de anúncio</strong>Tudo configurado e testado antes de investir um real em anúncio.</p></div>
+      <div class="step"><p><strong>15 dias no ar</strong>Campanhas rodando, 6 publicações e 2 reels.</p></div>
+      <div class="step"><p><strong>Conversa de resultado</strong>Com os números dos 15 dias na mão, decidimos juntos se e quando seguir com a operação mensal, no formato que couber no seu momento.</p></div>
+    </div>
+  </section>
+
+  <section class="cta">
+    <h2>Faz sentido para você?</h2>
+    <p>Do mesmo jeito que você falou: começar com excelência, passo a passo. Se quiser mudar alguma coisa, me fala que a gente ajusta junto.</p>
+    <a class="btn" id="cta-whatsapp" href="https://wa.me/5511994075149?text=Ol%C3%A1%2C%20Wesley%21%20Vi%20a%20proposta%20atualizada%20da%20Canguru%20e%20quero%20conversar." target="_blank" rel="noopener">Falar com o Wesley no WhatsApp</a>
+  </section>
+
+  <footer>Canguru Digital · Proposta válida por 15 dias.</footer>
+</main>
+
+<script src="/propostas/track.js" data-slug="alvaro-petrus-360"></script>
+</body>
+</html>
