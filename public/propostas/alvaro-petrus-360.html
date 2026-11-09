@@ -57,6 +57,7 @@ ul.clean li::before { content: ""; position: absolute; left: 4px; top: .7em; wid
 .price-card { background: var(--paper); border: 1px solid var(--brand); border-radius: 22px; box-shadow: 0 10px 30px rgba(19, 40, 77, .08); padding: 24px; display: flex; flex-direction: column; gap: 20px; }
 .price-head { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 12px; }
 .price { font-family: var(--display); font-size: 44px; font-weight: 600; line-height: 1; font-variant-numeric: tabular-nums; }
+.price small.pix { margin-top: 0; font-weight: 700; color: var(--brand); }
 .price small { display: inline-block; margin-top: 8px; font-family: var(--body); font-size: 14px; color: var(--muted); font-weight: 500; }
 .tag { align-self: flex-start; font-size: 11px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--brand); background: var(--brand-soft); padding: 4px 9px; border-radius: 999px; }
 .blocks { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
@@ -81,6 +82,7 @@ ul.clean li::before { content: ""; position: absolute; left: 4px; top: .7em; wid
 footer { font-size: 13px; color: var(--muted); }
 
 @media (max-width: 620px) { .facts, .blocks { grid-template-columns: 1fr; } .three { grid-template-columns: 1fr; } .wrap { gap: 36px; } .price-card { padding: 20px; } }
+.price small.pix { margin-top: 0; font-weight: 700; color: var(--brand); }
 </style>
 </head>
 <body>
@@ -135,10 +137,10 @@ footer { font-size: 13px; color: var(--muted); }
     <div class="price-card">
       <div class="price-head">
         <div>
-          <span class="tag">Pagamento único</span>
+          <span class="tag">Pagamento único</span> <span class="tag" style="color:var(--gold);background:color-mix(in srgb,var(--gold) 14%,transparent)">Válida até 14/11</span>
           <h2 style="margin-top:10px">Implantação 360°</h2>
         </div>
-        <div class="price">R$ 3.000<br><small>ou 3x de R$ 1.000 sem juros no cartão</small></div>
+        <div class="price">R$ 3.000 <small class="pix">no Pix, com 10% de desconto</small><br><small>ou R$ 3.330 em 3x de R$ 1.110 sem juros no cartão</small></div>
       </div>
 
       <div class="blocks">
@@ -218,7 +220,7 @@ footer { font-size: 13px; color: var(--muted); }
     <a class="btn" id="cta-whatsapp" href="https://wa.me/5511994075149?text=Ol%C3%A1%2C%20Wesley%21%20Vi%20a%20proposta%20atualizada%20da%20Canguru%20e%20quero%20conversar." target="_blank" rel="noopener">Falar com o Wesley no WhatsApp</a>
   </section>
 
-  <footer>Canguru Digital · Proposta válida por 15 dias.</footer>
+  <footer>Canguru Digital · Proposta válida por 5 dias, de 9 a 14 de novembro de 2026.</footer>
 </main>
 
 <script src="/propostas/track.js" data-slug="alvaro-petrus-360"></script>
