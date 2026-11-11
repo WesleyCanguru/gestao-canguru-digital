@@ -37,7 +37,6 @@ import { PublicMonthPage } from './components/PublicMonthPage';
 import { NpsPublicScreen } from './components/nps/NpsPublicScreen';
 import { ClientNpsSection } from './components/nps/ClientNpsSection';
 import { PublicClientOnboarding } from './components/PublicClientOnboarding';
-import { OnboardingChecklist } from './components/OnboardingChecklist';
 import { ResetPasswordPage } from './components/ResetPasswordPage';
 import { ViewAsClientBanner } from './components/ViewAsClientBanner';
 import { PublicLinkGate } from './components/PublicLinkGate';
@@ -55,7 +54,7 @@ dayjs.locale('pt-br');
 
 import { Navigation } from './components/Navigation';
 
-type ViewState = 'home' | 'month-detail' | 'onboarding' | 'dashboard' | 'briefings' | 'strategic-briefings' | 'paid-traffic' | 'website' | 'password-vault' | 'tutorials' | 'ai-photos' | 'agencyDashboard' | 'crm' | 'roteiros' | 'organico' | 'nps' | 'ai-onboarding' | 'criativos';
+type ViewState = 'home' | 'month-detail' | 'onboarding' | 'dashboard' | 'briefings' | 'strategic-briefings' | 'paid-traffic' | 'website' | 'password-vault' | 'tutorials' | 'ai-photos' | 'agencyDashboard' | 'crm' | 'roteiros' | 'organico' | 'nps' | 'criativos';
 
 interface MainAppProps {
   initialView?: ViewState;
@@ -79,7 +78,6 @@ const MainApp: React.FC<MainAppProps> = ({ initialView, onExitAgencyDashboard, o
       if (viewParam === 'tutorial') return 'tutorials';
       if (viewParam === 'password-vault') return 'password-vault';
       if (viewParam === 'nps' || aba === 'nps') return 'nps';
-      if (viewParam === 'ai-onboarding' || viewParam === 'onboarding-ia' || aba === 'ai-onboarding' || aba === 'onboarding-ia') return 'ai-onboarding';
     }
     return initialView || 'dashboard';
   });
@@ -147,8 +145,6 @@ const MainApp: React.FC<MainAppProps> = ({ initialView, onExitAgencyDashboard, o
       setView('password-vault');
     } else if (viewParam === 'nps' || aba === 'nps') {
       setView('nps');
-    } else if (viewParam === 'ai-onboarding' || viewParam === 'onboarding-ia' || aba === 'ai-onboarding' || aba === 'onboarding-ia') {
-      setView('ai-onboarding');
     }
   }, []);
 
@@ -578,37 +574,8 @@ const MainApp: React.FC<MainAppProps> = ({ initialView, onExitAgencyDashboard, o
                     onNavigateToCreatives={() => setView('criativos')}
                     onNavigateToRoteiros={() => setView('roteiros')}
                     onNavigateToOrganico={() => setView('organico')}
-                    onNavigateToAiOnboarding={() => setView('ai-onboarding')}
                     onRefreshClient={refreshActiveClient}
                   />
-                ) : view === 'ai-onboarding' ? (
-                  <div className="space-y-6">
-                    {!showNav && (
-                      <div className="bg-white rounded-2xl p-4 border border-stone-200/70 shadow-xs flex items-center justify-between mb-4">
-                        <button 
-                          onClick={() => setView('dashboard')}
-                          className="flex items-center gap-2 text-sm font-bold text-[#13284D] hover:opacity-80 transition-opacity cursor-pointer"
-                        >
-                          <ChevronRight className="w-5 h-5 rotate-180" />
-                          <span>Voltar ao Início</span>
-                        </button>
-                      </div>
-                    )}
-                    {activeClient ? (
-                      <div className="bg-white rounded-[2.5rem] border border-black/[0.03] shadow-sm min-h-[80vh] p-6 sm:p-10">
-                        <OnboardingChecklist 
-                          client={activeClient}
-                          agencyId={activeClient.agency_id}
-                          isClientView={userRole === 'approver'}
-                          onUpdate={() => {
-                            refreshActiveClient();
-                          }}
-                        />
-                      </div>
-                    ) : (
-                      <div className="text-center py-12 text-gray-400">Nenhum cliente selecionado</div>
-                    )}
-                  </div>
                 ) : view === 'onboarding' ? (
                   <div className="bg-white rounded-[2.5rem] border border-black/[0.03] shadow-sm min-h-[80vh] p-6 sm:p-10">
                     {!showNav && (
