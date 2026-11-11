@@ -16,12 +16,20 @@ Deno.serve(async (req) => {
     if (typeof slug !== "string" || !/^[a-z0-9-]{3,80}$/.test(slug)) return json({ error: "Link inválido." }, 400);
     const admin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, { auth: { persistSession: false } });
     const { data: p } = await admin.from("proposals")
-      .select("slug, agency_id, prospect_name, title, whatsapp, monthly_value, setup_value, currency, status, content, language, version, sent_at, created_at")
+      .select("slug, agency_id, prospect_name, title, whatsapp, monthly_value, setup_value, currency, status, content, language, version, sent_at, created_at, created_by, client_id")
       .eq("slug", slug).maybeSingle();
     if (!p || p.status === "draft" || !p.content) return json({ error: "Proposta não encontrada." }, 404);
-    const { data: agency } = await admin.from("agencies").select("name, logo_url, primary_color, contact_whatsapp").eq("id", p.agency_id).maybeSingle();
+    const { data: agency } = await admin.from("agencies").select("name, slug, logo_url, primary_color, contact_whatsapp").eq("id", p.agency_id).maybeSingle();
+    // Botão "Quero começar": abre o cadastro marcado como trazido por quem fez a proposta.
+    let ref: string | null = null;
+    if (p.created_by) {
+      const { data: m } = await admin.from("agency_members").select("ref_code").eq("agency_id", p.agency_id).eq("user_id", p.created_by).eq("is_active", true).maybeSingle();
+      ref = m?.ref_code ?? null;
+    }
+    const signup = agency?.slug && !p.client_id ? { agency_slug: agency.slug, ref } : null;
     const { pontos_em_aberto: _h, ...content } = p.content as Record<string, unknown>;
-    return json({ proposal: { ...p, content }, agency });
+    const { created_by: _c, client_id: _cl, ...pub } = p;
+    return json({ proposal: { ...pub, content }, agency, signup });
   } catch (e) {
     console.error(e);
     return json({ error: "Erro inesperado." }, 500);

@@ -1,5 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
+import { useOnboardingPending } from '../lib/onboardingPending';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   Home, 
@@ -90,6 +91,8 @@ export const Navigation: React.FC<SidebarProps> = ({
   const { userRole, logout, agencyId, agencyName, agencies, switchAgency, can, viewAsClient } = useAuth();
   const [isAgencyDropdownOpen, setIsAgencyDropdownOpen] = useState(false);
   const currentAgency = agencies.find(a => a.agency_id === agencyId) || null;
+  const onboardingPending = useOnboardingPending(agencyId, view === 'agency' && userRole === 'admin');
+  const badgeOf = (id: string) => (id === 'onboarding' ? onboardingPending : 0);
 
   useEffect(() => {
     if (userRole === 'admin' && agencyId) {
@@ -198,7 +201,6 @@ export const Navigation: React.FC<SidebarProps> = ({
 
       const allModules = [
         { id: 'dashboard', label: 'Início', icon: Home, featureKey: null, defaultVisible: true },
-        { id: 'ai-onboarding', label: 'Onboarding IA', icon: Sparkles, featureKey: 'ai_onboarding', defaultVisible: true },
         { id: 'crm', label: 'CRM', icon: Kanban, featureKey: 'crm', defaultVisible: false },
         { id: 'month-detail', label: 'Painel de Conteúdo', icon: LayoutDashboard, featureKey: 'mapa', defaultVisible: hasService('Social Media') },
         { id: 'organico', label: 'Redes Sociais', icon: TrendingUp, featureKey: 'organico', defaultVisible: hasService('Social Media') },
@@ -266,7 +268,6 @@ export const Navigation: React.FC<SidebarProps> = ({
 
     // Início (sempre primeiro)
     items.push({ id: 'dashboard', label: 'Início', icon: Home });
-    items.push({ id: 'ai-onboarding', label: 'Onboarding IA', icon: Sparkles });
 
     if (hasSocialMedia) {
       // Clientes com Social Media:
@@ -333,6 +334,9 @@ export const Navigation: React.FC<SidebarProps> = ({
                   {item.label}
                 </span>
               )}
+              {badgeOf(item.id) > 0 && (isCollapsed
+                ? <span className="absolute top-1.5 right-1.5 w-2.5 h-2.5 rounded-full bg-rose-500 ring-2 ring-white" />
+                : <span title="Clientes novos esperando a equipe" className={`ml-auto min-w-[20px] h-5 px-1.5 rounded-full text-[11px] font-bold flex items-center justify-center ${isActive ? 'bg-white text-brand-dark' : 'bg-rose-500 text-white'}`}>{badgeOf(item.id)}</span>)}
               {isActive && !isCollapsed && (
                 <motion.div 
                   layoutId="indicator"
@@ -493,6 +497,9 @@ export const Navigation: React.FC<SidebarProps> = ({
               >
                 <GIcon size={18} />
                 <span className="text-[11px] font-bold uppercase tracking-widest flex-1 text-left">{g.label}</span>
+                {!open && g.items.reduce((n, i) => n + badgeOf(i.id), 0) > 0 && (
+                  <span className="min-w-[20px] h-5 px-1.5 rounded-full text-[11px] font-bold flex items-center justify-center bg-rose-500 text-white">{g.items.reduce((n, i) => n + badgeOf(i.id), 0)}</span>
+                )}
                 <ChevronDown size={14} className={`transition-transform ${open ? 'rotate-180' : ''}`} />
               </button>
               {open && (

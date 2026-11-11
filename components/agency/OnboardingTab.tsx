@@ -11,7 +11,6 @@ import { X } from 'lucide-react';
 import { ClientChecklistView } from './ClientChecklistView';
 import { OnboardingTemplatesModal } from './OnboardingTemplatesModal';
 import { BriefingTemplatesModal } from './BriefingTemplatesModal';
-import { OnboardingChecklist as AiOnboardingView } from '../OnboardingChecklist';
 
 const SERVICE_TO_BRIEFINGS: Record<string, string[]> = {
   'Social Media': ['persona', 'publico_alvo', 'tom_voz', 'posicionamento', 'conteudo_bastidores'],
@@ -35,7 +34,6 @@ export const OnboardingTab: React.FC<{ onNavigateToClients: (client: Client) => 
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
   const [viewingBriefingsClient, setViewingBriefingsClient] = useState<OnboardingData | null>(null);
   const [viewingChecklistClient, setViewingChecklistClient] = useState<OnboardingData | null>(null);
-  const [viewingAiOnboardingClient, setViewingAiOnboardingClient] = useState<OnboardingData | null>(null);
   const [showTemplatesModal, setShowTemplatesModal] = useState(false);
   const [showBriefingsModal, setShowBriefingsModal] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -189,30 +187,6 @@ export const OnboardingTab: React.FC<{ onNavigateToClients: (client: Client) => 
         <ClientChecklistView 
           client={viewingChecklistClient} 
           onClose={() => setViewingChecklistClient(null)} 
-        />
-      </div>
-    );
-  }
-
-  if (viewingAiOnboardingClient) {
-    return (
-      <div className="p-4 sm:p-8 max-w-7xl mx-auto flex flex-col gap-6 pb-32">
-        <button 
-          onClick={() => {
-            setViewingAiOnboardingClient(null);
-            fetchOnboardingData();
-          }}
-          className="flex items-center gap-2 text-sm font-bold uppercase tracking-widest text-gray-500 hover:text-brand-dark transition-colors w-fit"
-        >
-          <ChevronLeft size={16} /> Voltar para lista
-        </button>
-        <AiOnboardingView 
-          client={viewingAiOnboardingClient} 
-          agencyId={agencyId}
-          isClientView={false}
-          onUpdate={() => {
-            fetchOnboardingData();
-          }}
         />
       </div>
     );
@@ -552,14 +526,6 @@ export const OnboardingTab: React.FC<{ onNavigateToClients: (client: Client) => 
 
                     <td className="p-6">
                       <div className="flex items-center gap-2">
-                        <button 
-                          onClick={() => setViewingAiOnboardingClient(client)}
-                          className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 text-blue-700 hover:bg-blue-100 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-colors"
-                          title="Ver Onboarding IA"
-                        >
-                          <Sparkles size={13} />
-                          <span>Onboarding IA</span>
-                        </button>
                         <button 
                           onClick={() => setViewingChecklistClient(client)}
                           className="p-2 hover:bg-gray-100 rounded-xl transition-colors text-gray-400 hover:text-brand-dark"

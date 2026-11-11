@@ -285,7 +285,6 @@ export interface Client {
   onboarding_completed_at?: string | null;
   currency?: string | null;
   timezone?: string | null;
-  ai_onboarding?: AiOnboardingData | null;
   target_age_ranges?: string[] | null;
   target_location?: string | null;
   target_interests?: string | null;
@@ -293,38 +292,6 @@ export interface Client {
   linkedin_url?: string | null;
   tiktok_url?: string | null;
   google_business_url?: string | null;
-}
-
-export interface AiOnboardingItem {
-  id: string;
-  label: string;
-  url?: string;
-  note?: string;
-  done: boolean;
-}
-
-export interface AiOnboardingCategory {
-  id: string;
-  category: string;
-  icon?: string;
-  items: AiOnboardingItem[];
-}
-
-export interface AiOnboardingStrategySummary {
-  positioning?: string;
-  content_pillars?: string[];
-  posting_frequency?: string;
-  priority_30_days?: string[];
-}
-
-export interface AiOnboardingData {
-  generated_at: string;
-  version: number;
-  client_name?: string;
-  business_name?: string;
-  segment?: string;
-  checklist: AiOnboardingCategory[];
-  strategy_summary?: AiOnboardingStrategySummary;
 }
 
 export interface ReferralPartner {

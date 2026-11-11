@@ -90,6 +90,10 @@ Deno.serve(async (req) => {
         },
       }).select("id").single();
       if (error || !created) return json({ error: "Não foi possível salvar os dados." }, 400);
+      // Veio do botão "Quero começar" da proposta: a proposta passa a apontar para este cliente.
+      if (typeof body.proposal === "string" && /^[a-z0-9-]{3,80}$/.test(body.proposal)) {
+        await admin.from("proposals").update({ client_id: created.id }).eq("slug", body.proposal).eq("agency_id", agency.id).is("client_id", null);
+      }
       return json({ client_id: created.id, token });
     }
 

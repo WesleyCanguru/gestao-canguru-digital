@@ -145,6 +145,7 @@ export const PropostasTab: React.FC = () => {
                   <div className="min-w-0 flex-1 basis-60">
                     <p className="font-semibold text-gray-900 truncate">{p.prospect_name}
                       {p.status === 'draft' && <span className="ml-2 align-middle text-[11px] font-semibold px-2 py-0.5 rounded-full bg-amber-50 text-amber-800">Rascunho{p.version && p.version > 1 ? ` v${p.version}` : ''}</span>}
+                      {(p as any).client_id && <span className="ml-2 align-middle text-[11px] font-semibold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700">Fez o cadastro</span>}
                       {p.status !== 'draft' && p.draft_content && <span className="ml-2 align-middle text-[11px] font-semibold px-2 py-0.5 rounded-full bg-sky-50 text-sky-800">Ajuste para revisar</span>}
                     </p>
                     <p className="text-xs text-gray-500">{p.title || 'Proposta'} · criada em {dayjs(p.created_at).format('DD/MM/YYYY')}

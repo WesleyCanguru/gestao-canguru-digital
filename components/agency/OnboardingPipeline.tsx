@@ -34,12 +34,12 @@ type Briefing = { client_id: string; briefing_type: string; responses: Record<st
 
 type Stage = 'cadastro' | 'estrategia' | 'aprovacao' | 'subir' | 'no_ar';
 
-const STAGES: { id: Stage; label: string; hint: string }[] = [
-  { id: 'cadastro', label: 'Cadastro em andamento', hint: 'O cliente ainda não terminou o cadastro' },
-  { id: 'estrategia', label: 'Montar estratégia', hint: 'Gerar com o Claude, revisar e enviar' },
-  { id: 'aprovacao', label: 'Aguardando o cliente', hint: 'Estratégia enviada para aprovação' },
-  { id: 'subir', label: 'Subir campanha', hint: 'Aprovada, falta colocar no ar' },
-  { id: 'no_ar', label: 'No ar', hint: 'Últimos 30 dias' },
+const STAGES: { id: Stage; label: string; hint: string; who: 'cliente' | 'equipe' | null }[] = [
+  { id: 'cadastro', label: 'Cadastro em andamento', hint: 'O cliente ainda não terminou o cadastro', who: 'cliente' },
+  { id: 'estrategia', label: 'Montar estratégia', hint: 'Gerar com o Claude, revisar e enviar', who: 'equipe' },
+  { id: 'aprovacao', label: 'Aguardando o cliente', hint: 'Estratégia enviada para aprovação', who: 'cliente' },
+  { id: 'subir', label: 'Subir campanha', hint: 'Aprovada, falta colocar no ar', who: 'equipe' },
+  { id: 'no_ar', label: 'No ar', hint: 'Últimos 30 dias', who: null },
 ];
 
 const ACCESS_LABEL: Record<AccessRow['status'], { text: string; cls: string }> = {
@@ -96,6 +96,7 @@ export const OnboardingPipeline: React.FC<{ onOpenClient: (c: Client) => void }>
       setAccess([]); setStrategies([]); setBriefings([]);
     }
     setLoading(false);
+    window.dispatchEvent(new Event('bolsa:onboarding-changed'));
   }, [agencyId]);
 
   useEffect(() => { load(); }, [load]);
@@ -121,6 +122,26 @@ export const OnboardingPipeline: React.FC<{ onOpenClient: (c: Client) => void }>
     return g;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clients, strategies]);
+
+  // O que a equipe precisa fazer agora com este cliente (null = a bola está com o cliente)
+  const actionOf = (c: Client): string | null => {
+    const acc = accessOf(c.id);
+    const help = acc.filter(a => a.status === 'help').map(a => (a.platform === 'meta' ? 'Meta' : 'Google'));
+    if (help.length) return `Ajudar com ${help.join(' e ')}`;
+    const check = acc.filter(a => a.status === 'client_done').map(a => (a.platform === 'meta' ? 'Meta' : 'Google'));
+    const st = stageOf(c);
+    if (st === 'estrategia') {
+      const s = latestStrategy(c.id);
+      return s?.status === 'changes' ? 'Ajustar a estratégia' : s?.status === 'draft' ? 'Revisar e enviar a estratégia' : 'Gerar a estratégia';
+    }
+    if (st === 'subir') return 'Colocar a campanha no ar';
+    if (check.length) return `Conferir acesso ${check.join(' e ')}`;
+    return null;
+  };
+  const pendingCount = clients.filter(c => stageOf(c) && stageOf(c) !== 'no_ar' && actionOf(c)).length;
+  const waitingClient = grouped.cadastro.length + grouped.aprovacao.length;
+  const liveDays = grouped.no_ar.map(c => dayjs((c as any).campaign_live_at).diff(dayjs(c.created_at), 'day'));
+  const avgDays = liveDays.length ? Math.round(liveDays.reduce((a, b) => a + b, 0) / liveDays.length) : null;
 
   const helpClients = clients.filter(c => accessOf(c.id).some(a => a.status === 'help'));
   // Cada pessoa copia o próprio link: o cliente fica marcado como trazido por ela e o contato final vai para ela
@@ -150,6 +171,31 @@ export const OnboardingPipeline: React.FC<{ onOpenClient: (c: Client) => void }>
         </div>
       </div>
 
+      {!loading && (
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          <div className={`rounded-2xl border p-4 ${pendingCount ? 'bg-rose-50 border-rose-100' : 'bg-white border-gray-100'}`}>
+            <p className="text-xs font-medium text-gray-500">Precisam da equipe</p>
+            <p className={`mt-1 text-2xl font-bold tabular-nums ${pendingCount ? 'text-rose-700' : 'text-gray-900'}`}>{pendingCount}</p>
+            <p className="text-[11px] text-gray-400 mt-0.5">ajuda, estratégia ou subir campanha</p>
+          </div>
+          <div className="rounded-2xl border border-gray-100 bg-white p-4">
+            <p className="text-xs font-medium text-gray-500">Com o cliente</p>
+            <p className="mt-1 text-2xl font-bold tabular-nums text-gray-900">{waitingClient}</p>
+            <p className="text-[11px] text-gray-400 mt-0.5">terminando o cadastro ou aprovando</p>
+          </div>
+          <div className="rounded-2xl border border-gray-100 bg-white p-4">
+            <p className="text-xs font-medium text-gray-500">No ar (30 dias)</p>
+            <p className="mt-1 text-2xl font-bold tabular-nums text-emerald-700">{grouped.no_ar.length}</p>
+            <p className="text-[11px] text-gray-400 mt-0.5">campanhas que começaram</p>
+          </div>
+          <div className="rounded-2xl border border-gray-100 bg-white p-4">
+            <p className="text-xs font-medium text-gray-500">Do cadastro ao ar</p>
+            <p className="mt-1 text-2xl font-bold tabular-nums text-gray-900">{avgDays == null ? '–' : `${avgDays} ${avgDays === 1 ? 'dia' : 'dias'}`}</p>
+            <p className="text-[11px] text-gray-400 mt-0.5">média dos que foram ao ar</p>
+          </div>
+        </div>
+      )}
+
       {!loading && helpClients.length > 0 && (
         <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200">
           <p className="text-sm font-bold text-amber-900 flex items-center gap-2"><AlertCircle size={16} /> {helpClients.length === 1 ? '1 cliente pediu ajuda com os acessos' : `${helpClients.length} clientes pediram ajuda com os acessos`}</p>
@@ -175,15 +221,18 @@ export const OnboardingPipeline: React.FC<{ onOpenClient: (c: Client) => void }>
                   <span className="text-xs font-bold text-gray-500 bg-white border border-gray-200 rounded-full px-2 py-0.5">{grouped[st.id].length}</span>
                 </div>
                 <p className="text-[11px] text-gray-500">{st.hint}</p>
+                {st.who && <span className={`inline-block mt-1.5 text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded ${st.who === 'equipe' ? 'bg-gray-900 text-white' : 'bg-white border border-gray-200 text-gray-500'}`}>{st.who === 'equipe' ? 'Com a equipe' : 'Com o cliente'}</span>}
               </div>
               <div className="space-y-2">
                 {grouped[st.id].map(c => {
                   const acc = accessOf(c.id);
                   const step = Number((c as any).traffic_strategy_data?.registration_step) || 1;
                   const s = latestStrategy(c.id);
+                  const action = st.id !== 'no_ar' ? actionOf(c) : null;
                   return (
                     <button key={c.id} onClick={() => setOpenId(c.id)}
-                      className="w-full text-left bg-white rounded-xl border border-gray-200 hover:border-gray-300 hover:shadow-sm p-3 transition">
+                      className={`w-full text-left bg-white rounded-xl border hover:shadow-sm p-3 transition ${action ? 'border-rose-200 hover:border-rose-300' : 'border-gray-200 hover:border-gray-300'}`}>
+                      {action && <p className="mb-1.5 text-[10px] font-bold uppercase tracking-wide text-rose-600">● {action}</p>}
                       <div className="flex items-center gap-2">
                         <span className="w-7 h-7 rounded-lg text-white text-[11px] font-bold flex items-center justify-center shrink-0" style={{ backgroundColor: c.color || '#456da1' }}>{c.initials || c.name.slice(0, 2).toUpperCase()}</span>
                         <p className="font-semibold text-sm text-gray-900 truncate">{c.name}</p>

@@ -54,7 +54,6 @@ import {
   EyeOff,
   RefreshCw
 } from 'lucide-react';
-import { OnboardingChecklist } from './OnboardingChecklist';
 import { NpsBadge } from './nps/NpsBadge';
 import { ClientNpsSection } from './nps/ClientNpsSection';
 import { useAllClientsCurrentMonthNps, useClientNps } from '../hooks/useClientNps';
@@ -267,7 +266,7 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
   });
   const [uploading, setUploading] = useState(false);
   const [newContractLinkInfo, setNewContractLinkInfo] = useState<{ clientId: string, token: string } | null>(null);
-  const [formTab, setFormTab] = useState<'dados_basicos' | 'servicos' | 'acesso' | 'saude' | 'onboarding_ia'>('dados_basicos');
+  const [formTab, setFormTab] = useState<'dados_basicos' | 'servicos' | 'acesso' | 'saude'>('dados_basicos');
   const [customTemplates, setCustomTemplates] = useState<Record<string, any>>({});
   const [showRevenueChangeModal, setShowRevenueChangeModal] = useState(false);
   const [revenueChangeModalData, setRevenueChangeModalData] = useState<RevenueChangeModalData | null>(null);
@@ -784,7 +783,7 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
     }
   };
 
-  const handleEdit = async (client: Client, initialTab?: 'dados_basicos' | 'servicos' | 'acesso' | 'saude' | 'onboarding_ia') => {
+  const handleEdit = async (client: Client, initialTab?: 'dados_basicos' | 'servicos' | 'acesso' | 'saude') => {
     const linkedinHandle = client.linkedin || client.social_networks?.find(s => s.startsWith('linkedin_handle:'))?.split(':')[1] || '';
     
     setLoadingContract(true);
@@ -1093,16 +1092,6 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
                 >
                   <Activity size={15} />
                   Saúde do Cliente
-                </button>
-              )}
-              {editingClientId && (
-                <button
-                  type="button"
-                  onClick={() => setFormTab('onboarding_ia')}
-                  className={`py-3 px-6 text-sm font-bold border-b-2 transition-colors whitespace-nowrap flex items-center gap-1.5 ${formTab === 'onboarding_ia' ? 'border-brand-dark text-brand-dark' : 'border-transparent text-gray-400 hover:text-gray-600'}`}
-                >
-                  <Sparkles size={15} />
-                  Onboarding IA
                 </button>
               )}
             </div>
@@ -2017,21 +2006,9 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
                   <ClientHealthPanel client={clients.find(c => c.id === editingClientId)!} />
                 </div>
               )}
-              {formTab === 'onboarding_ia' && editingClientId && clients.find(c => c.id === editingClientId) && (
-                <div className="sm:col-span-2">
-                  <OnboardingChecklist 
-                    client={clients.find(c => c.id === editingClientId)!} 
-                    agencyId={agencyId}
-                    isClientView={false}
-                    onUpdate={(updatedData) => {
-                      setClients(prev => prev.map(c => c.id === editingClientId ? { ...c, ai_onboarding: updatedData } : c));
-                    }}
-                  />
-                </div>
-              )}
             </div>
 
-            {editingClientId && clients.find(c => c.id === editingClientId) && formTab !== 'saude' && formTab !== 'onboarding_ia' && (
+            {editingClientId && clients.find(c => c.id === editingClientId) && formTab !== 'saude' && (
               <div className="mt-8 pt-8 border-t border-gray-100">
                 <ClientNpsSection client={clients.find(c => c.id === editingClientId)!} />
               </div>
@@ -2187,7 +2164,6 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
                       </button>
                       <RowActionsMenu actions={[
                         { label: 'Saúde do cliente', icon: <Activity size={15} />, onClick: () => setHealthModalClient(client) },
-                        { label: 'Onboarding IA', icon: <Sparkles size={15} />, onClick: () => handleEdit(client, 'onboarding_ia') },
                         {
                           label: npsMap[client.id]?.sent_at ? 'Copiar link do NPS' : 'Enviar pesquisa NPS',
                           icon: <HeartHandshake size={15} />,
@@ -2312,14 +2288,6 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
                               >
                                 <Activity size={18} />
                                 <span className="text-[9px] font-bold uppercase tracking-widest">Saúde</span>
-                              </button>
-                              <button 
-                                onClick={() => handleEdit(client, 'onboarding_ia')}
-                                className="flex flex-col items-center justify-center gap-1 p-2 text-gray-400 hover:text-blue-600 transition-colors"
-                                title="Abrir Onboarding IA do Cliente"
-                              >
-                                <Sparkles size={18} />
-                                <span className="text-[9px] font-bold uppercase tracking-widest">Onboarding</span>
                               </button>
                               <button 
                                 onClick={() => handleEdit(client)}
