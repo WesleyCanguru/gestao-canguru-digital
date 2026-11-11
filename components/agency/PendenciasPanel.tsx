@@ -109,7 +109,7 @@ export const PendenciasPanel: React.FC<PendenciasPanelProps> = ({
       // 2. Posts da agência
       const { data: postsData, error: postsErr } = await supabase
         .from('posts')
-        .select('id, client_id, status, date_key, created_at, updated_at, is_deleted')
+        .select('id, client_id, status, date_key, last_updated, is_deleted')
         .eq('agency_id', agencyId)
         .eq('is_deleted', false);
 
@@ -272,7 +272,7 @@ export const PendenciasPanel: React.FC<PendenciasPanelProps> = ({
 
         if (!isPending) return;
 
-        const dateToCheck = post.updated_at || post.created_at;
+        const dateToCheck = post.last_updated;
         if (!dateToCheck) return;
 
         const postTimestamp = dayjs(dateToCheck);
@@ -480,7 +480,7 @@ export const PendenciasPanel: React.FC<PendenciasPanelProps> = ({
       try {
         const { data: tasksData } = await supabase
           .from('agency_tasks')
-          .select('id, title, status, due_date, parent_task_id, description')
+          .select('id, title, status, due_date, description')
           .eq('agency_id', agencyId)
           .eq('status', 'pending');
 
