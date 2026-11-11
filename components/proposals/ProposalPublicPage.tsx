@@ -41,6 +41,7 @@ export const ProposalPublicPage: React.FC<{ slug: string }> = ({ slug }) => {
   const [data, setData] = useState<Data | null>(null);
   const [state, setState] = useState<'loading' | 'ok' | 'notfound'>('loading');
   const [preview] = useState(() => isPreviewDevice());
+  const [showingDraft, setShowingDraft] = useState(false);
   const [framed] = useState(() => inFrame());
   const noTrack = preview || framed;
   const tracked = useRef(false);
@@ -50,6 +51,9 @@ export const ProposalPublicPage: React.FC<{ slug: string }> = ({ slug }) => {
       if (preview) {
         const { data: p } = await supabase.from('proposals').select('*').eq('slug', slug).maybeSingle();
         if (p && (p as any).content) {
+          if (new URLSearchParams(window.location.search).get('draft') === '1' && (p as any).draft_content) {
+            (p as any).content = (p as any).draft_content; setShowingDraft(true);
+          }
           const { data: a } = await supabase.from('agencies').select('name, logo_url, primary_color, contact_whatsapp').eq('id', (p as any).agency_id).maybeSingle();
           setData({ proposal: p as any, agency: (a as any) || null }); setState('ok'); return;
         }
@@ -183,7 +187,7 @@ export const ProposalPublicPage: React.FC<{ slug: string }> = ({ slug }) => {
 
         <footer className="text-center text-[13px] text-[var(--muted)]">{agency?.name}</footer>
       </main>
-      {preview && !framed && <div className="fixed left-1/2 bottom-4 -translate-x-1/2 z-50 bg-[#13284D] text-white text-[13px] font-semibold px-4 py-2.5 rounded-full shadow-lg max-w-[calc(100%-32px)] text-center">Visualização da equipe: esta abertura não é registrada.</div>}
+      {preview && !framed && <div className="fixed left-1/2 bottom-4 -translate-x-1/2 z-50 bg-[#13284D] text-white text-[13px] font-semibold px-4 py-2.5 rounded-full shadow-lg max-w-[calc(100%-32px)] text-center">{showingDraft ? 'Ajuste ainda não publicado. O cliente ainda vê a versão anterior.' : 'Visualização da equipe: esta abertura não é registrada.'}</div>}
     </div>
   );
 };
