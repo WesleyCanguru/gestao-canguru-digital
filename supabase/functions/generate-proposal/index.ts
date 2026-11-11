@@ -2,6 +2,11 @@
 // Só a equipe da agência pode chamar. Cria/atualiza a linha em proposals como rascunho (status 'draft').
 // action 'create': { agency_id, prospect_name, whatsapp?, currency?, language?, notes?, pdf_base64?, monthly_value?, setup_value? }
 // action 'revise': { proposal_id, instructions }
+//   rascunho: atualiza a própria proposta (a versão anterior vai para proposal_versions).
+//   publicada: o ajuste fica em draft_content; o link continua com a versão atual até 'publish_draft'.
+// action 'publish_draft': { proposal_id }  publica o ajuste pendente (versão anterior vai para o histórico)
+// action 'discard_draft': { proposal_id }  descarta o ajuste pendente
+// action 'restore': { proposal_id, version_id }  volta uma versão do histórico (publicada: vira ajuste pendente)
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 
 const corsHeaders = {
@@ -64,7 +69,7 @@ Deno.serve(async (req) => {
   if (req.method !== "POST") return json({ error: "method_not_allowed" }, 405);
   try {
     const body = await req.json();
-    const action = body.action === "revise" ? "revise" : "create";
+    const action: string = ["revise", "publish_draft", "discard_draft", "restore"].includes(body.action) ? body.action : "create";
     const admin = adminClient();
     const asUser = userClient(req);
     const { data: { user } } = await asUser.auth.getUser();
@@ -72,7 +77,7 @@ Deno.serve(async (req) => {
 
     let existing: Record<string, any> | null = null;
     let agencyId: number;
-    if (action === "revise") {
+    if (action !== "create") {
       const { data } = await admin.from("proposals").select("*").eq("id", String(body.proposal_id || "")).maybeSingle();
       if (!data) return json({ error: "Proposta não encontrada." }, 404);
       existing = data; agencyId = data.agency_id;
@@ -81,6 +86,48 @@ Deno.serve(async (req) => {
     }
     const { data: isStaff } = await asUser.rpc("i_am_staff_of", { p_agency: agencyId });
     if (!isStaff) return json({ error: "Sem acesso a esta agência." }, 403);
+
+    const plansOf = (c: any) => (c?.planos ?? []).find((p: any) => p.destaque) ?? c?.planos?.[0];
+    const saveHistory = (content: unknown, version: number, instructions: string | null) =>
+      content ? admin.from("proposal_versions").insert({ proposal_id: existing!.id, version, content, instructions, created_by: user.id }) : Promise.resolve();
+    const liveUpdate = (content: any) => {
+      const plan = plansOf(content);
+      return {
+        content, title: content?.titulo ?? existing!.title, version: (existing!.version ?? 1) + 1,
+        monthly_value: plan?.mensal ?? existing!.monthly_value, setup_value: plan?.implantacao ?? existing!.setup_value,
+        draft_content: null, draft_instructions: null, draft_created_at: null, updated_at: new Date().toISOString(),
+      };
+    };
+
+    if (action === "publish_draft") {
+      if (!existing!.draft_content) return json({ error: "Não há ajuste para publicar." }, 400);
+      await saveHistory(existing!.content, existing!.version ?? 1, null);
+      const { data, error } = await admin.from("proposals").update(liveUpdate(existing!.draft_content)).eq("id", existing!.id).select("*").single();
+      if (error) return json({ error: "Erro ao publicar o ajuste." }, 500);
+      return json({ proposal: data });
+    }
+    if (action === "discard_draft") {
+      const { data, error } = await admin.from("proposals").update({ draft_content: null, draft_instructions: null, draft_created_at: null }).eq("id", existing!.id).select("*").single();
+      if (error) return json({ error: "Erro ao descartar." }, 500);
+      return json({ proposal: data });
+    }
+    if (action === "restore") {
+      const { data: v } = await admin.from("proposal_versions").select("*").eq("id", String(body.version_id || "")).eq("proposal_id", existing!.id).maybeSingle();
+      if (!v) return json({ error: "Versão não encontrada." }, 404);
+      if (existing!.status === "draft") {
+        await saveHistory(existing!.content, existing!.version ?? 1, null);
+        const { data, error } = await admin.from("proposals").update(liveUpdate(v.content)).eq("id", existing!.id).select("*").single();
+        if (error) return json({ error: "Erro ao voltar a versão." }, 500);
+        return json({ proposal: data });
+      }
+      const { data, error } = await admin.from("proposals").update({
+        draft_content: v.content, draft_instructions: `Voltar para a versão ${v.version}`, draft_created_at: new Date().toISOString(),
+      }).eq("id", existing!.id).select("*").single();
+      if (error) return json({ error: "Erro ao voltar a versão." }, 500);
+      return json({ proposal: data });
+    }
+    const published = action === "revise" && existing!.status !== "draft";
+    const baseContent = published ? (existing!.draft_content ?? existing!.content) : existing?.content;
 
     const apiKey = Deno.env.get("ANTHROPIC_API_KEY");
     if (!apiKey) return json({ error: "Chave do Claude não configurada (ANTHROPIC_API_KEY)." }, 500);
@@ -112,7 +159,7 @@ Deno.serve(async (req) => {
     const info = {
       cliente: prospect, moeda: currency,
       valor_mensal_informado: monthly, valor_implantacao_informado: setup,
-      proposta_anterior: existing?.content ?? null,
+      proposta_anterior: baseContent ?? null,
     };
     const content: unknown[] = [];
     if (pdf) content.push({ type: "document", source: { type: "base64", media_type: "application/pdf", data: pdf } });
@@ -133,7 +180,15 @@ Deno.serve(async (req) => {
     if (!result?.abertura) return json({ error: "O Claude não devolveu a proposta. Tente de novo." }, 502);
 
     const mainPlan = (result.planos ?? []).find((p: any) => p.destaque) ?? result.planos?.[0];
+    if (published) {
+      const { data, error } = await admin.from("proposals").update({
+        draft_content: result, draft_instructions: str(body.instructions, 8000) || null, draft_created_at: new Date().toISOString(), model: out.model ?? MODEL,
+      }).eq("id", existing!.id).select("*").single();
+      if (error) return json({ error: "Erro ao salvar o ajuste." }, 500);
+      return json({ proposal: data, pending: true });
+    }
     if (action === "revise") {
+      await saveHistory(existing!.content, existing!.version ?? 1, null);
       const { data, error } = await admin.from("proposals").update({
         content: result, title: result.titulo, version: (existing!.version ?? 1) + 1, model: out.model ?? MODEL,
         monthly_value: mainPlan?.mensal ?? existing!.monthly_value, setup_value: mainPlan?.implantacao ?? existing!.setup_value,

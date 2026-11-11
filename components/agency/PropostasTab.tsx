@@ -3,11 +3,12 @@ import { supabase, useAuth } from '../../lib/supabase';
 import { getAppUrl } from '../../lib/appUrl';
 import { formatMoney } from '../../lib/money';
 import dayjs from 'dayjs';
-import { ExternalLink, Copy, Eye, Clock, MessageCircle, Monitor, Smartphone, ChevronDown, Plus, Sparkles, Send, Trash2, Loader2, X } from 'lucide-react';
+import { ExternalLink, Copy, Eye, Clock, MessageCircle, Monitor, Smartphone, ChevronDown, Plus, Sparkles, Send, Trash2, Loader2, X, History, RotateCcw } from 'lucide-react';
 import { callFunction } from '../../lib/supabase';
 import { NewProposalModal } from '../proposals/NewProposalModal';
 
-type Proposal = { id: string; slug: string; prospect_name: string; title: string | null; whatsapp?: string | null; language?: string | null; version?: number; content?: any; monthly_value: number | null; setup_value: number | null; currency: string | null; status: string | null; created_at: string };
+type Proposal = { id: string; slug: string; prospect_name: string; title: string | null; whatsapp?: string | null; language?: string | null; version?: number; content?: any; draft_content?: any; draft_instructions?: string | null; draft_created_at?: string | null; monthly_value: number | null; setup_value: number | null; currency: string | null; status: string | null; created_at: string };
+type Version = { id: string; version: number; created_at: string };
 type Ev = { id: string; proposal_id: string; event_type: string; session_id: string | null; seconds: number | null; user_agent: string | null; created_at: string };
 
 /** Navegador e aparelho a partir do user agent (sem biblioteca). */
@@ -34,6 +35,8 @@ export const PropostasTab: React.FC = () => {
   const [adjustText, setAdjustText] = useState('');
   const [busy, setBusy] = useState<string | null>(null);
   const [shareFor, setShareFor] = useState<Proposal | null>(null);
+  const [historyFor, setHistoryFor] = useState<Proposal | null>(null);
+  const [versions, setVersions] = useState<Version[] | null>(null);
   const [reload, setReload] = useState(0);
   const notify = (m: string) => { setToast(m); setTimeout(() => setToast(''), 2200); };
 
@@ -57,10 +60,39 @@ export const PropostasTab: React.FC = () => {
   const askAdjust = async () => {
     if (!adjustFor || !adjustText.trim()) return;
     setBusy(`adj-${adjustFor.id}`);
-    const { error } = await callFunction('generate-proposal', { action: 'revise', proposal_id: adjustFor.id, instructions: adjustText.trim() });
+    const { data, error } = await callFunction<{ pending?: boolean }>('generate-proposal', { action: 'revise', proposal_id: adjustFor.id, instructions: adjustText.trim() });
     setBusy(null);
     if (error) { notify(error); return; }
-    setAdjustFor(null); setAdjustText(''); setReload(r => r + 1); notify('Nova versão pronta. Clique em Ver para conferir.');
+    setAdjustFor(null); setAdjustText(''); setReload(r => r + 1);
+    notify(data?.pending ? 'Ajuste pronto. Clique em Ver ajuste para conferir.' : 'Nova versão pronta. Clique em Ver para conferir.');
+  };
+  const draftAction = async (p: Proposal, action: 'publish_draft' | 'discard_draft') => {
+    const ok = action === 'publish_draft'
+      ? window.confirm('Publicar o ajuste? O link do cliente passa a mostrar a versão nova.')
+      : window.confirm('Descartar este ajuste? O cliente continua vendo a versão atual.');
+    if (!ok) return;
+    setBusy(`${action}-${p.id}`);
+    const { error } = await callFunction('generate-proposal', { action, proposal_id: p.id });
+    setBusy(null);
+    if (error) { notify(error); return; }
+    setReload(r => r + 1);
+    notify(action === 'publish_draft' ? 'Ajuste publicado. O link continua o mesmo.' : 'Ajuste descartado.');
+  };
+  const openHistory = async (p: Proposal) => {
+    setHistoryFor(p); setVersions(null);
+    const { data } = await supabase.from('proposal_versions').select('id, version, created_at').eq('proposal_id', p.id).order('version', { ascending: false });
+    setVersions((data as Version[]) || []);
+  };
+  const restore = async (v: Version) => {
+    if (!historyFor) return;
+    const isDraft = historyFor.status === 'draft';
+    if (!window.confirm(isDraft ? `Voltar para a versão ${v.version}?` : `Voltar para a versão ${v.version}? Ela vira um ajuste para você revisar antes de publicar.`)) return;
+    setBusy(`restore-${v.id}`);
+    const { error } = await callFunction('generate-proposal', { action: 'restore', proposal_id: historyFor.id, version_id: v.id });
+    setBusy(null);
+    if (error) { notify(error); return; }
+    setHistoryFor(null); setReload(r => r + 1);
+    notify(isDraft ? 'Versão restaurada.' : 'Essa versão virou um ajuste para revisar. Publique quando quiser.');
   };
 
   useEffect(() => {
@@ -113,6 +145,7 @@ export const PropostasTab: React.FC = () => {
                   <div className="min-w-0 flex-1 basis-60">
                     <p className="font-semibold text-gray-900 truncate">{p.prospect_name}
                       {p.status === 'draft' && <span className="ml-2 align-middle text-[11px] font-semibold px-2 py-0.5 rounded-full bg-amber-50 text-amber-800">Rascunho{p.version && p.version > 1 ? ` v${p.version}` : ''}</span>}
+                      {p.status !== 'draft' && p.draft_content && <span className="ml-2 align-middle text-[11px] font-semibold px-2 py-0.5 rounded-full bg-sky-50 text-sky-800">Ajuste para revisar</span>}
                     </p>
                     <p className="text-xs text-gray-500">{p.title || 'Proposta'} · criada em {dayjs(p.created_at).format('DD/MM/YYYY')}
                       {p.monthly_value ? ` · ${formatMoney(p.monthly_value, p.currency)}/mês` : ''}</p>
@@ -130,7 +163,13 @@ export const PropostasTab: React.FC = () => {
                         <button onClick={() => remove(p)} className="p-2 rounded-lg text-gray-400 hover:text-rose-600 hover:bg-rose-50" aria-label="Excluir rascunho"><Trash2 size={15} /></button>
                       </>
                     ) : (
-                      <button onClick={() => (p.content ? setShareFor(p) : copy(p.slug))} className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-gray-200 text-xs font-semibold text-gray-700"><Copy size={14} /> Link</button>
+                      <>
+                        {p.content && <button disabled={!!busy} onClick={() => { setAdjustFor(p); setAdjustText(''); }} className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-gray-200 text-xs font-semibold text-gray-700"><Sparkles size={14} /> Pedir ajuste</button>}
+                        <button onClick={() => (p.content ? setShareFor(p) : copy(p.slug))} className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-gray-200 text-xs font-semibold text-gray-700"><Copy size={14} /> Link</button>
+                      </>
+                    )}
+                    {p.content && (
+                      <button onClick={() => openHistory(p)} className="p-2 rounded-lg text-gray-500 hover:bg-gray-100" aria-label="Versões anteriores" title="Versões anteriores"><History size={16} /></button>
                     )}
                     {s.opens.length > 0 && (
                       <button onClick={() => setOpen(isOpen ? null : p.id)} className="p-2 rounded-lg text-gray-500 hover:bg-gray-100" aria-label="Ver cada abertura">
@@ -139,6 +178,16 @@ export const PropostasTab: React.FC = () => {
                     )}
                   </div>
                 </div>
+                {p.status !== 'draft' && p.draft_content && (
+                  <div className="mx-5 mb-4 -mt-1 p-3 rounded-xl bg-sky-50 border border-sky-100 flex flex-wrap items-center gap-2">
+                    <p className="text-xs text-sky-900 min-w-0 flex-1 basis-56 truncate">
+                      <span className="font-semibold">Ajuste ainda não publicado</span>{p.draft_instructions ? `: ${p.draft_instructions}` : ''}
+                    </p>
+                    <a href={`/p/${p.slug}?preview&draft=1`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white border border-sky-200 text-xs font-semibold text-sky-900"><ExternalLink size={13} /> Ver ajuste</a>
+                    <button disabled={!!busy} onClick={() => draftAction(p, 'publish_draft')} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gray-900 text-white text-xs font-semibold disabled:opacity-50">{busy === `publish_draft-${p.id}` ? <Loader2 size={13} className="animate-spin" /> : <Send size={13} />} Publicar ajuste</button>
+                    <button disabled={!!busy} onClick={() => draftAction(p, 'discard_draft')} className="px-2 py-1.5 text-xs font-semibold text-gray-500 hover:text-rose-600 disabled:opacity-50">{busy === `discard_draft-${p.id}` ? 'Descartando...' : 'Descartar'}</button>
+                  </div>
+                )}
                 {isOpen && (
                   <div className="border-t border-gray-100 overflow-x-auto">
                     <table className="w-full text-sm">
@@ -174,7 +223,11 @@ export const PropostasTab: React.FC = () => {
         <div className="fixed inset-0 z-[80] bg-black/40 flex items-end sm:items-center justify-center p-0 sm:p-6" onClick={() => !busy && setAdjustFor(null)}>
           <div className="bg-white w-full max-w-lg rounded-t-3xl sm:rounded-3xl p-6 space-y-3" onClick={e => e.stopPropagation()}>
             <div className="flex items-center"><p className="font-bold text-gray-900">Ajustar a proposta para {adjustFor.prospect_name}</p><button onClick={() => setAdjustFor(null)} className="ml-auto p-2 rounded-xl hover:bg-gray-100 text-gray-500"><X size={18} /></button></div>
-            <p className="text-xs text-gray-500">O Claude parte desta versão e muda só o que você pedir.</p>
+            <p className="text-xs text-gray-500">
+              {adjustFor.status === 'draft' ? 'O Claude parte desta versão e muda só o que você pedir.'
+                : adjustFor.draft_content ? 'O Claude parte do ajuste que ainda não foi publicado. O cliente continua vendo a versão atual.'
+                : 'O cliente continua vendo a versão atual. Você confere o ajuste e só depois publica.'}
+            </p>
             <textarea rows={5} autoFocus value={adjustText} onChange={e => setAdjustText(e.target.value)} placeholder="Ex.: tirar o plano mais barato, mensalidade de R$ 2.500, falar mais do Instagram"
               className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-black/5" />
             <div className="flex justify-end">
@@ -182,6 +235,29 @@ export const PropostasTab: React.FC = () => {
                 {busy ? <Loader2 size={15} className="animate-spin" /> : <Sparkles size={15} />} {busy ? 'Ajustando (cerca de 1 minuto)...' : 'Gerar versão ajustada'}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {historyFor && (
+        <div className="fixed inset-0 z-[80] bg-black/40 flex items-end sm:items-center justify-center p-0 sm:p-6" onClick={() => !busy && setHistoryFor(null)}>
+          <div className="bg-white w-full max-w-lg rounded-t-3xl sm:rounded-3xl p-6 space-y-3" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center"><p className="font-bold text-gray-900">Versões anteriores · {historyFor.prospect_name}</p><button onClick={() => setHistoryFor(null)} className="ml-auto p-2 rounded-xl hover:bg-gray-100 text-gray-500"><X size={18} /></button></div>
+            <p className="text-xs text-gray-500">Versão atual: {historyFor.version || 1}.{historyFor.status !== 'draft' ? ' Ao voltar uma versão, ela vira um ajuste para você revisar antes de publicar.' : ''}</p>
+            {versions === null ? <p className="text-sm text-gray-400">Carregando...</p> : versions.length === 0 ? (
+              <p className="text-sm text-gray-500 py-4 text-center">Ainda não há versões anteriores.</p>
+            ) : (
+              <ul className="divide-y divide-gray-100 max-h-80 overflow-y-auto">
+                {versions.map(v => (
+                  <li key={v.id} className="py-2.5 flex items-center gap-3">
+                    <p className="text-sm text-gray-800 flex-1">Versão {v.version} <span className="text-gray-400">· {dayjs(v.created_at).format('DD/MM/YYYY [às] HH:mm')}</span></p>
+                    <button disabled={!!busy} onClick={() => restore(v)} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-200 text-xs font-semibold text-gray-700 disabled:opacity-50">
+                      {busy === `restore-${v.id}` ? <Loader2 size={13} className="animate-spin" /> : <RotateCcw size={13} />} Voltar para esta
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
         </div>
       )}
