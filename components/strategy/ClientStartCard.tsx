@@ -138,7 +138,7 @@ export const ClientStartCard: React.FC<{
           <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 tracking-tight">
             {firstName ? t(`Olá, ${firstName}!`, `Hi, ${firstName}!`, `¡Hola, ${firstName}!`) : t('Olá!', 'Hi!', '¡Hola!')}
           </h1>
-          <p className="text-gray-500 mt-1">{t('Aqui você acompanha o começo do trabalho.', 'Here you can follow how we are getting started.', 'Aquí sigues el comienzo del trabajo.')}</p>
+          <p className="text-gray-500 mt-1">{t('Aqui você acompanha o começo do trabalho.', 'Here you can follow how we are getting started.', 'Aquí acompañas el inicio del trabajo.')}</p>
         </div>
       )}
 

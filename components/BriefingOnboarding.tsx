@@ -322,7 +322,7 @@ export const BRIEFING_QUESTIONS: Record<string, { title: string, questions: any[
         optionsUsd: ['Up to $3,000/mo', '$3,000 to $6,000/mo', '$6,000 to $10,000/mo', '$10,000 to $15,000/mo', 'Over $15,000/mo'],
         help: 'Qual é o poder aquisitivo estimado de quem compra a oferta?' },
       { key: 'localizacao', fromSignup: true, label: 'Localização / Abrangência Geográfica', type: 'select', options: ['Local (bairro/cidade)', 'Regional (cidades da região)', 'Estadual', 'Nacional', 'Internacional'], help: 'Qual o alcance geográfico da sua empresa?' },
-      { key: 'profissao', label: 'Profissão / Cargo do Público', type: 'textarea', placeholder: 'Ex: Médicos, advogados, donos de pequenas empresas...', help: 'Quem costuma comprar o seu produto ou serviço?' },
+      { key: 'profissao', optional: true, label: 'Profissão / Cargo do Público', type: 'textarea', placeholder: 'Ex: Médicos, advogados, donos de pequenas empresas...', help: 'Quem costuma comprar o seu produto ou serviço?' },
       { key: 'ticket_medio', fromSignup: true, label: 'Ticket Médio do Produto/Serviço', type: 'select',
         options: ['Até R$ 100', 'R$ 100 a R$ 500', 'R$ 500 a R$ 2.000', 'R$ 2.000 a R$ 10.000', 'Acima de R$ 10.000'],
         optionsUsd: ['Up to $50', '$50 to $200', '$200 to $500', '$500 to $2,000', 'Over $2,000'],
