@@ -363,8 +363,8 @@ export const PublicClientOnboarding: React.FC<PublicClientOnboardingProps> = ({ 
                       <p className="text-[11px] text-gray-400 mt-1">{t('Com este e-mail você vai entrar no seu portal.', "You'll use this email to sign in to your portal.", 'Con este correo entrarás a tu portal.')}</p>
                     </div>
                     <div><label className={labelCls}>{t('WhatsApp *', 'Phone / WhatsApp *', 'WhatsApp *')}</label><input className={fieldCls} value={company.phone} onChange={e => setCompany({ ...company, phone: e.target.value })} /></div>
-                    <div><label className={labelCls}>{t('Site (se tiver)', 'Website (if any)', 'Sitio web (si tienes)')}</label><input className={fieldCls} value={company.website} placeholder="www.suaempresa.com" onChange={e => setCompany({ ...company, website: e.target.value })} /></div>
-                    <div><label className={labelCls}>Instagram</label><input className={fieldCls} value={company.instagram_url} placeholder="@suaempresa" onChange={e => setCompany({ ...company, instagram_url: e.target.value })} /></div>
+                    <div><label className={labelCls}>{t('Site (se tiver)', 'Website (if any)', 'Sitio web (si tienes)')}</label><input className={fieldCls} value={company.website} placeholder={t('www.suaempresa.com', 'www.yourcompany.com', 'www.tuempresa.com')} onChange={e => setCompany({ ...company, website: e.target.value })} /></div>
+                    <div><label className={labelCls}>Instagram</label><input className={fieldCls} value={company.instagram_url} placeholder={t('@suaempresa', '@yourcompany', '@tuempresa')} onChange={e => setCompany({ ...company, instagram_url: e.target.value })} /></div>
                   </div>
                   <div className="mt-8 flex items-center justify-between gap-3">{backBtn(0)}{primaryBtn(<>{t('Continuar', 'Continue', 'Continuar')} <ArrowRight size={16} /></>, { type: 'submit' })}</div>
                 </form>
