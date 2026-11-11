@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { getAppUrl } from '../../lib/appUrl';
-import { UserCog, Plus, Loader2, KeyRound, Copy, Check, Link2, ShieldCheck, History, UserX, UserCheck, X, Pencil } from 'lucide-react';
+import { UserCog, Plus, Loader2, KeyRound, Copy, Check, Link2, ShieldCheck, UserX, UserCheck, X, Pencil, Eye, EyeOff, RefreshCw, Crown, Briefcase, Users, MessageCircle } from 'lucide-react';
+import { ActivityHistory } from './ActivityHistory';
 import { supabase, callFunction, useAuth, PermissionKey } from '../../lib/supabase';
 import { AgencyBrandCard } from './AgencyBrandCard';
 import dayjs from 'dayjs';
@@ -17,16 +18,6 @@ interface Member {
   is_active: boolean;
 }
 
-interface LogRow {
-  id: number;
-  actor_name: string | null;
-  action: string;
-  entity: string;
-  entity_id: string | null;
-  client_id: string | null;
-  details: any;
-  created_at: string;
-}
 
 const PERMS: { key: PermissionKey; label: string; hint: string }[] = [
   { key: 'view_finance', label: 'Ver financeiro e metas', hint: 'Receitas, despesas, MRR' },
@@ -63,16 +54,57 @@ const genPassword = () => {
   return Array.from(crypto.getRandomValues(new Uint8Array(10))).map(b => chars[b % chars.length]).join('');
 };
 
-const ENTITY_LABEL: Record<string, string> = {
-  clients: 'cliente', contract_forms: 'contrato', agency_billing: 'faturamento', agency_expenses: 'despesa',
-  agency_members: 'equipe', client_members: 'login de cliente', client_credentials: 'cofre de senhas',
+const ROLE_INFO: { role: Member['role']; title: string; text: string; icon: any }[] = [
+  { role: 'master', title: 'Administrador', text: 'Vê e faz tudo, inclusive financeiro, equipe e logins.', icon: Crown },
+  { role: 'partner', title: 'Sócio', text: 'Comercial e financeiro conforme as permissões que você marcar.', icon: Briefcase },
+  { role: 'team', title: 'Equipe', text: 'Operação do dia a dia. Financeiro só se você liberar.', icon: Users },
+];
+
+const RolePicker: React.FC<{ value: Member['role']; onChange: (r: Member['role']) => void; allowMaster: boolean; disabled?: boolean }> = ({ value, onChange, allowMaster, disabled }) => (
+  <div className="grid gap-2 sm:grid-cols-3">
+    {ROLE_INFO.filter(r => allowMaster || r.role !== 'master').map(r => {
+      const active = value === r.role;
+      const Icon = r.icon;
+      return (
+        <button key={r.role} type="button" disabled={disabled} onClick={() => onChange(r.role)}
+          className={`relative text-left rounded-2xl border p-4 transition-all disabled:opacity-60 ${active ? 'border-brand-dark bg-brand-dark/[0.03] ring-1 ring-brand-dark' : 'border-gray-200 hover:border-gray-300 bg-white'}`}>
+          {active && <span className="absolute top-3 right-3 w-5 h-5 rounded-full bg-brand-dark text-white flex items-center justify-center"><Check size={12} /></span>}
+          <Icon size={18} className={active ? 'text-brand-dark' : 'text-gray-400'} />
+          <p className="font-bold text-sm text-brand-dark mt-2">{r.title}</p>
+          <p className="text-[11px] text-gray-500 leading-snug mt-0.5">{r.text}</p>
+        </button>
+      );
+    })}
+  </div>
+);
+
+const PasswordField: React.FC<{ value: string; onChange: (v: string) => void }> = ({ value, onChange }) => {
+  const [show, setShow] = useState(true);
+  const [ok, setOk] = useState(false);
+  return (
+    <div className="space-y-1.5">
+      <div className="flex gap-2">
+        <div className="relative flex-1">
+          <input value={value} onChange={e => onChange(e.target.value)} type={show ? 'text' : 'password'}
+            className={`${INPUT_CLS} font-mono pr-11`} autoComplete="new-password" />
+          <button type="button" onClick={() => setShow(v => !v)} title={show ? 'Esconder' : 'Mostrar'}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700">{show ? <EyeOff size={16} /> : <Eye size={16} />}</button>
+        </div>
+        <button type="button" onClick={() => onChange(genPassword())} title="Gerar outra"
+          className="px-3 border border-gray-200 rounded-xl text-gray-600 hover:bg-gray-50"><RefreshCw size={15} /></button>
+        <button type="button" onClick={() => { navigator.clipboard.writeText(value); setOk(true); setTimeout(() => setOk(false), 1500); }} title="Copiar"
+          className="px-3 border border-gray-200 rounded-xl text-gray-600 hover:bg-gray-50">{ok ? <Check size={15} className="text-emerald-600" /> : <Copy size={15} />}</button>
+      </div>
+      <p className={`text-[11px] ${value.length > 0 && value.length < 8 ? 'text-red-600' : 'text-gray-400'}`}>Mínimo de 8 caracteres.</p>
+    </div>
+  );
 };
-const ACTION_LABEL: Record<string, string> = { insert: 'criou', update: 'alterou', delete: 'excluiu', view_as: 'visualizou como' };
+
+const isEmail = (v: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim());
 
 export const TeamTab: React.FC = () => {
   const { agencyId, currentMembership, userId, isMaster, can } = useAuth();
   const [members, setMembers] = useState<Member[]>([]);
-  const [logs, setLogs] = useState<LogRow[]>([]);
   const [clientNames, setClientNames] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -82,9 +114,14 @@ export const TeamTab: React.FC = () => {
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<Member | null>(null);
   const [draft, setDraft] = useState<{ display_name: string; role: Member['role']; permissions: Partial<Record<PermissionKey, boolean>> } | null>(null);
+  const [newPwd, setNewPwd] = useState<string | null>(null);
+  const [pwdDone, setPwdDone] = useState<string | null>(null);
+  const [formPerms, setFormPerms] = useState<Partial<Record<PermissionKey, boolean>>>({ ...ROLE_DEFAULTS.partner });
 
   const openEdit = (m: Member) => {
     setEditing(m);
+    setNewPwd(null);
+    setPwdDone(null);
     setDraft({
       display_name: m.display_name || '',
       role: m.role,
@@ -110,13 +147,11 @@ export const TeamTab: React.FC = () => {
   const load = async () => {
     if (!agencyId) return;
     setLoading(true);
-    const [{ data: m }, { data: l }, { data: c }] = await Promise.all([
+    const [{ data: m }, { data: c }] = await Promise.all([
       supabase.from('agency_members').select('*').eq('agency_id', agencyId).order('created_at'),
-      supabase.from('activity_log').select('*').eq('agency_id', agencyId).order('created_at', { ascending: false }).limit(60),
       supabase.from('clients').select('id, name').eq('agency_id', agencyId),
     ]);
     setMembers((m as Member[]) || []);
-    setLogs((l as LogRow[]) || []);
     setClientNames(Object.fromEntries(((c as any[]) || []).map(x => [x.id, x.name])));
     setLoading(false);
   };
@@ -149,44 +184,40 @@ export const TeamTab: React.FC = () => {
     updateMember(m, { permissions: next });
   };
 
-  const resetPassword = async (m: Member) => {
-    if (!window.confirm(`Gerar uma nova senha provisória para ${m.display_name || m.email}?`)) return;
-    const p = genPassword();
-    setBusy(true);
-    const { error } = await callFunction('admin-users', { action: 'reset_member_password', member_id: m.id, password: p });
+  const accessMessage = (name: string | null, email: string, password: string, isNew: boolean) =>
+    `Olá${name ? `, ${name.split(' ')[0]}` : ''}! ${isNew ? `Seu acesso à Bolsa (${currentMembership?.agency_name}) está pronto.` : 'Sua senha da Bolsa foi trocada.'}\n\nAcesse: ${origin}\nE-mail: ${email}\nSenha: ${password}`;
+
+  const saveNewPassword = async () => {
+    if (!editing || !newPwd) return;
+    if (newPwd.length < 8) return setMsg({ type: 'err', text: 'A senha precisa de pelo menos 8 caracteres.' });
+    setBusy(true); setMsg(null);
+    const { error } = await callFunction('admin-users', { action: 'reset_member_password', member_id: editing.id, password: newPwd });
     setBusy(false);
     if (error) return setMsg({ type: 'err', text: error });
-    setShare(`Seu acesso à Bolsa foi atualizado.\n\nAcesse: ${origin}\nE-mail: ${m.email}\nSenha provisória: ${p}`);
+    setPwdDone(newPwd);
+    setNewPwd(null);
   };
 
   const create = async () => {
     setMsg(null); setShare(null);
-    if (!form.email.trim()) return setMsg({ type: 'err', text: 'Informe o e-mail.' });
+    if (!isEmail(form.email)) return setMsg({ type: 'err', text: 'Informe um e-mail válido.' });
+    if (form.password.length < 8) return setMsg({ type: 'err', text: 'A senha precisa de pelo menos 8 caracteres.' });
     setBusy(true);
     const { data, error } = await callFunction<{ user_created: boolean }>('admin-users', {
       action: 'create_member', agency_id: agencyId, email: form.email.trim(), password: form.password,
-      display_name: form.display_name.trim() || null, role: form.role, permissions: ROLE_DEFAULTS[form.role],
+      display_name: form.display_name.trim() || null, role: form.role, permissions: form.role === 'master' ? ROLE_DEFAULTS.master : formPerms,
     });
     setBusy(false);
     if (error) return setMsg({ type: 'err', text: error });
     if (data?.user_created) {
-      setShare(`Olá${form.display_name ? `, ${form.display_name.split(' ')[0]}` : ''}! Seu acesso à Bolsa (${currentMembership?.agency_name}) está pronto.\n\nAcesse: ${origin}\nE-mail: ${form.email.trim()}\nSenha provisória: ${form.password}`);
+      setShare(accessMessage(form.display_name.trim() || null, form.email.trim(), form.password, true));
     } else {
       setMsg({ type: 'ok', text: 'Este e-mail já tinha login e agora também acessa esta agência com a mesma senha.' });
     }
     setForm({ email: '', display_name: '', role: 'partner', password: genPassword() });
+    setFormPerms({ ...ROLE_DEFAULTS.partner });
     setShowForm(false);
     load();
-  };
-
-  const describeLog = (l: LogRow) => {
-    const who = l.actor_name || 'Alguém';
-    const act = ACTION_LABEL[l.action] || l.action;
-    const ent = ENTITY_LABEL[l.entity] || l.entity;
-    const cname = l.client_id ? clientNames[l.client_id] : null;
-    const fields = l.details && typeof l.details === 'object' ? Object.keys(l.details).slice(0, 4).join(', ') : '';
-    if (l.action === 'view_as') return `${who} visualizou o painel como ${cname || 'cliente'}`;
-    return `${who} ${act} ${ent}${cname ? ` · ${cname}` : ''}${fields ? ` (${fields})` : ''}`;
   };
 
   if (!agencyId) return null;
@@ -201,46 +232,92 @@ export const TeamTab: React.FC = () => {
           </div>
           <p className="text-sm text-gray-500 mt-1">Quem acessa a {currentMembership?.agency_name}, o que cada um pode fazer e o histórico de alterações.</p>
         </div>
-        <button onClick={() => setShowForm(v => !v)}
-          className="inline-flex items-center gap-2 px-4 py-2.5 bg-brand-dark text-white rounded-xl text-sm font-bold self-start">
-          {showForm ? <X size={16} /> : <Plus size={16} />} {showForm ? 'Fechar' : 'Adicionar pessoa'}
-        </button>
+        {can('manage_team') && (
+          <button onClick={() => { setShowForm(true); setShare(null); setMsg(null); }}
+            className="inline-flex items-center gap-2 px-4 py-2.5 bg-brand-dark text-white rounded-xl text-sm font-bold self-start">
+            <Plus size={16} /> Adicionar pessoa
+          </button>
+        )}
       </div>
 
       <AgencyBrandCard />
 
       {showForm && (
-        <div className="bg-white rounded-3xl border border-black/[0.04] shadow-sm p-6 space-y-4">
-          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
-            <input value={form.display_name} onChange={e => setForm(f => ({ ...f, display_name: e.target.value }))} placeholder="Nome"
-              className="px-3 py-2.5 border border-gray-200 rounded-xl text-sm" />
-            <input value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} placeholder="E-mail" type="email"
-              className="px-3 py-2.5 border border-gray-200 rounded-xl text-sm" />
-            <select value={form.role} onChange={e => setForm(f => ({ ...f, role: e.target.value as Member['role'] }))}
-              className="px-3 py-2.5 border border-gray-200 rounded-xl text-sm bg-white">
-              <option value="partner">Sócio</option>
-              <option value="team">Equipe</option>
-              {isMaster && <option value="master">Administrador</option>}
-            </select>
-            <input value={form.password} onChange={e => setForm(f => ({ ...f, password: e.target.value }))} placeholder="Senha provisória"
-              className="px-3 py-2.5 border border-gray-200 rounded-xl text-sm font-mono" />
+        <div className="fixed inset-0 z-[120] bg-black/40 flex items-end sm:items-center justify-center p-0 sm:p-6" onClick={() => !busy && setShowForm(false)}>
+          <div className="bg-white w-full sm:max-w-xl rounded-t-3xl sm:rounded-3xl shadow-2xl max-h-[92vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+            <div className="p-6 border-b border-gray-100 flex items-center justify-between">
+              <div>
+                <h3 className="font-bold text-brand-dark text-lg">Adicionar pessoa</h3>
+                <p className="text-xs text-gray-500">Cria o login de alguém da {currentMembership?.agency_name}.</p>
+              </div>
+              <button onClick={() => setShowForm(false)} className="p-2 rounded-xl hover:bg-gray-50 text-gray-400"><X size={18} /></button>
+            </div>
+            <div className="p-6 space-y-5">
+              <div className="grid sm:grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <label className={LABEL_CLS}>Nome</label>
+                  <input value={form.display_name} onChange={e => setForm(f => ({ ...f, display_name: e.target.value }))} placeholder="Ex.: Sarah Camelo" className={INPUT_CLS} />
+                </div>
+                <div className="space-y-1.5">
+                  <label className={LABEL_CLS}>E-mail de acesso</label>
+                  <input value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} placeholder="nome@cangurudigital.com.br" type="email" className={INPUT_CLS} />
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <label className={LABEL_CLS}>Papel</label>
+                <RolePicker value={form.role} allowMaster={isMaster}
+                  onChange={role => { setForm(f => ({ ...f, role })); setFormPerms({ ...ROLE_DEFAULTS[role] }); }} />
+              </div>
+              {form.role !== 'master' && (
+                <div className="space-y-1.5">
+                  <label className={LABEL_CLS}>Permissões</label>
+                  <div className="rounded-2xl border border-gray-100 divide-y divide-gray-50">
+                    {PERMS.map(p => (
+                      <label key={p.key} className="flex items-center justify-between gap-3 px-4 py-2.5 cursor-pointer">
+                        <span className="min-w-0">
+                          <span className="text-sm text-gray-800 font-medium">{p.label}</span>
+                          {p.hint && <span className="block text-[11px] text-gray-400">{p.hint}</span>}
+                        </span>
+                        <input type="checkbox" checked={!!formPerms[p.key]} onChange={() => setFormPerms(fp => ({ ...fp, [p.key]: !fp[p.key] }))}
+                          className="w-4 h-4 accent-brand-dark shrink-0" />
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              )}
+              <div className="space-y-1.5">
+                <label className={LABEL_CLS}>Senha de acesso</label>
+                <PasswordField value={form.password} onChange={v => setForm(f => ({ ...f, password: v }))} />
+                <p className="text-[11px] text-gray-400">Você pode trocar depois em Editar pessoa.</p>
+              </div>
+              {msg?.type === 'err' && <p className="text-sm font-bold text-red-600">{msg.text}</p>}
+            </div>
+            <div className="p-6 border-t border-gray-100 flex gap-3">
+              <button onClick={() => setShowForm(false)} className="flex-1 py-3 border border-gray-200 rounded-xl text-sm font-bold text-gray-600">Cancelar</button>
+              <button disabled={busy} onClick={create} className="flex-1 py-3 bg-brand-dark text-white rounded-xl text-sm font-bold disabled:opacity-60 inline-flex items-center justify-center gap-2">
+                {busy ? <Loader2 size={15} className="animate-spin" /> : <Plus size={15} />} Criar acesso
+              </button>
+            </div>
           </div>
-          <p className="text-xs text-gray-500">As permissões começam pelo padrão do papel e você ajusta depois, pessoa por pessoa.</p>
-          <button disabled={busy} onClick={create} className="inline-flex items-center gap-2 px-4 py-2.5 bg-brand-dark text-white rounded-xl text-sm font-bold disabled:opacity-60">
-            {busy ? <Loader2 size={15} className="animate-spin" /> : <Plus size={15} />} Criar acesso
-          </button>
         </div>
       )}
 
-      {msg && <p className={`text-sm font-bold ${msg.type === 'ok' ? 'text-emerald-700' : 'text-red-600'}`}>{msg.text}</p>}
+      {msg && !showForm && !editing && <p className={`text-sm font-bold ${msg.type === 'ok' ? 'text-emerald-700' : 'text-red-600'}`}>{msg.text}</p>}
 
       {share && (
         <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-5 space-y-2">
           <p className="text-xs font-bold text-emerald-800">Mensagem pronta para enviar</p>
           <pre className="whitespace-pre-wrap text-sm text-emerald-900 font-sans">{share}</pre>
-          <button onClick={() => copy(share, 'share')} className="inline-flex items-center gap-1.5 px-3 py-2 bg-white border border-emerald-200 rounded-xl text-xs font-bold text-emerald-800">
-            {copied === 'share' ? <Check size={13} /> : <Copy size={13} />} Copiar
-          </button>
+          <div className="flex flex-wrap gap-2">
+            <button onClick={() => copy(share, 'share')} className="inline-flex items-center gap-1.5 px-3 py-2 bg-white border border-emerald-200 rounded-xl text-xs font-bold text-emerald-800">
+              {copied === 'share' ? <Check size={13} /> : <Copy size={13} />} Copiar mensagem
+            </button>
+            <a href={`https://wa.me/?text=${encodeURIComponent(share)}`} target="_blank" rel="noreferrer"
+              className="inline-flex items-center gap-1.5 px-3 py-2 bg-white border border-emerald-200 rounded-xl text-xs font-bold text-emerald-800">
+              <MessageCircle size={13} /> Abrir no WhatsApp
+            </a>
+            <button onClick={() => setShare(null)} className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-bold text-emerald-800/70">Fechar</button>
+          </div>
         </div>
       )}
 
@@ -282,9 +359,6 @@ export const TeamTab: React.FC = () => {
                   )}
                   {!isSelf && (
                     <>
-                      <button disabled={busy} onClick={() => resetPassword(m)} className="inline-flex items-center gap-1.5 px-3 py-2 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 hover:bg-slate-50">
-                        <KeyRound size={13} /> Nova senha
-                      </button>
                       <button disabled={busy} onClick={() => updateMember(m, { is_active: !m.is_active })} className="inline-flex items-center gap-1.5 px-3 py-2 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 hover:bg-slate-50">
                         {m.is_active ? <><UserX size={13} /> Desativar</> : <><UserCheck size={13} /> Reativar</>}
                       </button>
@@ -328,15 +402,8 @@ export const TeamTab: React.FC = () => {
               </div>
               <div className="space-y-1.5">
                 <label className={LABEL_CLS}>Papel</label>
-                <select value={draft.role} disabled={editing.user_id === userId}
-                  onChange={e => {
-                    const role = e.target.value as Member['role'];
-                    setDraft({ ...draft, role, permissions: { ...ROLE_DEFAULTS[role] } });
-                  }} className={INPUT_CLS}>
-                  <option value="partner">Sócio</option>
-                  <option value="team">Equipe</option>
-                  {isMaster && <option value="master">Administrador (acesso total)</option>}
-                </select>
+                <RolePicker value={draft.role} allowMaster={isMaster} disabled={editing.user_id === userId}
+                  onChange={role => setDraft({ ...draft, role, permissions: { ...ROLE_DEFAULTS[role] } })} />
               </div>
               {draft.role !== 'master' && (
                 <div className="space-y-4">
@@ -360,6 +427,39 @@ export const TeamTab: React.FC = () => {
                   ))}
                 </div>
               )}
+              <div className="space-y-2 pt-1">
+                <label className={LABEL_CLS}>Senha</label>
+                {pwdDone ? (
+                  <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 space-y-2">
+                    <p className="text-sm font-bold text-emerald-800">Senha trocada. A nova senha é:</p>
+                    <p className="font-mono text-base text-emerald-900 select-all">{pwdDone}</p>
+                    <div className="flex flex-wrap gap-2">
+                      <button onClick={() => copy(pwdDone, 'pwd')} className="inline-flex items-center gap-1.5 px-3 py-2 bg-white border border-emerald-200 rounded-xl text-xs font-bold text-emerald-800">
+                        {copied === 'pwd' ? <Check size={13} /> : <Copy size={13} />} Copiar senha
+                      </button>
+                      <button onClick={() => copy(accessMessage(editing.display_name, editing.email || '', pwdDone, false), 'pwdmsg')} className="inline-flex items-center gap-1.5 px-3 py-2 bg-white border border-emerald-200 rounded-xl text-xs font-bold text-emerald-800">
+                        {copied === 'pwdmsg' ? <Check size={13} /> : <Copy size={13} />} Copiar mensagem para a pessoa
+                      </button>
+                    </div>
+                  </div>
+                ) : newPwd !== null ? (
+                  <div className="rounded-2xl border border-gray-100 p-4 space-y-3">
+                    <PasswordField value={newPwd} onChange={setNewPwd} />
+                    <div className="flex gap-2">
+                      <button onClick={() => setNewPwd(null)} className="px-3 py-2 border border-gray-200 rounded-xl text-xs font-bold text-gray-600">Cancelar</button>
+                      <button disabled={busy} onClick={saveNewPassword} className="px-3 py-2 bg-brand-dark text-white rounded-xl text-xs font-bold disabled:opacity-60">
+                        {busy ? 'Salvando...' : 'Salvar nova senha'}
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <button onClick={() => setNewPwd(genPassword())} className="inline-flex items-center gap-1.5 px-3 py-2 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 hover:bg-slate-50">
+                    <KeyRound size={13} /> Definir nova senha
+                  </button>
+                )}
+                <p className="text-[11px] text-gray-400">Por segurança, a senha atual não pode ser vista. Defina uma nova quando precisar.</p>
+              </div>
+              {msg?.type === 'err' && <p className="text-sm font-bold text-red-600">{msg.text}</p>}
             </div>
             <div className="p-6 border-t border-gray-100 flex gap-3">
               <button onClick={() => setEditing(null)} className="flex-1 py-3 border border-gray-200 rounded-xl text-sm font-bold text-gray-600">Cancelar</button>
@@ -371,23 +471,7 @@ export const TeamTab: React.FC = () => {
         </div>
       )}
 
-      <div className="bg-white rounded-3xl border border-black/[0.04] shadow-sm p-6">
-        <div className="flex items-center gap-2 mb-4 text-brand-dark">
-          <History size={18} /><h2 className="font-bold">Histórico de atividade</h2>
-        </div>
-        {logs.length === 0 ? (
-          <p className="text-sm text-gray-500">Nada registrado ainda. As alterações em clientes, contratos, financeiro e equipe aparecem aqui.</p>
-        ) : (
-          <ul className="divide-y divide-gray-50">
-            {logs.map(l => (
-              <li key={l.id} className="py-2.5 flex flex-col sm:flex-row sm:items-center justify-between gap-1">
-                <span className="text-sm text-gray-700">{describeLog(l)}</span>
-                <span className="text-xs text-gray-400 shrink-0">{dayjs(l.created_at).format('DD/MM HH:mm')}</span>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
+      <ActivityHistory agencyId={agencyId} clientNames={clientNames} />
     </div>
   );
 };

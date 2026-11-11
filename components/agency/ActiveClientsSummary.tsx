@@ -354,7 +354,6 @@ export const ActiveClientsSummary: React.FC<ActiveClientsSummaryProps> = ({ onSe
                         if (link.type === 'instagram') { Icon = Instagram; colorClass = 'text-pink-500'; }
                         if (link.type === 'meta_ads') { Icon = Monitor; colorClass = 'text-blue-600'; }
                         if (link.type === 'google_ads') { Icon = Globe; colorClass = 'text-green-500'; }
-                        if (link.type === 'reportei') { Icon = BarChart2; colorClass = 'text-blue-500'; }
 
                         return (
                           <a 

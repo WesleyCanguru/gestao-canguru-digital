@@ -17,7 +17,8 @@ import {
   Calendar,
   Layers,
   Flame,
-  Target
+  Target,
+  Clock
 } from 'lucide-react';
 
 interface OnboardingChecklistProps {
@@ -127,6 +128,7 @@ export const OnboardingChecklist: React.FC<OnboardingChecklistProps> = ({
 
   // Handler para gerar ou regenerar Onboarding IA
   const handleGenerateOrRegenerate = async () => {
+    if (isClientView) return;
     setRegenerating(true);
     setErrorMsg(null);
     try {
@@ -165,7 +167,22 @@ export const OnboardingChecklist: React.FC<OnboardingChecklistProps> = ({
     );
   }
 
-  // Estado Vazio (sem ai_onboarding)
+  // Estado Vazio para o cliente: ele nunca gera o próprio onboarding.
+  if (!data && isClientView) {
+    return (
+      <div className="bg-white rounded-2xl border border-gray-100 p-8 sm:p-12 text-center max-w-2xl mx-auto shadow-sm my-4">
+        <div className="w-16 h-16 bg-amber-50 rounded-2xl flex items-center justify-center mx-auto mb-4 text-amber-600">
+          <Clock size={32} />
+        </div>
+        <h3 className="text-xl font-bold text-gray-900 mb-2">Seu plano de início está sendo preparado</h3>
+        <p className="text-sm text-gray-500 leading-relaxed">
+          Assim que a nossa equipe terminar, ele aparece aqui. Enquanto isso, responda os seus briefings no menu ao lado.
+        </p>
+      </div>
+    );
+  }
+
+  // Estado Vazio (sem ai_onboarding) — só a agência vê o botão de gerar
   if (!data) {
     return (
       <div className="bg-white rounded-2xl border border-gray-100 p-8 sm:p-12 text-center max-w-2xl mx-auto shadow-sm my-4">

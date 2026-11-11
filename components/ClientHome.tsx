@@ -405,26 +405,12 @@ export const ClientHome: React.FC<ClientHomeProps> = ({
     setModalOpen(true);
   };
 
-  const handleSetUrl = async (type: 'organic' | 'paid' | 'drive') => {
+  const handleSetUrl = async (_type: 'drive') => {
     if (!isAdmin || !activeClient) return;
 
-    let currentUrl = '';
-    let label = '';
-    let field = '';
-
-    if (type === 'organic') {
-      currentUrl = activeClient.organic_reportei_url || '';
-      label = 'URL do Reportei para Tráfego Orgânico';
-      field = 'organic_reportei_url';
-    } else if (type === 'paid') {
-      currentUrl = activeClient.paid_reportei_url || '';
-      label = 'URL do Reportei para Tráfego Pago';
-      field = 'paid_reportei_url';
-    } else {
-      currentUrl = (activeClient as any).drive_link || '';
-      label = 'URL do Google Drive (Documentos)';
-      field = 'drive_link';
-    }
+    const currentUrl = (activeClient as any).drive_link || '';
+    const label = 'URL do Google Drive (Documentos)';
+    const field = 'drive_link';
 
     const newUrl = window.prompt(`Digite a ${label}:`, currentUrl);
 

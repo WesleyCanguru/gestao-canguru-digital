@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import dayjs from 'dayjs';
-import { Loader2, MessageCircle, Plus, Pencil, X, Check, AlertTriangle, Clock, UserPlus, Copy } from 'lucide-react';
+import { Loader2, MessageCircle, Plus, Pencil, X, Check, AlertTriangle, Clock, UserPlus, Copy, CalendarClock, Eye, CheckCircle2, Users, ChevronDown, Timer } from 'lucide-react';
 import { supabase, useAuth } from '../../lib/supabase';
 import { TASK_STAGES, stageInfo, nudgeMessage, waNumber } from '../../lib/people';
 
@@ -31,6 +31,7 @@ export const PessoasTab: React.FC = () => {
   const [reload, setReload] = useState(0);
   const [front, setFront] = useState('');
   const [selected, setSelected] = useState<string | null>(null);
+  const [kpi, setKpi] = useState<'late' | 'soon' | 'review' | 'changes' | null>(null);
   const [editing, setEditing] = useState<Partial<Freelancer> | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
   const [err, setErr] = useState('');
@@ -57,7 +58,7 @@ export const PessoasTab: React.FC = () => {
       const map = new Map<string, Person>();
       ((m.data as any[]) || []).forEach(x => {
         const name = x.display_name || x.email;
-        map.set(name, { key: name, name, user_id: x.user_id, whatsapp: x.contact_whatsapp || null, role_label: x.role === 'master' ? 'Sócio' : x.role === 'partner' ? 'Sócio' : 'Equipe', kind: 'login' });
+        map.set(name, { key: name, name, user_id: x.user_id, whatsapp: x.contact_whatsapp || null, role_label: x.role === 'master' ? 'Administrador' : x.role === 'partner' ? 'Sócio' : 'Equipe', kind: 'login' });
       });
       fl.filter(f => f.is_active).forEach(f => { if (!map.has(f.name)) map.set(f.name, { key: f.name, name: f.name, user_id: null, whatsapp: f.whatsapp, role_label: f.role_label || 'Freelancer', kind: 'freelancer', people_id: f.id }); });
       list.forEach(x => { if (x.assignee_name && !map.has(x.assignee_name)) map.set(x.assignee_name, { key: x.assignee_name, name: x.assignee_name, user_id: x.assignee_user_id, whatsapp: null, role_label: 'Sem cadastro', kind: 'avulso' }); });
@@ -97,6 +98,11 @@ export const PessoasTab: React.FC = () => {
   const attention = deliveries.filter(t => !isDone(t) && (
     (t.due_date && t.due_date <= tomorrow) || t.stage === 'alteracao' || t.stage === 'entregue'
   )).filter(t => !selected || personOf(t) === selected)
+    .filter(t => !kpi
+      || (kpi === 'late' && !!t.due_date && t.due_date < today)
+      || (kpi === 'soon' && !!t.due_date && t.due_date >= today && t.due_date <= tomorrow)
+      || (kpi === 'review' && t.stage === 'entregue')
+      || (kpi === 'changes' && t.stage === 'alteracao'))
     .sort((a, b) => (a.due_date || '9999').localeCompare(b.due_date || '9999'));
 
   const others = deliveries.filter(t => !isDone(t) && !attention.includes(t) && (!selected || personOf(t) === selected))
@@ -141,41 +147,53 @@ export const PessoasTab: React.FC = () => {
   };
 
   const dueLabel = (t: Task) => {
-    if (!t.due_date) return { text: 'sem prazo', cls: 'text-gray-400' };
+    if (!t.due_date) return { text: 'sem prazo', cls: 'bg-gray-50 text-gray-500 border-gray-100' };
     const d = dayjs(t.due_date);
     const diff = d.diff(dayjs().startOf('day'), 'day');
-    if (diff < 0) return { text: `atrasada ${-diff} ${-diff === 1 ? 'dia' : 'dias'} (${d.format('DD/MM')})`, cls: 'text-rose-600 font-semibold' };
-    if (diff === 0) return { text: 'vence hoje', cls: 'text-amber-600 font-semibold' };
-    if (diff === 1) return { text: 'vence amanhã', cls: 'text-amber-600' };
-    return { text: `até ${d.format('DD/MM')}`, cls: 'text-gray-500' };
+    if (diff < 0) return { text: `atrasada ${-diff} ${-diff === 1 ? 'dia' : 'dias'}`, cls: 'bg-rose-50 text-rose-700 border-rose-100' };
+    if (diff === 0) return { text: 'vence hoje', cls: 'bg-amber-50 text-amber-800 border-amber-100' };
+    if (diff === 1) return { text: 'vence amanhã', cls: 'bg-amber-50 text-amber-800 border-amber-100' };
+    return { text: `até ${d.format('DD/MM')}`, cls: 'bg-gray-50 text-gray-600 border-gray-100' };
   };
+
+  const Avatar: React.FC<{ name: string; size?: string }> = ({ name, size = 'w-9 h-9 text-sm' }) => (
+    <div className={`${size} rounded-xl bg-brand-dark text-white flex items-center justify-center font-bold shrink-0`}>{(name || '?').charAt(0).toUpperCase()}</div>
+  );
 
   const row = (t: Task) => {
     const due = dueLabel(t);
     const p = personByName(t.assignee_name);
     const st = stageInfo(t.stage);
     return (
-      <li key={t.id} className="px-4 sm:px-5 py-3 flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
-        <div className="flex-1 min-w-0">
-          <p className="text-sm font-semibold text-gray-900 truncate">{t.title}</p>
-          <p className="text-xs text-gray-500 flex flex-wrap items-center gap-x-1.5">
-            <span className="font-medium text-gray-700">{t.assignee_name || 'Sem responsável'}</span>
-            {t.client?.name && <span>· {t.client.name}</span>}
-            {t.front && <span>· {t.front}</span>}
-            <span className={due.cls}>· {due.text}</span>
-            {t.last_nudged_at && <span className="text-gray-400">· cobrado {dayjs(t.last_nudged_at).format('DD/MM HH:mm')}{(t.nudge_count || 0) > 1 ? ` (${t.nudge_count}x)` : ''}</span>}
-            {st && t.stage_changed_at && (t.stage === 'entregue' || t.stage === 'alteracao') && <span className="text-gray-400">· {st.short.toLowerCase()} desde {dayjs(t.stage_changed_at).format('DD/MM')}</span>}
-          </p>
+      <li key={t.id} className="px-5 py-4 flex flex-col md:flex-row md:items-center gap-3">
+        <div className="flex items-start gap-3 flex-1 min-w-0">
+          <Avatar name={t.assignee_name || '?'} />
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-bold text-brand-dark truncate">{t.title}</p>
+            <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-gray-500">
+              <span className="font-semibold text-gray-700">{t.assignee_name || 'Sem responsável'}</span>
+              {t.client?.name && <span>· {t.client.name}</span>}
+              {t.front && <span className="px-1.5 py-0.5 rounded-md bg-slate-50 border border-slate-100 text-[10px] font-bold uppercase tracking-wider text-slate-500">{t.front}</span>}
+              <span className={`px-2 py-0.5 rounded-md border text-[11px] font-bold ${due.cls}`}>{due.text}</span>
+            </div>
+            {(t.last_nudged_at || (st && t.stage_changed_at && (t.stage === 'entregue' || t.stage === 'alteracao'))) && (
+              <p className="mt-1 text-[11px] text-gray-400">
+                {t.last_nudged_at && <>cobrado {dayjs(t.last_nudged_at).isSame(dayjs(), 'day') ? `hoje ${dayjs(t.last_nudged_at).format('HH:mm')}` : dayjs(t.last_nudged_at).format('DD/MM HH:mm')}{(t.nudge_count || 0) > 1 ? ` (${t.nudge_count}x)` : ''}</>}
+                {t.last_nudged_at && st && t.stage_changed_at && (t.stage === 'entregue' || t.stage === 'alteracao') && ' · '}
+                {st && t.stage_changed_at && (t.stage === 'entregue' || t.stage === 'alteracao') && <>{st.short.toLowerCase()} desde {dayjs(t.stage_changed_at).format('DD/MM')}</>}
+              </p>
+            )}
+          </div>
         </div>
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex items-center gap-2 shrink-0 pl-12 md:pl-0">
           <select value={t.stage || ''} onChange={e => setStage(t, e.target.value)}
-            className={`text-xs font-semibold rounded-lg border px-2 py-1.5 ${st ? st.cls : 'bg-white text-gray-500 border-gray-200'}`}>
+            className={`text-xs font-bold rounded-xl border px-2.5 py-2 ${st ? st.cls : 'bg-white text-gray-500 border-gray-200'}`}>
             <option value="">Sem etapa</option>
             {TASK_STAGES.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
           </select>
           {t.assignee_name && (
             <button onClick={() => nudge(t)} title={waNumber(p?.whatsapp) ? 'Abrir WhatsApp com a mensagem pronta' : 'Sem WhatsApp cadastrado: copia a mensagem'}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-xs font-semibold hover:bg-emerald-700">
+              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-700">
               {copied === t.id ? <><Check size={13} /> Copiada</> : waNumber(p?.whatsapp) ? <><MessageCircle size={13} /> Cobrar</> : <><Copy size={13} /> Cobrar</>}
             </button>
           )}
@@ -184,96 +202,175 @@ export const PessoasTab: React.FC = () => {
     );
   };
 
-  const field = 'px-3 py-2 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-black/5 w-full';
+  const field = 'w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:bg-white focus:ring-2 focus:ring-brand-dark/20 outline-none';
   const cardPeople = people.filter(p => stats[p.key] && (stats[p.key].open || stats[p.key].doneWeek || stats[p.key].secs));
   const noOwner = stats['__none__'];
 
+  const totals = Object.entries(stats).filter(([k]) => !selected || k === selected).reduce((a, [, s]) => ({
+    late: a.late + s.late, soon: a.soon + s.soon, review: a.review + s.review, changes: a.changes + s.changes, doneWeek: a.doneWeek + s.doneWeek,
+  }), { late: 0, soon: 0, review: 0, changes: 0, doneWeek: 0 });
+  const maxSecs = Math.max(1, ...cardPeople.map(p => stats[p.key]?.secs || 0));
+  const maxClient = Math.max(1, ...hoursByClient.map(([, v]) => v));
+  const SECTION = 'text-[9px] uppercase tracking-[0.15em] font-bold text-gray-400';
+
+  const KPIS: { key: 'late' | 'soon' | 'review' | 'changes'; label: string; value: number; icon: any; tone: string; num: string }[] = [
+    { key: 'late', label: 'Atrasadas', value: totals.late, icon: AlertTriangle, tone: 'bg-rose-50 text-rose-600', num: totals.late ? 'text-rose-600' : 'text-brand-dark' },
+    { key: 'soon', label: 'Vencem hoje ou amanhã', value: totals.soon, icon: CalendarClock, tone: 'bg-amber-50 text-amber-600', num: totals.soon ? 'text-amber-600' : 'text-brand-dark' },
+    { key: 'review', label: 'Entregues, em revisão', value: totals.review, icon: Eye, tone: 'bg-blue-50 text-blue-600', num: 'text-brand-dark' },
+    { key: 'changes', label: 'Em alteração', value: totals.changes, icon: Pencil, tone: 'bg-orange-50 text-orange-600', num: 'text-brand-dark' },
+  ];
+
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3">
+    <div className="space-y-8 pb-16">
+      <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-bold text-gray-900">Pessoas e prazos</h2>
-          <p className="text-sm text-gray-500">Quem está fazendo o quê, o que atrasou e quem precisa ser cobrado. Rotinas que se repetem ficam só em Tarefas.</p>
+          <h2 className="text-2xl font-bold text-brand-dark">Pessoas e prazos</h2>
+          <p className="text-sm text-gray-500 mt-1">Quem está fazendo o quê, o que atrasou e quem precisa ser cobrado. Rotinas que se repetem ficam em Tarefas.</p>
         </div>
         {fronts.length > 0 && (
-          <div className="inline-flex p-1 rounded-xl bg-gray-100 self-start">
-            {['', ...fronts].map(f => <button key={f || 'all'} onClick={() => setFront(f)} className={`px-4 py-1.5 rounded-lg text-sm font-semibold ${front === f ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500'}`}>{f || 'Tudo'}</button>)}
+          <div className="flex items-center gap-1.5 p-1.5 bg-stone-100/90 rounded-[2rem] border border-black/[0.04] self-start lg:self-auto shadow-inner">
+            {['', ...fronts].map(f => (
+              <button key={f || 'all'} onClick={() => setFront(f)}
+                className={`px-5 py-2 rounded-full text-xs font-bold transition-all ${front === f ? 'bg-white text-brand-dark shadow-sm' : 'text-gray-500 hover:text-brand-dark hover:bg-white/50'}`}>{f || 'Tudo'}</button>
+            ))}
           </div>
         )}
       </div>
 
-      {err && <p className="text-sm text-rose-600">{err}</p>}
+      {err && <p className="text-sm font-bold text-rose-600">{err}</p>}
 
       {loading ? <div className="py-20 flex justify-center"><Loader2 className="animate-spin text-gray-300" /></div> : (
         <>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-            {cardPeople.length === 0 && <p className="text-sm text-gray-400 col-span-full">Nenhuma tarefa com responsável ainda. Ao criar ou editar uma tarefa, escolha o Responsável e o prazo.</p>}
-            {cardPeople.map(p => {
-              const s = stats[p.key];
-              const on = selected === p.key;
+          {/* Números do topo: clicar filtra a lista */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            {KPIS.map(k => {
+              const Icon = k.icon;
+              const on = kpi === k.key;
               return (
-                <button key={p.key} onClick={() => setSelected(on ? null : p.key)}
-                  className={`text-left bg-white rounded-2xl border p-4 transition-all ${on ? 'border-gray-900 ring-2 ring-gray-900/10' : 'border-gray-100 hover:border-gray-300'}`}>
-                  <div className="flex items-center gap-2">
-                    <div className="w-9 h-9 rounded-full bg-gray-900 text-white flex items-center justify-center text-sm font-bold">{p.name.charAt(0).toUpperCase()}</div>
-                    <div className="min-w-0 flex-1">
-                      <p className="font-semibold text-gray-900 truncate">{p.name}</p>
-                      <p className="text-[11px] text-gray-400">{p.role_label}{p.kind === 'login' ? ` · ${fmtHours(s.secs)} na semana` : ''}</p>
-                    </div>
-                    {s.late > 0 && <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-rose-50 text-rose-700 text-[11px] font-bold"><AlertTriangle size={11} /> {s.late}</span>}
+                <button key={k.key} onClick={() => setKpi(on ? null : k.key)}
+                  className={`text-left bg-white p-5 rounded-3xl border shadow-sm transition-all ${on ? 'border-brand-dark ring-1 ring-brand-dark' : 'border-black/[0.04] hover:border-gray-200'}`}>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className={SECTION}>{k.label}</span>
+                    <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${k.tone}`}><Icon size={16} /></div>
                   </div>
-                  <div className="mt-3 grid grid-cols-4 gap-1 text-center">
-                    {[['Em aberto', s.open, 'text-gray-900'], ['Atrasadas', s.late, s.late ? 'text-rose-600' : 'text-gray-300'], ['Hoje/amanhã', s.soon, s.soon ? 'text-amber-600' : 'text-gray-300'], ['Prontas 7d', s.doneWeek, 'text-emerald-600']].map(([l, v, c]) => (
-                      <div key={l as string}><p className={`text-lg font-bold tabular-nums ${c}`}>{v as number}</p><p className="text-[10px] text-gray-400 leading-tight">{l}</p></div>
-                    ))}
-                  </div>
-                  {(s.review > 0 || s.changes > 0) && <p className="mt-2 text-[11px] text-gray-500">{s.review > 0 && <>{s.review} em revisão </>}{s.changes > 0 && <span className="text-orange-600">· {s.changes} em alteração</span>}</p>}
+                  <p className={`text-3xl font-bold tabular-nums ${k.num}`}>{k.value}</p>
+                  <p className="text-[11px] text-gray-400 mt-1">{on ? 'Filtrando a lista · clique para limpar' : 'Clique para filtrar'}</p>
                 </button>
               );
             })}
           </div>
-          {noOwner && noOwner.open > 0 && (
-            <button onClick={() => setSelected(selected === '__none__' ? null : '__none__')} className={`text-sm ${selected === '__none__' ? 'font-bold text-gray-900' : 'text-gray-500'} underline-offset-2 hover:underline`}>
-              {noOwner.open} {noOwner.open === 1 ? 'entrega' : 'entregas'} sem responsável{noOwner.late ? ` (${noOwner.late} atrasadas)` : ''}
-            </button>
-          )}
 
-          <div className="bg-white rounded-2xl border border-gray-100">
-            <div className="px-5 pt-4 pb-2 flex items-center gap-2">
-              <AlertTriangle size={16} className="text-amber-500" />
-              <p className="text-sm font-bold text-gray-900">Precisa de atenção{selected ? ` · ${selected === '__none__' ? 'sem responsável' : selected}` : ''}</p>
-              {selected && <button onClick={() => setSelected(null)} className="ml-auto text-xs text-gray-500 hover:text-gray-900">Ver todos</button>}
+          {/* Precisa de atenção */}
+          <div className="bg-white rounded-3xl border border-black/[0.04] shadow-sm overflow-hidden">
+            <div className="px-5 pt-5 pb-3 flex flex-wrap items-center gap-2">
+              <div className="w-8 h-8 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center"><AlertTriangle size={16} /></div>
+              <div>
+                <p className="font-bold text-brand-dark">Precisa de atenção</p>
+                <p className="text-[11px] text-gray-400">Atrasadas, vencendo, em revisão ou em alteração</p>
+              </div>
+              <div className="ml-auto flex flex-wrap gap-1.5">
+                {selected && <button onClick={() => setSelected(null)} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-brand-dark text-white text-[11px] font-bold">{selected === '__none__' ? 'Sem responsável' : selected} <X size={12} /></button>}
+                {kpi && <button onClick={() => setKpi(null)} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-brand-dark text-white text-[11px] font-bold">{KPIS.find(k => k.key === kpi)?.label} <X size={12} /></button>}
+              </div>
             </div>
-            {attention.length === 0 ? <p className="px-5 pb-5 text-sm text-gray-400">Nada atrasado, vencendo ou esperando revisão.</p> : <ul className="divide-y divide-gray-50">{attention.map(row)}</ul>}
+            {attention.length === 0
+              ? <div className="px-5 pb-8 pt-4 text-center"><CheckCircle2 size={28} className="mx-auto text-emerald-500 mb-2" /><p className="text-sm text-gray-500">Tudo em dia. Nada atrasado, vencendo ou esperando revisão.</p></div>
+              : <ul className="divide-y divide-gray-50 border-t border-gray-50">{attention.map(row)}</ul>}
           </div>
 
-          {others.length > 0 && (
-            <details className="bg-white rounded-2xl border border-gray-100">
-              <summary className="px-5 py-4 text-sm font-bold text-gray-900 cursor-pointer">Demais entregas em aberto ({others.length})</summary>
+          {others.length > 0 && !kpi && (
+            <details className="group bg-white rounded-3xl border border-black/[0.04] shadow-sm overflow-hidden">
+              <summary className="px-5 py-4 flex items-center gap-2 cursor-pointer list-none">
+                <span className="font-bold text-brand-dark">Demais entregas em aberto</span>
+                <span className="px-2 py-0.5 rounded-full bg-gray-100 text-gray-600 text-[11px] font-bold">{others.length}</span>
+                <ChevronDown size={16} className="ml-auto text-gray-400 transition-transform group-open:rotate-180" />
+              </summary>
               <ul className="divide-y divide-gray-50 border-t border-gray-50">{others.map(row)}</ul>
             </details>
           )}
 
+          {/* Equipe */}
+          <div className="space-y-3">
+            <div className="flex items-center gap-2">
+              <Users size={16} className="text-gray-400" />
+              <p className="font-bold text-brand-dark">Equipe</p>
+              <p className="text-[11px] text-gray-400">Clique numa pessoa para ver só as entregas dela</p>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {cardPeople.length === 0 && <p className="text-sm text-gray-400 col-span-full bg-white rounded-3xl border border-black/[0.04] p-6">Nenhuma tarefa com responsável ainda. Ao criar ou editar uma tarefa, escolha o Responsável e o prazo.</p>}
+              {cardPeople.map(p => {
+                const s = stats[p.key];
+                const on = selected === p.key;
+                return (
+                  <button key={p.key} onClick={() => setSelected(on ? null : p.key)}
+                    className={`text-left bg-white rounded-3xl border shadow-sm p-5 transition-all ${on ? 'border-brand-dark ring-1 ring-brand-dark' : 'border-black/[0.04] hover:border-gray-200'}`}>
+                    <div className="flex items-center gap-3">
+                      <Avatar name={p.name} size="w-10 h-10 text-base" />
+                      <div className="min-w-0 flex-1">
+                        <p className="font-bold text-brand-dark truncate">{p.name}</p>
+                        <p className="text-[11px] text-gray-400 truncate">{p.role_label}</p>
+                      </div>
+                      {p.kind === 'freelancer' && <span className="px-2 py-0.5 rounded-md text-[9px] font-bold uppercase tracking-widest bg-violet-50 text-violet-700 border border-violet-100">Freelancer</span>}
+                      {s.late > 0 && <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-rose-50 text-rose-700 text-[11px] font-bold"><AlertTriangle size={11} /> {s.late}</span>}
+                    </div>
+                    <div className="mt-4 grid grid-cols-4 gap-1 text-center">
+                      {([['Abertas', s.open, 'text-brand-dark'], ['Atrasadas', s.late, s.late ? 'text-rose-600' : 'text-gray-300'], ['Revisão', s.review, s.review ? 'text-blue-600' : 'text-gray-300'], ['Prontas 7d', s.doneWeek, s.doneWeek ? 'text-emerald-600' : 'text-gray-300']] as [string, number, string][]).map(([l, v, c]) => (
+                        <div key={l} className="rounded-xl bg-gray-50/70 py-2"><p className={`text-lg font-bold tabular-nums ${c}`}>{v}</p><p className="text-[10px] text-gray-400 leading-tight">{l}</p></div>
+                      ))}
+                    </div>
+                    {p.kind === 'login' && (
+                      <div className="mt-4">
+                        <div className="flex items-center justify-between text-[11px] text-gray-500"><span className="inline-flex items-center gap-1"><Timer size={12} /> Horas na semana</span><span className="font-bold text-brand-dark tabular-nums">{fmtHours(s.secs)}</span></div>
+                        <div className="w-full h-1.5 bg-gray-100 rounded-full mt-1.5 overflow-hidden"><div className="h-full bg-brand-dark rounded-full" style={{ width: `${(s.secs / maxSecs) * 100}%` }} /></div>
+                      </div>
+                    )}
+                    {s.changes > 0 && <p className="mt-3 text-[11px] font-semibold text-orange-600">{s.changes} em alteração</p>}
+                  </button>
+                );
+              })}
+            </div>
+            {noOwner && noOwner.open > 0 && (
+              <button onClick={() => setSelected(selected === '__none__' ? null : '__none__')}
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs font-bold ${selected === '__none__' ? 'bg-brand-dark text-white border-brand-dark' : 'bg-white text-gray-600 border-gray-200'}`}>
+                {noOwner.open} {noOwner.open === 1 ? 'entrega' : 'entregas'} sem responsável{noOwner.late ? ` · ${noOwner.late} atrasadas` : ''}
+              </button>
+            )}
+          </div>
+
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            <div className="bg-white rounded-2xl border border-gray-100">
-              <div className="px-5 pt-4 pb-2 flex items-center gap-2"><Clock size={16} className="text-gray-400" /><p className="text-sm font-bold text-gray-900">Horas de cronômetro por cliente (30 dias)</p></div>
+            {/* Horas por cliente */}
+            <div className="bg-white rounded-3xl border border-black/[0.04] shadow-sm p-5">
+              <div className="flex items-center gap-2 mb-4">
+                <div className="w-8 h-8 rounded-xl bg-slate-50 text-slate-600 flex items-center justify-center"><Clock size={16} /></div>
+                <div><p className="font-bold text-brand-dark">Horas por cliente</p><p className="text-[11px] text-gray-400">Cronômetro dos últimos 30 dias</p></div>
+              </div>
               {hoursByClient.length === 0
-                ? <p className="px-5 pb-5 text-sm text-gray-400">Ainda sem horas. Use o cronômetro (play) nas Tarefas: agora ele registra quem trabalhou.</p>
-                : <ul className="divide-y divide-gray-50">{hoursByClient.map(([c, s]) => <li key={c} className="px-5 py-2.5 flex text-sm"><span className="flex-1 text-gray-700">{c}</span><span className="tabular-nums font-semibold text-gray-900">{fmtHours(s)}</span></li>)}</ul>}
+                ? <p className="text-sm text-gray-400">Ainda sem horas. Use o cronômetro (play) nas Tarefas: ele registra quem trabalhou.</p>
+                : <ul className="space-y-3">{hoursByClient.map(([c, v]) => (
+                  <li key={c}>
+                    <div className="flex items-center justify-between text-sm"><span className="text-gray-700 truncate">{c}</span><span className="tabular-nums font-bold text-brand-dark shrink-0 ml-3">{fmtHours(v)}</span></div>
+                    <div className="w-full h-1.5 bg-gray-100 rounded-full mt-1 overflow-hidden"><div className="h-full bg-blue-600 rounded-full" style={{ width: `${(v / maxClient) * 100}%` }} /></div>
+                  </li>))}</ul>}
             </div>
 
-            <div className="bg-white rounded-2xl border border-gray-100">
-              <div className="px-5 pt-4 pb-2 flex items-center gap-2">
-                <UserPlus size={16} className="text-gray-400" /><p className="text-sm font-bold text-gray-900">Freelancers e parceiros (sem login)</p>
-                <button onClick={() => setEditing({ name: '', role_label: '', whatsapp: '', is_active: true })} className="ml-auto inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-gray-200 text-xs font-semibold text-gray-700"><Plus size={13} /> Adicionar</button>
+            {/* Freelancers */}
+            <div className="bg-white rounded-3xl border border-black/[0.04] shadow-sm p-5">
+              <div className="flex items-center gap-2 mb-4">
+                <div className="w-8 h-8 rounded-xl bg-violet-50 text-violet-600 flex items-center justify-center"><UserPlus size={16} /></div>
+                <div><p className="font-bold text-brand-dark">Freelancers e parceiros</p><p className="text-[11px] text-gray-400">Sem login na Bolsa</p></div>
+                <button onClick={() => setEditing({ name: '', role_label: '', whatsapp: '', is_active: true })}
+                  className="ml-auto inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-brand-dark text-white text-xs font-bold"><Plus size={13} /> Adicionar</button>
               </div>
               {freelancers.length === 0
-                ? <p className="px-5 pb-5 text-sm text-gray-400">Cadastre o video maker, designer etc. com o WhatsApp: eles aparecem como Responsável nas tarefas e o botão Cobrar abre a conversa.</p>
+                ? <p className="text-sm text-gray-400">Cadastre o video maker, designer etc. com o WhatsApp: eles aparecem como Responsável nas tarefas e o botão Cobrar abre a conversa.</p>
                 : <ul className="divide-y divide-gray-50">{freelancers.map(f => (
-                  <li key={f.id} className={`px-5 py-2.5 flex items-center gap-3 text-sm ${f.is_active ? '' : 'opacity-50'}`}>
-                    <span className="flex-1 min-w-0"><b className="text-gray-900">{f.name}</b>{f.role_label && <span className="text-gray-500"> · {f.role_label}</span>}{!f.is_active && <span className="text-gray-400"> · inativo</span>}</span>
-                    <span className="text-xs text-gray-400">{f.whatsapp || 'sem WhatsApp'}</span>
-                    <button onClick={() => setEditing({ ...f })} className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-100"><Pencil size={13} /></button>
+                  <li key={f.id} className={`py-2.5 flex items-center gap-3 ${f.is_active ? '' : 'opacity-50'}`}>
+                    <Avatar name={f.name} size="w-8 h-8 text-xs" />
+                    <span className="flex-1 min-w-0">
+                      <span className="block text-sm font-bold text-brand-dark truncate">{f.name}{!f.is_active && <span className="text-gray-400 font-medium"> · inativo</span>}</span>
+                      <span className="block text-[11px] text-gray-400 truncate">{f.role_label || 'Sem função'} · {f.whatsapp || 'sem WhatsApp'}</span>
+                    </span>
+                    <button onClick={() => setEditing({ ...f })} className="p-2 rounded-xl text-gray-400 hover:bg-gray-50 hover:text-brand-dark"><Pencil size={14} /></button>
                   </li>))}</ul>}
             </div>
           </div>
@@ -281,16 +378,27 @@ export const PessoasTab: React.FC = () => {
       )}
 
       {editing && (
-        <div className="fixed inset-0 z-[80] bg-black/40 flex items-end sm:items-center justify-center p-0 sm:p-6" onClick={() => setEditing(null)}>
-          <div className="bg-white w-full max-w-md rounded-t-3xl sm:rounded-3xl p-6 space-y-3" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center"><p className="font-bold text-gray-900">{editing.id ? 'Editar pessoa' : 'Nova pessoa sem login'}</p><button onClick={() => setEditing(null)} className="ml-auto p-2 rounded-xl hover:bg-gray-100 text-gray-500"><X size={18} /></button></div>
-            <input autoFocus value={editing.name || ''} onChange={e => setEditing({ ...editing, name: e.target.value })} placeholder="Nome" className={field} />
-            <input value={editing.role_label || ''} onChange={e => setEditing({ ...editing, role_label: e.target.value })} placeholder="Função (ex.: video maker, designer)" className={field} />
-            <input value={editing.whatsapp || ''} onChange={e => setEditing({ ...editing, whatsapp: e.target.value })} placeholder="WhatsApp com DDD (ou +DDI de fora)" className={field} inputMode="tel" />
-            {editing.id && (
-              <label className="flex items-center gap-2 text-sm text-gray-600"><input type="checkbox" checked={editing.is_active ?? true} onChange={e => setEditing({ ...editing, is_active: e.target.checked })} /> Ativo (aparece como responsável)</label>
-            )}
-            <button onClick={saveFreelancer} className="w-full px-4 py-3 rounded-xl bg-gray-900 text-white text-sm font-semibold">Salvar</button>
+        <div className="fixed inset-0 z-[120] bg-black/40 flex items-end sm:items-center justify-center p-0 sm:p-6" onClick={() => setEditing(null)}>
+          <div className="bg-white w-full sm:max-w-md rounded-t-3xl sm:rounded-3xl shadow-2xl" onClick={e => e.stopPropagation()}>
+            <div className="p-6 border-b border-gray-100 flex items-center justify-between">
+              <h3 className="font-bold text-brand-dark text-lg">{editing.id ? 'Editar freelancer' : 'Novo freelancer ou parceiro'}</h3>
+              <button onClick={() => setEditing(null)} className="p-2 rounded-xl hover:bg-gray-50 text-gray-400"><X size={18} /></button>
+            </div>
+            <div className="p-6 space-y-4">
+              <div className="space-y-1.5"><label className="text-[10px] font-bold uppercase tracking-widest text-gray-500">Nome</label>
+                <input autoFocus value={editing.name || ''} onChange={e => setEditing({ ...editing, name: e.target.value })} className={field} /></div>
+              <div className="space-y-1.5"><label className="text-[10px] font-bold uppercase tracking-widest text-gray-500">Função</label>
+                <input value={editing.role_label || ''} onChange={e => setEditing({ ...editing, role_label: e.target.value })} placeholder="Ex.: video maker, designer" className={field} /></div>
+              <div className="space-y-1.5"><label className="text-[10px] font-bold uppercase tracking-widest text-gray-500">WhatsApp</label>
+                <input value={editing.whatsapp || ''} onChange={e => setEditing({ ...editing, whatsapp: e.target.value })} placeholder="Com DDD (ou +DDI de fora)" className={field} inputMode="tel" /></div>
+              {editing.id && (
+                <label className="flex items-center gap-2 text-sm text-gray-600"><input type="checkbox" className="accent-brand-dark" checked={editing.is_active ?? true} onChange={e => setEditing({ ...editing, is_active: e.target.checked })} /> Ativo (aparece como responsável)</label>
+              )}
+            </div>
+            <div className="p-6 border-t border-gray-100 flex gap-3">
+              <button onClick={() => setEditing(null)} className="flex-1 py-3 border border-gray-200 rounded-xl text-sm font-bold text-gray-600">Cancelar</button>
+              <button onClick={saveFreelancer} className="flex-1 py-3 bg-brand-dark text-white rounded-xl text-sm font-bold">Salvar</button>
+            </div>
           </div>
         </div>
       )}
