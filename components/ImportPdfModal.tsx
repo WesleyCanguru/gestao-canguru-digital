@@ -4,7 +4,7 @@ import { X, UploadCloud, FileText, Loader2 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../lib/supabase';
 
-import { GoogleGenAI, Type } from "@google/genai";
+import { fileToBase64, readPdfWithClaude } from '../lib/pdfImport';
 import { CustomTimePicker } from './CustomPickers';
 
 interface ImportPdfModalProps {
@@ -47,74 +47,10 @@ export const ImportPdfModal: React.FC<ImportPdfModalProps> = ({ monthIndex, year
     setError(null);
 
     try {
-      const base64PDF = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader();
-        reader.readAsDataURL(file);
-        reader.onload = () => {
-          const result = reader.result as string;
-          resolve(result.split(',')[1]);
-        };
-        reader.onerror = error => reject(error);
-      });
-
-      const apiKey = process.env.GEMINI_API_KEY || import.meta.env.VITE_GEMINI_API_KEY;
-      if (!apiKey || apiKey === 'undefined') {
-        throw new Error('Chave da API do Gemini não configurada ou inválida.');
-      }
-
-      const ai = new GoogleGenAI({ apiKey });
-
-      const promptText = `Analise este documento de calendário editorial e extraia TODAS as publicações.
-Para cada publicação encontrada, retorne um objeto JSON com os seguintes campos:
-- "date": data no formato YYYY-MM-DD (ex: "2026-04-15")
-- "theme": o tema central da publicação (texto completo)
-- "type": o formato da entrega. Mapeie para um dos seguintes valores EXATOS em ordem alfabética: "Carrossel", "Estático", "Reels", "Repost". Se não conseguir mapear, use o valor mais próximo da lista.
-- "bullets": array de strings com cada bullet/direcionamento encontrado
-- "platforms": array com as plataformas da publicação. Use apenas os valores "Instagram" e/ou "LinkedIn". Se não for mencionado no documento, use ["Instagram"].
-
-Retorne APENAS um array JSON válido, sem texto adicional, sem markdown, sem explicações. Exemplo:
-[{"date":"2026-04-15","theme":"Tema aqui","type":"Estático institucional","bullets":["bullet 1","bullet 2"],"platforms":["Instagram","LinkedIn"]}]
-`;
-
-      const response = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
-        contents: [
-          promptText,
-          {
-            inlineData: {
-              data: base64PDF,
-              mimeType: "application/pdf"
-            }
-          }
-        ],
-        config: {
-          responseMimeType: "application/json",
-          responseSchema: {
-            type: Type.ARRAY,
-            items: {
-              type: Type.OBJECT,
-              properties: {
-                date: { type: Type.STRING, description: 'data no formato YYYY-MM-DD' },
-                theme: { type: Type.STRING, description: 'Tema central' },
-                type: { type: Type.STRING, description: 'Formato da entrega' },
-                bullets: {
-                  type: Type.ARRAY,
-                  items: { type: Type.STRING }
-                },
-                platforms: {
-                  type: Type.ARRAY,
-                  items: { type: Type.STRING }
-                }
-              },
-              required: ["date", "theme", "type", "bullets", "platforms"]
-            }
-          }
-        }
-      });
-      
-      const jsonText = response.text || "[]";
-      
-      const publications = JSON.parse(jsonText);
+      if (!activeClient?.id) throw new Error('Selecione um cliente.');
+      const base64PDF = await fileToBase64(file);
+      const result = await readPdfWithClaude<{ publicacoes: any[] }>('calendario', activeClient.id, base64PDF, { year, month: monthIndex + 1 });
+      const publications = result?.publicacoes;
 
       if (!Array.isArray(publications)) {
         throw new Error('Formato de resposta inválido.');
@@ -128,7 +64,7 @@ Retorne APENAS um array JSON válido, sem texto adicional, sem markdown, sem exp
           const [y, m, d] = pub.date.split('-');
           const pubDate = new Date(parseInt(y), parseInt(m) - 1, parseInt(d));
           
-          // Verify if it is in the current month (optional? maybe force map to current period or let it be. Let it be what Gemini says, but format correctly)
+          // Verify if it is in the current month (optional? maybe force map to current period or let it be. Let it be what the PDF says, but format correctly)
           const newD = d.length === 1 ? `0${d}` : d;
           const newM = m.length === 1 ? `0${m}` : m;
           const newY = y;

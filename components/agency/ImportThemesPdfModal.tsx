@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { X, UploadCloud, FileText, Loader2, Sparkles, FolderPlus } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
-import { GoogleGenAI, Type } from "@google/genai";
+import { fileToBase64, readPdfWithClaude } from '../../lib/pdfImport';
 
 interface ImportThemesPdfModalProps {
   isOpen: boolean;
@@ -82,69 +82,12 @@ export const ImportThemesPdfModal: React.FC<ImportThemesPdfModalProps> = ({
     setError(null);
 
     try {
-      const base64PDF = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader();
-        reader.readAsDataURL(file);
-        reader.onload = () => {
-          const result = reader.result as string;
-          resolve(result.split(',')[1]);
-        };
-        reader.onerror = error => reject(error);
-      });
-
-      const apiKey = process.env.GEMINI_API_KEY || import.meta.env.VITE_GEMINI_API_KEY;
-      if (!apiKey || apiKey === 'undefined') {
-        throw new Error('Chave da API do Gemini não configurada ou inválida.');
-      }
-
-      const ai = new GoogleGenAI({ apiKey });
-
-      const promptText = `Analise este documento de banco de temas ou planejamento estratégico e extraia TODOS os temas e ideias discutidas ou sugeridas para publicações.
-Para cada tema/ideia encontrada, retorne um objeto JSON com os seguintes campos:
-- "title": título curto e atraente do tema ou tema central (ex: "Uso consciente de água na indústria")
-- "description": descrição detalhada do tema, contexto, ideias de tópicos a abordar e direcionamentos sugeridos para a publicação
-- "format": o formato sugerido. Mapeie para um dos seguintes formatos EXATOS mais próximos: "Carrossel", "Estático", "Reels", "Repost". Se não houver, use "Estático".
-- "reference_links": array de strings com as URLs ou hiperlinks de referência associados se houver algum no documento; caso contrário, use um array vazio [].
-
-Retorne APENAS um array JSON válido, sem texto adicional, sem formatação markdown markdown externa, sem explicações.`;
-
-      const response = await ai.models.generateContent({
-        model: "gemini-3.5-flash",
-        contents: [
-          promptText,
-          {
-            inlineData: {
-              data: base64PDF,
-              mimeType: "application/pdf"
-            }
-          }
-        ],
-        config: {
-          responseMimeType: "application/json",
-          responseSchema: {
-            type: Type.ARRAY,
-            items: {
-              type: Type.OBJECT,
-              properties: {
-                title: { type: Type.STRING, description: 'Título curto e atraente' },
-                description: { type: Type.STRING, description: 'Direcionamento detalhado do tema e detalhes' },
-                format: { type: Type.STRING, description: 'Formato sugerido (ex: Post Estático, Carrossel, Vídeo (Reel))' },
-                reference_links: {
-                  type: Type.ARRAY,
-                  items: { type: Type.STRING }
-                }
-              },
-              required: ["title", "description", "format", "reference_links"]
-            }
-          }
-        }
-      });
-
-      const jsonText = response.text || "[]";
-      const extractedThemes = JSON.parse(jsonText);
+      const base64PDF = await fileToBase64(file);
+      const result = await readPdfWithClaude<{ temas: any[] }>('temas', activeClient.id, base64PDF);
+      const extractedThemes = result?.temas;
 
       if (!Array.isArray(extractedThemes)) {
-        throw new Error('Formato de resposta do Gemini é inválido.');
+        throw new Error('Não foi possível ler os temas do PDF.');
       }
 
       if (extractedThemes.length === 0) {
