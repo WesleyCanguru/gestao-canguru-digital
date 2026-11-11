@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { callFunction, supabase } from '../../lib/supabase';
 import type { StrategyContent } from './StrategyView';
+import { PreviewCloseButton } from '../../lib/previewClose';
 
 /**
  * Página pública da estratégia (/e/<token>), no visual da proposta.
@@ -395,6 +396,7 @@ export const StrategyPublicPage: React.FC<{ token: string }> = ({ token }) => {
         <footer className="text-center text-[13px] text-[var(--muted)]">{agency?.name}{sentDate ? ` · ${sentDate}` : ''}</footer>
       </main>
 
+      {preview && !framed && <PreviewCloseButton fallbackTab="onboarding" />}
       {preview && !framed && (
         <div className="fixed left-1/2 bottom-4 -translate-x-1/2 z-50 bg-[#13284D] text-white text-[13px] font-semibold px-4 py-2.5 rounded-full shadow-lg max-w-[calc(100%-32px)] text-center">
           Visualização da equipe: esta abertura não é registrada.
