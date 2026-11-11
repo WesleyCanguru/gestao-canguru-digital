@@ -2,6 +2,7 @@ import { createClient, Session } from '@supabase/supabase-js';
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { UserRole, Client } from '../types';
 import OneSignal from 'react-onesignal';
+import { setAppAgencyDomain, OFFICIAL_APP_URL } from './appUrl';
 
 const SUPABASE_URL = 'https://wtzphiyybitcucwkfpgv.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_uLQGmz7lWazPN1Uqb4_4vQ_HggVpMz9';
@@ -370,6 +371,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         .then(({ data }) => { if (data) setClientAgencyBrand(data as any); });
     }
   }, [isStaff, agencyId]);
+
+  // Domínio da agência ativa: usado em todos os links copiados (proposta, cadastro, estratégia, contrato...).
+  // Equipe que não é master e abriu a Bolsa no domínio de outra agência (ex.: Canguru aberta em bolsa.kanoastudio.com)
+  // é levada para o domínio da própria agência.
+  useEffect(() => {
+    if (!agencyId) { setAppAgencyDomain(null); return; }
+    rawClient.from('agencies').select('domain').eq('id', agencyId).maybeSingle().then(({ data }) => {
+      const domain = (data as { domain?: string | null } | null)?.domain ?? null;
+      setAppAgencyDomain(domain);
+      const host = window.location.host;
+      const ownDomain = (domain || OFFICIAL_APP_URL.replace('https://', '')).toLowerCase();
+      const isPreview = !host || host.includes('vercel.app') || host.startsWith('localhost') || host.startsWith('127.0.0.1');
+      if (isStaff && !ctx?.is_master && !isViewingAsClient && !isPreview && host.toLowerCase() !== ownDomain) {
+        window.location.replace(`https://${ownDomain}${window.location.pathname}${window.location.search}`);
+      }
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [agencyId, isStaff]);
 
   const agencyName = agencyRow?.agency_name ?? clientAgencyBrand?.name ?? null;
   const logoUrl = agencyRow?.logo_url ?? clientAgencyBrand?.logo_url ?? null;

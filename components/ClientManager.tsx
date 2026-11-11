@@ -690,7 +690,7 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
     if (!slug) {
       slug = agencyId === 7 ? 'joey' : agencyId === 6 ? 'canguru-usa' : agencyId === 2 ? 'kanoa' : 'canguru';
     }
-    const url = `https://bolsa.cangurudigital.com.br/cadastro?agency=${slug}`;
+    const url = `${getAppUrl()}/cadastro?agency=${slug}`;
     try {
       await navigator.clipboard.writeText(url);
     } catch (err) {
@@ -769,7 +769,7 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
         console.warn('Aviso ao salvar fallback de token em clients:', e);
       }
 
-      const link = `https://bolsa.cangurudigital.com.br/reset-key?token=${token}&client=${editingClientId}`;
+      const link = `${getAppUrl()}/reset-key?token=${token}&client=${editingClientId}`;
       setCopiedResetLink(false);
       setResetKeyModalData({
         link,
@@ -1608,13 +1608,13 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
                         <div>
                           <p className="text-sm font-bold text-gray-800">Link de Captação</p>
                           <a href={`/contrato/${clientContract.form_token}`} target="_blank" rel="noreferrer" className="text-xs text-blue-500 hover:underline">
-                            bolsa.cangurudigital.com.br/contrato/{clientContract.form_token}
+                            {getAppUrl().replace(/^https?:\/\//, "")}/contrato/{clientContract.form_token}
                           </a>
                         </div>
                         <button
                           type="button"
                           onClick={() => {
-                            navigator.clipboard.writeText(`https://bolsa.cangurudigital.com.br/contrato/${clientContract.form_token}`);
+                            navigator.clipboard.writeText(`${getAppUrl()}/contrato/${clientContract.form_token}`);
                             alert('Link copiado!');
                           }}
                           className="text-xs font-bold bg-white text-gray-600 px-3 py-1.5 rounded-lg border border-gray-200 hover:bg-gray-50 flex items-center gap-1"
