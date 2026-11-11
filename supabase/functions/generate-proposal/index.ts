@@ -169,14 +169,20 @@ Deno.serve(async (req) => {
         (action === "revise" ? `\n\nAJUSTE PEDIDO PELA EQUIPE:\n${str(body.instructions, 8000)}` : ""),
     });
 
-    const resp = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: { "x-api-key": apiKey, "anthropic-version": "2023-06-01", "content-type": "application/json" },
-      body: JSON.stringify({ model: MODEL, max_tokens: 6000, system, tools: [TOOL], tool_choice: { type: "tool", name: "salvar_proposta" }, messages: [{ role: "user", content }] }),
-    });
-    const out = await resp.json();
-    if (!resp.ok) { console.error(out); return json({ error: `Claude: ${out?.error?.message ?? "erro"}` }, 502); }
-    const result = (out.content ?? []).find((c: { type: string }) => c.type === "tool_use")?.input;
+    // Este modelo não aceita forçar a ferramenta (tool_choice "tool"/"any"): usa "auto" e tenta de novo se vier sem a ferramenta.
+    content.push({ type: "text", text: "Responda chamando a ferramenta salvar_proposta, sem texto fora dela." });
+    let out: any = null;
+    let result: any = null;
+    for (let tentativa = 0; tentativa < 2 && !result?.abertura; tentativa++) {
+      const resp = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: { "x-api-key": apiKey, "anthropic-version": "2023-06-01", "content-type": "application/json" },
+        body: JSON.stringify({ model: MODEL, max_tokens: 8000, system, tools: [TOOL], tool_choice: { type: "auto" }, messages: [{ role: "user", content }] }),
+      });
+      out = await resp.json();
+      if (!resp.ok) { console.error(out); return json({ error: `Claude: ${out?.error?.message ?? "erro"}` }, 502); }
+      result = (out.content ?? []).find((c: { type: string }) => c.type === "tool_use")?.input;
+    }
     if (!result?.abertura) return json({ error: "O Claude não devolveu a proposta. Tente de novo." }, 502);
 
     const mainPlan = (result.planos ?? []).find((p: any) => p.destaque) ?? result.planos?.[0];

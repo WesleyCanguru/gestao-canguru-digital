@@ -24,8 +24,22 @@
       var bar = document.createElement('div');
       bar.textContent = 'Visualização da equipe: esta abertura não é registrada.';
       bar.style.cssText = 'position:fixed;left:50%;bottom:16px;transform:translateX(-50%);z-index:9999;background:#13284D;color:#fff;font:600 13px/1.4 system-ui,sans-serif;padding:10px 16px;border-radius:999px;box-shadow:0 6px 20px rgba(0,0,0,.2);max-width:calc(100% - 32px);text-align:center';
-      document.addEventListener('DOMContentLoaded', function () { document.body.appendChild(bar); });
-      if (document.body) document.body.appendChild(bar);
+      // Botão Fechar: no Mac fecha a aba; na Bolsa instalada no iPhone volta para a tela anterior ou para Propostas.
+      var close = document.createElement('button');
+      close.type = 'button';
+      close.setAttribute('aria-label', 'Fechar visualização');
+      close.textContent = '\u2715  Fechar';
+      close.style.cssText = 'position:fixed;right:12px;top:calc(env(safe-area-inset-top, 0px) + 12px);z-index:10000;background:#13284D;color:#fff;font:600 13px/1 system-ui,sans-serif;padding:10px 14px;border:0;border-radius:999px;box-shadow:0 6px 20px rgba(0,0,0,.2);cursor:pointer';
+      close.addEventListener('click', function () {
+        var fromBolsa = false;
+        try { fromBolsa = !!document.referrer && new URL(document.referrer).origin === location.origin; } catch (e) {}
+        if (fromBolsa && history.length > 1) { history.back(); return; }
+        try { window.close(); } catch (e) {}
+        setTimeout(function () { if (!window.closed) location.href = '/?tab=propostas'; }, 250);
+      });
+      var add = function () { if (!bar.parentNode) document.body.appendChild(bar); if (!close.parentNode) document.body.appendChild(close); };
+      document.addEventListener('DOMContentLoaded', add);
+      if (document.body) add();
     }
     return;
   }

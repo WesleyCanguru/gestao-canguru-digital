@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { callFunction, supabase } from '../../lib/supabase';
 import { formatMoney } from '../../lib/money';
+import { PreviewCloseButton } from '../../lib/previewClose';
 
 /**
  * Página pública da proposta gerada na Bolsa (/p/<slug>), no visual da proposta do Álvaro.
@@ -187,6 +188,7 @@ export const ProposalPublicPage: React.FC<{ slug: string }> = ({ slug }) => {
 
         <footer className="text-center text-[13px] text-[var(--muted)]">{agency?.name}</footer>
       </main>
+      {preview && !framed && <PreviewCloseButton fallbackTab="propostas" />}
       {preview && !framed && <div className="fixed left-1/2 bottom-4 -translate-x-1/2 z-50 bg-[#13284D] text-white text-[13px] font-semibold px-4 py-2.5 rounded-full shadow-lg max-w-[calc(100%-32px)] text-center">{showingDraft ? 'Ajuste ainda não publicado. O cliente ainda vê a versão anterior.' : 'Visualização da equipe: esta abertura não é registrada.'}</div>}
     </div>
   );
