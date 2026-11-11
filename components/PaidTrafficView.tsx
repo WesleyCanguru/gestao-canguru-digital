@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { supabase, useAuth } from '../lib/supabase';
-import { processTrafficStrategyPdf } from '../src/services/geminiService';
+import { readPdfWithClaude } from '../lib/pdfImport';
 import { TrafficStrategyData } from '../types';
 import dayjs from 'dayjs';
 import 'dayjs/locale/pt-br';
@@ -681,7 +681,8 @@ export const PaidTrafficView: React.FC<PaidTrafficViewProps> = ({ onBack }) => {
       reader.onload = async () => {
         try {
           const base64 = (reader.result as string).split(',')[1];
-          const extractedStrategy = await processTrafficStrategyPdf(base64);
+          if (!activeClient?.id) throw new Error('Selecione um cliente.');
+          const extractedStrategy = await readPdfWithClaude<TrafficStrategyData>('trafego', activeClient.id, base64);
 
           if (!extractedStrategy) {
             throw new Error('Não foi possível extrair a estratégia do PDF.');
