@@ -14,6 +14,7 @@ import {
   Sparkles,
   BookOpen,
   Camera,
+  Megaphone,
   ArrowLeft,
   Link,
   Kanban,
@@ -55,6 +56,7 @@ interface ClientHomeProps {
   onNavigateToPasswordVault: () => void;
   onNavigateToTutorials: () => void;
   onNavigateToAiPhotos: () => void;
+  onNavigateToCreatives?: () => void;
   onNavigateToRoteiros: () => void;
   onNavigateToOrganico?: () => void;
   onRefreshClient?: () => void;
@@ -79,6 +81,7 @@ export const ClientHome: React.FC<ClientHomeProps> = ({
   onNavigateToPasswordVault,
   onNavigateToTutorials,
   onNavigateToAiPhotos,
+  onNavigateToCreatives,
   onNavigateToRoteiros,
   onNavigateToOrganico,
   onRefreshClient,
@@ -508,6 +511,14 @@ export const ClientHome: React.FC<ClientHomeProps> = ({
       icon: Zap,
       visible: showPaidTrafficCard,
       action: onNavigateToPaidTraffic
+    },
+    {
+      id: 'criativos',
+      label: 'Criativos',
+      subtitle: 'Aprovação de anúncios',
+      icon: Megaphone,
+      visible: getFeature('criativos', hasService('Tráfego Pago')) && !!onNavigateToCreatives,
+      action: () => onNavigateToCreatives && onNavigateToCreatives()
     },
     {
       id: 'ai_photos',

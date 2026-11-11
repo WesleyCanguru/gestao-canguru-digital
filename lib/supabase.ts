@@ -85,7 +85,7 @@ export const setupNotifications = async (agencyUser: { id: string; agency_id: nu
 // Links públicos (aprovação de post, mapa, temas, roteiro, NPS, contrato)
 // Cria uma sessão anônima e libera só aquele item.
 // ---------------------------------------------------------------------
-export type PublicLinkScope = 'mapa' | 'post' | 'temas' | 'roteiro' | 'nps' | 'contrato';
+export type PublicLinkScope = 'mapa' | 'post' | 'temas' | 'roteiro' | 'nps' | 'contrato' | 'criativos';
 
 export const ensurePublicAccess = async (scope: PublicLinkScope, token: string): Promise<{ ok: boolean; error?: string }> => {
   try {

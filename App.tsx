@@ -41,6 +41,8 @@ import { OnboardingChecklist } from './components/OnboardingChecklist';
 import { ResetPasswordPage } from './components/ResetPasswordPage';
 import { ViewAsClientBanner } from './components/ViewAsClientBanner';
 import { PublicLinkGate } from './components/PublicLinkGate';
+import { CreativesView } from './components/creatives/CreativesView';
+import { CreativeReviewer } from './components/creatives/CreativeReviewer';
 import { ProposalPublicPage } from './components/proposals/ProposalPublicPage';
 
 import { AgencyHome } from './components/agency/AgencyHome';
@@ -53,7 +55,7 @@ dayjs.locale('pt-br');
 
 import { Navigation } from './components/Navigation';
 
-type ViewState = 'home' | 'month-detail' | 'onboarding' | 'dashboard' | 'briefings' | 'strategic-briefings' | 'paid-traffic' | 'website' | 'password-vault' | 'tutorials' | 'ai-photos' | 'agencyDashboard' | 'crm' | 'roteiros' | 'organico' | 'nps' | 'ai-onboarding';
+type ViewState = 'home' | 'month-detail' | 'onboarding' | 'dashboard' | 'briefings' | 'strategic-briefings' | 'paid-traffic' | 'website' | 'password-vault' | 'tutorials' | 'ai-photos' | 'agencyDashboard' | 'crm' | 'roteiros' | 'organico' | 'nps' | 'ai-onboarding' | 'criativos';
 
 interface MainAppProps {
   initialView?: ViewState;
@@ -428,6 +430,7 @@ const MainApp: React.FC<MainAppProps> = ({ initialView, onExitAgencyDashboard, o
                     onNavigateToPasswordVault={() => setView('password-vault')}
                     onNavigateToTutorials={() => setView('tutorials')}
                     onNavigateToAiPhotos={() => setView('ai-photos')}
+                    onNavigateToCreatives={() => setView('criativos')}
                     onNavigateToRoteiros={() => setView('roteiros')}
                     onNavigateToOrganico={() => setView('organico')}
                     onRefreshClient={refreshActiveClient}
@@ -494,6 +497,21 @@ const MainApp: React.FC<MainAppProps> = ({ initialView, onExitAgencyDashboard, o
                     )}
                     <AiPhotosView />
                   </div>
+                ) : view === 'criativos' ? (
+                  <div className="bg-white rounded-[2.5rem] border border-black/[0.03] shadow-sm min-h-[80vh] p-6 sm:p-10">
+                    {!showNav && (
+                      <div className="mb-8 border-b border-gray-100 pb-6 flex items-center gap-4">
+                        <button 
+                          onClick={() => setView('dashboard')}
+                          className="p-2 hover:bg-gray-50 rounded-xl transition-colors text-gray-400 hover:text-brand-dark"
+                        >
+                          <ChevronRight className="w-5 h-5 rotate-180" />
+                        </button>
+                        <h2 className="text-xl font-bold text-brand-dark">Voltar ao Dashboard</h2>
+                      </div>
+                    )}
+                    <CreativesView />
+                  </div>
                 ) : view === 'roteiros' ? (
                   <div className="bg-white rounded-[2.5rem] border border-black/[0.03] shadow-sm min-h-[80vh] p-6 sm:p-10">
                     {!showNav && (
@@ -557,6 +575,7 @@ const MainApp: React.FC<MainAppProps> = ({ initialView, onExitAgencyDashboard, o
                     onNavigateToPasswordVault={() => setView('password-vault')}
                     onNavigateToTutorials={() => setView('tutorials')}
                     onNavigateToAiPhotos={() => setView('ai-photos')}
+                    onNavigateToCreatives={() => setView('criativos')}
                     onNavigateToRoteiros={() => setView('roteiros')}
                     onNavigateToOrganico={() => setView('organico')}
                     onNavigateToAiOnboarding={() => setView('ai-onboarding')}
@@ -881,6 +900,16 @@ const App: React.FC = () => {
   const proposalMatch = typeof window !== 'undefined' ? window.location.pathname.match(/^\/p\/([a-z0-9-]{3,80})\/?$/) : null;
   if (proposalMatch) {
     return <ProposalPublicPage slug={proposalMatch[1]} />;
+  }
+
+  // Aprovação de criativos: /criativos/<token>
+  const creativesMatch = typeof window !== 'undefined' ? window.location.pathname.match(/^\/criativos\/([a-f0-9]{32})\/?$/) : null;
+  if (creativesMatch) {
+    return (
+      <PublicLinkGate scope="criativos" token={creativesMatch[1]}>
+        <CreativeReviewer token={creativesMatch[1]} mode="public" />
+      </PublicLinkGate>
+    );
   }
 
   if (npsToken) {
