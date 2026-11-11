@@ -56,6 +56,7 @@ const BRIEFING_LABELS: Record<string, string> = {
   investimento_mensal: 'Investimento em anúncios', ja_anunciou: 'Já anunciou', historico: 'O que funcionou',
   canal_de_venda: 'Como vende', observacoes: 'Observações',
   nicho: 'Nicho', target_location: 'Região', target_interests: 'Interesses', target_age_ranges: 'Idade',
+  servicos: 'Serviços contratados', servicos_marcados: 'Serviços contratados',
 };
 
 export const OnboardingPipeline: React.FC<{ onOpenClient: (c: Client) => void }> = ({ onOpenClient }) => {
