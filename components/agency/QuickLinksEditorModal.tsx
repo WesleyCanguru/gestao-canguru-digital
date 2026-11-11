@@ -41,7 +41,6 @@ const LINK_TYPES: { type: QuickLinkType; label: string; icon: any; color: string
   { type: 'instagram', label: 'Instagram', icon: Instagram, color: 'text-pink-500' },
   { type: 'meta_ads', label: 'Meta Ads', icon: Monitor, color: 'text-blue-600' },
   { type: 'google_ads', label: 'Google Ads', icon: Globe, color: 'text-green-500' },
-  { type: 'reportei', label: 'Reportei', icon: BarChart2, color: 'text-blue-500' },
   { type: 'other', label: 'Outro', icon: ExternalLinkIcon, color: 'text-gray-500' },
 ];
 
@@ -57,7 +56,7 @@ function ExternalLinkIcon(props: any) {
 
 function SortableItem({ link, onEdit, onDelete, key }: { link: ClientQuickLink, onEdit: () => void, onDelete: () => void, key?: React.Key }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: link.id });
-  const typeConfig = LINK_TYPES.find(t => t.type === link.type) || LINK_TYPES[4];
+  const typeConfig = LINK_TYPES.find(t => t.type === link.type) || LINK_TYPES[LINK_TYPES.length - 1];
   const Icon = typeConfig.icon;
 
   const style = {

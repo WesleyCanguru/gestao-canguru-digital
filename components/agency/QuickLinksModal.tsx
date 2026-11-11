@@ -101,7 +101,6 @@ export const QuickLinksModal: React.FC<QuickLinksModalProps> = ({ client, links,
     switch (type) {
       case 'google_ads': return <span className="text-green-500">🟢</span>;
       case 'meta_ads': return <span className="text-blue-500">🔵</span>;
-      case 'reportei': return <BarChart2 size={18} className="text-indigo-500" />;
       case 'instagram': return <Instagram size={18} className="text-pink-500" />;
       default: return <Globe size={18} className="text-gray-400" />;
     }
@@ -148,7 +147,6 @@ export const QuickLinksModal: React.FC<QuickLinksModalProps> = ({ client, links,
                 >
                   <option value="google_ads">Google Ads</option>
                   <option value="meta_ads">Meta Ads</option>
-                  <option value="reportei">Reportei</option>
                   <option value="instagram">Instagram</option>
                   <option value="other">Outro</option>
                 </select>
@@ -214,8 +212,7 @@ export const QuickLinksModal: React.FC<QuickLinksModalProps> = ({ client, links,
                         >
                           <option value="google_ads">Google Ads</option>
                           <option value="meta_ads">Meta Ads</option>
-                          <option value="reportei">Reportei</option>
-                          <option value="instagram">Instagram</option>
+                                  <option value="instagram">Instagram</option>
                           <option value="other">Outro</option>
                         </select>
                         <input
