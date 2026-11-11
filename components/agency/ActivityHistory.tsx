@@ -93,6 +93,8 @@ const dayTitle = (d: dayjs.Dayjs) => {
 // Semana começando na segunda-feira
 const weekStart = (d: dayjs.Dayjs) => d.startOf('day').subtract((d.day() + 6) % 7, 'day');
 
+const ROLE_PT: Record<string, string> = { master: 'Administrador', partner: 'Sócio', team: 'Equipe' };
+
 const PAGE = 100;
 
 export const ActivityHistory: React.FC<{ agencyId: number; clientNames: Record<string, string> }> = ({ agencyId, clientNames }) => {
@@ -145,6 +147,16 @@ export const ActivityHistory: React.FC<{ agencyId: number; clientNames: Record<s
     const who = l.actor_name || 'Alguém';
     const cname = l.client_id ? clientNames[l.client_id] : null;
     if (l.action === 'view_as') return { who, text: `abriu o portal como ${cname || 'cliente'}` };
+    // Equipe e logins (gravados pela função de logins, com o nome da pessoa)
+    const d = l.details && typeof l.details === 'object' ? l.details : {};
+    const person = d.pessoa?.para as string | undefined;
+    if ((l.entity === 'agency_members' || l.entity === 'client_members') && person) {
+      if (l.action === 'insert') return { who, text: l.entity === 'client_members' ? `criou o login de ${person}${cname ? ` (${cname})` : ''}` : `deu acesso a ${person}${d.role?.para ? ` como ${ROLE_PT[d.role.para] || d.role.para}` : ''}` };
+      if (d.password) return { who, text: `definiu uma nova senha para ${person}` };
+      if (d.is_active) return { who, text: `${d.is_active.para ? 'reativou' : 'desativou'} o acesso de ${person}` };
+      const parts = [d.role ? `papel para ${ROLE_PT[d.role.para] || d.role.para}` : '', d.permissions ? 'permissões' : '', d.display_name ? 'nome' : ''].filter(Boolean);
+      return { who, text: `alterou ${parts.join(', ') || 'o acesso'} de ${person}` };
+    }
     const act = ACTION_LABEL[l.action] || l.action;
     const ent = ENTITY_LABEL[l.entity] || l.entity;
     const fields = l.action === 'update' && l.details && typeof l.details === 'object'

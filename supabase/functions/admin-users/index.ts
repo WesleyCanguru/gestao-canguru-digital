@@ -30,6 +30,18 @@ Deno.serve(async (req) => {
     const body = await req.json();
     const action = body.action as string;
 
+    // Histórico: o que passa por aqui é gravado com a conta de serviço, então registramos à mão quem fez.
+    const { data: me } = await admin.from("agency_members").select("display_name, email").eq("user_id", who.user.id).limit(1).maybeSingle();
+    const actorName = me?.display_name || me?.email || who.user.email || null;
+    const log = async (agencyId: number | null, entity: string, action: string, entityId: string | null, details: Record<string, unknown> | null, clientId: string | null = null) => {
+      if (!agencyId) return;
+      const { error } = await admin.from("activity_log").insert({
+        agency_id: agencyId, client_id: clientId, user_id: who.user.id, actor_name: actorName,
+        action, entity, entity_id: entityId, details,
+      });
+      if (error) console.error("activity_log", error.message);
+    };
+
     const can = async (agencyId: number, perm: string) => {
       const { data } = await caller.rpc("i_can", { p_agency: agencyId, p_perm: perm });
       return data === true;
@@ -62,6 +74,7 @@ Deno.serve(async (req) => {
           updated_at: new Date().toISOString(),
         }, { onConflict: "user_id,agency_id" }).select().single();
         if (error) return json({ error: error.message }, 400);
+        await log(agency_id, "agency_members", "insert", member?.id ?? null, { pessoa: { para: display_name || normEmail(email) }, role: { para: role } });
         return json({ ok: true, member, user_created: created });
       }
 
@@ -79,6 +92,10 @@ Deno.serve(async (req) => {
         if (!m.ref_code) patch.ref_code = `${slugify(display_name || m.display_name || "time")}${randomToken(2)}`;
         const { data, error } = await admin.from("agency_members").update(patch).eq("id", member_id).select().single();
         if (error) return json({ error: error.message }, 400);
+        const changed: Record<string, unknown> = {};
+        for (const k of ["role", "is_active", "display_name"]) if (k in patch && (patch as any)[k] !== (m as any)[k]) changed[k] = { de: (m as any)[k], para: (patch as any)[k] };
+        if (patch.permissions && JSON.stringify(patch.permissions) !== JSON.stringify(m.permissions)) changed.permissions = { para: patch.permissions };
+        if (Object.keys(changed).length) await log(m.agency_id, "agency_members", "update", m.id, { pessoa: { para: m.display_name || m.email }, ...changed });
         return json({ ok: true, member: data });
       }
 
@@ -90,6 +107,7 @@ Deno.serve(async (req) => {
         if (!(await can(m.agency_id, "manage_team"))) return json({ error: "Sem permissão." }, 403);
         const { error } = await admin.auth.admin.updateUserById(m.user_id, { password });
         if (error) return json({ error: error.message }, 400);
+        await log(m.agency_id, "agency_members", "update", m.id, { pessoa: { para: m.display_name || m.email }, password: { para: "nova senha definida" } });
         return json({ ok: true });
       }
 
@@ -110,6 +128,7 @@ Deno.serve(async (req) => {
           display_name: display_name || null, email: normEmail(email), is_active: true,
         }, { onConflict: "user_id,client_id" });
         if (error) return json({ error: error.message }, 400);
+        await log(c.agency_id, "client_members", "insert", null, { pessoa: { para: display_name || normEmail(email) } }, client_id);
         return json({ ok: true, user_created: created });
       }
 

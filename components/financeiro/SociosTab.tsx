@@ -26,6 +26,7 @@ export const SociosTab: React.FC<{ baseCurrency: CurrencyCode; fxRates: FxRates 
   const [cashNow, setCashNow] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [editShares, setEditShares] = useState<Partner[] | null>(null);
+  const [shareText, setShareText] = useState<Record<number, string>>({});
   const [editReserve, setEditReserve] = useState<string | null>(null);
   const [newMove, setNewMove] = useState<{ who: number; kind: 'aporte' | 'retirada'; amount: string; date: string; note: string } | null>(null);
   const [err, setErr] = useState('');
@@ -49,7 +50,10 @@ export const SociosTab: React.FC<{ baseCurrency: CurrencyCode; fxRates: FxRates 
       let list = cfg && cfg.length ? cfg : null;
       if (!list) {
         const owners = ((members.data as any[]) || []).filter(m => m.is_active && (m.role === 'master' || m.role === 'partner'));
-        list = owners.map(m => ({ user_id: m.user_id, name: m.display_name || 'Sócio', percent: Math.round((100 / Math.max(1, owners.length)) * 100) / 100 }));
+        const each = Math.floor((100 / Math.max(1, owners.length)) * 100) / 100;
+        // Divide igual e põe o resto no último, para a soma dar exatamente 100% (ex.: 33,33 + 33,33 + 33,34)
+        list = owners.map((m, i) => ({ user_id: m.user_id, name: m.display_name || 'Sócio',
+          percent: i === owners.length - 1 ? Math.round((100 - each * (owners.length - 1)) * 100) / 100 : each }));
       }
       // Lucro do ano (competência) até o mês atual; caixa de hoje a partir do saldo informado no Fluxo de caixa
       const start = [`${year}-01`, op?.data.slice(0, 7) || `${year}-01`].sort()[0];
@@ -82,7 +86,7 @@ export const SociosTab: React.FC<{ baseCurrency: CurrencyCode; fxRates: FxRates 
 
   const saveShares = async () => {
     if (!agencyId || !editShares) return;
-    if (Math.abs(editShares.reduce((a, p) => a + Number(p.percent || 0), 0) - 100) > 0.01) { setErr('As partes precisam somar 100%.'); return; }
+    if (Math.abs(editShares.reduce((a, p) => a + Number(p.percent || 0), 0) - 100) > 0.05) { setErr('As partes precisam somar 100%.'); return; }
     const e = await setAgencySetting(agencyId, 'socios', editShares);
     if (e) { setErr(e); return; }
     setEditShares(null); setErr(''); setReload(r => r + 1);
@@ -157,7 +161,7 @@ export const SociosTab: React.FC<{ baseCurrency: CurrencyCode; fxRates: FxRates 
           <div className="bg-white rounded-2xl border border-gray-100 overflow-x-auto">
             <div className="px-5 pt-4 pb-2 flex items-center">
               <p className="text-sm font-bold text-gray-900">Conta de cada sócio em {year}</p>
-              {canEdit && !editShares && <button onClick={() => setEditShares(partners.map(p => ({ ...p })))} className="ml-auto inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-200 text-xs font-semibold text-gray-700"><Pencil size={13} /> Editar partes</button>}
+              {canEdit && !editShares && <button onClick={() => { setShareText({}); setEditShares(partners.map(p => ({ ...p }))); }} className="ml-auto inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-200 text-xs font-semibold text-gray-700"><Pencil size={13} /> Editar partes</button>}
             </div>
             <table className="w-full text-sm min-w-[640px]">
               <thead><tr className="text-[11px] uppercase tracking-wider text-gray-400 text-left border-b border-gray-100">
@@ -168,7 +172,7 @@ export const SociosTab: React.FC<{ baseCurrency: CurrencyCode; fxRates: FxRates 
                   <tr key={(r.user_id || r.name) + i}>
                     <td className="px-5 py-3 font-medium text-gray-900">{r.name}</td>
                     <td className="px-5 py-3 text-right">{editShares ? (
-                      <input inputMode="decimal" value={String(editShares[i]?.percent ?? '')} onChange={e => setEditShares(s => s!.map((x, j) => j === i ? { ...x, percent: Number(e.target.value.replace(',', '.')) || 0 } : x))} className="w-20 px-2 py-1 rounded-lg border border-gray-200 text-right text-sm" />
+                      <input inputMode="decimal" value={shareText[i] ?? String(editShares[i]?.percent ?? '').replace('.', ',')} onChange={e => { const v = e.target.value.replace(/[^\d.,]/g, ''); setShareText(t => ({ ...t, [i]: v })); setEditShares(s => s!.map((x, j) => j === i ? { ...x, percent: Number(v.replace(',', '.')) || 0 } : x)); }} className="w-20 px-2 py-1 rounded-lg border border-gray-200 text-right text-sm" />
                     ) : `${r.percent.toLocaleString('pt-BR', { maximumFractionDigits: 2 })}%`}</td>
                     <td className="px-5 py-3 text-right tabular-nums">{money(r.lucro)}</td>
                     <td className="px-5 py-3 text-right tabular-nums">{money(r.aportes)}</td>
@@ -181,7 +185,7 @@ export const SociosTab: React.FC<{ baseCurrency: CurrencyCode; fxRates: FxRates 
             </table>
             {editShares && (
               <div className="px-5 py-3 flex items-center gap-2 border-t border-gray-100">
-                <span className={`text-xs font-semibold ${Math.abs(totalPercent - 100) > 0.01 ? 'text-rose-600' : 'text-gray-500'}`}>Total: {totalPercent.toLocaleString('pt-BR', { maximumFractionDigits: 2 })}%</span>
+                <span className={`text-xs font-semibold ${Math.abs(totalPercent - 100) > 0.05 ? 'text-rose-600' : 'text-gray-500'}`}>Total: {totalPercent.toLocaleString('pt-BR', { maximumFractionDigits: 2 })}%</span>
                 <button onClick={() => setEditShares(null)} className="ml-auto px-3 py-1.5 rounded-lg border border-gray-200 text-xs font-semibold text-gray-600">Cancelar</button>
                 <button onClick={saveShares} className="px-3 py-1.5 rounded-lg bg-gray-900 text-white text-xs font-semibold">Salvar partes</button>
               </div>
