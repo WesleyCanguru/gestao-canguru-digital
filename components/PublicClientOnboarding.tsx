@@ -31,16 +31,22 @@ export const PublicClientOnboarding: React.FC<PublicClientOnboardingProps> = ({ 
   const [step, setStep] = useState<Step>(0);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
-  const [lang, setLang] = useState<Lang>(browserLang());
+  const [lang, setLang] = useState<Lang>(() => {
+    const l = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('lang') : null;
+    return l === 'pt' || l === 'en' || l === 'es' ? l : browserLang();
+  });
 
-  const refCode = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('ref') : null;
+  const qs = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : new URLSearchParams();
+  const refCode = qs.get('ref');
+  // Veio do botão "Quero começar" da proposta: já traz a empresa, o idioma e a proposta
+  const proposalSlug = qs.get('proposta');
   const storageKey = `bolsa-cadastro-${(agencySlug || '').toLowerCase()}`;
 
   const [clientId, setClientId] = useState<string | null>(null);
   const [token, setToken] = useState<string | null>(null);
 
   const [company, setCompany] = useState({
-    responsible: '', companyName: '', website: '', phone: '', email: '', instagram_url: '', google_business_url: '',
+    responsible: '', companyName: (typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('empresa')?.slice(0, 120)) || '', website: '', phone: '', email: '', instagram_url: '', google_business_url: '',
   });
   const [business, setBusiness] = useState({
     services: [] as string[],
@@ -114,7 +120,7 @@ export const PublicClientOnboarding: React.FC<PublicClientOnboardingProps> = ({ 
       if (err) { setError(err); return; }
     } else {
       const { data, error: err } = await callFunction<{ client_id: string; token: string }>('public-onboarding', {
-        action: 'start', agency_slug: agency?.slug, ref: refCode, data: company, lang,
+        action: 'start', agency_slug: agency?.slug, ref: refCode, proposal: proposalSlug, data: company, lang,
       });
       setBusy(false);
       if (err || !data) { setError(t('Não foi possível salvar. Tente novamente.', 'Could not save. Please try again.', 'No se pudo guardar. Inténtalo de nuevo.')); return; }

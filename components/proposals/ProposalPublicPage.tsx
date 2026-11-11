@@ -19,7 +19,8 @@ export interface ProposalContent {
 }
 interface Data {
   proposal: { slug: string; prospect_name: string; title: string | null; whatsapp: string | null; currency: string | null; status: string; content: ProposalContent; language: Lang | null; version: number; sent_at: string | null; created_at: string };
-  agency: { name: string; logo_url: string | null; primary_color: string | null; contact_whatsapp: string | null } | null;
+  agency: { name: string; slug?: string | null; logo_url: string | null; primary_color: string | null; contact_whatsapp: string | null } | null;
+  signup?: { agency_slug: string; ref: string | null } | null;
 }
 
 const isPreviewDevice = () => {
@@ -55,8 +56,14 @@ export const ProposalPublicPage: React.FC<{ slug: string }> = ({ slug }) => {
           if (new URLSearchParams(window.location.search).get('draft') === '1' && (p as any).draft_content) {
             (p as any).content = (p as any).draft_content; setShowingDraft(true);
           }
-          const { data: a } = await supabase.from('agencies').select('name, logo_url, primary_color, contact_whatsapp').eq('id', (p as any).agency_id).maybeSingle();
-          setData({ proposal: p as any, agency: (a as any) || null }); setState('ok'); return;
+          const { data: a } = await supabase.from('agencies').select('name, slug, logo_url, primary_color, contact_whatsapp').eq('id', (p as any).agency_id).maybeSingle();
+          let ref: string | null = null;
+          if ((p as any).created_by) {
+            const { data: m } = await supabase.from('agency_members').select('ref_code').eq('agency_id', (p as any).agency_id).eq('user_id', (p as any).created_by).maybeSingle();
+            ref = (m as any)?.ref_code ?? null;
+          }
+          const signup = (a as any)?.slug && !(p as any).client_id ? { agency_slug: (a as any).slug, ref } : null;
+          setData({ proposal: p as any, agency: (a as any) || null, signup }); setState('ok'); return;
         }
       }
       const { data: d, error } = await callFunction<Data>('proposal-page', { slug });
@@ -103,6 +110,9 @@ export const ProposalPublicPage: React.FC<{ slug: string }> = ({ slug }) => {
   const waDigits = (agency?.contact_whatsapp || '').replace(/\D/g, '');
   const waHref = waDigits ? `https://wa.me/${waDigits}?text=${encodeURIComponent(t(`Olá! Vi a proposta para ${p.prospect_name} e quero conversar.`, `Hi! I saw the proposal for ${p.prospect_name} and would like to talk.`, `¡Hola! Vi la propuesta para ${p.prospect_name} y quiero conversar.`))}` : null;
   const onWa = () => { if (!noTrack) track(slug, 'whatsapp_click'); };
+  const signup = data?.signup;
+  const signupHref = signup ? `/cadastro?agency=${encodeURIComponent(signup.agency_slug)}${signup.ref ? `&ref=${encodeURIComponent(signup.ref)}` : ''}&empresa=${encodeURIComponent(p.prospect_name)}&lang=${lang}&proposta=${encodeURIComponent(slug)}` : null;
+  const onSignup = () => { if (!noTrack) track(slug, 'section_view', { detail: 'cadastro' }); };
   const card = 'bg-[var(--paper)] border border-[var(--line)] rounded-2xl';
   const H2 = ({ eyebrow, children }: { eyebrow: string; children: React.ReactNode }) => (
     <div><p className="text-[12px] font-bold uppercase tracking-[.14em] mb-2" style={{ color: brand }}>{eyebrow}</p>
@@ -179,10 +189,18 @@ export const ProposalPublicPage: React.FC<{ slug: string }> = ({ slug }) => {
 
         {!!c.proximos_passos?.length && <section className="flex flex-col gap-4"><H2 eyebrow={t('Próximos passos', 'Next steps', 'Próximos pasos')}>{t('Para começar', 'To get started', 'Para empezar')}</H2><Bullets items={c.proximos_passos} /></section>}
 
-        {waHref && (
+        {(waHref || signupHref) && (
           <section className={`${card} p-6 sm:p-7 flex flex-col sm:flex-row sm:items-center gap-4`} style={{ borderColor: brand, borderWidth: 2 }}>
-            <div className="flex-1"><h2 style={display} className="text-2xl font-semibold">{t('Vamos começar?', 'Shall we start?', '¿Empezamos?')}</h2><p className="text-[var(--muted)] mt-1">{t('Fale com a gente no WhatsApp para fechar ou tirar dúvidas.', 'Message us on WhatsApp to close or ask anything.', 'Escríbenos por WhatsApp para cerrar o resolver dudas.')}</p></div>
-            <a id="cta-whatsapp" data-track="whatsapp" href={waHref} onClick={onWa} target="_blank" rel="noopener noreferrer" className="inline-flex items-center justify-center px-6 py-3.5 rounded-xl bg-emerald-600 text-white font-semibold">{t('Falar no WhatsApp', 'Message on WhatsApp', 'Hablar por WhatsApp')}</a>
+            <div className="flex-1">
+              <h2 style={display} className="text-2xl font-semibold">{t('Vamos começar?', 'Shall we start?', '¿Empezamos?')}</h2>
+              <p className="text-[var(--muted)] mt-1">{signupHref
+                ? t('Faça seu cadastro e já começamos. Se preferir, fale com a gente no WhatsApp.', "Sign up and we'll get started. Or message us on WhatsApp.", 'Haz tu registro y empezamos. Si prefieres, escríbenos por WhatsApp.')
+                : t('Fale com a gente no WhatsApp para fechar ou tirar dúvidas.', 'Message us on WhatsApp to close or ask anything.', 'Escríbenos por WhatsApp para cerrar o resolver dudas.')}</p>
+            </div>
+            <div className="flex flex-col sm:flex-row gap-2.5 shrink-0">
+              {signupHref && <a id="cta-cadastro" href={signupHref} onClick={onSignup} className="inline-flex items-center justify-center px-6 py-3.5 rounded-xl text-white font-semibold" style={{ backgroundColor: brand }}>{t('Quero começar', "Let's start", 'Quiero empezar')}</a>}
+              {waHref && <a id="cta-whatsapp" data-track="whatsapp" href={waHref} onClick={onWa} target="_blank" rel="noopener noreferrer" className={`inline-flex items-center justify-center px-6 py-3.5 rounded-xl font-semibold ${signupHref ? 'border border-emerald-600 text-emerald-700' : 'bg-emerald-600 text-white'}`}>{t('Falar no WhatsApp', 'Message on WhatsApp', 'Hablar por WhatsApp')}</a>}
+            </div>
           </section>
         )}
 
