@@ -55,10 +55,10 @@ export function formatValueForInput(value: number | string | null | undefined): 
   return value.toString().replace('.', ',');
 }
 
-export function formatCurrency(value: number | string | null | undefined): string {
+export function formatCurrency(value: number | string | null | undefined, currency: string = 'BRL'): string {
   const num = parseCurrencyInput(value);
   return new Intl.NumberFormat('pt-BR', {
     style: 'currency',
-    currency: 'BRL',
+    currency: (currency || 'BRL').toUpperCase(),
   }).format(num);
 }

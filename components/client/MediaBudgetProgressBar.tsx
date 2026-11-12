@@ -12,6 +12,7 @@ interface MediaBudgetProgressBarProps {
   isOverBudget: boolean;
   statusColor: 'green' | 'yellow' | 'red';
   compact?: boolean;
+  currency?: string;
 }
 
 export const MediaBudgetProgressBar: React.FC<MediaBudgetProgressBarProps> = ({
@@ -24,12 +25,14 @@ export const MediaBudgetProgressBar: React.FC<MediaBudgetProgressBarProps> = ({
   isOverBudget,
   statusColor,
   compact = false,
+  currency = 'BRL',
 }) => {
+  const fmt = (v: number) => formatCurrency(v, currency);
   if (budgetAmount <= 0) {
     return (
       <div className="bg-stone-50 border border-stone-200/60 rounded-2xl p-3.5 text-xs text-stone-500 flex items-center justify-between">
         <span className="font-semibold text-stone-600">{platformLabel} — Verba não configurada</span>
-        <span className="text-[11px] font-mono font-semibold">Investido no mês: {formatCurrency(investedAmount)}</span>
+        <span className="text-[11px] font-mono font-semibold">Investido no mês: {fmt(investedAmount)}</span>
       </div>
     );
   }
@@ -66,8 +69,8 @@ export const MediaBudgetProgressBar: React.FC<MediaBudgetProgressBarProps> = ({
         </div>
 
         <div className="text-xs font-bold text-stone-700 font-mono">
-          Investido: <span className="text-[#13284D]">{formatCurrency(investedAmount)}</span> de{' '}
-          <span className="text-stone-500">{formatCurrency(budgetAmount)}</span>
+          Investido: <span className="text-[#13284D]">{fmt(investedAmount)}</span> de{' '}
+          <span className="text-stone-500">{fmt(budgetAmount)}</span>
         </div>
       </div>
 
@@ -84,7 +87,7 @@ export const MediaBudgetProgressBar: React.FC<MediaBudgetProgressBarProps> = ({
         {isOverBudget ? (
           <div className="flex items-center gap-1.5 text-rose-600 font-bold">
             <Flame size={14} className="shrink-0" />
-            <span>Verba estourada em {formatCurrency(exceededAmount)} ({percentage}%)</span>
+            <span>Verba estourada em {fmt(exceededAmount)} ({percentage}%)</span>
           </div>
         ) : (
           <div className="flex items-center gap-1.5 text-stone-600">
@@ -94,7 +97,7 @@ export const MediaBudgetProgressBar: React.FC<MediaBudgetProgressBarProps> = ({
               <CheckCircle size={14} className="text-emerald-500 shrink-0" />
             )}
             <span>
-              {percentage}% — Restam <strong className="text-stone-800 font-mono">{formatCurrency(remainingAmount)}</strong>
+              {percentage}% — Restam <strong className="text-stone-800 font-mono">{fmt(remainingAmount)}</strong>
             </span>
           </div>
         )}
