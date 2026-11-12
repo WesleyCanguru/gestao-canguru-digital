@@ -3,8 +3,10 @@ import React from 'react';
 import { Target } from 'lucide-react';
 import { STATUS_CONFIG } from '../constants';
 import { PostStatus } from '../types';
+import { useT } from '../lib/i18n';
 
 export const StatusLegend: React.FC = () => {
+  const { t } = useT();
   const contentStatuses: PostStatus[] = [
     'draft', 'pending_approval', 'changes_requested', 'rejected', 'approved', 'scheduled', 'published'
   ];
@@ -19,7 +21,7 @@ export const StatusLegend: React.FC = () => {
         style={{ backgroundColor: config.bg, color: config.color, borderColor: config.dot + '30' }}
       >
         <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: config.dot }}></span>
-        <span>{config.label}</span>
+        <span>{t(config.label)}</span>
       </div>
     );
   };
@@ -28,7 +30,7 @@ export const StatusLegend: React.FC = () => {
     <div className="bg-white/90 backdrop-blur-sm border border-stone-200/70 rounded-2xl p-3 sm:p-3.5 mb-5 shadow-2xs flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 justify-between">
       <div className="flex items-center gap-2 text-[10px] font-bold text-stone-400 uppercase tracking-widest shrink-0">
         <Target size={12} className="text-stone-400" />
-        <span>Status:</span>
+        <span>{t('Status:')}</span>
       </div>
       <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
         {contentStatuses.map(renderBadge)}

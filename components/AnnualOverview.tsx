@@ -8,6 +8,7 @@ import { useEditorialData, MONTH_NAMES } from '../hooks/useEditorialData';
 import { getAnnualOverviewTemplate } from '../constants';
 import { RejectedPostsModal } from './RejectedPostsModal';
 import { motion } from 'motion/react';
+import { useT } from '../lib/i18n';
 
 interface AnnualOverviewProps {
   onSelectMonth: (month: string) => void;
@@ -66,6 +67,7 @@ const EditableText: React.FC<{
 };
 
 export const AnnualOverview: React.FC<AnnualOverviewProps> = ({ onSelectMonth }) => {
+  const { t } = useT();
   const { activeClient, userRole, agencyId } = useAuth();
   const [postCounts, setPostCounts] = useState<Record<string, number>>({});
   const { monthlyPlans, loading } = useEditorialData();
@@ -161,9 +163,9 @@ export const AnnualOverview: React.FC<AnnualOverviewProps> = ({ onSelectMonth })
           const monthStr = parts[1]; // MM
           // Map MM to month name used in ANNUAL_PLAN
           const monthMap: Record<string, string> = {
-            '01': 'JANEIRO', '02': 'FEVEREIRO', '03': 'MARÇO', '04': 'ABRIL',
-            '05': 'MAIO', '06': 'JUNHO', '07': 'JULHO', '08': 'AGOSTO',
-            '09': 'SETEMBRO', '10': 'OUTUBRO', '11': 'NOVEMBRO', '12': 'DEZEMBRO'
+            '01': t('JANEIRO'), '02': t('FEVEREIRO'), '03': t('MARÇO'), '04': t('ABRIL'),
+            '05': 'MAIO', '06': t('JUNHO'), '07': t('JULHO'), '08': t('AGOSTO'),
+            '09': t('SETEMBRO'), '10': t('OUTUBRO'), '11': t('NOVEMBRO'), '12': t('DEZEMBRO')
           };
           const monthName = monthMap[monthStr];
           if (monthName) {
@@ -225,12 +227,12 @@ export const AnnualOverview: React.FC<AnnualOverviewProps> = ({ onSelectMonth })
               <div className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center border border-white/10">
                 <Compass className="text-gray-400" size={18} />
               </div>
-              <h2 className="text-[10px] font-bold tracking-[0.4em] uppercase text-gray-400">Estratégia Macro</h2>
+              <h2 className="text-[10px] font-bold tracking-[0.4em] uppercase text-gray-400">{t('Estratégia Macro')}</h2>
             </div>
             
             <h1 className="text-5xl md:text-7xl font-bold tracking-tighter leading-[0.9] mb-8">
               <EditableText 
-                value={overview?.title || 'Planejamento Anual 2026'} 
+                value={overview?.title || t('Planejamento Anual 2026')} 
                 onSave={(val) => handleUpdateField('title', val)} 
                 isAdmin={isAdmin}
               />
@@ -238,7 +240,7 @@ export const AnnualOverview: React.FC<AnnualOverviewProps> = ({ onSelectMonth })
             
             <p className="text-gray-400 text-lg font-medium leading-relaxed max-w-md">
               <EditableText 
-                value={overview?.description || 'Visão geral da estratégia de conteúdo para o ano, focada em construir autoridade e engajamento para a sua marca.'} 
+                value={overview?.description || t('Visão geral da estratégia de conteúdo para o ano, focada em construir autoridade e engajamento para a sua marca.')} 
                 onSave={(val) => handleUpdateField('description', val)} 
                 isAdmin={isAdmin}
                 multiline
@@ -250,9 +252,9 @@ export const AnnualOverview: React.FC<AnnualOverviewProps> = ({ onSelectMonth })
           <div className="lg:w-1/2 flex flex-col justify-center">
             <div className="grid grid-cols-1 gap-8">
               {[
-                { label: 'Pilar 01', title: overview?.pillar1_title || 'Foco em Resultados Reais', desc: overview?.pillar1_description || 'Estratégias orientadas por dados e conversão.', fieldTitle: 'pillar1_title', fieldDesc: 'pillar1_description' },
-                { label: 'Pilar 02', title: overview?.pillar2_title || 'Consistência Estratégica', desc: overview?.pillar2_description || 'Presença constante e alinhada com a marca.', fieldTitle: 'pillar2_title', fieldDesc: 'pillar2_description' },
-                { label: 'Pilar 03', title: overview?.pillar3_title || 'Presença Multi-plataforma', desc: overview?.pillar3_description || 'Conteúdo adaptado para cada canal de impacto.', fieldTitle: 'pillar3_title', fieldDesc: 'pillar3_description' }
+                { label: t('Pilar 01'), title: overview?.pillar1_title || t('Foco em Resultados Reais'), desc: overview?.pillar1_description || t('Estratégias orientadas por dados e conversão.'), fieldTitle: 'pillar1_title', fieldDesc: 'pillar1_description' },
+                { label: t('Pilar 02'), title: overview?.pillar2_title || t('Consistência Estratégica'), desc: overview?.pillar2_description || t('Presença constante e alinhada com a marca.'), fieldTitle: 'pillar2_title', fieldDesc: 'pillar2_description' },
+                { label: t('Pilar 03'), title: overview?.pillar3_title || t('Presença Multi-plataforma'), desc: overview?.pillar3_description || t('Conteúdo adaptado para cada canal de impacto.'), fieldTitle: 'pillar3_title', fieldDesc: 'pillar3_description' }
               ].map((pilar, idx) => (
                 <div key={idx} className="flex items-start gap-6 group">
                   <div className="w-12 h-12 rounded-2xl bg-white/5 flex items-center justify-center group-hover:bg-white/10 transition-all duration-500 border border-white/5">
@@ -289,15 +291,15 @@ export const AnnualOverview: React.FC<AnnualOverviewProps> = ({ onSelectMonth })
           <div className="space-y-2">
             <h2 className="text-3xl font-bold text-brand-dark tracking-tight flex items-center gap-4">
               <span className="w-3 h-3 rounded-full bg-brand-dark shadow-[0_0_15px_rgba(0,0,0,0.1)]"></span>
-              Calendário Editorial
+              {t('Calendário Editorial')}
             </h2>
-            <p className="text-sm text-gray-400 font-medium ml-7">Explore o planejamento mensal detalhado da sua marca.</p>
+            <p className="text-sm text-gray-400 font-medium ml-7">{t('Explore o planejamento mensal detalhado da sua marca.')}</p>
           </div>
           <div className="flex items-center gap-3">
             <button
               onClick={() => setShowRejectedModal(true)}
               className="inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-white hover:bg-stone-50 border border-stone-200/80 text-xs font-bold text-stone-700 shadow-2xs transition-all hover:border-stone-300 active:scale-95"
-              title="Ver histórico de publicações reprovadas pelo cliente"
+              title={t('Ver histórico de publicações reprovadas pelo cliente')}
             >
               <span>📋</span> Ver publicações reprovadas ({rejectedPostsCount})
             </button>
@@ -310,7 +312,7 @@ export const AnnualOverview: React.FC<AnnualOverviewProps> = ({ onSelectMonth })
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
           {monthlyPlans.length === 0 && !loading ? (
             <div className="col-span-full py-20 text-center bg-gray-50 rounded-[2rem] border border-dashed border-gray-200">
-              <p className="text-gray-400 font-medium">Nenhum plano editorial encontrado para este cliente.</p>
+              <p className="text-gray-400 font-medium">{t('Nenhum plano editorial encontrado para este cliente.')}</p>
             </div>
           ) : (
             monthlyPlans.map((plan) => {
@@ -344,12 +346,12 @@ export const AnnualOverview: React.FC<AnnualOverviewProps> = ({ onSelectMonth })
                       {plan.is_released ? (
                         <>
                           <CheckCircle2 size={12} />
-                          <span className="text-[9px] font-bold uppercase tracking-widest overflow-hidden max-w-0 group-hover:max-w-[100px] transition-all">Liberado</span>
+                          <span className="text-[9px] font-bold uppercase tracking-widest overflow-hidden max-w-0 group-hover:max-w-[100px] transition-all">{t('Liberado')}</span>
                         </>
                       ) : (
                         <>
                           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-                          <span className="text-[9px] font-bold uppercase tracking-widest overflow-hidden max-w-0 group-hover:max-w-[100px] transition-all">Oculto</span>
+                          <span className="text-[9px] font-bold uppercase tracking-widest overflow-hidden max-w-0 group-hover:max-w-[100px] transition-all">{t('Oculto')}</span>
                         </>
                       )}
                     </button>
@@ -357,7 +359,7 @@ export const AnnualOverview: React.FC<AnnualOverviewProps> = ({ onSelectMonth })
                   <MonthCard 
                     data={{
                       month: monthName,
-                      title: plan.theme || 'Sem tema definido',
+                      title: plan.theme || t('Sem tema definido'),
                       color: 'blue', 
                       function: ''
                     }} 
