@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { BRAND } from '../../lib/brand';
 import { supabase } from '../../lib/supabase';
 import { ScriptEditor } from './ScriptEditor';
 import { Script } from '../../hooks/useScripts';
@@ -98,7 +99,7 @@ export const ScriptApprovalPublic: React.FC<ScriptApprovalPublicProps> = ({ scri
             </p>
           </div>
           <div className="pt-2 border-t border-gray-50">
-            <p className="text-[10px] text-gray-400 font-extrabold uppercase tracking-widest leading-none">Canguru Digital</p>
+            <p className="text-[10px] text-gray-400 font-extrabold uppercase tracking-widest leading-none">{BRAND.by}</p>
           </div>
         </div>
       </div>
@@ -134,7 +135,7 @@ export const ScriptApprovalPublic: React.FC<ScriptApprovalPublicProps> = ({ scri
       </main>
 
       <footer className="py-6 text-center text-[10px] text-gray-400 font-bold uppercase tracking-widest border-t border-gray-100 bg-white">
-        © {new Date().getFullYear()} Canguru Digital. Todos os direitos reservados.
+        © {new Date().getFullYear()} {BRAND.by}. Todos os direitos reservados.
       </footer>
     </div>
   );

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { BRAND } from '../../lib/brand';
 import { motion, AnimatePresence } from 'motion/react';
 import { CheckCircle2, Heart, Send, AlertCircle, Sparkles, Building2, MessageSquare, ArrowRight, Loader2 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
@@ -151,7 +152,7 @@ export const NpsPublicScreen: React.FC<NpsPublicScreenProps> = ({ token }) => {
               <h2 className="text-xl font-bold text-stone-900 mb-2">Ops! Link não disponível</h2>
               <p className="text-sm text-stone-600 max-w-md mx-auto mb-6">{error}</p>
               <div className="text-xs text-stone-400 font-medium">
-                Se você recebeu este link recentemente, por favor solicite um novo link ao suporte da Canguru Digital.
+                Se você recebeu este link recentemente, por favor solicite um novo link ao suporte da {BRAND.by}.
               </div>
             </div>
           ) : submitted ? (
@@ -254,7 +255,7 @@ export const NpsPublicScreen: React.FC<NpsPublicScreenProps> = ({ token }) => {
                   Como foi sua experiência este mês?
                 </h1>
                 <p className="text-sm text-stone-600 leading-relaxed">
-                  Em uma escala de <strong>0 a 10</strong>, o quanto você recomendaria os serviços e o time da Canguru Digital para um parceiro ou colega de negócios?
+                  Em uma escala de <strong>0 a 10</strong>, o quanto você recomendaria os serviços e o time da {BRAND.by} para um parceiro ou colega de negócios?
                 </p>
               </div>
 
@@ -367,7 +368,7 @@ export const NpsPublicScreen: React.FC<NpsPublicScreenProps> = ({ token }) => {
 
         {/* Rodapé simples */}
         <div className="text-center mt-6 text-xs text-stone-400">
-          Canguru Digital · Gestão Estratégica & Performance
+          {BRAND.by} · Gestão Estratégica & Performance
         </div>
       </div>
     </div>

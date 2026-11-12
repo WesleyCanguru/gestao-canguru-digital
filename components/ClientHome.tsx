@@ -1,4 +1,5 @@
 import { ClientStartCard } from './strategy/ClientStartCard';
+import { BRAND } from '../lib/brand';
 import { firstNameOf } from '../lib/names';
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useAuth, supabase } from '../lib/supabase';
@@ -1181,7 +1182,7 @@ export const ClientHome: React.FC<ClientHomeProps> = ({
         className="mt-16 text-center text-xs text-gray-400 flex flex-col items-center gap-2"
       >
         <p className="font-medium">
-          Precisa de suporte estratégico ou tem dúvidas? Entre em contato com a equipe da Canguru Digital.
+          Precisa de suporte estratégico ou tem dúvidas? Entre em contato com a equipe da {BRAND.by}.
         </p>
       </motion.div>
 

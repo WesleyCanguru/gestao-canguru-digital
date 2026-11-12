@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { BRAND } from '../lib/brand';
 import { supabase } from '../lib/supabase';
 import { motion, AnimatePresence } from 'motion/react';
 import { Loader2, CheckCircle2, MessageSquare, XCircle, Search, Calendar, ChevronRight, LayoutList, Target, AlertCircle, Save, Send } from 'lucide-react';
@@ -251,7 +252,7 @@ export const ThemeApprovalPublic: React.FC<{ sessionToken: string }> = ({ sessio
                 
                 <h1 className="text-3xl sm:text-4xl font-black text-gray-900 tracking-tight mb-3">Avaliação Concluída!</h1>
                 <p className="text-sm sm:text-base text-gray-500 font-semibold max-w-md leading-relaxed mb-10">
-                    Obrigado! A equipe da <strong className="text-brand-dark font-extrabold">Canguru Digital</strong> já foi notificada e suas respostas para a sessão <strong className="text-brand-dark font-extrabold">"{session.title}"</strong> de <strong className="text-gray-800 font-extrabold">{session.clients?.name || 'sua empresa'}</strong> foram salvas com sucesso.
+                    Obrigado! A equipe da <strong className="text-brand-dark font-extrabold">{BRAND.by}</strong> já foi notificada e suas respostas para a sessão <strong className="text-brand-dark font-extrabold">"{session.title}"</strong> de <strong className="text-gray-800 font-extrabold">{session.clients?.name || 'sua empresa'}</strong> foram salvas com sucesso.
                 </p>
                 
                 <div className="grid grid-cols-3 gap-4 w-full">
@@ -564,7 +565,7 @@ export const ThemeApprovalPublic: React.FC<{ sessionToken: string }> = ({ sessio
                             Temas Alterados pela Agência
                         </h4>
                         <p className="text-xs text-purple-800 font-semibold leading-relaxed">
-                            Estes temas foram ajustados pela equipe da <strong>Canguru Digital</strong> com base nas suas solicitações de alteração. Compare o antes e o depois abaixo e dê sua nova aprovação!
+                            Estes temas foram ajustados pela equipe da <strong>{BRAND.by}</strong> com base nas suas solicitações de alteração. Compare o antes e o depois abaixo e dê sua nova aprovação!
                         </p>
                     </div>
                     <div className="space-y-8">
