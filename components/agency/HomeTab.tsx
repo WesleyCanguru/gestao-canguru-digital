@@ -384,7 +384,8 @@ export const HomeTab: React.FC<HomeTabProps> = ({
               color,
               initials,
               client_status,
-              cancelled_at
+              cancelled_at,
+              is_demo
             )
           `)
           .eq('agency_id', agencyId)
@@ -443,6 +444,7 @@ export const HomeTab: React.FC<HomeTabProps> = ({
       const validPosts = (tempPosts || []).filter((post: any) => {
         if (post.is_deleted) return false;
         if (post.status === 'deleted') return false;
+        if (post.clients?.is_demo) return false; // cliente de demonstração não entra nos números
 
         if (post.clients?.client_status === 'cancelled' && post.clients?.cancelled_at) {
           const parts = (post.date_key || '').split('-');
