@@ -4,6 +4,7 @@ import { Client } from '../types';
 import { PublicMonthGate } from './PublicMonthGate';
 import { PublicMonthView } from './PublicMonthView';
 import { Loader2 } from 'lucide-react';
+import { applyPublicLang, useT } from '../lib/i18n';
 
 interface PublicMonthPageProps {
   clientId: string;
@@ -12,6 +13,7 @@ interface PublicMonthPageProps {
 }
 
 export const PublicMonthPage: React.FC<PublicMonthPageProps> = ({ clientId, mes, ano }) => {
+  const { t } = useT();
   const [visitorName, setVisitorName] = useState<string | null>(() => {
     if (typeof window !== 'undefined') {
       return sessionStorage.getItem('visitor_name');
@@ -35,7 +37,7 @@ export const PublicMonthPage: React.FC<PublicMonthPageProps> = ({ clientId, mes,
 
         if (!isMounted) return;
         if (!error && data) {
-          setClient(data as Client);
+          applyPublicLang(data); setClient(data as Client);
         }
       } catch (err) {
         console.error('Erro ao carregar dados do cliente:', err);
@@ -68,7 +70,7 @@ export const PublicMonthPage: React.FC<PublicMonthPageProps> = ({ clientId, mes,
       }}>
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
           <Loader2 className="animate-spin text-[#13284D]" size={32} />
-          <p style={{ color: '#8A8F98', fontSize: 14, fontWeight: 500 }}>Carregando calendário...</p>
+          <p style={{ color: '#8A8F98', fontSize: 14, fontWeight: 500 }}>{t('Carregando calendário...')}</p>
         </div>
       </div>
     );

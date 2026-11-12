@@ -2,6 +2,7 @@ import React from 'react';
 import { MonthDetail } from './MonthDetail';
 import { MONTH_NAMES } from '../hooks/useEditorialData';
 import { Client } from '../types';
+import { useT } from '../lib/i18n';
 
 export interface PublicMonthViewProps {
   clientId: string;
@@ -24,6 +25,7 @@ export const PublicMonthView: React.FC<PublicMonthViewProps> = ({
   agencyId,
   overrideClient,
 }) => {
+  const { t } = useT();
   const selectedMonthName = MONTH_NAMES[(mes >= 1 && mes <= 12 ? mes - 1 : 0)] || 'Janeiro';
 
   return (

@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase';
 import { motion, AnimatePresence } from 'motion/react';
 import { Loader2, CheckCircle2, MessageSquare, XCircle, Search, Calendar, ChevronRight, LayoutList, Target, AlertCircle, Save, Send } from 'lucide-react';
 import { Logo } from './Logo';
+import { applyPublicLang, useT } from '../lib/i18n';
 
 // Robust comment parser to ignore raw JSON strings and extract fields reliably
 export function parseClientComment(clientComment: string | null | undefined): { author: string; content: string; date: string } {
@@ -54,6 +55,7 @@ export function parseClientComment(clientComment: string | null | undefined): { 
 }
 
 export const ThemeApprovalPublic: React.FC<{ sessionToken: string }> = ({ sessionToken }) => {
+  const { t } = useT();
   const [loading, setLoading] = useState(true);
   const [session, setSession] = useState<any>(null);
   const [themes, setThemes] = useState<any[]>([]);
@@ -79,14 +81,14 @@ export const ThemeApprovalPublic: React.FC<{ sessionToken: string }> = ({ sessio
     try {
       const { data: sessionData, error: sessionError } = await supabase
         .from('theme_sessions')
-        .select(`*, clients (name, logo_url)`)
+        .select(`*, clients (name, logo_url, agency_id, lang:traffic_strategy_data->>language)`)
         .eq('session_token', sessionToken)
         .single();
         
       if (sessionError) throw sessionError;
       if (!sessionData) throw new Error('Sessão não encontrada');
 
-      setSession(sessionData);
+      applyPublicLang(sessionData.clients); setSession(sessionData);
 
       const { data: itemsData, error: itemsError } = await supabase
         .from('theme_items')
@@ -206,7 +208,7 @@ export const ThemeApprovalPublic: React.FC<{ sessionToken: string }> = ({ sessio
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-[#FDFDFD] p-6 text-center">
         <AlertCircle size={48} className="text-red-400 mb-4" />
-        <h2 className="text-xl font-bold text-gray-900 mb-2">Ops! Algum problema ocorreu.</h2>
+        <h2 className="text-xl font-bold text-gray-900 mb-2">{t('Ops! Algum problema ocorreu.')}</h2>
         <p className="text-gray-500">{error || 'Link inválido ou expirado.'}</p>
       </div>
     );
@@ -234,7 +236,7 @@ export const ThemeApprovalPublic: React.FC<{ sessionToken: string }> = ({ sessio
                     {/* Divider Arrow */}
                     <div className="flex flex-col items-center min-w-[60px]">
                         <div className="h-px w-12 bg-gradient-to-r from-gray-200 via-brand-dark to-gray-200"></div>
-                        <span className="text-[9px] font-extrabold uppercase tracking-widest text-[#9333EA] mt-1">Exclusivo</span>
+                        <span className="text-[9px] font-extrabold uppercase tracking-widest text-[#9333EA] mt-1">{t('Exclusivo')}</span>
                     </div>
                     {/* Client Logo */}
                     <div className="p-4 bg-gray-50 rounded-2xl border border-gray-100 flex items-center justify-center h-16 w-28 shadow-sm">
@@ -250,7 +252,7 @@ export const ThemeApprovalPublic: React.FC<{ sessionToken: string }> = ({ sessio
                     <CheckCircle2 size={40} className="stroke-[2.5]" />
                 </div>
                 
-                <h1 className="text-3xl sm:text-4xl font-black text-gray-900 tracking-tight mb-3">Avaliação Concluída!</h1>
+                <h1 className="text-3xl sm:text-4xl font-black text-gray-900 tracking-tight mb-3">{t('Avaliação Concluída!')}</h1>
                 <p className="text-sm sm:text-base text-gray-500 font-semibold max-w-md leading-relaxed mb-10">
                     Obrigado! A equipe da <strong className="text-brand-dark font-extrabold">{BRAND.by}</strong> já foi notificada e suas respostas para a sessão <strong className="text-brand-dark font-extrabold">"{session.title}"</strong> de <strong className="text-gray-800 font-extrabold">{session.clients?.name || 'sua empresa'}</strong> foram salvas com sucesso.
                 </p>
@@ -259,17 +261,17 @@ export const ThemeApprovalPublic: React.FC<{ sessionToken: string }> = ({ sessio
                     <div className="bg-green-50/[0.4] rounded-2xl p-4 sm:p-5 border border-green-100 flex flex-col items-center">
                         <div className="text-green-600 mb-2"><CheckCircle2 size={20} /></div>
                         <div className="text-2xl font-black text-green-700 mb-0.5">{approvedCount}</div>
-                        <div className="text-[9px] font-extrabold text-green-600 uppercase tracking-widest leading-none">Aprovados</div>
+                        <div className="text-[9px] font-extrabold text-green-600 uppercase tracking-widest leading-none">{t('Aprovados')}</div>
                     </div>
                     <div className="bg-amber-50/[0.4] rounded-2xl p-4 sm:p-5 border border-amber-100 flex flex-col items-center">
                         <div className="text-amber-500 mb-2"><MessageSquare size={20} /></div>
                         <div className="text-2xl font-black text-amber-700 mb-0.5">{revisionCount}</div>
-                        <div className="text-[9px] font-extrabold text-amber-600 uppercase tracking-widest leading-none">Alterações</div>
+                        <div className="text-[9px] font-extrabold text-amber-600 uppercase tracking-widest leading-none">{t('Alterações')}</div>
                     </div>
                     <div className="bg-red-50/[0.4] rounded-2xl p-4 sm:p-5 border border-red-100 flex flex-col items-center">
                         <div className="text-red-500 mb-2"><XCircle size={20} className="text-red-500" /></div>
                         <div className="text-2xl font-black text-red-700 mb-0.5">{rejectedCount}</div>
-                        <div className="text-[9px] font-extrabold text-red-600 uppercase tracking-widest leading-none">Reprovados</div>
+                        <div className="text-[9px] font-extrabold text-red-600 uppercase tracking-widest leading-none">{t('Reprovados')}</div>
                     </div>
                 </div>
             </div>
@@ -286,8 +288,8 @@ export const ThemeApprovalPublic: React.FC<{ sessionToken: string }> = ({ sessio
                       <img src={session.clients.logo_url} alt={session.clients?.name} className="h-16 object-contain" />
                   ) : <Logo size="large" />}
               </div>
-              <h2 className="text-2xl font-bold text-gray-900 mb-2 text-center tracking-tight">Quem está avaliando?</h2>
-              <p className="text-gray-500 text-center mb-8 text-sm font-medium">Precisamos do seu nome para identificar os comentários e aprovações no sistema.</p>
+              <h2 className="text-2xl font-bold text-gray-900 mb-2 text-center tracking-tight">{t('Quem está avaliando?')}</h2>
+              <p className="text-gray-500 text-center mb-8 text-sm font-medium">{t('Precisamos do seu nome para identificar os comentários e aprovações no sistema.')}</p>
               
               <input 
                  type="text"
@@ -295,7 +297,7 @@ export const ThemeApprovalPublic: React.FC<{ sessionToken: string }> = ({ sessio
                  value={userName}
                  onChange={e => setUserName(e.target.value)}
                  className="w-full h-14 bg-gray-50 border-transparent rounded-2xl px-5 font-medium text-gray-900 placeholder:text-gray-400 focus:bg-white focus:border-brand-dark focus:ring-4 focus:ring-brand-dark/10 transition-all text-lg mb-6"
-                 placeholder="Seu nome completo"
+                 placeholder={t('Seu nome completo')}
                  onKeyDown={(e) => {
                      if (e.key === 'Enter' && userName.trim()) setNameEntered(true);
                  }}
@@ -401,7 +403,7 @@ export const ThemeApprovalPublic: React.FC<{ sessionToken: string }> = ({ sessio
 
                   {theme.reference_links && theme.reference_links.length > 0 && (
                       <div className="mt-6 pt-6 border-t border-gray-100">
-                          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-3">Links de Referência</p>
+                          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-3">{t('Links de Referência')}</p>
                           <div className="flex flex-col gap-2">
                               {theme.reference_links.map((link: string, i: number) => (
                                   <a key={i} href={link} target="_blank" rel="noreferrer" className="text-sm font-medium text-brand-dark hover:underline truncate">
@@ -468,7 +470,7 @@ export const ThemeApprovalPublic: React.FC<{ sessionToken: string }> = ({ sessio
                                       />
                                       <div className="flex items-center justify-between">
                                           {!theme.temp_comment?.trim() ? (
-                                              <p className="text-red-500 text-xs font-bold flex items-center gap-1"><AlertCircle size={12}/> Justificativa obrigatória.</p>
+                                              <p className="text-red-500 text-xs font-bold flex items-center gap-1"><AlertCircle size={12}/> {t('Justificativa obrigatória.')}</p>
                                           ) : (
                                               <p className="text-gray-400 text-xs font-bold flex items-center gap-1"></p>
                                           )}
@@ -487,7 +489,7 @@ export const ThemeApprovalPublic: React.FC<{ sessionToken: string }> = ({ sessio
                                               className="px-4 py-2 bg-brand-dark hover:bg-black text-white text-[10px] font-bold uppercase tracking-widest rounded-lg flex items-center gap-2 transition-all disabled:opacity-50"
                                           >
                                               {saving ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />}
-                                              Enviar Comentário
+                                              {t('Enviar Comentário')}
                                           </button>
                                       </div>
                                     </>
@@ -502,7 +504,7 @@ export const ThemeApprovalPublic: React.FC<{ sessionToken: string }> = ({ sessio
                                                 onClick={() => handleUpdateTheme(theme.id, { temp_comment_saved: false })}
                                                 className="text-gray-400 hover:text-brand-dark font-medium text-xs underline"
                                               >
-                                                Editar
+                                                {t('Editar')}
                                               </button>
                                           </div>
                                           <p className="text-sm text-gray-700 font-medium whitespace-pre-wrap">{theme.temp_comment}</p>
@@ -528,7 +530,7 @@ export const ThemeApprovalPublic: React.FC<{ sessionToken: string }> = ({ sessio
                   ) : <Logo size="small" />}
                   <div className="h-4 w-px bg-gray-200"></div>
                   <div>
-                    <div className="text-[9px] font-bold text-brand-dark uppercase tracking-widest mb-0.5">Aprovação de Temas</div>
+                    <div className="text-[9px] font-bold text-brand-dark uppercase tracking-widest mb-0.5">{t('Aprovação de Temas')}</div>
                     <div className="text-sm font-semibold text-gray-900 truncate max-w-[150px] sm:max-w-xs">{session.title}</div>
                   </div>
                </div>
@@ -540,7 +542,7 @@ export const ThemeApprovalPublic: React.FC<{ sessionToken: string }> = ({ sessio
                      className="px-4 py-2 sm:px-5 sm:py-2.5 rounded-xl bg-gray-100 text-gray-600 font-bold uppercase tracking-widest text-[9px] sm:text-[10px] hover:bg-gray-200 hover:text-gray-900 transition-all flex items-center gap-2 border border-black/[0.05]"
                    >
                        {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
-                       <span className="hidden sm:inline">Salvar Progresso</span>
+                       <span className="hidden sm:inline">{t('Salvar Progresso')}</span>
                    </button>
                </div>
             </div>
@@ -562,7 +564,7 @@ export const ThemeApprovalPublic: React.FC<{ sessionToken: string }> = ({ sessio
                     <div className="border-[#9333EA]/20 bg-purple-50/40 p-5 rounded-2xl border flex flex-col gap-1 shadow-sm">
                         <h4 className="text-base font-extrabold text-purple-950 flex items-center gap-2">
                             <span className="w-2.5 h-2.5 rounded-full bg-purple-600 animate-pulse"></span>
-                            Temas Alterados pela Agência
+                            {t('Temas Alterados pela Agência')}
                         </h4>
                         <p className="text-xs text-purple-800 font-semibold leading-relaxed">
                             Estes temas foram ajustados pela equipe da <strong>{BRAND.by}</strong> com base nas suas solicitações de alteração. Compare o antes e o depois abaixo e dê sua nova aprovação!
@@ -579,7 +581,7 @@ export const ThemeApprovalPublic: React.FC<{ sessionToken: string }> = ({ sessio
                 <div className="space-y-6">
                     {adjustedThemes.length > 0 && (
                         <div className="border-b border-gray-100 pb-3 mt-6">
-                            <h4 className="text-base font-bold text-gray-800">Outros Temas de sua Sessão</h4>
+                            <h4 className="text-base font-bold text-gray-800">{t('Outros Temas de sua Sessão')}</h4>
                         </div>
                     )}
                     <div className="space-y-8">
@@ -599,7 +601,7 @@ export const ThemeApprovalPublic: React.FC<{ sessionToken: string }> = ({ sessio
                                 <MessageSquare size={20} />
                             </div>
                             <div className="text-left">
-                                <p className="font-bold text-sm">Temas com Alteração</p>
+                                <p className="font-bold text-sm">{t('Temas com Alteração')}</p>
                                 <p className="text-[10px] font-bold uppercase tracking-widest opacity-60">{revisions.length} {revisions.length === 1 ? 'tema' : 'temas'}</p>
                             </div>
                         </div>
@@ -633,7 +635,7 @@ export const ThemeApprovalPublic: React.FC<{ sessionToken: string }> = ({ sessio
                                 <XCircle size={20} />
                             </div>
                             <div className="text-left">
-                                <p className="font-bold text-sm">Temas Reprovados</p>
+                                <p className="font-bold text-sm">{t('Temas Reprovados')}</p>
                                 <p className="text-[10px] font-bold uppercase tracking-widest opacity-60">{rejected.length} {rejected.length === 1 ? 'tema' : 'temas'}</p>
                             </div>
                         </div>

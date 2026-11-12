@@ -7,6 +7,7 @@ import { Logo } from '../Logo';
 import { ClientNps } from '../../types';
 import dayjs from 'dayjs';
 import 'dayjs/locale/pt-br';
+import { applyPublicLang, useT } from '../../lib/i18n';
 
 dayjs.locale('pt-br');
 
@@ -15,6 +16,7 @@ interface NpsPublicScreenProps {
 }
 
 export const NpsPublicScreen: React.FC<NpsPublicScreenProps> = ({ token }) => {
+  const { t } = useT();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [npsData, setNpsData] = useState<ClientNps | null>(null);
@@ -36,7 +38,7 @@ export const NpsPublicScreen: React.FC<NpsPublicScreenProps> = ({ token }) => {
         // Buscar o registro pelo token e os dados do cliente associado
         const { data, error: fetchErr } = await supabase
           .from('client_nps')
-          .select('*, client:clients(id, name, logo_url, initials, color)')
+          .select('*, client:clients(id, name, logo_url, initials, color, agency_id, lang:traffic_strategy_data->>language)')
           .eq('token', token)
           .maybeSingle();
 
@@ -51,7 +53,7 @@ export const NpsPublicScreen: React.FC<NpsPublicScreenProps> = ({ token }) => {
           return;
         }
 
-        setNpsData(data as ClientNps);
+        applyPublicLang((data as any).client); setNpsData(data as ClientNps);
 
         // Se já foi respondido anteriormente
         if (data.responded_at) {
@@ -84,7 +86,7 @@ export const NpsPublicScreen: React.FC<NpsPublicScreenProps> = ({ token }) => {
           responded_at: new Date().toISOString()
         })
         .eq('token', token)
-        .select('*, client:clients(id, name, logo_url, initials, color)')
+        .select('*, client:clients(id, name, logo_url, initials, color, agency_id, lang:traffic_strategy_data->>language)')
         .single();
 
       if (updateErr) {
@@ -113,9 +115,9 @@ export const NpsPublicScreen: React.FC<NpsPublicScreenProps> = ({ token }) => {
 
   // Determinar cor e texto descritivo do score
   const getScoreFeedback = (s: number) => {
-    if (s >= 9) return { label: 'Promotor — Muito Satisfeito', color: 'text-emerald-700 bg-emerald-50 border-emerald-200' };
-    if (s >= 7) return { label: 'Neutro — Satisfeito', color: 'text-amber-700 bg-amber-50 border-amber-200' };
-    return { label: 'Detrator — Precisa Melhorar', color: 'text-rose-700 bg-rose-50 border-rose-200' };
+    if (s >= 9) return { label: t('Promotor — Muito Satisfeito'), color: 'text-emerald-700 bg-emerald-50 border-emerald-200' };
+    if (s >= 7) return { label: t('Neutro — Satisfeito'), color: 'text-amber-700 bg-amber-50 border-amber-200' };
+    return { label: t('Detrator — Precisa Melhorar'), color: 'text-rose-700 bg-rose-50 border-rose-200' };
   };
 
   return (
@@ -133,7 +135,7 @@ export const NpsPublicScreen: React.FC<NpsPublicScreenProps> = ({ token }) => {
             <Logo size="small" />
           </div>
           <p className="text-[11px] uppercase tracking-[0.25em] text-stone-400 font-bold">
-            Pesquisa de Satisfação Mensal
+            {t('Pesquisa de Satisfação Mensal')}
           </p>
         </div>
 
@@ -142,14 +144,14 @@ export const NpsPublicScreen: React.FC<NpsPublicScreenProps> = ({ token }) => {
           {loading ? (
             <div className="py-20 px-8 text-center flex flex-col items-center justify-center gap-3">
               <Loader2 className="w-8 h-8 text-[#13284D] animate-spin" />
-              <p className="text-sm font-medium text-stone-500">Carregando pesquisa...</p>
+              <p className="text-sm font-medium text-stone-500">{t('Carregando pesquisa...')}</p>
             </div>
           ) : error ? (
             <div className="py-16 px-8 text-center">
               <div className="w-14 h-14 bg-rose-50 text-rose-600 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-rose-100">
                 <AlertCircle className="w-7 h-7" />
               </div>
-              <h2 className="text-xl font-bold text-stone-900 mb-2">Ops! Link não disponível</h2>
+              <h2 className="text-xl font-bold text-stone-900 mb-2">{t('Ops! Link não disponível')}</h2>
               <p className="text-sm text-stone-600 max-w-md mx-auto mb-6">{error}</p>
               <div className="text-xs text-stone-400 font-medium">
                 Se você recebeu este link recentemente, por favor solicite um novo link ao suporte da {BRAND.by}.
@@ -166,10 +168,10 @@ export const NpsPublicScreen: React.FC<NpsPublicScreenProps> = ({ token }) => {
                 <CheckCircle2 className="w-9 h-9" />
               </div>
               <span className="inline-flex items-center gap-1 px-3 py-1 bg-emerald-50 text-emerald-800 rounded-full text-xs font-bold uppercase tracking-wider mb-3">
-                Feedback Enviado com Sucesso
+                {t('Feedback Enviado com Sucesso')}
               </span>
               <h2 className="text-2xl font-bold text-stone-900 mb-3 tracking-tight">
-                Obrigado pelo seu feedback!
+                {t('Obrigado pelo seu feedback!')}
               </h2>
               <p className="text-sm text-stone-600 max-w-md mx-auto leading-relaxed mb-8">
                 Ele nos ajuda a melhorar cada vez mais a nossa parceria e a qualidade das entregas para a <strong className="text-stone-800">{clientName}</strong>.
@@ -180,7 +182,7 @@ export const NpsPublicScreen: React.FC<NpsPublicScreenProps> = ({ token }) => {
                   {selectedScore}
                 </div>
                 <div className="min-w-0 flex-1">
-                  <p className="text-xs font-bold text-stone-800 truncate">Sua avaliação registrada</p>
+                  <p className="text-xs font-bold text-stone-800 truncate">{t('Sua avaliação registrada')}</p>
                   <p className="text-[11px] text-stone-500 capitalize">{formattedMonth}</p>
                 </div>
               </div>
@@ -192,10 +194,10 @@ export const NpsPublicScreen: React.FC<NpsPublicScreenProps> = ({ token }) => {
                 <CheckCircle2 className="w-8 h-8 text-stone-600" />
               </div>
               <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-stone-100 text-stone-600 rounded-full text-xs font-semibold uppercase tracking-wider mb-3">
-                Pesquisa Já Respondida
+                {t('Pesquisa Já Respondida')}
               </span>
               <h2 className="text-2xl font-bold text-stone-900 mb-3 tracking-tight">
-                Você já respondeu esta pesquisa.
+                {t('Você já respondeu esta pesquisa.')}
               </h2>
               <p className="text-sm text-stone-600 max-w-md mx-auto leading-relaxed mb-6">
                 Obrigado pelo seu feedback! Ele nos ajuda a melhorar cada vez mais. Sua resposta para a referência de <span className="font-semibold capitalize text-stone-800">{formattedMonth}</span> já foi salva com sucesso.
@@ -203,7 +205,7 @@ export const NpsPublicScreen: React.FC<NpsPublicScreenProps> = ({ token }) => {
 
               <div className="p-5 bg-stone-50/80 rounded-2xl border border-stone-200 max-w-md mx-auto text-left mb-6">
                 <div className="flex items-center justify-between gap-3 mb-2">
-                  <span className="text-xs font-bold text-stone-500 uppercase tracking-wider">Sua Nota:</span>
+                  <span className="text-xs font-bold text-stone-500 uppercase tracking-wider">{t('Sua Nota:')}</span>
                   <span className={`px-2.5 py-0.5 rounded-lg text-xs font-extrabold border ${
                     (npsData.score ?? 0) >= 9 
                       ? 'bg-emerald-50 text-emerald-700 border-emerald-200' 
@@ -216,7 +218,7 @@ export const NpsPublicScreen: React.FC<NpsPublicScreenProps> = ({ token }) => {
                 </div>
                 {npsData.comment && (
                   <div className="mt-3 pt-3 border-t border-stone-200/60">
-                    <span className="text-[11px] font-bold text-stone-400 uppercase tracking-wider block mb-1">Seu Comentário:</span>
+                    <span className="text-[11px] font-bold text-stone-400 uppercase tracking-wider block mb-1">{t('Seu Comentário:')}</span>
                     <p className="text-xs text-stone-700 italic bg-white p-3 rounded-xl border border-stone-200/60">
                       "{npsData.comment}"
                     </p>
@@ -252,7 +254,7 @@ export const NpsPublicScreen: React.FC<NpsPublicScreenProps> = ({ token }) => {
               {/* Pergunta Principal */}
               <div className="mb-8">
                 <h1 className="text-2xl sm:text-3xl font-bold text-stone-900 tracking-tight leading-snug mb-3">
-                  Como foi sua experiência este mês?
+                  {t('Como foi sua experiência este mês?')}
                 </h1>
                 <p className="text-sm text-stone-600 leading-relaxed">
                   Em uma escala de <strong>0 a 10</strong>, o quanto você recomendaria os serviços e o time da {BRAND.by} para um parceiro ou colega de negócios?
@@ -309,7 +311,7 @@ export const NpsPublicScreen: React.FC<NpsPublicScreenProps> = ({ token }) => {
                     className="mt-4 p-3 rounded-2xl flex items-center justify-between border bg-stone-50/80 border-stone-200"
                   >
                     <div className="flex items-center gap-2">
-                      <span className="text-xs text-stone-500">Nota escolhida:</span>
+                      <span className="text-xs text-stone-500">{t('Nota escolhida:')}</span>
                       <strong className="text-base font-extrabold text-stone-900">{selectedScore}</strong>
                     </div>
                     <span className={`px-2.5 py-1 rounded-xl text-xs font-bold border ${getScoreFeedback(selectedScore).color}`}>
@@ -323,13 +325,13 @@ export const NpsPublicScreen: React.FC<NpsPublicScreenProps> = ({ token }) => {
               <div className="mb-8">
                 <label className="block text-xs font-bold uppercase tracking-wider text-stone-700 mb-2 flex items-center gap-2">
                   <MessageSquare className="w-3.5 h-3.5 text-stone-400" />
-                  Quer deixar algum comentário? <span className="text-stone-400 font-normal normal-case">(opcional)</span>
+                  Quer deixar algum comentário? <span className="text-stone-400 font-normal normal-case">{t('(opcional)')}</span>
                 </label>
                 <textarea
                   rows={3}
                   value={comment}
                   onChange={(e) => setComment(e.target.value)}
-                  placeholder="Conte-nos o que motivou sua nota, elogios, sugestões ou pontos que podemos melhorar..."
+                  placeholder={t('Conte-nos o que motivou sua nota, elogios, sugestões ou pontos que podemos melhorar...')}
                   className="w-full px-4 py-3 bg-stone-50/50 border border-stone-200 rounded-2xl text-sm text-stone-800 placeholder-stone-400 focus:outline-none focus:ring-2 focus:ring-[#13284D] focus:border-transparent transition-all resize-none"
                 />
               </div>
@@ -360,7 +362,7 @@ export const NpsPublicScreen: React.FC<NpsPublicScreenProps> = ({ token }) => {
               </button>
 
               <p className="text-center text-[11px] text-stone-400 mt-4">
-                Sua resposta é confidencial e direcionada exclusivamente à diretoria da agência.
+                {t('Sua resposta é confidencial e direcionada exclusivamente à diretoria da agência.')}
               </p>
             </form>
           )}

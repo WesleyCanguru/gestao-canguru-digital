@@ -13,7 +13,7 @@ export const toUiLang = (l?: string | null): UiLang => (l === 'en' || l === 'es'
 
 /** Idioma de um cliente (mesma regra do cadastro: Joey sem idioma salvo = inglês). */
 export const langOfClient = (client: any): UiLang =>
-  toUiLang(client?.traffic_strategy_data?.language ?? (client?.agency_id === 7 ? 'en' : 'pt'));
+  toUiLang(client?.traffic_strategy_data?.language ?? client?.lang ?? (client?.agency_id === 7 ? 'en' : 'pt'));
 
 const fill = (s: string, vars?: Record<string, string | number>) =>
   vars ? s.replace(/\{(\w+)\}/g, (_, k) => (vars[k] ?? `{${k}}`).toString()) : s;
@@ -25,9 +25,14 @@ export const makeT = (lang: UiLang) => {
   return { t, lang, locale };
 };
 
+// Links públicos: a página define o idioma pelo cliente do link (vale para a aba inteira).
+let publicLang: UiLang | null = null;
+export const applyPublicLang = (client: any) => { if (client) publicLang = langOfClient(client); };
+
 export const useUiLang = (): UiLang => {
   const { userType, activeClient } = useAuth();
-  return userType === 'client' ? langOfClient(activeClient) : 'pt';
+  if (userType === 'client') return langOfClient(activeClient);
+  return publicLang ?? 'pt';
 };
 
 export const useT = () => makeT(useUiLang());
