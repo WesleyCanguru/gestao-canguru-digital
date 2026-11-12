@@ -1,4 +1,5 @@
 import React from 'react';
+import { BRAND } from '../lib/brand';
 import { motion } from 'motion/react';
 import { useAuth } from '../lib/supabase';
 
@@ -21,7 +22,7 @@ export const Logo: React.FC<LogoProps> = ({ size = 'large', className = '', show
         className="flex flex-col items-center"
       >
         <span className={`font-serif italic tracking-tighter ${size === 'large' ? 'text-6xl' : 'text-3xl'} ${className.includes('text-') ? '' : 'text-brand-dark'}`}>
-          Bolsa
+          {BRAND.app}
         </span>
         {showAgency && (
           <div className="flex items-center gap-2 mt-1 opacity-40">

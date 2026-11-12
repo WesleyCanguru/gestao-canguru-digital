@@ -1,0 +1,14 @@
+{
+  "name": "Pouch • Joey Growth",
+  "short_name": "Pouch",
+  "description": "Joey Growth management & strategy",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#0f1115",
+  "orientation": "portrait-primary",
+  "icons": [
+    { "src": "/pouch/pouch-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" },
+    { "src": "/pouch/apple-touch-icon.png", "sizes": "180x180", "type": "image/png" }
+  ]
+}

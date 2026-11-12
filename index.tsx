@@ -1,4 +1,6 @@
 import React from 'react';
+import { applyBrandToDocument } from './lib/brand';
+applyBrandToDocument();
 import ReactDOM from 'react-dom/client';
 import App from './App';
 import OneSignal from 'react-onesignal';
