@@ -158,6 +158,7 @@ export const Navigation: React.FC<SidebarProps> = ({
     { id: 'g-operacao', label: 'Operação', icon: ClipboardList, items: [
       { id: 'tasks', label: 'Processos & Tarefas', icon: ClipboardList },
       { id: 'anotacoes', label: 'Anotações', icon: NotebookPen },
+      { id: 'guias', label: 'Guias', icon: BookOpen },
     ] },
     { id: 'g-gestao', label: 'Gestão', icon: BarChart3, items: [
       { id: 'pessoas', label: 'Pessoas e prazos', icon: UserCheck },

@@ -43,6 +43,7 @@ import { PublicLinkGate } from './components/PublicLinkGate';
 import { CreativesView } from './components/creatives/CreativesView';
 import { CreativeReviewer } from './components/creatives/CreativeReviewer';
 import { ProposalPublicPage } from './components/proposals/ProposalPublicPage';
+import { GuidePage } from './components/guides/GuidePage';
 
 import { AgencyHome } from './components/agency/AgencyHome';
 import { AgencyDashboard } from './components/agency/AgencyDashboard';
@@ -85,7 +86,7 @@ const MainApp: React.FC<MainAppProps> = ({ initialView, onExitAgencyDashboard, o
     // ?tab=propostas (ou outra aba da agência) abre direto nela; usado pelo botão Fechar da visualização da proposta/estratégia
     if (typeof window === 'undefined') return 'home';
     const tab = new URLSearchParams(window.location.search).get('tab');
-    return tab && ['propostas', 'onboarding', 'contratos', 'prospeccao', 'financeiro', 'tasks', 'clientes'].includes(tab) ? tab : 'home';
+    return tab && ['propostas', 'onboarding', 'contratos', 'prospeccao', 'financeiro', 'tasks', 'clientes', 'guias'].includes(tab) ? tab : 'home';
   });
   const [painelTab, setPainelTab] = useState<'dashboard' | 'publicacoes' | 'mapa'>('dashboard');
   const [painelFilterStatus, setPainelFilterStatus] = useState<string>('all');
@@ -867,6 +868,12 @@ const App: React.FC = () => {
   const proposalMatch = typeof window !== 'undefined' ? window.location.pathname.match(/^\/p\/([a-z0-9-]{3,80})\/?$/) : null;
   if (proposalMatch) {
     return <ProposalPublicPage slug={proposalMatch[1]} />;
+  }
+
+  // Guia da Bolsa: /g/<slug> (link público, criado em Operação › Guias)
+  const guideMatch = typeof window !== 'undefined' ? window.location.pathname.match(/^\/g\/([a-z0-9-]{3,80})\/?$/) : null;
+  if (guideMatch) {
+    return <GuidePage slug={guideMatch[1]} />;
   }
 
   // Aprovação de criativos: /criativos/<token>

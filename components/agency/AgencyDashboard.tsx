@@ -1,4 +1,5 @@
 
+import { GuiasTab } from './GuiasTab';
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
@@ -43,7 +44,7 @@ interface AgencyDashboardProps {
   onTabChange?: (tab: string) => void;
 }
 
-type Tab = 'pessoas' | 'propostas' | 'equipe' | 'home' | 'tasks' | 'financeiro' | 'metas' | 'prospeccao' | 'contratos' | 'onboarding' | 'clientes' | 'anotacoes' | 'masterMap' | 'painelConteudo' | 'nosso-conteudo' | 'nossoConteudo';
+type Tab = 'guias' | 'pessoas' | 'propostas' | 'equipe' | 'home' | 'tasks' | 'financeiro' | 'metas' | 'prospeccao' | 'contratos' | 'onboarding' | 'clientes' | 'anotacoes' | 'masterMap' | 'painelConteudo' | 'nosso-conteudo' | 'nossoConteudo';
 
 export const AgencyDashboard: React.FC<AgencyDashboardProps> = ({ onBack, onSelectClient, activeTab, onTabChange }) => {
   const { userRole } = useAuth();
@@ -129,6 +130,7 @@ export const AgencyDashboard: React.FC<AgencyDashboardProps> = ({ onBack, onSele
               {activeTab === 'pessoas' && <PessoasTab />}
               {activeTab === 'onboarding' && <OnboardingArea onSelectClient={onSelectClient} />}
               {activeTab === 'tasks' && <AgencyTasksTab />}
+              {activeTab === 'guias' && <GuiasTab />}
               {activeTab === 'financeiro' && (
                 <FinanceiroTab 
                   initialSubTab={financeiroFilter.subTab}
