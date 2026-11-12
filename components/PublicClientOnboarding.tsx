@@ -28,7 +28,11 @@ export const PublicClientOnboarding: React.FC<PublicClientOnboardingProps> = ({ 
   const [agency, setAgency] = useState<AgencyData | null>(null);
   const [notFound, setNotFound] = useState(false);
   const [logoError, setLogoError] = useState(false);
-  const [step, setStep] = useState<Step>(0);
+  // Veio da proposta (com idioma na URL): pula a escolha de idioma
+  const [step, setStep] = useState<Step>(() => {
+    const l = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('lang') : null;
+    return (l === 'pt' || l === 'en' || l === 'es') ? 1 as Step : 0 as Step;
+  });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [lang, setLang] = useState<Lang>(() => {
