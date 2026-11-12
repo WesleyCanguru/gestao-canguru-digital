@@ -1220,7 +1220,7 @@ export const PaidTrafficView: React.FC<PaidTrafficViewProps> = ({ onBack }) => {
                 tick={{ fill: '#9CA3AF', fontSize: 11 }} 
                 tickFormatter={(v) => {
                   if (activeChartMetric === 'investment') {
-                    return `${currencySymbol}${v}`;
+                    return `${clientCurrency === 'USD' ? '$' : currencySymbol}${v}`;
                   }
                   return v >= 1000 ? `${(v / 1000).toFixed(0)}k` : v;
                 }}

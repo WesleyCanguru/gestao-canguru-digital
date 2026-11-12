@@ -188,8 +188,9 @@ export const Navigation: React.FC<SidebarProps> = ({
   const getClientItems = () => {
     if (!activeClient) return [];
 
-    // Não afetar clientes da agência original (agency_id=1)
-    if (activeClient.agency_id === 1) {
+    // Mesmo menu para todas as agências (Canguru, Joey...): por serviços e ajustes do cliente.
+    // O menu antigo e fixo abaixo fica só para o ambiente demo antigo (agency_id=6).
+    if (activeClient.agency_id !== 6) {
       const services = activeClient.services || [];
       const hasService = (s: string) => services.includes(s);
       const getFeature = (feature: string, defaultVal: boolean) => {
