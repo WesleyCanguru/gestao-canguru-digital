@@ -78,7 +78,8 @@ export const OnboardingPipeline: React.FC<{ onOpenClient: (c: Client) => void }>
       .or(`created_at.gte.${since},campaign_live_at.gte.${dayjs().subtract(30, 'day').toISOString()}`)
       .order('created_at', { ascending: false });
     const list = ((cl as Client[]) || []).filter(c =>
-      (c as any).traffic_strategy_data?.created_via === 'public_onboarding' || c.client_status === 'prospect' || (c as any).campaign_live_at);
+      (c as any).traffic_strategy_data?.created_via !== 'demo' && // demonstração já ativa (portal completo) não é cliente novo
+      ((c as any).traffic_strategy_data?.created_via === 'public_onboarding' || c.client_status === 'prospect' || (c as any).campaign_live_at));
     const { data: mem } = await supabase.from('agency_members').select('user_id, display_name').eq('agency_id', agencyId);
     setMembers(Object.fromEntries(((mem as any[]) || []).map(m => [m.user_id, (m.display_name || '').split(' ')[0]])));
     const ids = list.map(c => c.id);
