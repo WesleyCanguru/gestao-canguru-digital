@@ -259,6 +259,7 @@ export interface Client {
   logo_url: string | null;
   is_active: boolean;
   is_internal?: boolean;
+  is_demo?: boolean;
   services: string[];
   social_networks: string[];
   traffic_platforms: string[];

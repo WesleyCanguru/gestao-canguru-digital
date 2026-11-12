@@ -78,7 +78,7 @@ export const PendenciasPanel: React.FC<PendenciasPanelProps> = ({
       // 1. Clientes Ativos
       const { data: clientsData, error: clientsErr } = await supabase
         .from('clients')
-        .select('id, name, logo_url, color, initials, is_internal, client_status, services')
+        .select('id, name, logo_url, color, initials, is_internal, is_demo, client_status, services')
         .eq('agency_id', agencyId);
 
       if (clientsErr) {
@@ -87,10 +87,10 @@ export const PendenciasPanel: React.FC<PendenciasPanelProps> = ({
 
       const rawClients = ((clientsData as any[]) || []);
       const clientsMap = new Map<string, any>();
-      rawClients.forEach((c) => clientsMap.set(c.id, c));
+      rawClients.forEach((c) => { if (!(c as any).is_demo) clientsMap.set(c.id, c); });
 
       const activeClients = rawClients.filter(
-        (c) => !c.is_internal && c.client_status !== 'cancelled' && c.client_status !== 'inactive' && !TEST_CLIENT_IDS.includes(c.id)
+        (c) => !c.is_internal && !(c as any).is_demo && c.client_status !== 'cancelled' && c.client_status !== 'inactive' && !TEST_CLIENT_IDS.includes(c.id)
       );
 
       // Helper para verificar se cliente possui serviço de Social Media
