@@ -552,6 +552,10 @@ export const PaidTrafficView: React.FC<PaidTrafficViewProps> = ({ onBack }) => {
     return Object.values(map);
   }, [currentMetrics, currentStartDate, currentEndDate]);
 
+  // Moeda do cliente (clientes da Joey são em USD)
+  const clientCurrency = (activeClient?.currency || 'BRL').toUpperCase();
+  const currencySymbol = clientCurrency === 'USD' ? 'US$' : clientCurrency === 'EUR' ? '€' : 'R$';
+
   // Configuração das métricas do gráfico
   const chartMetricTabs = useMemo(() => {
     let convLabel = 'Conversões';
@@ -559,12 +563,12 @@ export const PaidTrafficView: React.FC<PaidTrafficViewProps> = ({ onBack }) => {
     if (selectedPlatform === 'google') convLabel = 'Formulários';
 
     return [
-      { id: 'investment', label: 'Investimento (R$)' },
+      { id: 'investment', label: `Investimento (${currencySymbol})` },
       { id: 'conversions', label: convLabel },
       { id: 'clicks', label: 'Cliques' },
       { id: 'impressions', label: 'Impressões' },
     ];
-  }, [selectedPlatform]);
+  }, [selectedPlatform, currencySymbol]);
 
   const chartColorMap = {
     investment: { stroke: '#13284D', fill: '#13284D', label: 'Investimento Diário' },
@@ -577,7 +581,7 @@ export const PaidTrafficView: React.FC<PaidTrafficViewProps> = ({ onBack }) => {
 
   // Formatação de valores
   const formatCurrency = (val: number) => {
-    return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
+    return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: clientCurrency }).format(val);
   };
 
   const formatNumber = (num: number) => {
@@ -1038,6 +1042,7 @@ export const PaidTrafficView: React.FC<PaidTrafficViewProps> = ({ onBack }) => {
           exceededAmount={totalConsumption.exceededAmount}
           isOverBudget={totalConsumption.isOverBudget}
           statusColor={totalConsumption.statusColor}
+          currency={clientCurrency}
         />
       )}
 
@@ -1215,7 +1220,7 @@ export const PaidTrafficView: React.FC<PaidTrafficViewProps> = ({ onBack }) => {
                 tick={{ fill: '#9CA3AF', fontSize: 11 }} 
                 tickFormatter={(v) => {
                   if (activeChartMetric === 'investment') {
-                    return `R$${v}`;
+                    return `${currencySymbol}${v}`;
                   }
                   return v >= 1000 ? `${(v / 1000).toFixed(0)}k` : v;
                 }}
@@ -1288,7 +1293,7 @@ export const PaidTrafficView: React.FC<PaidTrafficViewProps> = ({ onBack }) => {
                   <div className="flex items-center justify-between py-1.5 border-b border-stone-50">
                     <span className="text-stone-500">Custo por Conversa (CAC):</span>
                     <span className="font-bold text-[#13284D] font-mono">
-                      {processedData.metaConversions > 0 ? formatCurrency(processedData.metaCostPerConv) : 'R$ 0,00'}
+                      {processedData.metaConversions > 0 ? formatCurrency(processedData.metaCostPerConv) : formatCurrency(0)}
                     </span>
                   </div>
                   <div className="flex items-center justify-between py-1.5 border-b border-stone-50">
@@ -1353,7 +1358,7 @@ export const PaidTrafficView: React.FC<PaidTrafficViewProps> = ({ onBack }) => {
                   <div className="flex items-center justify-between py-1.5 border-b border-stone-50">
                     <span className="text-stone-500">Custo por Lead / Formulário:</span>
                     <span className="font-bold text-[#13284D] font-mono">
-                      {processedData.googleConversions > 0 ? formatCurrency(processedData.googleCostPerConv) : 'R$ 0,00'}
+                      {processedData.googleConversions > 0 ? formatCurrency(processedData.googleCostPerConv) : formatCurrency(0)}
                     </span>
                   </div>
                   <div className="flex items-center justify-between py-1.5 border-b border-stone-50">

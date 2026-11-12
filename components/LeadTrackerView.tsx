@@ -31,6 +31,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { parseCurrencyInput } from '../lib/currencyUtils';
+import { useAuth } from '../lib/supabase';
 import dayjs from 'dayjs';
 import 'dayjs/locale/pt-br';
 import {
@@ -82,6 +83,15 @@ interface LeadTrackerViewProps {
   onBack: () => void;
 }
 
+// Moeda do cliente ativo (Joey = USD). Padrão: BRL.
+const useClientMoney = () => {
+  const { activeClient } = useAuth();
+  const currency = ((activeClient as any)?.currency || 'BRL').toUpperCase();
+  const symbol = currency === 'USD' ? 'US$' : currency === 'EUR' ? '€' : 'R$';
+  const money = (v: number) => Number(v || 0).toLocaleString('pt-BR', { style: 'currency', currency });
+  return { currency, symbol, money };
+};
+
 const LOSS_REASONS = [
   'Sem retorno',
   'Honorários acima do esperado',
@@ -121,6 +131,7 @@ export const isContractSentStage = (stageName?: string, isVendaNegocio = false) 
 };
 
 export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, config, onBack }) => {
+  const { symbol: moneySymbol, money } = useClientMoney();
   const { fetchLeads, addLead, updateLead, deleteLead, updateLeadStage, updateLeadsPositions } = useLeadTracker();
   const [leads, setLeads] = useState<ClientLead[]>([]);
   const [loading, setLoading] = useState(true);
@@ -1161,7 +1172,7 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
               <div className="bg-emerald-50/30 border border-emerald-500/10 rounded-2xl p-4 flex flex-col justify-between">
                 <span className="text-[10px] uppercase font-bold text-emerald-800/60 mb-1">Total Geral</span>
                 <div className="text-xl font-black text-emerald-900 tracking-tight">
-                  {statsFechados.totalRevenue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                  {money(statsFechados.totalRevenue)}
                 </div>
                 <div className="text-[9px] font-bold text-emerald-600/40">{statsFechados.count} contratos fechados</div>
               </div>
@@ -1169,7 +1180,7 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
                 <div key={m.label} className="bg-white border border-black/[0.05] rounded-2xl p-4 flex flex-col justify-between shadow-sm">
                   <span className="text-[10px] uppercase font-bold text-gray-400 mb-1">{m.label}</span>
                   <div className="text-sm font-black text-gray-900 tracking-tight">
-                    {m.value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                    {money(m.value)}
                   </div>
                   <div className="text-[9px] font-bold text-brand-dark/40">{m.count} contratos</div>
                 </div>
@@ -1213,7 +1224,7 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
                             {lead.potential === 'baixo' && <span className="text-gray-600 font-bold">❄️ Baixo</span>}
                           </td>
                           <td className="py-3.5 text-emerald-800 font-black">
-                            {Number(lead.deal_value || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                            {money(Number(lead.deal_value || 0))}
                           </td>
                           <td className="py-3.5 pr-2 text-right text-brand-dark flex items-center justify-end gap-1.5 font-normal text-[10px] uppercase tracking-wider mt-1.5">
                             {getSourceIcon(lead.source)}
@@ -1489,7 +1500,7 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
                   <span className="premium-label font-bold text-amber-800">Dinheiro em Negociação</span>
                 </div>
                 <div className="text-2xl font-black tracking-tight text-amber-700">
-                  {stats.contractSentRevenue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                  {money(stats.contractSentRevenue)}
                 </div>
                 <div className="text-[10px] text-gray-400 mt-2 font-semibold">
                   <div className="text-amber-600 font-bold flex items-center gap-1 mb-1">
@@ -1507,7 +1518,7 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
                   <span className="premium-label">Faturamento CRM</span>
                 </div>
                 <div className="text-2xl font-bold tracking-tight text-emerald-700">
-                  {stats.revenue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                  {money(stats.revenue)}
                 </div>
                 <div className="text-[10px] text-gray-400 mt-1 font-semibold">
                   Soma dos contratos fechados de fato
@@ -1731,7 +1742,7 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
                         <div>
                           <span className="text-gray-500 font-medium block">Valor da Venda:</span>
                           <span className="font-black text-emerald-900 text-sm">
-                            {Number(selectedLeadForView.deal_value || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                            {money(Number(selectedLeadForView.deal_value || 0))}
                           </span>
                         </div>
                         <div>
@@ -1791,7 +1802,7 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
                     <div>
                       <span className="text-[10px] uppercase font-black text-gray-400 block mb-1">Faturamento Estimado</span>
                       <p className="text-sm font-extrabold text-emerald-800">
-                        {Number(selectedLeadForView.deal_value || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                        {money(Number(selectedLeadForView.deal_value || 0))}
                       </p>
                     </div>
 
@@ -2165,7 +2176,7 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
                     {isVendaNegocio ? 'Valor da venda' : 'Valor do Contrato'}
                   </label>
                   <div className="relative">
-                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 font-bold">R$</span>
+                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 font-bold">{moneySymbol}</span>
                     <input 
                       type="text" 
                       inputMode="decimal"
@@ -2309,7 +2320,7 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
                 <div>
                   <label className="text-[10px] uppercase font-bold text-gray-400 mb-1 block">Valor da Proposta</label>
                   <div className="relative">
-                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 font-bold">R$</span>
+                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 font-bold">{moneySymbol}</span>
                     <input 
                       type="text" 
                       inputMode="decimal"
@@ -2376,6 +2387,7 @@ const LeadCard: React.FC<LeadCardProps & { isOverlay?: boolean }> = ({
   isVendaNegocio,
   isOverlay 
 }) => {
+  const { symbol: moneySymbol } = useClientMoney();
   const isClosed = isVendaNegocio ? lead.kanban_stage === 'Vendido' : lead.kanban_stage === 'Fechado';
   const isLost = lead.kanban_stage === 'Perdido';
   const isContractStage = lead.kanban_stage && isContractSentStage(lead.kanban_stage, isVendaNegocio);
@@ -2536,7 +2548,7 @@ const LeadCard: React.FC<LeadCardProps & { isOverlay?: boolean }> = ({
             {isClosed ? (isVendaNegocio ? 'Valor da Venda' : 'Valor Fechado') : isLost ? 'Valor Perdido' : 'Valor Estimado'}
           </span>
           <div className="flex items-center gap-1">
-            <span className="text-xs font-bold">R$</span>
+            <span className="text-xs font-bold">{moneySymbol}</span>
             <input 
               type="text" 
               inputMode="decimal"
