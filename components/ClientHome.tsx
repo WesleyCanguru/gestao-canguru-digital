@@ -1,4 +1,5 @@
 import { ClientStartCard } from './strategy/ClientStartCard';
+import { useT } from '../lib/i18n';
 import { BRAND } from '../lib/brand';
 import { firstNameOf } from '../lib/names';
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
@@ -84,6 +85,7 @@ export const ClientHome: React.FC<ClientHomeProps> = ({
   onRefreshClient,
 }) => {
   const { activeClient, userRole, userType, isViewingAsClient } = useAuth();
+  const { t, lang, locale } = useT();
   const [smartLoading, setSmartLoading] = useState(true);
   const [leadConfig, setLeadConfig] = useState<ClientLeadConfig | null>(null);
   const [monthLeadsCount, setMonthLeadsCount] = useState<number>(0);
@@ -133,9 +135,9 @@ export const ClientHome: React.FC<ClientHomeProps> = ({
   // Saudação dinâmica baseada no horário
   const getGreeting = () => {
     const hour = dayjs().hour();
-    if (hour >= 5 && hour < 12) return 'Bom dia';
-    if (hour >= 12 && hour < 18) return 'Boa tarde';
-    return 'Boa noite';
+    if (hour >= 5 && hour < 12) return t('Bom dia');
+    if (hour >= 12 && hour < 18) return t('Boa tarde');
+    return t('Boa noite');
   };
 
   // Primeiro nome do responsável ou cliente
@@ -147,6 +149,7 @@ export const ClientHome: React.FC<ClientHomeProps> = ({
   // Nome do mês e ano formatados
   const getMonthYearString = () => {
     const now = dayjs();
+    if (lang === 'en') return now.toDate().toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
     const monthName = MONTHS_PT[now.month()];
     return `${monthName} de ${now.year()}`;
   };
@@ -159,6 +162,7 @@ export const ClientHome: React.FC<ClientHomeProps> = ({
       const d = parseInt(parts[0], 10);
       const m = parseInt(parts[1], 10);
       if (!isNaN(d) && !isNaN(m) && m >= 1 && m <= 12) {
+        if (lang === 'en') return new Date(2000, m - 1, d).toLocaleDateString('en-US', { month: 'long', day: 'numeric' });
         return `${String(d).padStart(2, '0')} de ${MONTHS_PT[m - 1].toLowerCase()}`;
       }
     }
@@ -467,7 +471,7 @@ export const ClientHome: React.FC<ClientHomeProps> = ({
     {
       id: 'crm',
       label: 'CRM',
-      subtitle: monthLeadsCount > 0 ? `${monthLeadsCount} leads este mês` : 'Gestão de oportunidades',
+      subtitle: monthLeadsCount > 0 ? t('{n} leads este mês', { n: monthLeadsCount }) : 'Gestão de oportunidades',
       icon: Kanban,
       visible: showCrm,
       action: () => setActiveView('leads')
@@ -639,7 +643,7 @@ export const ClientHome: React.FC<ClientHomeProps> = ({
   const saudacao = getGreeting();
   const primeiroNome = getFirstName();
   const nomeMesAno = getMonthYearString();
-  const nomeEmpresa = activeClient?.name || 'Sua Empresa';
+  const nomeEmpresa = activeClient?.name || t('Sua Empresa');
 
   return (
     <div className="max-w-6xl mx-auto w-full pb-16">
@@ -695,7 +699,7 @@ export const ClientHome: React.FC<ClientHomeProps> = ({
                 marginBottom: 0
               }}
             >
-              {nomeEmpresa} · Painel do cliente
+              {nomeEmpresa} · {t('Painel do cliente')}
             </p>
           </div>
 
@@ -801,7 +805,7 @@ export const ClientHome: React.FC<ClientHomeProps> = ({
                   {postsLoading ? '...' : stat.value}
                 </p>
                 <p style={{ fontSize: 12, color: '#8A8F98', margin: '4px 0 0 0', fontWeight: 500 }}>
-                  {stat.label}
+                  {t(stat.label)}
                 </p>
               </div>
             </div>
@@ -828,10 +832,10 @@ export const ClientHome: React.FC<ClientHomeProps> = ({
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
             <div>
               <p style={{ color: '#8A8F98', fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 4 }}>
-                Redes Sociais · Últimos 7 dias
+                {t('Redes Sociais · Últimos 7 dias')}
               </p>
               <h3 style={{ color: '#13284D', fontSize: 15, fontWeight: 700, margin: 0 }}>
-                Métricas das redes sociais
+                {t('Métricas das redes sociais')}
               </h3>
             </div>
             <button 
@@ -846,7 +850,7 @@ export const ClientHome: React.FC<ClientHomeProps> = ({
               style={{ color: '#13284D', fontSize: 13, fontWeight: 600, background: 'none', border: 'none', cursor: 'pointer' }}
               className="hover:underline transition-all"
             >
-              Ver tudo →
+              {t('Ver tudo →')}
             </button>
           </div>
 
@@ -854,21 +858,21 @@ export const ClientHome: React.FC<ClientHomeProps> = ({
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
             <div style={{ textAlign: 'center' }}>
               <p style={{ color: '#13284D', fontSize: 22, fontWeight: 700, margin: 0 }}>
-                {organicPreview.alcance7d.toLocaleString('pt-BR')}
+                {organicPreview.alcance7d.toLocaleString(locale)}
               </p>
-              <p style={{ color: '#8A8F98', fontSize: 11, margin: '4px 0 0' }}>Alcance</p>
+              <p style={{ color: '#8A8F98', fontSize: 11, margin: '4px 0 0' }}>{t('Alcance')}</p>
             </div>
             <div style={{ textAlign: 'center' }}>
               <p style={{ color: '#13284D', fontSize: 22, fontWeight: 700, margin: 0 }}>
                 {organicPreview.taxaEngajamento}%
               </p>
-              <p style={{ color: '#8A8F98', fontSize: 11, margin: '4px 0 0' }}>Engajamento</p>
+              <p style={{ color: '#8A8F98', fontSize: 11, margin: '4px 0 0' }}>{t('Engajamento')}</p>
             </div>
             <div style={{ textAlign: 'center' }}>
               <p style={{ color: '#10b981', fontSize: 22, fontWeight: 700, margin: 0 }}>
                 {organicPreview.seguidoresGanhos7d >= 0 ? `+${organicPreview.seguidoresGanhos7d}` : organicPreview.seguidoresGanhos7d}
               </p>
-              <p style={{ color: '#8A8F98', fontSize: 11, margin: '4px 0 0' }}>Seguidores</p>
+              <p style={{ color: '#8A8F98', fontSize: 11, margin: '4px 0 0' }}>{t('Seguidores')}</p>
             </div>
           </div>
         </motion.div>
@@ -892,7 +896,7 @@ export const ClientHome: React.FC<ClientHomeProps> = ({
           >
             <div className="flex items-center gap-2">
               <h2 style={{ color: '#13284D', fontSize: 16, fontWeight: 700, margin: 0 }}>
-                Aguardando sua aprovação
+                {t('Aguardando sua aprovação')}
               </h2>
               <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-800">
                 {postsParaAprovar.length}
@@ -920,7 +924,7 @@ export const ClientHome: React.FC<ClientHomeProps> = ({
               }}
               className="hover:underline transition-all"
             >
-              Ver todas →
+              {t('Ver todas →')}
             </button>
           </div>
 
@@ -930,7 +934,7 @@ export const ClientHome: React.FC<ClientHomeProps> = ({
               const platform = (post.platform || 'meta').toUpperCase();
               const displayPlatform = platform === 'META' ? 'INSTAGRAM' : platform;
               const type = post.type || 'Estático';
-              const title = post.theme_title ?? post.theme ?? post.description ?? 'Publicação sem tema';
+              const title = post.theme_title ?? post.theme ?? post.description ?? t('Publicação sem tema');
               const formattedDate = formatDateDisplay(post.date_key);
 
               return (
@@ -984,7 +988,7 @@ export const ClientHome: React.FC<ClientHomeProps> = ({
                             color: '#1d4ed8'
                           }}
                         >
-                          {type}
+                          {t(type)}
                         </span>
                       )}
                       {(post.status === 'changes_requested' || post.status === 'alteracao_solicitada') && (
@@ -998,7 +1002,7 @@ export const ClientHome: React.FC<ClientHomeProps> = ({
                             color: '#854f0b'
                           }}
                         >
-                          Ajustes solicitados
+                          {t('Ajustes solicitados')}
                         </span>
                       )}
                     </div>
@@ -1006,7 +1010,7 @@ export const ClientHome: React.FC<ClientHomeProps> = ({
                       {title}
                     </p>
                     <p style={{ color: '#8A8F98', fontSize: 12, marginTop: 4, marginBottom: 0 }}>
-                      {formattedDate ? `Data prevista: ${formattedDate}` : 'Sem data definida'}
+                      {formattedDate ? t('Data prevista: {d}', { d: formattedDate }) : t('Sem data definida')}
                     </p>
                   </div>
 
@@ -1035,7 +1039,7 @@ export const ClientHome: React.FC<ClientHomeProps> = ({
                     }}
                     className="self-start sm:self-center active:scale-95"
                   >
-                    Ver
+                    {t('Ver')}
                   </button>
                 </div>
               );
@@ -1062,20 +1066,20 @@ export const ClientHome: React.FC<ClientHomeProps> = ({
                 <Target size={28} />
               </div>
               <div className="text-left flex-1">
-                <h3 className="text-lg font-bold text-brand-dark tracking-tight">Sua jornada de onboarding</h3>
+                <h3 className="text-lg font-bold text-brand-dark tracking-tight">{t('Sua jornada de onboarding')}</h3>
                 {onboardingStats.currentPhaseName ? (
                   <p className="text-sm font-semibold text-gray-500 mt-1">
-                    📍 Agora estamos em: <span className="text-brand-dark">{onboardingStats.currentPhaseName}</span>
+                    📍 {t('Agora estamos em:')} <span className="text-brand-dark">{onboardingStats.currentPhaseName}</span>
                   </p>
                 ) : (
-                  <p className="text-sm font-semibold text-gray-500 mt-1">Quase lá!</p>
+                  <p className="text-sm font-semibold text-gray-500 mt-1">{t('Quase lá!')}</p>
                 )}
               </div>
             </div>
 
             <div className="md:w-64 flex-shrink-0 relative z-10 text-left">
               <div className="flex justify-between items-center mb-2">
-                <span className="text-xs font-bold uppercase tracking-widest text-brand-dark/60">Progresso</span>
+                <span className="text-xs font-bold uppercase tracking-widest text-brand-dark/60">{t('Progresso')}</span>
                 <span className="text-sm font-black text-brand-dark">
                   {onboardingStats.completed} / {onboardingStats.total}
                 </span>
@@ -1106,7 +1110,7 @@ export const ClientHome: React.FC<ClientHomeProps> = ({
             marginBottom: 16
           }}
         >
-          Acesso rápido
+          {t('Acesso rápido')}
         </h2>
 
         <div
@@ -1148,12 +1152,12 @@ export const ClientHome: React.FC<ClientHomeProps> = ({
                     <ModIcon size={20} color="#13284D" className="group-hover:scale-110 transition-transform origin-left" />
                   </div>
                   <p style={{ color: '#13284D', fontSize: 14, fontWeight: 700, margin: 0, lineHeight: 1.2 }}>
-                    {modulo.label}
+                    {t(modulo.label)}
                   </p>
                 </div>
                 {modulo.subtitle && (
                   <p style={{ color: '#8A8F98', fontSize: 11, marginTop: 6, margin: '6px 0 0 0', lineHeight: 1.2 }}>
-                    {modulo.subtitle}
+                    {t(modulo.subtitle)}
                   </p>
                 )}
               </div>
@@ -1182,7 +1186,7 @@ export const ClientHome: React.FC<ClientHomeProps> = ({
         className="mt-16 text-center text-xs text-gray-400 flex flex-col items-center gap-2"
       >
         <p className="font-medium">
-          Precisa de suporte estratégico ou tem dúvidas? Entre em contato com a equipe da {BRAND.by}.
+          {t('Precisa de suporte estratégico ou tem dúvidas? Entre em contato com a equipe da {agency}.', { agency: BRAND.by })}
         </p>
       </motion.div>
 

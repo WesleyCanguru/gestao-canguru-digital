@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { useT } from '../lib/i18n';
 import { supabase, useAuth } from '../lib/supabase';
 import { readPdfWithClaude } from '../lib/pdfImport';
 import { TrafficStrategyData } from '../types';
@@ -171,6 +172,7 @@ const CALABRES_STRATEGY: TrafficStrategyData = {
 
 export const PaidTrafficView: React.FC<PaidTrafficViewProps> = ({ onBack }) => {
   const { userRole, activeClient } = useAuth();
+  const { t, lang, locale } = useT();
   
   // Estado de controle de Período e Plataforma
   const [selectedPeriod, setSelectedPeriod] = useState<PeriodType>(() => {
@@ -267,46 +269,46 @@ export const PaidTrafficView: React.FC<PaidTrafficViewProps> = ({ onBack }) => {
         cStart = today.subtract(6, 'day');
         pEnd = cStart.subtract(1, 'day');
         pStart = pEnd.subtract(6, 'day');
-        label = 'Últimos 7 dias';
+        label = t('Últimos 7 dias');
         break;
       case '30d':
         cStart = today.subtract(29, 'day');
         pEnd = cStart.subtract(1, 'day');
         pStart = pEnd.subtract(29, 'day');
-        label = 'Últimos 30 dias';
+        label = t('Últimos 30 dias');
         break;
       case '90d':
         cStart = today.subtract(89, 'day');
         pEnd = cStart.subtract(1, 'day');
         pStart = pEnd.subtract(89, 'day');
-        label = 'Últimos 90 dias';
+        label = t('Últimos 90 dias');
         break;
       case 'este_mes':
         cStart = today.startOf('month');
         cEnd = today;
         pStart = today.subtract(1, 'month').startOf('month');
         pEnd = today.subtract(1, 'month').endOf('month');
-        label = 'Este mês';
+        label = t('Este mês');
         break;
       case 'mes_anterior':
         cStart = today.subtract(1, 'month').startOf('month');
         cEnd = today.subtract(1, 'month').endOf('month');
         pStart = today.subtract(2, 'month').startOf('month');
         pEnd = today.subtract(2, 'month').endOf('month');
-        label = 'Mês anterior';
+        label = t('Mês anterior');
         break;
       case 'este_ano':
         cStart = today.startOf('year');
         cEnd = today;
         pStart = today.subtract(1, 'year').startOf('year');
         pEnd = today.subtract(1, 'year').endOf('year');
-        label = 'Este ano';
+        label = t('Este ano');
         break;
       default:
         cStart = today.subtract(29, 'day');
         pEnd = cStart.subtract(1, 'day');
         pStart = pEnd.subtract(29, 'day');
-        label = 'Últimos 30 dias';
+        label = t('Últimos 30 dias');
     }
 
     return {
@@ -518,7 +520,7 @@ export const PaidTrafficView: React.FC<PaidTrafficViewProps> = ({ onBack }) => {
       const dateStr = curr.format('YYYY-MM-DD');
       map[dateStr] = {
         date: dateStr,
-        formattedDate: curr.format('DD/MM'),
+        formattedDate: curr.format(lang === 'en' ? 'MM/DD' : 'DD/MM'),
         investment: 0,
         clicks: 0,
         conversions: 0,
@@ -558,34 +560,34 @@ export const PaidTrafficView: React.FC<PaidTrafficViewProps> = ({ onBack }) => {
 
   // Configuração das métricas do gráfico
   const chartMetricTabs = useMemo(() => {
-    let convLabel = 'Conversões';
-    if (selectedPlatform === 'meta') convLabel = 'Conversas no WhatsApp';
-    if (selectedPlatform === 'google') convLabel = 'Formulários';
+    let convLabel = t('Conversões');
+    if (selectedPlatform === 'meta') convLabel = t('Conversas no WhatsApp');
+    if (selectedPlatform === 'google') convLabel = t('Formulários');
 
     return [
-      { id: 'investment', label: `Investimento (${currencySymbol})` },
+      { id: 'investment', label: `${t('Investimento')} (${clientCurrency === 'USD' && lang === 'en' ? '$' : currencySymbol})` },
       { id: 'conversions', label: convLabel },
-      { id: 'clicks', label: 'Cliques' },
-      { id: 'impressions', label: 'Impressões' },
+      { id: 'clicks', label: t('Cliques') },
+      { id: 'impressions', label: t('Impressões') },
     ];
   }, [selectedPlatform, currencySymbol]);
 
   const chartColorMap = {
-    investment: { stroke: '#13284D', fill: '#13284D', label: 'Investimento Diário' },
-    conversions: { stroke: '#059669', fill: '#059669', label: selectedPlatform === 'meta' ? 'Conversas no WhatsApp' : selectedPlatform === 'google' ? 'Formulários Preenchidos' : 'Conversões Diárias' },
-    clicks: { stroke: '#2563EB', fill: '#2563EB', label: 'Cliques Diários' },
-    impressions: { stroke: '#7C3AED', fill: '#7C3AED', label: 'Impressões Diárias' },
+    investment: { stroke: '#13284D', fill: '#13284D', label: t('Investimento Diário') },
+    conversions: { stroke: '#059669', fill: '#059669', label: selectedPlatform === 'meta' ? t('Conversas no WhatsApp') : selectedPlatform === 'google' ? t('Formulários Preenchidos') : t('Conversões Diárias') },
+    clicks: { stroke: '#2563EB', fill: '#2563EB', label: t('Cliques Diários') },
+    impressions: { stroke: '#7C3AED', fill: '#7C3AED', label: t('Impressões Diárias') },
   };
 
   const currentChartConfig = chartColorMap[activeChartMetric] || chartColorMap.investment;
 
   // Formatação de valores
   const formatCurrency = (val: number) => {
-    return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: clientCurrency }).format(val);
+    return new Intl.NumberFormat(locale, { style: 'currency', currency: clientCurrency }).format(val);
   };
 
   const formatNumber = (num: number) => {
-    return new Intl.NumberFormat('pt-BR').format(num);
+    return new Intl.NumberFormat(locale).format(num);
   };
 
   // Helper para renderizar indicador de variação
@@ -594,7 +596,7 @@ export const PaidTrafficView: React.FC<PaidTrafficViewProps> = ({ onBack }) => {
       return (
         <span className="inline-flex items-center gap-1 text-[11px] font-medium text-stone-400">
           <Minus size={12} />
-          <span>Sem histórico ant.</span>
+          <span>{t('Sem histórico ant.')}</span>
         </span>
       );
     }
@@ -606,7 +608,7 @@ export const PaidTrafficView: React.FC<PaidTrafficViewProps> = ({ onBack }) => {
       return (
         <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-stone-500">
           <Minus size={12} />
-          <span>0.0% vs período anterior</span>
+          <span>{t('0.0% vs período anterior')}</span>
         </span>
       );
     }
@@ -620,7 +622,7 @@ export const PaidTrafficView: React.FC<PaidTrafficViewProps> = ({ onBack }) => {
       }`}>
         {isPositive ? <TrendingUp size={13} className={isGood ? 'text-emerald-600' : 'text-rose-600'} /> : <TrendingDown size={13} className={isGood ? 'text-emerald-600' : 'text-rose-600'} />}
         <span>{isPositive ? '+' : ''}{variation.toFixed(1)}%</span>
-        <span className="text-stone-400 font-normal text-[10px]">vs ant.</span>
+        <span className="text-stone-400 font-normal text-[10px]">{t('vs ant.')}</span>
       </span>
     );
   };
@@ -633,7 +635,7 @@ export const PaidTrafficView: React.FC<PaidTrafficViewProps> = ({ onBack }) => {
       return (
         <div className="bg-[#13284D] text-white p-3.5 rounded-2xl shadow-2xl border border-white/10 text-xs min-w-[200px] space-y-2 z-50">
           <div className="flex items-center justify-between border-b border-white/10 pb-1.5 font-bold">
-            <span className="text-stone-200">{dateItem ? dayjs(dateItem.date).format('DD [de] MMMM [de] YYYY') : label}</span>
+            <span className="text-stone-200">{dateItem ? (lang === 'en' ? new Date(dateItem.date + 'T12:00:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : dayjs(dateItem.date).format('DD [de] MMMM [de] YYYY')) : label}</span>
           </div>
           <div className="space-y-1.5 font-mono">
             <div className="flex items-center justify-between gap-3 text-xs">
@@ -644,19 +646,19 @@ export const PaidTrafficView: React.FC<PaidTrafficViewProps> = ({ onBack }) => {
             </div>
             {dateItem && activeChartMetric !== 'investment' && (
               <div className="flex items-center justify-between gap-3 text-[11px] text-stone-300 font-sans">
-                <span>Investimento:</span>
+                <span>{t('Investimento:')}</span>
                 <span className="font-mono text-white">{formatCurrency(dateItem.investment)}</span>
               </div>
             )}
             {dateItem && activeChartMetric !== 'conversions' && (
               <div className="flex items-center justify-between gap-3 text-[11px] text-stone-300 font-sans">
-                <span>{selectedPlatform === 'meta' ? 'Conversas WhatsApp:' : selectedPlatform === 'google' ? 'Formulários:' : 'Conversões:'}</span>
+                <span>{selectedPlatform === 'meta' ? t('Conversas WhatsApp:') : selectedPlatform === 'google' ? t('Formulários:') : t('Conversões:')}</span>
                 <span className="font-mono text-white">{formatNumber(dateItem.conversions)}</span>
               </div>
             )}
             {dateItem && activeChartMetric !== 'clicks' && (
               <div className="flex items-center justify-between gap-3 text-[11px] text-stone-300 font-sans">
-                <span>Cliques:</span>
+                <span>{t('Cliques:')}</span>
                 <span className="font-mono text-white">{formatNumber(dateItem.clicks)}</span>
               </div>
             )}
@@ -718,20 +720,20 @@ export const PaidTrafficView: React.FC<PaidTrafficViewProps> = ({ onBack }) => {
   };
 
   const periods: { id: PeriodType; label: string }[] = [
-    { id: '7d', label: 'Últimos 7 dias' },
-    { id: '30d', label: 'Últimos 30 dias' },
-    { id: '90d', label: 'Últimos 90 dias' },
-    { id: 'este_mes', label: 'Este mês' },
-    { id: 'mes_anterior', label: 'Mês anterior' },
-    { id: 'este_ano', label: 'Este ano' },
+    { id: '7d', label: t('Últimos 7 dias') },
+    { id: '30d', label: t('Últimos 30 dias') },
+    { id: '90d', label: t('Últimos 90 dias') },
+    { id: 'este_mes', label: t('Este mês') },
+    { id: 'mes_anterior', label: t('Mês anterior') },
+    { id: 'este_ano', label: t('Este ano') },
   ];
 
   if (loading) {
     return (
       <div className="py-24 text-center text-stone-400 flex flex-col items-center justify-center">
         <RefreshCw size={32} className="animate-spin text-[#13284D] mb-4" />
-        <p className="text-sm font-semibold text-stone-600">Carregando métricas de tráfego pago...</p>
-        <p className="text-xs text-stone-400 mt-1">Buscando dados de investimento, cliques e conversões</p>
+        <p className="text-sm font-semibold text-stone-600">{t('Carregando métricas de tráfego pago...')}</p>
+        <p className="text-xs text-stone-400 mt-1">{t('Buscando dados de investimento, cliques e conversões')}</p>
       </div>
     );
   }
@@ -747,7 +749,7 @@ export const PaidTrafficView: React.FC<PaidTrafficViewProps> = ({ onBack }) => {
               className="flex items-center gap-2 text-sm font-bold text-[#13284D] hover:opacity-80 transition-opacity cursor-pointer"
             >
               <ChevronRight className="w-5 h-5 rotate-180" />
-              <span>Voltar ao Início</span>
+              <span>{t('Voltar ao Início')}</span>
             </button>
           </div>
         )}
@@ -757,21 +759,21 @@ export const PaidTrafficView: React.FC<PaidTrafficViewProps> = ({ onBack }) => {
             <DollarSign size={30} />
           </div>
           <h3 className="text-xl sm:text-2xl font-bold text-[#13284D] mb-3 tracking-tight">
-            Nenhuma métrica de tráfego pago sincronizada ainda
+            {t('Nenhuma métrica de tráfego pago sincronizada ainda')}
           </h3>
           <p className="text-sm text-stone-500 max-w-lg mx-auto leading-relaxed mb-6 font-medium">
-            Os dados de investimento, cliques, conversões e custos de Meta Ads e Google Ads serão coletados automaticamente e exibidos neste painel.
+            {t('Os dados de investimento, cliques, conversões e custos de Meta Ads e Google Ads serão coletados automaticamente e exibidos neste painel.')}
           </p>
           <div className="inline-flex items-center gap-2 px-4 py-2 bg-stone-50 rounded-xl text-xs font-semibold text-stone-500 border border-stone-200/60">
             <Sparkles size={14} className="text-amber-500" />
-            <span>Sincronização diária contínua ativa</span>
+            <span>{t('Sincronização diária contínua ativa')}</span>
           </div>
 
           {userRole === 'admin' && (
             <div className="mt-8 pt-8 border-t border-stone-100 flex flex-col items-center">
               <label className="cursor-pointer inline-flex items-center gap-2 px-5 py-2.5 bg-[#13284D] hover:bg-[#13284D]/90 text-white rounded-xl text-xs font-bold transition-all shadow-xs">
                 <Upload size={14} />
-                <span>Upload Estratégia em PDF</span>
+                <span>{t('Upload Estratégia em PDF')}</span>
                 <input type="file" accept=".pdf" className="hidden" onChange={handleFileUpload} />
               </label>
             </div>
@@ -792,7 +794,7 @@ export const PaidTrafficView: React.FC<PaidTrafficViewProps> = ({ onBack }) => {
             className="flex items-center gap-2 text-sm font-bold text-[#13284D] hover:opacity-80 transition-opacity cursor-pointer"
           >
             <ChevronRight className="w-5 h-5 rotate-180" />
-            <span>Voltar ao Início</span>
+            <span>{t('Voltar ao Início')}</span>
           </button>
         </div>
       )}
@@ -816,7 +818,7 @@ export const PaidTrafficView: React.FC<PaidTrafficViewProps> = ({ onBack }) => {
               }`}
             >
               <Layers size={14} />
-              <span>Todas as Plataformas</span>
+              <span>{t('Todas as Plataformas')}</span>
             </button>
 
             {availablePlatforms.includes('meta') && (
@@ -865,7 +867,7 @@ export const PaidTrafficView: React.FC<PaidTrafficViewProps> = ({ onBack }) => {
                 }`}
               >
                 <FileText size={13} />
-                <span>{showStrategyModal ? 'Ocultar Estratégia' : 'Ver Estratégia'}</span>
+                <span>{showStrategyModal ? t('Ocultar Estratégia') : t('Ver Estratégia')}</span>
               </button>
             )}
 
@@ -893,10 +895,10 @@ export const PaidTrafficView: React.FC<PaidTrafficViewProps> = ({ onBack }) => {
                     ? 'bg-green-50 text-green-600 border border-green-200'
                     : 'bg-gray-50 text-gray-500 hover:bg-gray-100 hover:text-gray-700 border border-gray-200/60'
                 }`}
-                title="Copiar link direto para esta visualização de tráfego pago"
+                title={t('Copiar link direto para esta visualização de tráfego pago')}
               >
                 <Link2 size={13} />
-                <span>{linkCopied ? 'Link copiado!' : 'Copiar link'}</span>
+                <span>{linkCopied ? t('Link copiado!') : t('Copiar link')}</span>
               </button>
             )}
           </div>
@@ -962,14 +964,14 @@ export const PaidTrafficView: React.FC<PaidTrafficViewProps> = ({ onBack }) => {
                 <div>
                   <h3 className="text-lg font-bold text-[#13284D] flex items-center gap-2">
                     <Target className="text-orange-500" size={20} />
-                    <span>Planejamento & Estratégia de Tráfego</span>
+                    <span>{t('Planejamento & Estratégia de Tráfego')}</span>
                   </h3>
-                  <p className="text-xs text-stone-500 mt-0.5">Diretrizes estratégicas definidas para as campanhas</p>
+                  <p className="text-xs text-stone-500 mt-0.5">{t('Diretrizes estratégicas definidas para as campanhas')}</p>
                 </div>
                 {userRole === 'admin' && (
                   <label className="cursor-pointer inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded-xl text-xs font-bold transition-all">
                     <Upload size={13} />
-                    <span>Atualizar PDF</span>
+                    <span>{t('Atualizar PDF')}</span>
                     <input type="file" accept=".pdf" className="hidden" onChange={handleFileUpload} />
                   </label>
                 )}
@@ -980,7 +982,7 @@ export const PaidTrafficView: React.FC<PaidTrafficViewProps> = ({ onBack }) => {
                 <div className="bg-stone-50 rounded-2xl p-5 border border-stone-200/60">
                   <div className="flex items-center gap-2 text-stone-500 mb-2">
                     <DollarSign size={16} />
-                    <span className="text-xs font-bold uppercase tracking-wider">Verba Mensal</span>
+                    <span className="text-xs font-bold uppercase tracking-wider">{t('Verba Mensal')}</span>
                   </div>
                   <div className="text-2xl font-bold text-[#13284D]">{strategyData.kpis.monthlyBudget}</div>
                   <p className="text-xs text-stone-500 mt-1">{strategyData.kpis.budgetDetails}</p>
@@ -989,7 +991,7 @@ export const PaidTrafficView: React.FC<PaidTrafficViewProps> = ({ onBack }) => {
                 <div className="bg-stone-50 rounded-2xl p-5 border border-stone-200/60">
                   <div className="flex items-center gap-2 text-orange-600 mb-2">
                     <Target size={16} />
-                    <span className="text-xs font-bold uppercase tracking-wider">Meta Prioritária</span>
+                    <span className="text-xs font-bold uppercase tracking-wider">{t('Meta Prioritária')}</span>
                   </div>
                   <div className="text-2xl font-bold text-[#13284D]">{strategyData.kpis.priorityGoal}</div>
                   <p className="text-xs text-stone-500 mt-1">{strategyData.kpis.goalDetails}</p>
@@ -998,7 +1000,7 @@ export const PaidTrafficView: React.FC<PaidTrafficViewProps> = ({ onBack }) => {
                 <div className="bg-stone-50 rounded-2xl p-5 border border-stone-200/60">
                   <div className="flex items-center gap-2 text-emerald-600 mb-2">
                     <Users size={16} />
-                    <span className="text-xs font-bold uppercase tracking-wider">Ticket Médio</span>
+                    <span className="text-xs font-bold uppercase tracking-wider">{t('Ticket Médio')}</span>
                   </div>
                   <div className="text-2xl font-bold text-[#13284D]">{strategyData.kpis.averageTicket}</div>
                   <p className="text-xs text-stone-500 mt-1">{strategyData.kpis.ticketDetails}</p>
@@ -1034,7 +1036,7 @@ export const PaidTrafficView: React.FC<PaidTrafficViewProps> = ({ onBack }) => {
       {/* ========================================================================= */}
       {totalConsumption && totalConsumption.budgetAmount > 0 && (
         <MediaBudgetProgressBar
-          platformLabel="Consumo da Verba de Mídia"
+          platformLabel={t('Consumo da Verba de Mídia')}
           investedAmount={totalConsumption.investedAmount}
           budgetAmount={totalConsumption.budgetAmount}
           percentage={totalConsumption.percentage}
@@ -1056,7 +1058,7 @@ export const PaidTrafficView: React.FC<PaidTrafficViewProps> = ({ onBack }) => {
           <div>
             <div className="flex items-center justify-between mb-2 sm:mb-3">
               <span className="text-[10px] sm:text-xs font-bold uppercase tracking-wider text-stone-500">
-                {selectedPlatform === 'meta' ? 'Investimento Meta' : selectedPlatform === 'google' ? 'Investimento Google' : 'Investimento Total'}
+                {selectedPlatform === 'meta' ? t('Investimento Meta') : selectedPlatform === 'google' ? t('Investimento Google') : t('Investimento Total')}
               </span>
               <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-blue-50 text-blue-700 flex items-center justify-center">
                 <DollarSign size={15} />
@@ -1066,7 +1068,7 @@ export const PaidTrafficView: React.FC<PaidTrafficViewProps> = ({ onBack }) => {
               {formatCurrency(processedData.totalInvestment)}
             </div>
             <p className="text-[10px] sm:text-[11px] text-stone-400 font-medium mt-0.5">
-              Soma aplicada no período
+              {t('Soma aplicada no período')}
             </p>
           </div>
           <div className="mt-3 pt-2.5 sm:mt-4 sm:pt-3 border-t border-stone-100 flex items-center justify-between">
@@ -1079,7 +1081,7 @@ export const PaidTrafficView: React.FC<PaidTrafficViewProps> = ({ onBack }) => {
           <div>
             <div className="flex items-center justify-between mb-2 sm:mb-3">
               <span className="text-[10px] sm:text-xs font-bold uppercase tracking-wider text-stone-500">
-                {selectedPlatform === 'meta' ? 'Conversas WhatsApp' : selectedPlatform === 'google' ? 'Formulários Preenchidos' : 'Resultados / Conversões'}
+                {selectedPlatform === 'meta' ? t('Conversas WhatsApp') : selectedPlatform === 'google' ? t('Formulários Preenchidos') : t('Resultados / Conversões')}
               </span>
               <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center">
                 <Target size={15} />
@@ -1090,13 +1092,13 @@ export const PaidTrafficView: React.FC<PaidTrafficViewProps> = ({ onBack }) => {
                 {formatNumber(processedData.totalConversions)}
               </span>
               {processedData.costPerConversion > 0 && (
-                <span className="text-[10px] sm:text-xs font-bold bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded-md font-mono" title="Custo por resultado">
+                <span className="text-[10px] sm:text-xs font-bold bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded-md font-mono" title={t('Custo por resultado')}>
                   {formatCurrency(processedData.costPerConversion)}/res
                 </span>
               )}
             </div>
             <p className="text-[10px] sm:text-[11px] text-stone-400 font-medium mt-0.5">
-              {selectedPlatform === 'meta' ? 'Conversas diretas iniciadas' : selectedPlatform === 'google' ? 'Formulários e leads gerados' : 'Leads e contatos diretos'}
+              {selectedPlatform === 'meta' ? t('Conversas diretas iniciadas') : selectedPlatform === 'google' ? t('Formulários e leads gerados') : t('Leads e contatos diretos')}
             </p>
           </div>
           <div className="mt-3 pt-2.5 sm:mt-4 sm:pt-3 border-t border-stone-100 flex items-center justify-between">
@@ -1109,7 +1111,7 @@ export const PaidTrafficView: React.FC<PaidTrafficViewProps> = ({ onBack }) => {
           <div>
             <div className="flex items-center justify-between mb-2 sm:mb-3">
               <span className="text-[10px] sm:text-xs font-bold uppercase tracking-wider text-stone-500">
-                Cliques Totais
+                {t('Cliques Totais')}
               </span>
               <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-indigo-50 text-indigo-700 flex items-center justify-center">
                 <MousePointer size={15} />
@@ -1120,13 +1122,13 @@ export const PaidTrafficView: React.FC<PaidTrafficViewProps> = ({ onBack }) => {
                 {formatNumber(processedData.totalClicks)}
               </span>
               {processedData.avgCpc > 0 && (
-                <span className="text-[10px] sm:text-xs font-bold bg-indigo-100 text-indigo-800 px-1.5 py-0.5 rounded-md font-mono" title="CPC Médio">
+                <span className="text-[10px] sm:text-xs font-bold bg-indigo-100 text-indigo-800 px-1.5 py-0.5 rounded-md font-mono" title={t('CPC Médio')}>
                   CPC {formatCurrency(processedData.avgCpc)}
                 </span>
               )}
             </div>
             <p className="text-[10px] sm:text-[11px] text-stone-400 font-medium mt-0.5">
-              Acessos e cliques no anúncio
+              {t('Acessos e cliques no anúncio')}
             </p>
           </div>
           <div className="mt-3 pt-2.5 sm:mt-4 sm:pt-3 border-t border-stone-100 flex items-center justify-between">
@@ -1139,7 +1141,7 @@ export const PaidTrafficView: React.FC<PaidTrafficViewProps> = ({ onBack }) => {
           <div>
             <div className="flex items-center justify-between mb-2 sm:mb-3">
               <span className="text-[10px] sm:text-xs font-bold uppercase tracking-wider text-stone-500">
-                Impressões
+                {t('Impressões')}
               </span>
               <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-purple-50 text-purple-700 flex items-center justify-center">
                 <Eye size={15} />
@@ -1150,13 +1152,13 @@ export const PaidTrafficView: React.FC<PaidTrafficViewProps> = ({ onBack }) => {
                 {formatNumber(processedData.totalImpressions)}
               </span>
               {processedData.avgCtr > 0 && (
-                <span className="text-[10px] sm:text-xs font-bold bg-purple-100 text-purple-800 px-1.5 py-0.5 rounded-md font-mono" title="CTR Médio">
+                <span className="text-[10px] sm:text-xs font-bold bg-purple-100 text-purple-800 px-1.5 py-0.5 rounded-md font-mono" title={t('CTR Médio')}>
                   CTR {processedData.avgCtr.toFixed(2)}%
                 </span>
               )}
             </div>
             <p className="text-[10px] sm:text-[11px] text-stone-400 font-medium mt-0.5">
-              Exibições dos anúncios
+              {t('Exibições dos anúncios')}
             </p>
           </div>
           <div className="mt-3 pt-2.5 sm:mt-4 sm:pt-3 border-t border-stone-100 flex items-center justify-between">
@@ -1176,7 +1178,7 @@ export const PaidTrafficView: React.FC<PaidTrafficViewProps> = ({ onBack }) => {
               Evolução Temporal de Tráfego Pago ({periodLabel})
             </h3>
             <p className="text-xs text-stone-400 font-medium">
-              Acompanhamento diário de investimento, cliques e conversões
+              {t('Acompanhamento diário de investimento, cliques e conversões')}
             </p>
           </div>
 
@@ -1246,7 +1248,7 @@ export const PaidTrafficView: React.FC<PaidTrafficViewProps> = ({ onBack }) => {
       {selectedPlatform === 'all' && (
         <div className="space-y-3">
           <h3 className="text-sm font-bold text-[#13284D] uppercase tracking-wider">
-            Desempenho por Plataforma de Anúncios
+            {t('Desempenho por Plataforma de Anúncios')}
           </h3>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1261,7 +1263,7 @@ export const PaidTrafficView: React.FC<PaidTrafficViewProps> = ({ onBack }) => {
                     </div>
                     <div>
                       <h4 className="font-bold text-[#13284D] text-base">Meta Ads</h4>
-                      <p className="text-xs text-stone-400">Instagram & Facebook Ads</p>
+                      <p className="text-xs text-stone-400">{t('Instagram & Facebook Ads')}</p>
                     </div>
                   </div>
                   <div className="px-2.5 py-1 rounded-full bg-blue-50 text-[#0081FB] text-[11px] font-bold">
@@ -1272,7 +1274,7 @@ export const PaidTrafficView: React.FC<PaidTrafficViewProps> = ({ onBack }) => {
                 <div className="grid grid-cols-2 gap-3 mb-4">
                   <div className="bg-stone-50/80 rounded-2xl p-3.5 border border-stone-200/50">
                     <span className="text-[10px] font-bold uppercase tracking-wider text-stone-400 block mb-1">
-                      Investimento
+                      {t('Investimento')}
                     </span>
                     <span className="text-xl font-bold text-[#13284D] font-mono">
                       {formatCurrency(processedData.metaInvestment)}
@@ -1281,7 +1283,7 @@ export const PaidTrafficView: React.FC<PaidTrafficViewProps> = ({ onBack }) => {
 
                   <div className="bg-stone-50/80 rounded-2xl p-3.5 border border-stone-200/50">
                     <span className="text-[10px] font-bold uppercase tracking-wider text-stone-400 block mb-1">
-                      Conversas WhatsApp
+                      {t('Conversas WhatsApp')}
                     </span>
                     <span className="text-xl font-bold text-emerald-700 font-mono">
                       {formatNumber(processedData.metaConversions)}
@@ -1291,25 +1293,25 @@ export const PaidTrafficView: React.FC<PaidTrafficViewProps> = ({ onBack }) => {
 
                 <div className="space-y-2 text-xs">
                   <div className="flex items-center justify-between py-1.5 border-b border-stone-50">
-                    <span className="text-stone-500">Custo por Conversa (CAC):</span>
+                    <span className="text-stone-500">{t('Custo por Conversa (CAC):')}</span>
                     <span className="font-bold text-[#13284D] font-mono">
                       {processedData.metaConversions > 0 ? formatCurrency(processedData.metaCostPerConv) : formatCurrency(0)}
                     </span>
                   </div>
                   <div className="flex items-center justify-between py-1.5 border-b border-stone-50">
-                    <span className="text-stone-500">Cliques no Link / Anúncio:</span>
+                    <span className="text-stone-500">{t('Cliques no Link / Anúncio:')}</span>
                     <span className="font-bold text-[#13284D] font-mono">{formatNumber(processedData.metaClicks)}</span>
                   </div>
                   <div className="flex items-center justify-between py-1.5 border-b border-stone-50">
-                    <span className="text-stone-500">Custo por Clique (CPC Médio):</span>
+                    <span className="text-stone-500">{t('Custo por Clique (CPC Médio):')}</span>
                     <span className="font-bold text-[#13284D] font-mono">{formatCurrency(processedData.metaCpc)}</span>
                   </div>
                   <div className="flex items-center justify-between py-1.5 border-b border-stone-50">
-                    <span className="text-stone-500">Taxa de Cliques (CTR):</span>
+                    <span className="text-stone-500">{t('Taxa de Cliques (CTR):')}</span>
                     <span className="font-bold text-[#13284D] font-mono">{processedData.metaCtr.toFixed(2)}%</span>
                   </div>
                   <div className="flex items-center justify-between py-1.5">
-                    <span className="text-stone-500">Custo por Mil Impressões (CPM):</span>
+                    <span className="text-stone-500">{t('Custo por Mil Impressões (CPM):')}</span>
                     <span className="font-bold text-[#13284D] font-mono">{formatCurrency(processedData.metaCpm)}</span>
                   </div>
                 </div>
@@ -1326,18 +1328,18 @@ export const PaidTrafficView: React.FC<PaidTrafficViewProps> = ({ onBack }) => {
                     </div>
                     <div>
                       <h4 className="font-bold text-[#13284D] text-base">Google Ads</h4>
-                      <p className="text-xs text-stone-400">Rede de Pesquisa & Busca</p>
+                      <p className="text-xs text-stone-400">{t('Rede de Pesquisa & Busca')}</p>
                     </div>
                   </div>
                   <div className="px-2.5 py-1 rounded-full bg-red-50 text-[#EA4335] text-[11px] font-bold">
-                    Formulários & Leads
+                    {t('Formulários & Leads')}
                   </div>
                 </div>
 
                 <div className="grid grid-cols-2 gap-3 mb-4">
                   <div className="bg-stone-50/80 rounded-2xl p-3.5 border border-stone-200/50">
                     <span className="text-[10px] font-bold uppercase tracking-wider text-stone-400 block mb-1">
-                      Investimento
+                      {t('Investimento')}
                     </span>
                     <span className="text-xl font-bold text-[#13284D] font-mono">
                       {formatCurrency(processedData.googleInvestment)}
@@ -1346,7 +1348,7 @@ export const PaidTrafficView: React.FC<PaidTrafficViewProps> = ({ onBack }) => {
 
                   <div className="bg-stone-50/80 rounded-2xl p-3.5 border border-stone-200/50">
                     <span className="text-[10px] font-bold uppercase tracking-wider text-stone-400 block mb-1">
-                      Formulários Preenchidos
+                      {t('Formulários Preenchidos')}
                     </span>
                     <span className="text-xl font-bold text-emerald-700 font-mono">
                       {formatNumber(processedData.googleConversions)}
@@ -1356,25 +1358,25 @@ export const PaidTrafficView: React.FC<PaidTrafficViewProps> = ({ onBack }) => {
 
                 <div className="space-y-2 text-xs">
                   <div className="flex items-center justify-between py-1.5 border-b border-stone-50">
-                    <span className="text-stone-500">Custo por Lead / Formulário:</span>
+                    <span className="text-stone-500">{t('Custo por Lead / Formulário:')}</span>
                     <span className="font-bold text-[#13284D] font-mono">
                       {processedData.googleConversions > 0 ? formatCurrency(processedData.googleCostPerConv) : formatCurrency(0)}
                     </span>
                   </div>
                   <div className="flex items-center justify-between py-1.5 border-b border-stone-50">
-                    <span className="text-stone-500">Cliques na Pesquisa:</span>
+                    <span className="text-stone-500">{t('Cliques na Pesquisa:')}</span>
                     <span className="font-bold text-[#13284D] font-mono">{formatNumber(processedData.googleClicks)}</span>
                   </div>
                   <div className="flex items-center justify-between py-1.5 border-b border-stone-50">
-                    <span className="text-stone-500">Custo por Clique (CPC Médio):</span>
+                    <span className="text-stone-500">{t('Custo por Clique (CPC Médio):')}</span>
                     <span className="font-bold text-[#13284D] font-mono">{formatCurrency(processedData.googleCpc)}</span>
                   </div>
                   <div className="flex items-center justify-between py-1.5 border-b border-stone-50">
-                    <span className="text-stone-500">Taxa de Cliques (CTR):</span>
+                    <span className="text-stone-500">{t('Taxa de Cliques (CTR):')}</span>
                     <span className="font-bold text-[#13284D] font-mono">{processedData.googleCtr.toFixed(2)}%</span>
                   </div>
                   <div className="flex items-center justify-between py-1.5">
-                    <span className="text-stone-500">Custo por Mil Impressões (CPM):</span>
+                    <span className="text-stone-500">{t('Custo por Mil Impressões (CPM):')}</span>
                     <span className="font-bold text-[#13284D] font-mono">{formatCurrency(processedData.googleCpm)}</span>
                   </div>
                 </div>
@@ -1390,7 +1392,7 @@ export const PaidTrafficView: React.FC<PaidTrafficViewProps> = ({ onBack }) => {
       {/* ========================================================================= */}
       <div>
         <h3 className="text-sm font-bold text-[#13284D] uppercase tracking-wider mb-3">
-          Métricas de Eficiência e Custo
+          {t('Métricas de Eficiência e Custo')}
         </h3>
 
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
@@ -1400,7 +1402,7 @@ export const PaidTrafficView: React.FC<PaidTrafficViewProps> = ({ onBack }) => {
             <div className="flex items-center gap-2 text-emerald-600 mb-2">
               <Target size={15} />
               <span className="text-xs font-bold text-stone-600">
-                {selectedPlatform === 'meta' ? 'Custo p/ Conversa' : selectedPlatform === 'google' ? 'Custo p/ Lead' : 'Custo Médio p/ Lead'}
+                {selectedPlatform === 'meta' ? t('Custo p/ Conversa') : selectedPlatform === 'google' ? t('Custo p/ Lead') : t('Custo Médio p/ Lead')}
               </span>
             </div>
             <div className="text-lg sm:text-xl font-bold text-[#13284D] font-mono">
@@ -1412,7 +1414,7 @@ export const PaidTrafficView: React.FC<PaidTrafficViewProps> = ({ onBack }) => {
           <div className="bg-white rounded-2xl p-4 border border-stone-200/70 shadow-xs">
             <div className="flex items-center gap-2 text-blue-600 mb-2">
               <MousePointer size={15} />
-              <span className="text-xs font-bold text-stone-600">CPC Médio</span>
+              <span className="text-xs font-bold text-stone-600">{t('CPC Médio')}</span>
             </div>
             <div className="text-lg sm:text-xl font-bold text-[#13284D] font-mono">
               {formatCurrency(processedData.avgCpc)}
@@ -1423,7 +1425,7 @@ export const PaidTrafficView: React.FC<PaidTrafficViewProps> = ({ onBack }) => {
           <div className="bg-white rounded-2xl p-4 border border-stone-200/70 shadow-xs">
             <div className="flex items-center gap-2 text-purple-600 mb-2">
               <BarChart3 size={15} />
-              <span className="text-xs font-bold text-stone-600">Taxa de Cliques (CTR)</span>
+              <span className="text-xs font-bold text-stone-600">{t('Taxa de Cliques (CTR)')}</span>
             </div>
             <div className="text-lg sm:text-xl font-bold text-[#13284D] font-mono">
               {processedData.avgCtr.toFixed(2)}%
@@ -1434,7 +1436,7 @@ export const PaidTrafficView: React.FC<PaidTrafficViewProps> = ({ onBack }) => {
           <div className="bg-white rounded-2xl p-4 border border-stone-200/70 shadow-xs">
             <div className="flex items-center gap-2 text-indigo-600 mb-2">
               <Eye size={15} />
-              <span className="text-xs font-bold text-stone-600">CPM Médio</span>
+              <span className="text-xs font-bold text-stone-600">{t('CPM Médio')}</span>
             </div>
             <div className="text-lg sm:text-xl font-bold text-[#13284D] font-mono">
               {formatCurrency(processedData.avgCpm)}

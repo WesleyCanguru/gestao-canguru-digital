@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useT } from '../../lib/i18n';
 import {
   Plus, Loader2, Megaphone, ChevronLeft, Send, Eye, Link2, Copy, Check, MessageCircle, Trash2, UploadCloud, Images, Film,
   ArrowUp, ArrowDown, Pencil, RefreshCw, X, Lock, Unlock, MoreHorizontal, Layers, Ungroup, Image as ImageIcon, PlayCircle,
@@ -19,6 +20,7 @@ const LABEL = 'text-[10px] font-bold uppercase tracking-widest text-gray-500';
 export const CreativesView: React.FC = () => {
   const { activeClient, userRole, isViewingAsClient } = useAuth();
   const isAgency = userRole === 'admin';
+  const { t, lang } = useT();
   const [batches, setBatches] = useState<CreativeBatch[]>([]);
   const [itemsByBatch, setItemsByBatch] = useState<Record<string, CreativeItem[]>>({});
   const [signed, setSigned] = useState<Record<string, string>>({});
@@ -83,10 +85,10 @@ export const CreativesView: React.FC = () => {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3">
         <div>
-          <div className="flex items-center gap-2 text-brand-dark"><Megaphone size={22} /><h2 className="text-2xl font-bold tracking-tight">Criativos de anúncio</h2></div>
+          <div className="flex items-center gap-2 text-brand-dark"><Megaphone size={22} /><h2 className="text-2xl font-bold tracking-tight">{t('Criativos de anúncio')}</h2></div>
           <p className="text-sm text-gray-500 mt-1">{isAgency
-            ? 'Monte um lote com os estáticos, carrosséis e vídeos e mande o link para o cliente aprovar peça por peça.'
-            : 'Criativos que a agência preparou para os seus anúncios. Abra, veja peça por peça e aprove ou peça ajuste.'}</p>
+            ? t('Monte um lote com os estáticos, carrosséis e vídeos e mande o link para o cliente aprovar peça por peça.')
+            : t('Criativos que a agência preparou para os seus anúncios. Abra, veja peça por peça e aprove ou peça ajuste.')}</p>
         </div>
         {isAgency && !creating && (
           <button onClick={() => setCreating(true)} className="inline-flex items-center gap-2 px-4 py-2.5 bg-brand-dark text-white rounded-xl text-sm font-bold self-start"><Plus size={16} /> Novo lote</button>
@@ -109,8 +111,8 @@ export const CreativesView: React.FC = () => {
         : batches.length === 0 ? (
           <div className="bg-white rounded-3xl border border-dashed border-gray-200 p-10 text-center">
             <Megaphone className="mx-auto text-gray-300 mb-3" size={30} />
-            <p className="font-bold text-brand-dark">{isAgency ? 'Nenhum lote ainda' : 'Nada para aprovar por enquanto'}</p>
-            <p className="text-sm text-gray-500 mt-1">{isAgency ? 'Crie o primeiro lote e arraste os criativos para dentro.' : 'Quando a agência enviar criativos, eles aparecem aqui.'}</p>
+            <p className="font-bold text-brand-dark">{isAgency ? t('Nenhum lote ainda') : t('Nada para aprovar por enquanto')}</p>
+            <p className="text-sm text-gray-500 mt-1">{isAgency ? t('Crie o primeiro lote e arraste os criativos para dentro.') : t('Quando a agência enviar criativos, eles aparecem aqui.')}</p>
           </div>
         ) : (
           <div className="grid gap-4 md:grid-cols-2">
@@ -128,25 +130,25 @@ export const CreativesView: React.FC = () => {
                     <div className="min-w-0 flex-1">
                       <div className="flex items-start gap-2">
                         <p className="font-bold text-brand-dark leading-snug flex-1 min-w-0">{b.title}</p>
-                        {(isAgency || b.status !== 'sent') && <span className={`shrink-0 px-2 py-0.5 rounded-md border text-[10px] font-bold ${BATCH_STATUS_STYLE[b.status]}`}>{BATCH_STATUS_LABEL[b.status]}</span>}
+                        {(isAgency || b.status !== 'sent') && <span className={`shrink-0 px-2 py-0.5 rounded-md border text-[10px] font-bold ${BATCH_STATUS_STYLE[b.status]}`}>{t(BATCH_STATUS_LABEL[b.status])}</span>}
                       </div>
                       <p className="text-xs text-gray-500 mt-0.5">
-                        {c.total} {c.total === 1 ? 'peça' : 'peças'}{c.image ? ` · ${c.image} estát.` : ''}{c.carousel ? ` · ${c.carousel} carross.` : ''}{c.video ? ` · ${c.video} vídeo${c.video > 1 ? 's' : ''}` : ''}
+                        {t(c.total === 1 ? '{n} peça' : '{n} peças', { n: c.total })}{c.image ? ` · ${c.image} ${t('estát.')}` : ''}{c.carousel ? ` · ${c.carousel} ${t('carross.')}` : ''}{c.video ? ` · ${c.video} ${t(c.video > 1 ? 'vídeos' : 'vídeo')}` : ''}
                       </p>
                       <div className="mt-3 h-1.5 rounded-full bg-gray-100 overflow-hidden flex">
                         <div className="h-full bg-emerald-500" style={{ width: `${c.total ? (c.approved / c.total) * 100 : 0}%` }} />
                         <div className="h-full bg-amber-400" style={{ width: `${c.total ? (c.changes / c.total) * 100 : 0}%` }} />
                       </div>
                       <div className="mt-1.5 flex flex-wrap gap-x-3 text-[11px] text-gray-500">
-                        <span><b className="text-emerald-700">{c.approved}</b> aprovados</span>
-                        <span><b className="text-amber-700">{c.changes}</b> ajustes</span>
-                        <span><b className="text-gray-700">{c.pending}</b> pendentes</span>
-                        <span className="ml-auto text-gray-400">{done}% · {dayjs(b.sent_at || b.created_at).format('DD/MM')}</span>
+                        <span><b className="text-emerald-700">{c.approved}</b> {t('aprovados')}</span>
+                        <span><b className="text-amber-700">{c.changes}</b> {t('ajustes')}</span>
+                        <span><b className="text-gray-700">{c.pending}</b> {t('pendentes')}</span>
+                        <span className="ml-auto text-gray-400">{done}% · {dayjs(b.sent_at || b.created_at).format(lang === 'en' ? 'MM/DD' : 'DD/MM')}</span>
                       </div>
                     </div>
                   </div>
                   {!isAgency && c.pending > 0 && b.status === 'sent' && (
-                    <div className="mt-4 w-full py-2.5 rounded-xl bg-brand-dark text-white text-sm font-bold text-center">Revisar {c.pending} {c.pending === 1 ? 'peça' : 'peças'}</div>
+                    <div className="mt-4 w-full py-2.5 rounded-xl bg-brand-dark text-white text-sm font-bold text-center">{t(c.pending === 1 ? 'Revisar {n} peça' : 'Revisar {n} peças', { n: c.pending })}</div>
                   )}
                 </button>
               );
