@@ -18,6 +18,7 @@ import {
 import { PostRevision } from '../types';
 import dayjs from 'dayjs';
 import 'dayjs/locale/pt-br';
+import { useT } from '../lib/i18n';
 
 dayjs.locale('pt-br');
 
@@ -36,6 +37,7 @@ export const PostRevisionTimeline: React.FC<PostRevisionTimelineProps> = ({
   className = '',
   showCaptionSnapshots = true,
 }) => {
+  const { t } = useT();
   const [isExpanded, setIsExpanded] = useState(defaultExpanded);
   const [expandedCaptionVersion, setExpandedCaptionVersion] = useState<number | null>(null);
 
@@ -55,35 +57,35 @@ export const PostRevisionTimeline: React.FC<PostRevisionTimelineProps> = ({
           icon: <Send size={12} />,
           bg: 'bg-indigo-50 text-indigo-700 border-indigo-200',
           dot: 'bg-indigo-500',
-          label: 'Enviado para aprovação',
+          label: t('Enviado para aprovação'),
         };
       case 'approved':
         return {
           icon: <CheckCircle2 size={12} />,
           bg: 'bg-emerald-50 text-emerald-700 border-emerald-200',
           dot: 'bg-emerald-500',
-          label: 'Aprovado',
+          label: t('Aprovado'),
         };
       case 'rejected':
         return {
           icon: <XCircle size={12} />,
           bg: 'bg-rose-50 text-rose-700 border-rose-200',
           dot: 'bg-rose-500',
-          label: 'Rejeitado',
+          label: t('Rejeitado'),
         };
       case 'revision_requested':
         return {
           icon: <AlertTriangle size={12} />,
           bg: 'bg-amber-50 text-amber-700 border-amber-200',
           dot: 'bg-amber-500',
-          label: 'Ajustes solicitados',
+          label: t('Ajustes solicitados'),
         };
       case 'edited':
         return {
           icon: <Edit3 size={12} />,
           bg: 'bg-blue-50 text-blue-700 border-blue-200',
           dot: 'bg-blue-500',
-          label: 'Conteúdo editado',
+          label: t('Conteúdo editado'),
         };
       default:
         return {
@@ -130,9 +132,9 @@ export const PostRevisionTimeline: React.FC<PostRevisionTimelineProps> = ({
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2 text-gray-500">
             <History size={14} className="text-gray-400" />
-            <span className="text-[11px] font-bold uppercase tracking-wider">Histórico de revisões</span>
+            <span className="text-[11px] font-bold uppercase tracking-wider">{t('Histórico de revisões')}</span>
           </div>
-          <span className="text-[10px] text-gray-400 font-medium">Nenhuma revisão registrada</span>
+          <span className="text-[10px] text-gray-400 font-medium">{t('Nenhuma revisão registrada')}</span>
         </div>
       </div>
     );
@@ -153,10 +155,10 @@ export const PostRevisionTimeline: React.FC<PostRevisionTimelineProps> = ({
           <div>
             <div className="flex items-center gap-2">
               <span className="text-xs font-bold text-gray-900 tracking-tight">
-                Histórico de revisões
+                {t('Histórico de revisões')}
               </span>
               <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-gray-100 text-gray-700">
-                {revisions.length} {revisions.length === 1 ? 'versão' : 'versões'}
+                {revisions.length} {revisions.length === 1 ? t('versão') : t('versões')}
               </span>
               {rejectionsCount >= 2 && (
                 <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-red-100 text-red-700 border border-red-200 animate-pulse">
@@ -165,7 +167,7 @@ export const PostRevisionTimeline: React.FC<PostRevisionTimelineProps> = ({
               )}
             </div>
             <p className="text-[10px] text-gray-400 font-medium mt-0.5">
-              Auditoria de alterações, envios e aprovações
+              {t('Auditoria de alterações, envios e aprovações')}
             </p>
           </div>
         </div>
@@ -189,7 +191,7 @@ export const PostRevisionTimeline: React.FC<PostRevisionTimelineProps> = ({
               {revisions.map((rev, index) => {
                 const badge = getActionBadge(rev);
                 const isAgency = rev.actor_role === 'agency';
-                const roleText = isAgency ? 'pela agência' : 'pelo cliente';
+                const roleText = isAgency ? t('pela agência') : t('pelo cliente');
                 const isCaptionOpen = expandedCaptionVersion === rev.version_number;
 
                 return (
@@ -246,7 +248,7 @@ export const PostRevisionTimeline: React.FC<PostRevisionTimelineProps> = ({
                           <XCircle size={14} className="text-rose-500 shrink-0 mt-0.5" />
                           <div className="flex-1">
                             <span className="text-[10px] font-bold uppercase tracking-wider text-rose-700 block mb-0.5">
-                              Motivo registrado:
+                              {t('Motivo registrado:')}
                             </span>
                             <p className="whitespace-pre-wrap italic">
                               &ldquo;{rev.rejection_reason}&rdquo;
@@ -268,7 +270,7 @@ export const PostRevisionTimeline: React.FC<PostRevisionTimelineProps> = ({
                             className="inline-flex items-center gap-1 text-[10px] font-bold text-gray-500 hover:text-brand-dark transition-colors"
                           >
                             <FileText size={11} />
-                            {isCaptionOpen ? 'Ocultar legenda gravada' : 'Ver legenda gravada nesta versão'}
+                            {isCaptionOpen ? t('Ocultar legenda gravada') : t('Ver legenda gravada nesta versão')}
                           </button>
 
                           {isCaptionOpen && (

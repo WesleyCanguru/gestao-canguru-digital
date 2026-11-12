@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { X, AlertTriangle, XCircle, CheckCircle2, MessageSquare, Sparkles } from 'lucide-react';
+import { useT } from '../lib/i18n';
 
 export interface PostRejectionModalProps {
   isOpen: boolean;
@@ -23,6 +24,7 @@ export const PostRejectionModal: React.FC<PostRejectionModalProps> = ({
   loading = false,
   submitting = false,
 }) => {
+  const { t } = useT();
   const isLoading = loading || submitting;
   const [reason, setReason] = useState('');
   const [touched, setTouched] = useState(false);
@@ -42,12 +44,12 @@ export const PostRejectionModal: React.FC<PostRejectionModalProps> = ({
   const isValid = currentLength >= minChars;
 
   const defaultTitle =
-    mode === 'reject' ? 'Motivo da Reprovação' : 'Solicitar Ajustes na Publicação';
+    mode === 'reject' ? t('Motivo da Reprovação') : t('Solicitar Ajustes na Publicação');
 
   const defaultDescription =
     mode === 'reject'
-      ? 'Por favor, descreva detalhadamente por que esta publicação foi reprovada para que a equipe possa produzir a versão correta.'
-      : 'Por favor, detalhe os ajustes e revisões necessários nesta publicação para a equipe.';
+      ? t('Por favor, descreva detalhadamente por que esta publicação foi reprovada para que a equipe possa produzir a versão correta.')
+      : t('Por favor, detalhe os ajustes e revisões necessários nesta publicação para a equipe.');
 
   const handleQuickTag = (tagText: string) => {
     setReason((prev) => {
@@ -148,14 +150,14 @@ export const PostRejectionModal: React.FC<PostRejectionModalProps> = ({
               <div className="flex items-center justify-between mb-2">
                 <label className="text-[11px] font-bold uppercase tracking-wider text-gray-700 flex items-center gap-1.5">
                   <MessageSquare size={13} className="text-gray-400" />
-                  {mode === 'reject' ? 'Motivo da reprovação *' : 'Descrição dos ajustes *'}
+                  {mode === 'reject' ? t('Motivo da reprovação *') : t('Descrição dos ajustes *')}
                 </label>
                 <span
                   className={`text-[11px] font-bold ${
                     isValid ? 'text-emerald-600' : touched ? 'text-red-500' : 'text-gray-400'
                   }`}
                 >
-                  {currentLength} / {minChars} caracteres {isValid ? '✓' : '(mínimo 10)'}
+                  {currentLength} / {minChars} {t('caracteres')} {isValid ? '✓' : t('(mínimo 10)')}
                 </span>
               </div>
 
@@ -170,8 +172,8 @@ export const PostRejectionModal: React.FC<PostRejectionModalProps> = ({
                 autoFocus
                 placeholder={
                   mode === 'reject'
-                    ? 'Explique claramente o motivo da reprovação (ex: A legenda ficou muito formal, precisa de mais descontração e foco no público jovem)...'
-                    : 'Descreva os ajustes pontuais (ex: Alterar a chamada final para direcionar ao link da bio e trocar a capa pelo segundo slide)...'
+                    ? t('Explique claramente o motivo da reprovação (ex: A legenda ficou muito formal, precisa de mais descontração e foco no público jovem)...')
+                    : t('Descreva os ajustes pontuais (ex: Alterar a chamada final para direcionar ao link da bio e trocar a capa pelo segundo slide)...')
                 }
                 className={`w-full p-4 text-xs leading-relaxed rounded-2xl border bg-stone-50/50 outline-none resize-none transition-all ${
                   touched && !isValid
@@ -197,10 +199,10 @@ export const PostRejectionModal: React.FC<PostRejectionModalProps> = ({
                   <button
                     key={idx}
                     type="button"
-                    onClick={() => handleQuickTag(tag)}
+                    onClick={() => handleQuickTag(t(tag))}
                     className="text-[10px] font-medium px-2.5 py-1 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 transition-colors border border-black/[0.03]"
                   >
-                    + {tag}
+                    + {t(tag)}
                   </button>
                 ))}
               </div>
@@ -214,7 +216,7 @@ export const PostRejectionModal: React.FC<PostRejectionModalProps> = ({
                 disabled={isLoading}
                 className="px-5 py-2.5 rounded-xl border border-black/[0.08] text-gray-600 hover:bg-gray-100 text-xs font-bold uppercase tracking-wider transition-all disabled:opacity-50"
               >
-                Cancelar
+                {t('Cancelar')}
               </button>
 
               <button
@@ -231,7 +233,7 @@ export const PostRejectionModal: React.FC<PostRejectionModalProps> = ({
                 {isLoading ? (
                   <>
                     <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                    Salvando...
+                    {t('Salvando...')}
                   </>
                 ) : mode === 'reject' ? (
                   <>
