@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import dayjs from 'dayjs';
 import { motion, AnimatePresence } from 'motion/react';
+import { useT } from '../../lib/i18n';
 
 interface RoteirosSectionProps {
   clientId: string;
@@ -14,6 +15,7 @@ interface RoteirosSectionProps {
 }
 
 export const RoteirosSection: React.FC<RoteirosSectionProps> = ({ clientId, clientName }) => {
+  const { t } = useT();
   const { scripts, loading, createScript, updateScript, deleteScript } = useScripts(clientId);
   const [selectedScript, setSelectedScript] = useState<Script | null>(null);
   const [isRecordedExpanded, setIsRecordedExpanded] = useState(false);
@@ -75,7 +77,7 @@ export const RoteirosSection: React.FC<RoteirosSectionProps> = ({ clientId, clie
       {/* Top Controls */}
       <div className="flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center">
         <div>
-          <h2 className="text-2xl font-black text-brand-dark tracking-tight">Roteiros e Scripts</h2>
+          <h2 className="text-2xl font-black text-brand-dark tracking-tight">{t('Roteiros e Scripts')}</h2>
           <p className="text-xs text-gray-400 font-extrabold uppercase tracking-wider mt-1">Colaboração em tempo real com {clientName}</p>
         </div>
 
@@ -84,7 +86,7 @@ export const RoteirosSection: React.FC<RoteirosSectionProps> = ({ clientId, clie
           className="flex items-center gap-2 px-5 py-3 bg-brand-dark hover:bg-brand-dark/95 text-white rounded-2xl text-xs font-extrabold uppercase tracking-widest transition-all shadow-md active:scale-95"
         >
           <Plus size={16} />
-          Novo Roteiro
+          {t('Novo Roteiro')}
         </button>
       </div>
 
@@ -98,11 +100,11 @@ export const RoteirosSection: React.FC<RoteirosSectionProps> = ({ clientId, clie
             className="bg-brand-dark/5 border border-brand-dark/15 rounded-3xl p-6"
           >
             <form onSubmit={handleCreateSubmit} className="space-y-4">
-              <h3 className="font-extrabold text-brand-dark text-sm uppercase tracking-widest">Criar Novo Roteiro</h3>
+              <h3 className="font-extrabold text-brand-dark text-sm uppercase tracking-widest">{t('Criar Novo Roteiro')}</h3>
               <div className="flex flex-col sm:flex-row gap-3">
                 <input
                   type="text"
-                  placeholder="Digite o título do roteiro (ex: Relação com clientes - Reels)"
+                  placeholder={t('Digite o título do roteiro (ex: Relação com clientes - Reels)')}
                   className="flex-1 px-4 py-3 bg-white border border-gray-200 outline-none rounded-2xl text-sm font-semibold text-brand-dark focus:border-brand-dark/30 focus:ring-2 focus:ring-brand-dark/5"
                   value={newTitle}
                   onChange={(e) => setNewTitle(e.target.value)}
@@ -114,14 +116,14 @@ export const RoteirosSection: React.FC<RoteirosSectionProps> = ({ clientId, clie
                     type="submit"
                     className="flex-grow sm:flex-grow-0 px-6 py-3 bg-green-600 hover:bg-green-700 text-white font-bold text-xs uppercase tracking-widest rounded-2xl transition-all"
                   >
-                    Confirmar e Abrir
+                    {t('Confirmar e Abrir')}
                   </button>
                   <button
                     type="button"
                     onClick={() => { setIsCreating(false); setNewTitle(''); }}
                     className="flex-grow sm:flex-grow-0 px-6 py-3 bg-white hover:bg-gray-100 border border-gray-200 text-gray-600 font-bold text-xs uppercase tracking-widest rounded-2xl transition-all"
                   >
-                    Cancelar
+                    {t('Cancelar')}
                   </button>
                 </div>
               </div>
@@ -136,7 +138,7 @@ export const RoteirosSection: React.FC<RoteirosSectionProps> = ({ clientId, clie
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
           <input
             type="text"
-            placeholder="Buscar por título do roteiro..."
+            placeholder={t('Buscar por título do roteiro...')}
             className="w-full pl-12 pr-4 py-3.5 bg-white border border-gray-100 rounded-2xl outline-none text-sm font-semibold text-brand-dark shadow-sm focus:border-brand-dark/20 focus:ring-2 focus:ring-brand-dark/5 transition-all"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
@@ -153,16 +155,16 @@ export const RoteirosSection: React.FC<RoteirosSectionProps> = ({ clientId, clie
           <div className="w-14 h-14 bg-gray-50 border border-gray-100 rounded-2xl flex items-center justify-center mx-auto mb-4 text-gray-400 shadow-sm">
             <FileText size={22} className="opacity-80" />
           </div>
-          <p className="text-sm font-bold text-gray-800">Nenhum roteiro cadastrado.</p>
+          <p className="text-sm font-bold text-gray-800">{t('Nenhum roteiro cadastrado.')}</p>
           <p className="text-xs text-gray-400 mt-1 max-w-xs mx-auto mb-5 leading-relaxed">
-            Comece a planejar os vídeos, reels ou de roteiros com o cliente de forma ultra colaborativa.
+            {t('Comece a planejar os vídeos, reels ou de roteiros com o cliente de forma ultra colaborativa.')}
           </p>
           <button
             onClick={() => setIsCreating(true)}
             className="inline-flex items-center gap-2 px-4 py-2.5 bg-brand-dark hover:bg-brand-dark/95 text-white rounded-xl text-xs font-bold transition-all shadow-md hover:scale-105 active:scale-95"
           >
             <Plus size={14} />
-            Criar Primeiro Roteiro
+            {t('Criar Primeiro Roteiro')}
           </button>
         </div>
       ) : (
@@ -176,7 +178,7 @@ export const RoteirosSection: React.FC<RoteirosSectionProps> = ({ clientId, clie
             
             {filteredActive.length === 0 ? (
               <div className="bg-white rounded-[2rem] border border-gray-100 p-8 text-center text-sm font-medium text-gray-400 shadow-sm">
-                Nenhum roteiro ativo no momento.
+                {t('Nenhum roteiro ativo no momento.')}
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -189,21 +191,21 @@ export const RoteirosSection: React.FC<RoteirosSectionProps> = ({ clientId, clie
                     <div>
                       <div className="flex justify-between items-start mb-3">
                         <span className="px-2.5 py-0.5 text-[9px] font-black uppercase tracking-widest rounded-full bg-green-50 text-green-600 border border-green-100">
-                          Ativo
+                          {t('Ativo')}
                         </span>
                         
                         <div className="flex gap-1.5 opacity-0 group-hover:opacity-100 transition-all duration-200">
                           <button
                             onClick={() => setSelectedScript(script)}
                             className="p-1.5 hover:bg-gray-100 text-gray-500 hover:text-brand-dark rounded-lg transition-all"
-                            title="Editar Roteiro"
+                            title={t('Editar Roteiro')}
                           >
                             <Eye size={15} />
                           </button>
                           <button
                             onClick={() => handleDelete(script.id)}
                             className="p-1.5 hover:bg-red-50 text-gray-400 hover:text-red-500 rounded-lg transition-all"
-                            title="Deletar Roteiro"
+                            title={t('Deletar Roteiro')}
                           >
                             <Trash2 size={15} />
                           </button>
@@ -228,7 +230,7 @@ export const RoteirosSection: React.FC<RoteirosSectionProps> = ({ clientId, clie
                         onClick={() => setSelectedScript(script)}
                         className="flex items-center gap-1 font-bold text-brand-dark text-[10px] uppercase tracking-wider opacity-90 hover:opacity-100 group-hover:translate-x-1 transition-all duration-300"
                       >
-                        Escrever
+                        {t('Escrever')}
                         <ArrowRight size={12} />
                       </button>
                     </div>
@@ -263,7 +265,7 @@ export const RoteirosSection: React.FC<RoteirosSectionProps> = ({ clientId, clie
                   >
                     {filteredRecorded.length === 0 ? (
                       <div className="text-center py-6 text-gray-400 text-xs font-semibold">
-                        Nenhum roteiro gravado encontrado no filtro de busca.
+                        {t('Nenhum roteiro gravado encontrado no filtro de busca.')}
                       </div>
                     ) : (
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 opacity-75 hover:opacity-95 transition-all">
@@ -282,14 +284,14 @@ export const RoteirosSection: React.FC<RoteirosSectionProps> = ({ clientId, clie
                                   <button
                                     onClick={() => setSelectedScript(script)}
                                     className="p-1.5 hover:bg-gray-100 text-gray-400 hover:text-brand-dark rounded-lg transition-all"
-                                    title="Visualizar"
+                                    title={t('Visualizar')}
                                   >
                                     <Eye size={15} />
                                   </button>
                                   <button
                                     onClick={() => handleDelete(script.id)}
                                     className="p-1.5 hover:bg-red-100 text-yellow-600 hover:text-red-500 rounded-lg transition-all"
-                                    title="Deletar Roteiro"
+                                    title={t('Deletar Roteiro')}
                                   >
                                     <Trash2 size={15} />
                                   </button>
@@ -304,14 +306,14 @@ export const RoteirosSection: React.FC<RoteirosSectionProps> = ({ clientId, clie
                             <div className="border-t border-gray-100 pt-3 mt-4 flex items-center justify-between text-[9px] text-gray-400 font-bold uppercase tracking-widest">
                               <span className="flex items-center gap-1 font-semibold normal-case tracking-normal">
                                 <User size={11} />
-                                Marcado por {script.recorded_by === 'client' ? 'Cliente' : 'Agência'}
+                                Marcado por {script.recorded_by === 'client' ? t('Cliente') : t('Agência')}
                               </span>
 
                               <button
                                 onClick={() => setSelectedScript(script)}
                                 className="flex items-center gap-1 font-extrabold text-brand-dark hover:opacity-95 text-[9px]"
                               >
-                                Ver Roteiro
+                                {t('Ver Roteiro')}
                                 <ExternalLink size={10} />
                               </button>
                             </div>

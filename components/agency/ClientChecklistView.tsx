@@ -3,6 +3,7 @@ import { supabase, useAuth } from '../../lib/supabase';
 import { OnboardingChecklist, OnboardingTemplate, Client } from '../../types';
 import { X, CheckCircle, Circle, Plus, Trash2, Calendar, Target, Flag, ChevronRight, ChevronDown } from 'lucide-react';
 import dayjs from 'dayjs';
+import { useT } from '../../lib/i18n';
 
 interface OnboardingChecklistModalProps {
   client: Client & { onboarding_checklist?: OnboardingChecklist[]; services?: string[] };
@@ -25,6 +26,7 @@ const PHASES = [
 ];
 
 export function ClientChecklistView({ client, onClose }: OnboardingChecklistModalProps) {
+  const { t } = useT();
   const { userRole, agencyId } = useAuth();
   const [items, setItems] = useState<OnboardingChecklist[]>(client.onboarding_checklist || []);
   const [loading, setLoading] = useState(false);
@@ -260,7 +262,7 @@ export function ClientChecklistView({ client, onClose }: OnboardingChecklistModa
             <Target size={32} />
           </div>
           <div>
-            <h3 className="text-2xl font-black text-brand-dark tracking-tight">Checklist de Onboarding</h3>
+            <h3 className="text-2xl font-black text-brand-dark tracking-tight">{t('Checklist de Onboarding')}</h3>
             <p className="text-sm font-bold text-gray-400 uppercase tracking-widest mt-1">
               Progresso Geral: {Math.round(progressPercent)}%
             </p>
@@ -269,7 +271,7 @@ export function ClientChecklistView({ client, onClose }: OnboardingChecklistModa
         
         <div className="md:w-64">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-bold uppercase tracking-widest text-gray-500">Tarefas</span>
+            <span className="text-xs font-bold uppercase tracking-widest text-gray-500">{t('Tarefas')}</span>
             <span className="text-sm font-black text-brand-dark">{completedItems}/{totalItems}</span>
           </div>
           <div className="h-3 w-full bg-gray-100 rounded-full overflow-hidden">
@@ -285,7 +287,7 @@ export function ClientChecklistView({ client, onClose }: OnboardingChecklistModa
         {loading ? (
           <div className="flex flex-col items-center justify-center py-32">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-dark mb-4"></div>
-            <p className="text-gray-500 font-bold uppercase tracking-widest text-xs">Gerando Checklist Inicial...</p>
+            <p className="text-gray-500 font-bold uppercase tracking-widest text-xs">{t('Gerando Checklist Inicial...')}</p>
           </div>
         ) : (
           <div className="p-6 md:p-8">
@@ -305,7 +307,7 @@ export function ClientChecklistView({ client, onClose }: OnboardingChecklistModa
                           : 'bg-gray-50 text-gray-500 hover:bg-gray-100'
                     }`}
                   >
-                    {p.defaultName}
+                    {t(p.defaultName)}
                     {isCompleted && <CheckCircle size={16} />}
                   </button>
                 );
@@ -424,7 +426,7 @@ export function ClientChecklistView({ client, onClose }: OnboardingChecklistModa
                         })
                       ) : (
                         <p className="text-sm text-gray-400 italic bg-gray-50 p-6 rounded-2xl border border-gray-100 text-center">
-                          Nenhum item nesta fase.
+                          {t('Nenhum item nesta fase.')}
                         </p>
                       )}
                     </div>
@@ -436,7 +438,7 @@ export function ClientChecklistView({ client, onClose }: OnboardingChecklistModa
                             <input 
                               type="text"
                               autoFocus
-                              placeholder="Título da nova tarefa..."
+                              placeholder={t('Título da nova tarefa...')}
                               className="flex-1 bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-dark/20 focus:border-brand-dark"
                               value={newItemTitle}
                               onChange={(e) => setNewItemTitle(e.target.value)}
@@ -450,7 +452,7 @@ export function ClientChecklistView({ client, onClose }: OnboardingChecklistModa
                                 onClick={() => handleAddItem(activePhase, p.defaultName)}
                                 className="flex-1 sm:flex-none px-6 py-3 bg-brand-dark text-white rounded-xl text-xs font-bold uppercase tracking-widest hover:opacity-90 transition-opacity"
                               >
-                                Salvar
+                                {t('Salvar')}
                               </button>
                               <button 
                                 onClick={() => setAddingPhase(null)}

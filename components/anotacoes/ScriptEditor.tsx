@@ -22,6 +22,7 @@ import {
   Edit, Eye
 } from 'lucide-react';
 import { supabase, useAuth } from '../../lib/supabase';
+import { useT } from '../../lib/i18n';
 
 // Custom Font Size Extension to avoid type compilation issues with setFontSize commands
 const FontSize = Extension.create({
@@ -64,6 +65,7 @@ interface ScriptEditorProps {
 
 // Fallback editor for safe rendering in any device/app standard webview
 function FallbackScriptEditor({ script, onUpdate, onBack, clientName, isPublicView = false }: ScriptEditorProps) {
+  const { t } = useT();
   const { userRole } = useAuth();
   const [title, setTitle] = useState(script.title);
   const [content, setContent] = useState(script.content?.html || '');
@@ -130,9 +132,9 @@ function FallbackScriptEditor({ script, onUpdate, onBack, clientName, isPublicVi
         <div className="w-16 h-16 bg-green-100 text-green-500 rounded-full flex items-center justify-center mb-4">
           <Check size={32} />
         </div>
-        <h2 className="text-2xl font-black text-brand-dark mb-2">Roteiro Gravado!</h2>
+        <h2 className="text-2xl font-black text-brand-dark mb-2">{t('Roteiro Gravado!')}</h2>
         <p className="text-gray-500 text-sm font-medium leading-relaxed">
-          Roteiro marcado como gravado! Obrigado por contribuir.
+          {t('Roteiro marcado como gravado! Obrigado por contribuir.')}
         </p>
       </div>
     );
@@ -149,7 +151,7 @@ function FallbackScriptEditor({ script, onUpdate, onBack, clientName, isPublicVi
             <button
               onClick={onBack}
               className="p-2 text-gray-400 hover:text-brand-dark hover:bg-gray-50 rounded-xl transition-all"
-              title="Voltar para a lista"
+              title={t('Voltar para a lista')}
             >
               <ArrowLeft size={18} />
             </button>
@@ -191,7 +193,7 @@ function FallbackScriptEditor({ script, onUpdate, onBack, clientName, isPublicVi
           </div>
 
           <span className={`px-2.5 py-1 text-[9px] font-black uppercase tracking-widest rounded-full ${isRecorded ? 'bg-gray-100 text-gray-500 border border-gray-200' : 'bg-green-50 text-green-600 border border-green-200'}`}>
-            {isRecorded ? 'Gravado' : 'Ativo'}
+            {isRecorded ? t('Gravado') : t('Ativo')}
           </span>
         </div>
 
@@ -202,7 +204,7 @@ function FallbackScriptEditor({ script, onUpdate, onBack, clientName, isPublicVi
               className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all ${isEditing ? 'bg-blue-50 text-blue-600 border border-blue-200' : 'bg-brand-dark hover:bg-brand-dark/95 text-white shadow-sm'}`}
             >
               {isEditing ? <Eye size={13} /> : <Edit size={13} />}
-              {isEditing ? 'Modo Leitura' : 'Editar Roteiro'}
+              {isEditing ? t('Modo Leitura') : t('Editar Roteiro')}
             </button>
           )}
 
@@ -212,7 +214,7 @@ function FallbackScriptEditor({ script, onUpdate, onBack, clientName, isPublicVi
               className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold text-white bg-green-600 hover:bg-green-700 transition-all shadow-sm"
             >
               <CheckSquare size={13} />
-              Marcar como Gravado
+              {t('Marcar como Gravado')}
             </button>
           ) : (
             !isPublicView && (
@@ -221,7 +223,7 @@ function FallbackScriptEditor({ script, onUpdate, onBack, clientName, isPublicVi
                 className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold text-brand-dark bg-gray-100 hover:bg-gray-200 transition-all"
               >
                 <RefreshCw size={12} />
-                Reativar Roteiro
+                {t('Reativar Roteiro')}
               </button>
             )
           )}
@@ -232,7 +234,7 @@ function FallbackScriptEditor({ script, onUpdate, onBack, clientName, isPublicVi
               className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all border ${copyFeedback ? 'bg-green-50 border-green-200 text-green-600' : 'bg-white hover:bg-gray-50 border-gray-200 text-gray-600'}`}
             >
               <Link2 size={13} />
-              {copyFeedback ? 'Copiado!' : 'Copiar Link'}
+              {copyFeedback ? t('Copiado!') : t('Copiar Link')}
             </button>
           )}
         </div>
@@ -247,7 +249,7 @@ function FallbackScriptEditor({ script, onUpdate, onBack, clientName, isPublicVi
       />
       
       <div className="mt-2 text-right text-xs text-gray-400 font-medium">
-        {isSaving ? 'Salvando...' : 'Salvo'}
+        {isSaving ? t('Salvando...') : t('Salvo')}
       </div>
     </div>
   );
@@ -279,6 +281,7 @@ class ScriptEditorErrorBoundary extends Component<EditorErrorBoundaryProps, { ha
 }
 
 function ScriptEditorRich({ script, onUpdate, onBack, clientName, isPublicView = false }: ScriptEditorProps) {
+  const { t } = useT();
   const { userRole } = useAuth();
   const [title, setTitle] = useState(script.title);
   const [isEditingTitle, setIsEditingTitle] = useState(false);
@@ -431,33 +434,33 @@ function ScriptEditorRich({ script, onUpdate, onBack, clientName, isPublicView =
   };
 
   const fonts = [
-    { label: 'Padrão (Inter)', value: 'sans-serif' },
-    { label: 'Serif (Georgia)', value: 'Georgia, serif' },
-    { label: 'Mono (JetBrains)', value: '"JetBrains Mono", monospace' },
-    { label: 'Sans (Arial)', value: 'Arial, sans-serif' },
-    { label: 'Script (Elegante)', value: '"Playfair Display", Georgia, cursive' }
+    { label: t('Padrão (Inter)'), value: 'sans-serif' },
+    { label: t('Serif (Georgia)'), value: 'Georgia, serif' },
+    { label: t('Mono (JetBrains)'), value: '"JetBrains Mono", monospace' },
+    { label: t('Sans (Arial)'), value: 'Arial, sans-serif' },
+    { label: t('Script (Elegante)'), value: '"Playfair Display", Georgia, cursive' }
   ];
 
   const sizes = ['12px', '14px', '16px', '18px', '20px', '24px', '28px', '32px', '36px'];
 
   const colors = [
-    { label: 'Preto', value: '#111827' },
-    { label: 'Cinza', value: '#6b7280' },
-    { label: 'Vermelho', value: '#ef4444' },
-    { label: 'Laranja', value: '#f97316' },
-    { label: 'Amarelo', value: '#f59e0b' },
-    { label: 'Verde', value: '#10b981' },
-    { label: 'Azul', value: '#3b82f6' },
-    { label: 'Roxo', value: '#8b5cf6' },
-    { label: 'Rosa', value: '#ec4899' }
+    { label: t('Preto'), value: '#111827' },
+    { label: t('Cinza'), value: '#6b7280' },
+    { label: t('Vermelho'), value: '#ef4444' },
+    { label: t('Laranja'), value: '#f97316' },
+    { label: t('Amarelo'), value: '#f59e0b' },
+    { label: t('Verde'), value: '#10b981' },
+    { label: t('Azul'), value: '#3b82f6' },
+    { label: t('Roxo'), value: '#8b5cf6' },
+    { label: t('Rosa'), value: '#ec4899' }
   ];
 
   const highlights = [
-    { label: 'Amarelo', value: '#fef08a' },
-    { label: 'Verde', value: '#bbf7d0' },
-    { label: 'Azul', value: '#bfdbfe' },
-    { label: 'Rosa', value: '#fbcfe8' },
-    { label: 'Laranja', value: '#ffedd5' }
+    { label: t('Amarelo'), value: '#fef08a' },
+    { label: t('Verde'), value: '#bbf7d0' },
+    { label: t('Azul'), value: '#bfdbfe' },
+    { label: t('Rosa'), value: '#fbcfe8' },
+    { label: t('Laranja'), value: '#ffedd5' }
   ];
 
   if (clientLoggedRecordedMsg) {
@@ -466,9 +469,9 @@ function ScriptEditorRich({ script, onUpdate, onBack, clientName, isPublicView =
         <div className="w-16 h-16 bg-green-100 text-green-500 rounded-full flex items-center justify-center mb-4">
           <Check size={32} />
         </div>
-        <h2 className="text-2xl font-black text-brand-dark mb-2">Roteiro Gravado!</h2>
+        <h2 className="text-2xl font-black text-brand-dark mb-2">{t('Roteiro Gravado!')}</h2>
         <p className="text-gray-500 text-sm font-medium leading-relaxed">
-          Roteiro marcado como gravado! Obrigado por contribuir.
+          {t('Roteiro marcado como gravado! Obrigado por contribuir.')}
         </p>
       </div>
     );
@@ -486,7 +489,7 @@ function ScriptEditorRich({ script, onUpdate, onBack, clientName, isPublicView =
               <button
                 onClick={onBack}
                 className="p-2 text-gray-400 hover:text-brand-dark hover:bg-gray-50 rounded-xl transition-all"
-                title="Voltar para a lista"
+                title={t('Voltar para a lista')}
               >
                 <ArrowLeft size={18} />
               </button>
@@ -529,7 +532,7 @@ function ScriptEditorRich({ script, onUpdate, onBack, clientName, isPublicView =
             </div>
 
             <span className={`px-2.5 py-1 text-[9px] font-black uppercase tracking-widest rounded-full ${isRecorded ? 'bg-gray-100 text-gray-500 border border-gray-200' : 'bg-green-50 text-green-600 border border-green-200'}`}>
-              {isRecorded ? 'Gravado' : 'Ativo'}
+              {isRecorded ? t('Gravado') : t('Ativo')}
             </span>
           </div>
 
@@ -540,7 +543,7 @@ function ScriptEditorRich({ script, onUpdate, onBack, clientName, isPublicView =
                 className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all ${isEditing ? 'bg-blue-50 text-blue-600 border border-blue-200 shadow-sm' : 'bg-brand-dark hover:bg-brand-dark/95 text-white shadow-sm'}`}
               >
                 {isEditing ? <Eye size={13} /> : <Edit size={13} />}
-                {isEditing ? 'Modo Leitura' : '✏️ Editar'}
+                {isEditing ? t('Modo Leitura') : t('✏️ Editar')}
               </button>
             )}
 
@@ -550,7 +553,7 @@ function ScriptEditorRich({ script, onUpdate, onBack, clientName, isPublicView =
                 className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold text-white bg-green-600 hover:bg-green-700 transition-all shadow-sm"
               >
                 <CheckSquare size={13} />
-                Marcar como Gravado
+                {t('Marcar como Gravado')}
               </button>
             ) : (
               !isPublicView && (
@@ -559,7 +562,7 @@ function ScriptEditorRich({ script, onUpdate, onBack, clientName, isPublicView =
                   className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold text-brand-dark bg-gray-100 hover:bg-gray-200 transition-all"
                 >
                   <RefreshCw size={12} />
-                  Reativar Roteiro
+                  {t('Reativar Roteiro')}
                 </button>
               )
             )}
@@ -570,7 +573,7 @@ function ScriptEditorRich({ script, onUpdate, onBack, clientName, isPublicView =
                 className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all border ${copyFeedback ? 'bg-green-50 border-green-200 text-green-600' : 'bg-white hover:bg-gray-50 border-gray-200 text-gray-600'}`}
               >
                 <Link2 size={13} />
-                {copyFeedback ? 'Copiado!' : 'Copiar Link'}
+                {copyFeedback ? t('Copiado!') : t('Copiar Link')}
               </button>
             )}
           </div>
@@ -644,17 +647,17 @@ function ScriptEditorRich({ script, onUpdate, onBack, clientName, isPublicView =
               <div className="h-6 w-[1px] bg-gray-200 mx-1"></div>
 
               {/* Formatação Básica */}
-              <button type="button" onClick={() => editor.chain().focus().toggleBold().run()} className={`p-1.5 rounded-lg hover:bg-gray-200 ${editor.isActive('bold') ? 'bg-gray-200 text-brand-dark' : ''}`} title="Negrito"><Bold size={15} /></button>
-              <button type="button" onClick={() => editor.chain().focus().toggleItalic().run()} className={`p-1.5 rounded-lg hover:bg-gray-200 ${editor.isActive('italic') ? 'bg-gray-200 text-brand-dark' : ''}`} title="Itálico"><Italic size={15} /></button>
-              <button type="button" onClick={() => editor.chain().focus().toggleUnderline().run()} className={`p-1.5 rounded-lg hover:bg-gray-200 ${editor.isActive('underline') ? 'bg-gray-200 text-brand-dark' : ''}`} title="Sublinhado"><UnderlineIcon size={15} /></button>
-              <button type="button" onClick={() => editor.chain().focus().toggleStrike().run()} className={`p-1.5 rounded-lg hover:bg-gray-200 ${editor.isActive('strike') ? 'bg-gray-200 text-brand-dark' : ''}`} title="Riscar"><Strikethrough size={15} /></button>
+              <button type="button" onClick={() => editor.chain().focus().toggleBold().run()} className={`p-1.5 rounded-lg hover:bg-gray-200 ${editor.isActive('bold') ? 'bg-gray-200 text-brand-dark' : ''}`} title={t('Negrito')}><Bold size={15} /></button>
+              <button type="button" onClick={() => editor.chain().focus().toggleItalic().run()} className={`p-1.5 rounded-lg hover:bg-gray-200 ${editor.isActive('italic') ? 'bg-gray-200 text-brand-dark' : ''}`} title={t('Itálico')}><Italic size={15} /></button>
+              <button type="button" onClick={() => editor.chain().focus().toggleUnderline().run()} className={`p-1.5 rounded-lg hover:bg-gray-200 ${editor.isActive('underline') ? 'bg-gray-200 text-brand-dark' : ''}`} title={t('Sublinhado')}><UnderlineIcon size={15} /></button>
+              <button type="button" onClick={() => editor.chain().focus().toggleStrike().run()} className={`p-1.5 rounded-lg hover:bg-gray-200 ${editor.isActive('strike') ? 'bg-gray-200 text-brand-dark' : ''}`} title={t('Riscar')}><Strikethrough size={15} /></button>
 
               <div className="h-6 w-[1px] bg-gray-200 mx-1"></div>
 
               {/* H1, H2, H3 */}
-              <button type="button" onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()} className={`p-1.5 rounded-lg text-xs font-extrabold hover:bg-gray-200 ${editor.isActive('heading', { level: 1 }) ? 'bg-gray-200 text-brand-dark font-black' : ''}`} title="Título Grande">H1</button>
-              <button type="button" onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()} className={`p-1.5 rounded-lg text-xs font-bold hover:bg-gray-200 ${editor.isActive('heading', { level: 2 }) ? 'bg-gray-200 text-brand-dark font-black' : ''}`} title="Título Médio">H2</button>
-              <button type="button" onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()} className={`p-1.5 rounded-lg text-xs font-semibold hover:bg-gray-200 ${editor.isActive('heading', { level: 3 }) ? 'bg-gray-200 text-brand-dark font-black' : ''}`} title="Título Pequeno">H3</button>
+              <button type="button" onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()} className={`p-1.5 rounded-lg text-xs font-extrabold hover:bg-gray-200 ${editor.isActive('heading', { level: 1 }) ? 'bg-gray-200 text-brand-dark font-black' : ''}`} title={t('Título Grande')}>H1</button>
+              <button type="button" onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()} className={`p-1.5 rounded-lg text-xs font-bold hover:bg-gray-200 ${editor.isActive('heading', { level: 2 }) ? 'bg-gray-200 text-brand-dark font-black' : ''}`} title={t('Título Médio')}>H2</button>
+              <button type="button" onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()} className={`p-1.5 rounded-lg text-xs font-semibold hover:bg-gray-200 ${editor.isActive('heading', { level: 3 }) ? 'bg-gray-200 text-brand-dark font-black' : ''}`} title={t('Título Pequeno')}>H3</button>
 
               <div className="h-6 w-[1px] bg-gray-200 mx-1"></div>
 
@@ -664,7 +667,7 @@ function ScriptEditorRich({ script, onUpdate, onBack, clientName, isPublicView =
                   type="button" 
                   onClick={(e) => { e.stopPropagation(); setColorDropdownOpen(!colorDropdownOpen); setFontDropdownOpen(false); setSizeDropdownOpen(false); setHighlightDropdownOpen(false); }}
                   className="p-1.5 rounded-lg hover:bg-gray-200 flex items-center gap-1 text-xs"
-                  title="Cor do Texto"
+                  title={t('Cor do Texto')}
                 >
                   <Type size={15} style={{ color: editor.getAttributes('textStyle').color || '#111827' }} />
                   <span className="text-[9px] text-gray-400 font-bold">🎨</span>
@@ -692,7 +695,7 @@ function ScriptEditorRich({ script, onUpdate, onBack, clientName, isPublicView =
                       }}
                       className="col-span-3 text-[10px] text-center font-bold py-1 bg-gray-50 hover:bg-gray-100 text-gray-500 rounded-lg"
                     >
-                      Remover
+                      {t('Remover')}
                     </button>
                   </div>
                 )}
@@ -704,7 +707,7 @@ function ScriptEditorRich({ script, onUpdate, onBack, clientName, isPublicView =
                   type="button" 
                   onClick={(e) => { e.stopPropagation(); setHighlightDropdownOpen(!highlightDropdownOpen); setFontDropdownOpen(false); setSizeDropdownOpen(false); setColorDropdownOpen(false); }}
                   className="p-1.5 rounded-lg hover:bg-gray-200 flex items-center gap-1 text-xs"
-                  title="Marca-texto / Grifar"
+                  title={t('Marca-texto / Grifar')}
                 >
                   <span className="text-[12px] filter saturate-150">🖊️</span>
                 </button>
@@ -731,14 +734,14 @@ function ScriptEditorRich({ script, onUpdate, onBack, clientName, isPublicView =
                       }}
                       className="col-span-3 text-[10px] text-center font-bold py-1 bg-gray-50 hover:bg-gray-100 text-gray-500 rounded-lg"
                     >
-                      Remover
+                      {t('Remover')}
                     </button>
                   </div>
                 )}
               </div>
 
               <div className="ml-auto text-xs text-gray-400 font-bold px-2 flex items-center h-full shrink-0">
-                {isSaving ? 'Salvando...' : 'Salvo'}
+                {isSaving ? t('Salvando...') : t('Salvo')}
               </div>
             </div>
 
@@ -746,16 +749,16 @@ function ScriptEditorRich({ script, onUpdate, onBack, clientName, isPublicView =
             <div className="flex items-center gap-1.5 flex-nowrap shrink-0 overflow-x-auto no-scrollbar py-0.5 border-t border-gray-100 pt-1.5">
               
               {/* Listas e Checklist */}
-              <button type="button" onClick={() => editor.chain().focus().toggleBulletList().run()} className={`p-1.5 rounded-lg hover:bg-gray-200 ${editor.isActive('bulletList') ? 'bg-gray-200 text-brand-dark' : ''}`} title="Marcadores"><List size={15} /></button>
-              <button type="button" onClick={() => editor.chain().focus().toggleOrderedList().run()} className={`p-1.5 rounded-lg hover:bg-gray-200 ${editor.isActive('orderedList') ? 'bg-gray-200 text-brand-dark' : ''}`} title="Lista Numerada"><ListOrdered size={15} /></button>
-              <button type="button" onClick={() => editor.chain().focus().toggleTaskList().run()} className={`p-1.5 rounded-lg hover:bg-gray-200 ${editor.isActive('taskList') ? 'bg-gray-200 text-brand-dark' : ''}`} title="Checklist"><ListTodo size={15} /></button>
+              <button type="button" onClick={() => editor.chain().focus().toggleBulletList().run()} className={`p-1.5 rounded-lg hover:bg-gray-200 ${editor.isActive('bulletList') ? 'bg-gray-200 text-brand-dark' : ''}`} title={t('Marcadores')}><List size={15} /></button>
+              <button type="button" onClick={() => editor.chain().focus().toggleOrderedList().run()} className={`p-1.5 rounded-lg hover:bg-gray-200 ${editor.isActive('orderedList') ? 'bg-gray-200 text-brand-dark' : ''}`} title={t('Lista Numerada')}><ListOrdered size={15} /></button>
+              <button type="button" onClick={() => editor.chain().focus().toggleTaskList().run()} className={`p-1.5 rounded-lg hover:bg-gray-200 ${editor.isActive('taskList') ? 'bg-gray-200 text-brand-dark' : ''}`} title={t('Checklist')}><ListTodo size={15} /></button>
 
               <div className="h-6 w-[1px] bg-gray-200 mx-1"></div>
 
               {/* Alinhamento */}
-              <button type="button" onClick={() => editor.chain().focus().setTextAlign('left').run()} className={`p-1.5 rounded-lg hover:bg-gray-200 ${editor.isActive({ textAlign: 'left' }) ? 'bg-gray-200 text-brand-dark' : ''}`} title="Alinhar à Esquerda"><AlignLeft size={15} /></button>
-              <button type="button" onClick={() => editor.chain().focus().setTextAlign('center').run()} className={`p-1.5 rounded-lg hover:bg-gray-200 ${editor.isActive({ textAlign: 'center' }) ? 'bg-gray-200 text-brand-dark' : ''}`} title="Centralizar"><AlignCenter size={15} /></button>
-              <button type="button" onClick={() => editor.chain().focus().setTextAlign('right').run()} className={`p-1.5 rounded-lg hover:bg-gray-200 ${editor.isActive({ textAlign: 'right' }) ? 'bg-gray-200 text-brand-dark' : ''}`} title="Alinhar à Direita"><AlignRight size={15} /></button>
+              <button type="button" onClick={() => editor.chain().focus().setTextAlign('left').run()} className={`p-1.5 rounded-lg hover:bg-gray-200 ${editor.isActive({ textAlign: 'left' }) ? 'bg-gray-200 text-brand-dark' : ''}`} title={t('Alinhar à Esquerda')}><AlignLeft size={15} /></button>
+              <button type="button" onClick={() => editor.chain().focus().setTextAlign('center').run()} className={`p-1.5 rounded-lg hover:bg-gray-200 ${editor.isActive({ textAlign: 'center' }) ? 'bg-gray-200 text-brand-dark' : ''}`} title={t('Centralizar')}><AlignCenter size={15} /></button>
+              <button type="button" onClick={() => editor.chain().focus().setTextAlign('right').run()} className={`p-1.5 rounded-lg hover:bg-gray-200 ${editor.isActive({ textAlign: 'right' }) ? 'bg-gray-200 text-brand-dark' : ''}`} title={t('Alinhar à Direita')}><AlignRight size={15} /></button>
 
               <div className="h-6 w-[1px] bg-gray-200 mx-1"></div>
 
@@ -773,18 +776,18 @@ function ScriptEditorRich({ script, onUpdate, onBack, clientName, isPublicView =
                   }
                 }} 
                 className={`p-1.5 rounded-lg hover:bg-gray-200 ${editor.isActive('link') ? 'bg-gray-200 text-brand-dark' : ''}`} 
-                title="Link"
+                title={t('Link')}
               >
                 <LinkIcon size={15} />
               </button>
-              <button type="button" onClick={addImage} className="p-1.5 rounded-lg hover:bg-gray-200" title="Inserir Imagem"><ImageIcon size={15} /></button>
-              <button type="button" onClick={() => editor.chain().focus().setHorizontalRule().run()} className="p-1.5 rounded-lg hover:bg-gray-200 text-xs font-bold" title="Inserir Linha Divisória">—</button>
+              <button type="button" onClick={addImage} className="p-1.5 rounded-lg hover:bg-gray-200" title={t('Inserir Imagem')}><ImageIcon size={15} /></button>
+              <button type="button" onClick={() => editor.chain().focus().setHorizontalRule().run()} className="p-1.5 rounded-lg hover:bg-gray-200 text-xs font-bold" title={t('Inserir Linha Divisória')}>—</button>
 
               <div className="h-6 w-[1px] bg-gray-200 mx-1"></div>
 
               {/* Código inline e Block */}
-              <button type="button" onClick={() => editor.chain().focus().toggleCode().run()} className={`p-1.5 rounded-lg text-xs font-mono hover:bg-gray-200 ${editor.isActive('code') ? 'bg-gray-200 text-brand-dark font-extrabold' : ''}`} title="Bloco de código Inline">&lt;/&gt;</button>
-              <button type="button" onClick={() => editor.chain().focus().toggleCodeBlock().run()} className={`p-1.5 rounded-lg text-xs font-mono border border-black/[0.05] hover:bg-gray-200 ${editor.isActive('codeBlock') ? 'bg-gray-200 text-brand-dark font-bold' : ''}`} title="Bloco de código Inteiro">CodeBox</button>
+              <button type="button" onClick={() => editor.chain().focus().toggleCode().run()} className={`p-1.5 rounded-lg text-xs font-mono hover:bg-gray-200 ${editor.isActive('code') ? 'bg-gray-200 text-brand-dark font-extrabold' : ''}`} title={t('Bloco de código Inline')}>&lt;/&gt;</button>
+              <button type="button" onClick={() => editor.chain().focus().toggleCodeBlock().run()} className={`p-1.5 rounded-lg text-xs font-mono border border-black/[0.05] hover:bg-gray-200 ${editor.isActive('codeBlock') ? 'bg-gray-200 text-brand-dark font-bold' : ''}`} title={t('Bloco de código Inteiro')}>{t('CodeBox')}</button>
 
               <div className="h-6 w-[1px] bg-gray-200 mx-1"></div>
 
@@ -808,6 +811,7 @@ function ScriptEditorRich({ script, onUpdate, onBack, clientName, isPublicView =
 }
 
 export function ScriptEditor(props: ScriptEditorProps) {
+  const { t } = useT();
   return (
     <ScriptEditorErrorBoundary fallback={<FallbackScriptEditor {...props} />}>
       <ScriptEditorRich {...props} />

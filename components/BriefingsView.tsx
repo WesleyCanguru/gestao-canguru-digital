@@ -14,6 +14,7 @@ import {
   FileText,
   X
 } from 'lucide-react';
+import { useT } from '../lib/i18n';
 
 interface Briefing {
   id: string;
@@ -62,6 +63,7 @@ const emptyForm = {
 };
 
 export function BriefingsView({ onBack }: { onBack?: () => void }) {
+  const { t } = useT();
   const { activeClient } = useAuth();
   const [briefings, setBriefings] = useState<Briefing[]>([]);
   const [loading, setLoading] = useState(true);
@@ -179,7 +181,7 @@ export function BriefingsView({ onBack }: { onBack?: () => void }) {
                 <button 
                   onClick={onBack}
                   className="p-2 hover:bg-gray-50 rounded-xl transition-colors text-gray-400 hover:text-brand-dark mr-1"
-                  title="Voltar ao Dashboard"
+                  title={t('Voltar ao Dashboard')}
                 >
                   <ChevronLeft className="w-6 h-6" />
                 </button>
@@ -188,8 +190,8 @@ export function BriefingsView({ onBack }: { onBack?: () => void }) {
                 <ClipboardList className="w-5 h-5 text-purple-600" />
               </div>
               <div>
-                <h1 className="text-xl font-bold text-gray-900">Briefings</h1>
-                <p className="text-sm text-gray-500">Formulários mensais de conteúdo</p>
+                <h1 className="text-xl font-bold text-gray-900">{t('Briefings')}</h1>
+                <p className="text-sm text-gray-500">{t('Formulários mensais de conteúdo')}</p>
               </div>
             </div>
             <button
@@ -197,7 +199,7 @@ export function BriefingsView({ onBack }: { onBack?: () => void }) {
               className="flex items-center gap-2 bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 transition-colors text-sm font-medium"
             >
               <Plus className="w-4 h-4" />
-              Novo briefing
+              {t('Novo briefing')}
             </button>
           </div>
         </div>
@@ -212,13 +214,13 @@ export function BriefingsView({ onBack }: { onBack?: () => void }) {
               <div className="w-16 h-16 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-4">
                 <ClipboardList className="w-8 h-8 text-purple-400" />
               </div>
-              <h3 className="text-lg font-semibold text-gray-700 mb-2">Nenhum briefing ainda</h3>
-              <p className="text-gray-500 text-sm mb-6">Crie seu primeiro briefing mensal para começar.</p>
+              <h3 className="text-lg font-semibold text-gray-700 mb-2">{t('Nenhum briefing ainda')}</h3>
+              <p className="text-gray-500 text-sm mb-6">{t('Crie seu primeiro briefing mensal para começar.')}</p>
               <button
                 onClick={openNewForm}
                 className="bg-purple-600 text-white px-6 py-2.5 rounded-lg hover:bg-purple-700 transition-colors text-sm font-medium"
               >
-                Criar primeiro briefing
+                {t('Criar primeiro briefing')}
               </button>
             </div>
           ) : (
@@ -238,7 +240,7 @@ export function BriefingsView({ onBack }: { onBack?: () => void }) {
                           <h3 className="font-semibold text-gray-900 truncate">{b.title}</h3>
                           <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${cfg.color}`}>
                             <StatusIcon className="w-3 h-3" />
-                            {cfg.label}
+                            {t(cfg.label)}
                           </span>
                         </div>
                         <p className="text-sm text-gray-500">
@@ -250,7 +252,7 @@ export function BriefingsView({ onBack }: { onBack?: () => void }) {
                         <button
                           onClick={() => openDetail(b)}
                           className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
-                          title="Ver detalhes"
+                          title={t('Ver detalhes')}
                         >
                           <Eye className="w-4 h-4" />
                         </button>
@@ -259,14 +261,14 @@ export function BriefingsView({ onBack }: { onBack?: () => void }) {
                             onClick={() => openEditForm(b)}
                             className="px-3 py-1.5 text-sm text-purple-600 border border-purple-200 rounded-lg hover:bg-purple-50 transition-colors font-medium"
                           >
-                            Editar
+                            {t('Editar')}
                           </button>
                         )}
                       </div>
                     </div>
                     {b.status === 'revision_requested' && b.reviewer_notes && (
                       <div className="mt-3 p-3 bg-orange-50 border border-orange-200 rounded-lg">
-                        <p className="text-xs font-medium text-orange-700 mb-1">Notas do revisor:</p>
+                        <p className="text-xs font-medium text-orange-700 mb-1">{t('Notas do revisor:')}</p>
                         <p className="text-sm text-orange-600">{b.reviewer_notes}</p>
                       </div>
                     )}
@@ -296,9 +298,9 @@ export function BriefingsView({ onBack }: { onBack?: () => void }) {
             </button>
             <div>
               <h1 className="text-xl font-bold text-gray-900">
-                {isEdit ? 'Editar briefing' : 'Novo briefing'}
+                {isEdit ? t('Editar briefing') : t('Novo briefing')}
               </h1>
-              <p className="text-sm text-gray-500">Preencha as informações do mês</p>
+              <p className="text-sm text-gray-500">{t('Preencha as informações do mês')}</p>
             </div>
           </div>
         </div>
@@ -313,20 +315,20 @@ export function BriefingsView({ onBack }: { onBack?: () => void }) {
 
           {/* Título */}
           <div className="bg-white rounded-xl border border-gray-200 p-5 space-y-4">
-            <h2 className="font-semibold text-gray-800 text-sm uppercase tracking-wide">Identificação</h2>
+            <h2 className="font-semibold text-gray-800 text-sm uppercase tracking-wide">{t('Identificação')}</h2>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Título do briefing *</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">{t('Título do briefing *')}</label>
               <input
                 type="text"
                 value={form.title}
                 onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
-                placeholder="Ex: Briefing Março 2026 - Lançamento Coleção"
+                placeholder={t('Ex: Briefing Março 2026 - Lançamento Coleção')}
                 className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-300"
               />
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Mês</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">{t('Mês')}</label>
                 <select
                   value={form.month}
                   onChange={e => setForm(f => ({ ...f, month: Number(e.target.value) }))}
@@ -338,7 +340,7 @@ export function BriefingsView({ onBack }: { onBack?: () => void }) {
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Ano</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">{t('Ano')}</label>
                 <input
                   type="number"
                   value={form.year}
@@ -351,33 +353,33 @@ export function BriefingsView({ onBack }: { onBack?: () => void }) {
 
           {/* Conteúdo */}
           <div className="bg-white rounded-xl border border-gray-200 p-5 space-y-4">
-            <h2 className="font-semibold text-gray-800 text-sm uppercase tracking-wide">Conteúdo do mês</h2>
+            <h2 className="font-semibold text-gray-800 text-sm uppercase tracking-wide">{t('Conteúdo do mês')}</h2>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Tema principal</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">{t('Tema principal')}</label>
               <input
                 type="text"
                 value={form.main_theme}
                 onChange={e => setForm(f => ({ ...f, main_theme: e.target.value }))}
-                placeholder="Ex: Dia das Mães, Lançamento de produto..."
+                placeholder={t('Ex: Dia das Mães, Lançamento de produto...')}
                 className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-300"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Datas importantes</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">{t('Datas importantes')}</label>
               <textarea
                 value={form.key_dates}
                 onChange={e => setForm(f => ({ ...f, key_dates: e.target.value }))}
-                placeholder="Ex: 12/03 - Lançamento, 25/03 - Evento..."
+                placeholder={t('Ex: 12/03 - Lançamento, 25/03 - Evento...')}
                 rows={3}
                 className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-300 resize-none"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Promoções / Campanhas</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">{t('Promoções / Campanhas')}</label>
               <textarea
                 value={form.promotions}
                 onChange={e => setForm(f => ({ ...f, promotions: e.target.value }))}
-                placeholder="Descreva promoções, descontos ou campanhas previstas..."
+                placeholder={t('Descreva promoções, descontos ou campanhas previstas...')}
                 rows={3}
                 className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-300 resize-none"
               />
@@ -386,47 +388,47 @@ export function BriefingsView({ onBack }: { onBack?: () => void }) {
 
           {/* Diretrizes */}
           <div className="bg-white rounded-xl border border-gray-200 p-5 space-y-4">
-            <h2 className="font-semibold text-gray-800 text-sm uppercase tracking-wide">Diretrizes de comunicação</h2>
+            <h2 className="font-semibold text-gray-800 text-sm uppercase tracking-wide">{t('Diretrizes de comunicação')}</h2>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Público-alvo</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">{t('Público-alvo')}</label>
               <input
                 type="text"
                 value={form.target_audience}
                 onChange={e => setForm(f => ({ ...f, target_audience: e.target.value }))}
-                placeholder="Ex: Mulheres 25-40 anos, interessadas em moda..."
+                placeholder={t('Ex: Mulheres 25-40 anos, interessadas em moda...')}
                 className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-300"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Tom de voz</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">{t('Tom de voz')}</label>
               <select
                 value={form.tone}
                 onChange={e => setForm(f => ({ ...f, tone: e.target.value }))}
                 className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-300"
               >
-                <option value="informal">Informal e descontraído</option>
-                <option value="formal">Formal e profissional</option>
-                <option value="inspiracional">Inspiracional</option>
-                <option value="educativo">Educativo</option>
-                <option value="divertido">Divertido e jovem</option>
+                <option value="informal">{t('Informal e descontraído')}</option>
+                <option value="formal">{t('Formal e profissional')}</option>
+                <option value="inspiracional">{t('Inspiracional')}</option>
+                <option value="educativo">{t('Educativo')}</option>
+                <option value="divertido">{t('Divertido e jovem')}</option>
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Referências / Links</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">{t('Referências / Links')}</label>
               <textarea
                 value={form.references_links}
                 onChange={e => setForm(f => ({ ...f, references_links: e.target.value }))}
-                placeholder="Links de inspiração, concorrentes, materiais..."
+                placeholder={t('Links de inspiração, concorrentes, materiais...')}
                 rows={2}
                 className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-300 resize-none"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Observações adicionais</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">{t('Observações adicionais')}</label>
               <textarea
                 value={form.additional_notes}
                 onChange={e => setForm(f => ({ ...f, additional_notes: e.target.value }))}
-                placeholder="Qualquer outra informação relevante para o mês..."
+                placeholder={t('Qualquer outra informação relevante para o mês...')}
                 rows={3}
                 className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-300 resize-none"
               />
@@ -441,7 +443,7 @@ export function BriefingsView({ onBack }: { onBack?: () => void }) {
               className="flex items-center gap-2 px-5 py-2.5 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-sm font-medium disabled:opacity-50"
             >
               <Save className="w-4 h-4" />
-              {saving ? 'Salvando...' : 'Salvar rascunho'}
+              {saving ? t('Salvando...') : t('Salvar rascunho')}
             </button>
             <button
               onClick={() => saveBriefing(true)}
@@ -449,7 +451,7 @@ export function BriefingsView({ onBack }: { onBack?: () => void }) {
               className="flex items-center gap-2 px-5 py-2.5 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors text-sm font-medium disabled:opacity-50"
             >
               <Send className="w-4 h-4" />
-              {saving ? 'Enviando...' : 'Enviar para revisão'}
+              {saving ? t('Enviando...') : t('Enviar para revisão')}
             </button>
           </div>
         </div>
@@ -465,13 +467,13 @@ export function BriefingsView({ onBack }: { onBack?: () => void }) {
     const canEdit = b.status === 'draft' || b.status === 'revision_requested';
 
     const fields = [
-      { label: 'Tema principal', value: b.main_theme },
-      { label: 'Datas importantes', value: b.key_dates },
+      { label: t('Tema principal'), value: b.main_theme },
+      { label: t('Datas importantes'), value: b.key_dates },
       { label: 'Promoções / Campanhas', value: b.promotions },
-      { label: 'Público-alvo', value: b.target_audience },
-      { label: 'Tom de voz', value: b.tone },
+      { label: t('Público-alvo'), value: b.target_audience },
+      { label: t('Tom de voz'), value: b.tone },
       { label: 'Referências / Links', value: b.references_links },
-      { label: 'Observações adicionais', value: b.additional_notes },
+      { label: t('Observações adicionais'), value: b.additional_notes },
     ];
 
     return (
@@ -493,14 +495,14 @@ export function BriefingsView({ onBack }: { onBack?: () => void }) {
             <div className="flex items-center gap-2">
               <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium ${cfg.color}`}>
                 <StatusIcon className="w-3.5 h-3.5" />
-                {cfg.label}
+                {t(cfg.label)}
               </span>
               {canEdit && (
                 <button
                   onClick={() => openEditForm(b)}
                   className="px-3 py-1.5 text-sm text-purple-600 border border-purple-200 rounded-lg hover:bg-purple-50 transition-colors font-medium"
                 >
-                  Editar
+                  {t('Editar')}
                 </button>
               )}
             </div>
@@ -510,7 +512,7 @@ export function BriefingsView({ onBack }: { onBack?: () => void }) {
         <div className="max-w-2xl mx-auto px-6 py-6 space-y-4">
           {b.status === 'revision_requested' && b.reviewer_notes && (
             <div className="p-4 bg-orange-50 border border-orange-200 rounded-xl">
-              <p className="text-sm font-semibold text-orange-700 mb-1">Notas do revisor:</p>
+              <p className="text-sm font-semibold text-orange-700 mb-1">{t('Notas do revisor:')}</p>
               <p className="text-sm text-orange-600">{b.reviewer_notes}</p>
             </div>
           )}

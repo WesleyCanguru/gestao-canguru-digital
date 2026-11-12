@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { usePasswordVault, Credential } from '../hooks/usePasswordVault';
 import { Eye, EyeOff, Copy, Edit, Trash2, Lock, Plus, ExternalLink, AlertCircle, Check } from 'lucide-react';
 import { ConfirmModal } from './ConfirmModal';
+import { useT } from '../lib/i18n';
 
 interface PasswordVaultProps {
   clientId: string;
@@ -14,6 +15,7 @@ const PLATFORMS = [
 ];
 
 export const PasswordVault: React.FC<PasswordVaultProps> = ({ clientId, userRole }) => {
+  const { t } = useT();
   const {
     credentials,
     loading,
@@ -48,7 +50,7 @@ export const PasswordVault: React.FC<PasswordVaultProps> = ({ clientId, userRole
       setEditingCred(cred);
       const isCustom = !PLATFORMS.includes(cred.platform);
       setForm({
-        platform: isCustom ? 'Outro' : cred.platform,
+        platform: isCustom ? t('Outro') : cred.platform,
         customPlatform: isCustom ? cred.platform : '',
         label: cred.label,
         username: cred.username,
@@ -137,8 +139,8 @@ export const PasswordVault: React.FC<PasswordVaultProps> = ({ clientId, userRole
       <div className="p-6 bg-red-50 border border-red-200 rounded-2xl text-red-600 flex items-center gap-3">
         <AlertCircle size={24} />
         <div>
-          <h3 className="font-bold">Erro de Configuração</h3>
-          <p className="text-sm">Configure a variável <strong>VITE_ENCRYPTION_KEY</strong> nas configurações de ambiente (Settings) para habilitar o cofre de senhas.</p>
+          <h3 className="font-bold">{t('Erro de Configuração')}</h3>
+          <p className="text-sm">{t('Configure a variável')} <strong>VITE_ENCRYPTION_KEY</strong> nas configurações de ambiente (Settings) para habilitar o cofre de senhas.</p>
         </div>
       </div>
     );
@@ -157,9 +159,9 @@ export const PasswordVault: React.FC<PasswordVaultProps> = ({ clientId, userRole
         <div>
           <h2 className="text-2xl font-bold text-brand-dark flex items-center gap-2">
             <Lock className="text-brand-dark" size={24} />
-            Cofre de Senhas
+            {t('Cofre de Senhas')}
           </h2>
-          <p className="text-gray-500 text-sm mt-1">Credenciais seguras e criptografadas.</p>
+          <p className="text-gray-500 text-sm mt-1">{t('Credenciais seguras e criptografadas.')}</p>
         </div>
         {canEdit && (
           <button
@@ -167,19 +169,19 @@ export const PasswordVault: React.FC<PasswordVaultProps> = ({ clientId, userRole
             className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-xl font-semibold text-sm transition-colors shadow-sm"
           >
             <Plus size={16} />
-            Adicionar Credencial
+            {t('Adicionar Credencial')}
           </button>
         )}
       </div>
 
       {loading ? (
-        <div className="text-center py-12 text-gray-400">Carregando credenciais...</div>
+        <div className="text-center py-12 text-gray-400">{t('Carregando credenciais...')}</div>
       ) : error ? (
         <div className="p-4 bg-red-50 text-red-600 rounded-xl border border-red-100">{error}</div>
       ) : credentials.length === 0 ? (
         <div className="text-center py-16 bg-gray-50 rounded-3xl border border-dashed border-gray-200">
           <Lock size={48} className="mx-auto text-gray-300 mb-4" />
-          <p className="text-gray-500 font-medium">Nenhuma credencial cadastrada ainda.</p>
+          <p className="text-gray-500 font-medium">{t('Nenhuma credencial cadastrada ainda.')}</p>
           {canEdit && (
             <button
               onClick={() => handleOpenModal()}
@@ -219,14 +221,14 @@ export const PasswordVault: React.FC<PasswordVaultProps> = ({ clientId, userRole
 
                     <div className="space-y-3">
                       <div>
-                        <span className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Usuário / E-mail</span>
+                        <span className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">{t('Usuário / E-mail')}</span>
                         <div className="bg-gray-50 px-3 py-2 rounded-lg text-sm text-gray-800 font-mono break-all">
                           {cred.username}
                         </div>
                       </div>
                       
                       <div>
-                        <span className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Senha</span>
+                        <span className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">{t('Senha')}</span>
                         <div className="flex gap-2">
                           <div className="bg-gray-50 px-3 py-2 rounded-lg text-sm text-gray-800 font-mono flex-1 flex items-center">
                             {visiblePasswords[cred.id] ? (
@@ -245,7 +247,7 @@ export const PasswordVault: React.FC<PasswordVaultProps> = ({ clientId, userRole
                           <button
                             onClick={() => handleCopyPassword(cred.password_encrypted, cred.id)}
                             className="p-2 bg-gray-50 hover:bg-gray-100 text-gray-500 rounded-lg transition-colors relative"
-                            title="Copiar senha"
+                            title={t('Copiar senha')}
                           >
                             {copiedId === cred.id ? <Check size={16} className="text-green-500" /> : <Copy size={16} />}
                           </button>
@@ -254,7 +256,7 @@ export const PasswordVault: React.FC<PasswordVaultProps> = ({ clientId, userRole
 
                       {cred.notes && (
                         <div>
-                          <span className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Observações</span>
+                          <span className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">{t('Observações')}</span>
                           <p className="text-xs text-gray-600 bg-yellow-50/50 p-3 rounded-lg border border-yellow-100/50">
                             {cred.notes}
                           </p>
@@ -275,7 +277,7 @@ export const PasswordVault: React.FC<PasswordVaultProps> = ({ clientId, userRole
           <div className="bg-white rounded-3xl w-full max-w-md overflow-hidden shadow-2xl">
             <div className="p-6 border-b border-gray-100 flex justify-between items-center">
               <h3 className="text-xl font-bold text-gray-900">
-                {editingCred ? 'Editar Credencial' : 'Nova Credencial'}
+                {editingCred ? t('Editar Credencial') : t('Nova Credencial')}
               </h3>
               <button onClick={() => setShowModal(false)} className="text-gray-400 hover:text-gray-600">
                 <Trash2 size={20} className="hidden" /> {/* Placeholder for spacing if needed, or just X */}
@@ -285,7 +287,7 @@ export const PasswordVault: React.FC<PasswordVaultProps> = ({ clientId, userRole
             
             <form onSubmit={handleSave} className="p-6 space-y-4">
               <div>
-                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Plataforma *</label>
+                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">{t('Plataforma *')}</label>
                 <select
                   value={form.platform}
                   onChange={e => setForm({ ...form, platform: e.target.value })}
@@ -298,7 +300,7 @@ export const PasswordVault: React.FC<PasswordVaultProps> = ({ clientId, userRole
 
               {form.platform === 'Outro' && (
                 <div>
-                  <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Nome da Plataforma *</label>
+                  <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">{t('Nome da Plataforma *')}</label>
                   <input
                     type="text"
                     value={form.customPlatform}
@@ -310,7 +312,7 @@ export const PasswordVault: React.FC<PasswordVaultProps> = ({ clientId, userRole
               )}
 
               <div>
-                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Usuário / E-mail *</label>
+                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">{t('Usuário / E-mail *')}</label>
                 <input
                   type="text"
                   value={form.username}
@@ -332,7 +334,7 @@ export const PasswordVault: React.FC<PasswordVaultProps> = ({ clientId, userRole
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">URL de Acesso (Opcional)</label>
+                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">{t('URL de Acesso (Opcional)')}</label>
                 <input
                   type="url"
                   value={form.url}
@@ -343,7 +345,7 @@ export const PasswordVault: React.FC<PasswordVaultProps> = ({ clientId, userRole
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Observações (Opcional)</label>
+                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">{t('Observações (Opcional)')}</label>
                 <textarea
                   value={form.notes}
                   onChange={e => setForm({ ...form, notes: e.target.value })}
@@ -358,14 +360,14 @@ export const PasswordVault: React.FC<PasswordVaultProps> = ({ clientId, userRole
                   onClick={() => setShowModal(false)}
                   className="flex-1 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl font-bold text-sm transition-colors"
                 >
-                  Cancelar
+                  {t('Cancelar')}
                 </button>
                 <button
                   type="submit"
                   disabled={saving}
                   className="flex-1 py-3 bg-green-600 hover:bg-green-700 text-white rounded-xl font-bold text-sm transition-colors disabled:opacity-50"
                 >
-                  {saving ? 'Salvando...' : 'Salvar'}
+                  {saving ? t('Salvando...') : t('Salvar')}
                 </button>
               </div>
             </form>
@@ -375,7 +377,7 @@ export const PasswordVault: React.FC<PasswordVaultProps> = ({ clientId, userRole
 
       <ConfirmModal
         isOpen={!!confirmDeleteId}
-        title="Excluir Credencial"
+        title={t('Excluir Credencial')}
         message="Tem certeza que deseja excluir esta credencial?"
         onConfirm={() => confirmDeleteId && handleDelete(confirmDeleteId)}
         onCancel={() => setConfirmDeleteId(null)}

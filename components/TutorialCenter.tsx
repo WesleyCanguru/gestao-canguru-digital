@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { getAppUrl } from '../lib/appUrl';
 import { useTutorialCenter, Tutorial } from '../hooks/useTutorialCenter';
 import { CheckCircle, Circle, ChevronDown, ChevronUp, Plus, X, BookOpen, Link } from 'lucide-react';
+import { useT } from '../lib/i18n';
 
 interface TutorialCenterProps {
   clientId: string;
@@ -16,6 +17,7 @@ const PLATFORM_ICONS: Record<string, string> = {
 };
 
 export const TutorialCenter: React.FC<TutorialCenterProps> = ({ clientId, userRole }) => {
+  const { t } = useT();
   const {
     assignedTutorials,
     allTutorials,
@@ -49,7 +51,7 @@ export const TutorialCenter: React.FC<TutorialCenterProps> = ({ clientId, userRo
   };
 
   if (loading) {
-    return <div className="py-12 text-center text-gray-400">Carregando tutoriais...</div>;
+    return <div className="py-12 text-center text-gray-400">{t('Carregando tutoriais...')}</div>;
   }
 
   const completedCount = assignedTutorials.filter(t => t.is_completed).length;
@@ -72,7 +74,7 @@ export const TutorialCenter: React.FC<TutorialCenterProps> = ({ clientId, userRo
         <div className="flex justify-between items-center mb-4">
           <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
             <BookOpen className="text-blue-600" size={20} />
-            Progresso dos Tutoriais
+            {t('Progresso dos Tutoriais')}
           </h3>
           <span className="text-sm font-bold text-gray-500">
             {completedCount} de {totalCount} concluídos
@@ -88,12 +90,12 @@ export const TutorialCenter: React.FC<TutorialCenterProps> = ({ clientId, userRo
 
       {/* Assigned Tutorials */}
       <div className="space-y-4">
-        <h3 className="text-xl font-bold text-gray-900">Tutoriais Atribuídos</h3>
+        <h3 className="text-xl font-bold text-gray-900">{t('Tutoriais Atribuídos')}</h3>
         
         {assignedTutorials.length === 0 ? (
           <div className="text-center py-12 bg-gray-50 rounded-2xl border border-dashed border-gray-200">
             <BookOpen size={48} className="mx-auto text-gray-300 mb-4" />
-            <p className="text-gray-500 font-medium">Nenhum tutorial atribuído ainda.</p>
+            <p className="text-gray-500 font-medium">{t('Nenhum tutorial atribuído ainda.')}</p>
           </div>
         ) : (
           <div className="grid gap-4">
@@ -141,7 +143,7 @@ export const TutorialCenter: React.FC<TutorialCenterProps> = ({ clientId, userRo
                             alert('Link copiado! O cliente entra com o login dele e cai direto neste tutorial.');
                           }}
                           className="p-2 text-blue-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                          title="Copiar Link Direto"
+                          title={t('Copiar Link Direto')}
                         >
                           <Link size={18} />
                         </button>
@@ -151,7 +153,7 @@ export const TutorialCenter: React.FC<TutorialCenterProps> = ({ clientId, userRo
                         <button 
                           onClick={() => unassignTutorial(tutorial_slug)}
                           className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                          title="Desatribuir Tutorial"
+                          title={t('Desatribuir Tutorial')}
                         >
                           <X size={20} />
                         </button>
@@ -182,7 +184,7 @@ export const TutorialCenter: React.FC<TutorialCenterProps> = ({ clientId, userRo
                             onClick={() => markIncomplete(tutorial_slug)}
                             className="px-6 py-2.5 bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 rounded-xl font-bold text-sm transition-colors"
                           >
-                            Marcar como Pendente
+                            {t('Marcar como Pendente')}
                           </button>
                         ) : (
                           <button 
@@ -190,7 +192,7 @@ export const TutorialCenter: React.FC<TutorialCenterProps> = ({ clientId, userRo
                             className="px-6 py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-xl font-bold text-sm transition-colors flex items-center gap-2"
                           >
                             <CheckCircle size={18} />
-                            Marcar como Concluído
+                            {t('Marcar como Concluído')}
                           </button>
                         )}
                       </div>
@@ -206,10 +208,10 @@ export const TutorialCenter: React.FC<TutorialCenterProps> = ({ clientId, userRo
       {/* Admin Assignment Section */}
       {isAdmin && (
         <div className="space-y-6 pt-8 border-t border-gray-100">
-          <h3 className="text-xl font-bold text-gray-900">Atribuir Novos Tutoriais</h3>
+          <h3 className="text-xl font-bold text-gray-900">{t('Atribuir Novos Tutoriais')}</h3>
           
           {Object.keys(groupedUnassigned).length === 0 ? (
-            <p className="text-gray-500 text-sm">Todos os tutoriais disponíveis já foram atribuídos.</p>
+            <p className="text-gray-500 text-sm">{t('Todos os tutoriais disponíveis já foram atribuídos.')}</p>
           ) : (
             <div className="grid gap-6">
               {Object.entries(groupedUnassigned).map(([platform, tutorials]) => (
