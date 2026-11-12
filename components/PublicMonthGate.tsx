@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { BRAND } from '../lib/brand';
 import { MONTH_NAMES } from '../hooks/useEditorialData';
 
 export interface PublicMonthGateProps {
@@ -135,7 +136,7 @@ export const PublicMonthGate: React.FC<PublicMonthGateProps> = ({
 
       {/* Rodapé discreto da Bolsa */}
       <p style={{ color: '#c4c4c4', fontSize: 11, marginTop: 24, letterSpacing: '0.05em' }}>
-        Powered by <strong style={{ fontWeight: 600 }}>Bolsa</strong> · Canguru Digital
+        Powered by <strong style={{ fontWeight: 600 }}>{BRAND.app}</strong> · {BRAND.by}
       </p>
     </div>
   );

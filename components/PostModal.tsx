@@ -1,5 +1,6 @@
 
 import React, { useState, useEffect, useRef } from 'react';
+import { BRAND } from '../lib/brand';
 import { getAppUrl } from '../lib/appUrl';
 import { motion, AnimatePresence } from 'motion/react';
 import { DailyContent, PostData, PostComment, PostStatus, PostRevision } from '../types';
@@ -1299,7 +1300,7 @@ export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, group
 
              {/* Decorative elements for premium feel */}
              <div className="absolute bottom-6 left-6 pointer-events-none opacity-20 hidden sm:block">
-                <span className="font-serif italic text-white/50 text-4xl tracking-tighter">Bolsa</span>
+                <span className="font-serif italic text-white/50 text-4xl tracking-tighter">{BRAND.app}</span>
              </div>
           </div>
 
@@ -1793,7 +1794,7 @@ export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, group
                     <div className="flex-grow overflow-y-auto p-6 bg-black/[0.01] custom-scrollbar flex flex-col gap-6 relative">
                         {/* Subtle Watermark */}
                         <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-[0.02]">
-                            <span className="font-serif italic text-9xl -rotate-12">Bolsa</span>
+                            <span className="font-serif italic text-9xl -rotate-12">{BRAND.app}</span>
                         </div>
 
                         {comments.length === 0 ? (

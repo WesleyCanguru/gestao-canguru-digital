@@ -1,5 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
+import { BRAND } from '../lib/brand';
 import { MonthCard } from './MonthCard';
 import { Compass, CheckCircle2, Sparkles, ArrowRight, FileText } from 'lucide-react';
 import { useAuth, supabase } from '../lib/supabase';
@@ -373,7 +374,7 @@ export const AnnualOverview: React.FC<AnnualOverviewProps> = ({ onSelectMonth })
       
       <motion.div variants={itemVariants} className="pt-10 pb-20 text-center border-t border-gray-50">
         <p className="text-gray-300 text-[11px] uppercase tracking-[0.3em] font-bold">
-          Bolsa • Planejamento estratégico sujeito a adaptações táticas conforme feedback de mercado.
+          {BRAND.app} • Planejamento estratégico sujeito a adaptações táticas conforme feedback de mercado.
         </p>
       </motion.div>
 
