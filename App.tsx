@@ -1,4 +1,5 @@
 import { BRAND } from './lib/brand';
+import { useT } from './lib/i18n';
 import React, { useState, useEffect } from 'react';
 import dayjs from 'dayjs';
 import 'dayjs/locale/pt-br';
@@ -105,6 +106,7 @@ const MainApp: React.FC<MainAppProps> = ({ initialView, onExitAgencyDashboard, o
   });
   const [isNavCollapsed, setIsNavCollapsed] = useState(false);
   const { userRole, logout, activeClient, setActiveClient, refreshActiveClient, isViewingAsClient } = useAuth();
+  const { t } = useT();
   const { monthlyPlans } = useEditorialData();
 
   // Deep linking: Handle direct links to briefings or other views
@@ -300,7 +302,7 @@ const MainApp: React.FC<MainAppProps> = ({ initialView, onExitAgencyDashboard, o
                       <>
                         <div className="h-6 w-px bg-gray-100 hidden sm:block"></div>
                         <div className="flex items-center gap-1 sm:gap-2 opacity-40 hover:opacity-100 transition-opacity duration-500">
-                          <span className="text-[5px] sm:text-[7px] uppercase tracking-[0.3em] text-gray-400 font-bold">Strategy by</span>
+                          <span className="text-[5px] sm:text-[7px] uppercase tracking-[0.3em] text-gray-400 font-bold">{t('Strategy by')}</span>
                           <div className="scale-75 sm:scale-100 origin-left">
                             <Logo size="small" />
                           </div>
@@ -312,7 +314,7 @@ const MainApp: React.FC<MainAppProps> = ({ initialView, onExitAgencyDashboard, o
 
                 <div className="flex items-center gap-2 sm:gap-4 shrink-0">
                   <div className="hidden md:flex flex-col items-end mr-4">
-                    <span className="text-[8px] uppercase tracking-[0.3em] text-gray-400 font-bold mb-0.5">Membro Premium</span>
+                    <span className="text-[8px] uppercase tracking-[0.3em] text-gray-400 font-bold mb-0.5">{t('Membro Premium')}</span>
                     <span className="text-[11px] font-bold text-brand-dark uppercase tracking-widest">{getRoleLabel()}</span>
                   </div>
                   {(userRole as any) === 'admin' && (
@@ -355,7 +357,7 @@ const MainApp: React.FC<MainAppProps> = ({ initialView, onExitAgencyDashboard, o
                   <button
                     onClick={logout}
                     className="p-2 sm:p-3 rounded-xl sm:rounded-2xl bg-red-50/50 text-red-400 hover:bg-red-50 hover:text-red-600 transition-all active:scale-95 border border-red-100/20"
-                    title="Sair"
+                    title={t('Sair')}
                   >
                     <LogOut size={16} className="sm:w-[18px] sm:h-[18px]" />
                   </button>
@@ -400,13 +402,13 @@ const MainApp: React.FC<MainAppProps> = ({ initialView, onExitAgencyDashboard, o
                 ) : view === 'agencyDashboard' && userRole !== 'admin' ? (
                   <div className="flex flex-col items-center justify-center min-h-[60vh] text-center">
                     <Shield size={48} className="text-red-400 mb-4" />
-                    <h2 className="text-2xl font-bold text-brand-dark mb-2">Acesso Restrito</h2>
-                    <p className="text-gray-500 mb-6">Você não tem permissão para acessar esta área.</p>
+                    <h2 className="text-2xl font-bold text-brand-dark mb-2">{t('Acesso Restrito')}</h2>
+                    <p className="text-gray-500 mb-6">{t('Você não tem permissão para acessar esta área.')}</p>
                     <button 
                       onClick={() => setView('dashboard')}
                       className="px-8 py-3 bg-brand-dark text-white rounded-2xl font-bold text-sm uppercase tracking-widest"
                     >
-                      Voltar ao Dashboard
+                      {t('Voltar ao Dashboard')}
                     </button>
                   </div>
                 ) : view === 'paid-traffic' ? (
@@ -441,7 +443,7 @@ const MainApp: React.FC<MainAppProps> = ({ initialView, onExitAgencyDashboard, o
                         >
                           <ChevronRight className="w-5 h-5 rotate-180" />
                         </button>
-                        <h2 className="text-xl font-bold text-brand-dark">Voltar ao Dashboard</h2>
+                        <h2 className="text-xl font-bold text-brand-dark">{t('Voltar ao Dashboard')}</h2>
                       </div>
                     )}
                     <TutorialCenter clientId={activeClient?.id || ''} userRole={userRole} />
@@ -456,7 +458,7 @@ const MainApp: React.FC<MainAppProps> = ({ initialView, onExitAgencyDashboard, o
                         >
                           <ChevronRight className="w-5 h-5 rotate-180" />
                         </button>
-                        <h2 className="text-xl font-bold text-brand-dark">Voltar ao Dashboard</h2>
+                        <h2 className="text-xl font-bold text-brand-dark">{t('Voltar ao Dashboard')}</h2>
                       </div>
                     )}
                     <PasswordVault clientId={activeClient?.id || ''} userRole={userRole} />
@@ -486,7 +488,7 @@ const MainApp: React.FC<MainAppProps> = ({ initialView, onExitAgencyDashboard, o
                         >
                           <ChevronRight className="w-5 h-5 rotate-180" />
                         </button>
-                        <h2 className="text-xl font-bold text-brand-dark">Voltar ao Dashboard</h2>
+                        <h2 className="text-xl font-bold text-brand-dark">{t('Voltar ao Dashboard')}</h2>
                       </div>
                     )}
                     <AiPhotosView />
@@ -501,7 +503,7 @@ const MainApp: React.FC<MainAppProps> = ({ initialView, onExitAgencyDashboard, o
                         >
                           <ChevronRight className="w-5 h-5 rotate-180" />
                         </button>
-                        <h2 className="text-xl font-bold text-brand-dark">Voltar ao Dashboard</h2>
+                        <h2 className="text-xl font-bold text-brand-dark">{t('Voltar ao Dashboard')}</h2>
                       </div>
                     )}
                     <CreativesView />
@@ -516,7 +518,7 @@ const MainApp: React.FC<MainAppProps> = ({ initialView, onExitAgencyDashboard, o
                         >
                           <ChevronRight className="w-5 h-5 rotate-180" />
                         </button>
-                        <h2 className="text-xl font-bold text-brand-dark">Voltar ao Dashboard</h2>
+                        <h2 className="text-xl font-bold text-brand-dark">{t('Voltar ao Dashboard')}</h2>
                       </div>
                     )}
                     {activeClient && <RoteirosSection clientId={activeClient.id} clientName={activeClient.name} />}
@@ -530,7 +532,7 @@ const MainApp: React.FC<MainAppProps> = ({ initialView, onExitAgencyDashboard, o
                           className="flex items-center gap-2 text-sm font-bold text-[#13284D] hover:opacity-80 transition-opacity cursor-pointer"
                         >
                           <ChevronRight className="w-5 h-5 rotate-180" />
-                          <span>Voltar ao Início</span>
+                          <span>{t('Voltar ao Início')}</span>
                         </button>
                       </div>
                     )}
@@ -583,7 +585,7 @@ const MainApp: React.FC<MainAppProps> = ({ initialView, onExitAgencyDashboard, o
                         >
                           <ChevronRight className="w-5 h-5 rotate-180" />
                         </button>
-                        <h2 className="text-xl font-bold text-brand-dark">Voltar ao Dashboard</h2>
+                        <h2 className="text-xl font-bold text-brand-dark">{t('Voltar ao Dashboard')}</h2>
                       </div>
                     )}
                     {activeClient && <ClientChecklistView client={activeClient} onClose={() => setView('dashboard')} />}
@@ -597,7 +599,7 @@ const MainApp: React.FC<MainAppProps> = ({ initialView, onExitAgencyDashboard, o
                           className="flex items-center gap-2 text-sm font-bold text-[#13284D] hover:opacity-80 transition-opacity cursor-pointer"
                         >
                           <ChevronRight className="w-5 h-5 rotate-180" />
-                          <span>Voltar ao Início</span>
+                          <span>{t('Voltar ao Início')}</span>
                         </button>
                       </div>
                     )}
@@ -606,7 +608,7 @@ const MainApp: React.FC<MainAppProps> = ({ initialView, onExitAgencyDashboard, o
                         <div className="mb-8 border-b border-gray-100 pb-6 flex items-center justify-between">
                           <div>
                             <h2 className="text-2xl font-bold text-brand-dark">Net Promoter Score (NPS)</h2>
-                            <p className="text-sm text-gray-500 mt-1">Acompanhamento da satisfação e feedback de {activeClient.name}</p>
+                            <p className="text-sm text-gray-500 mt-1">{t('Acompanhamento da satisfação e feedback de {name}', { name: activeClient.name })}</p>
                           </div>
                         </div>
                         <ClientNpsSection client={activeClient} />
@@ -635,10 +637,10 @@ const MainApp: React.FC<MainAppProps> = ({ initialView, onExitAgencyDashboard, o
             </div>
             <div className="flex flex-col items-center md:items-end gap-2">
               <p className="text-[10px] text-gray-400 uppercase tracking-[0.4em] font-bold text-center md:text-right">
-                Painel do Cliente • {BRAND.by} {new Date().getFullYear()}
+                {t('Painel do Cliente')} • {BRAND.by} {new Date().getFullYear()}
               </p>
               <p className="text-[9px] text-gray-300 uppercase tracking-widest font-medium text-center md:text-right">
-                Planejamento Estratégico & Editorial • Confidencial
+                {t('Planejamento Estratégico & Editorial • Confidencial')}
               </p>
             </div>
           </div>

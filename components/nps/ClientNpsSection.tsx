@@ -20,6 +20,7 @@ import 'dayjs/locale/pt-br';
 import { useClientNps, getNpsPublicUrl } from '../../hooks/useClientNps';
 import { NpsBadge } from './NpsBadge';
 import { Client } from '../../types';
+import { useT } from '../../lib/i18n';
 
 dayjs.locale('pt-br');
 
@@ -29,6 +30,7 @@ interface ClientNpsSectionProps {
 }
 
 export const ClientNpsSection: React.FC<ClientNpsSectionProps> = ({ client, className = '' }) => {
+  const { t } = useT();
   const {
     history,
     currentMonthNps,
@@ -129,7 +131,7 @@ export const ClientNpsSection: React.FC<ClientNpsSectionProps> = ({ client, clas
             onClick={handleSendOrCopy}
             disabled={sending}
             className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-[#13284D] hover:bg-[#0e1d37] text-white rounded-xl text-xs font-bold uppercase tracking-wider transition-all shadow-sm hover:shadow active:scale-95 disabled:opacity-50"
-            title="Gera ou recupera o link da pesquisa deste mês e copia para o WhatsApp/Email"
+            title={t('Gera ou recupera o link da pesquisa deste mês e copia para o WhatsApp/Email')}
           >
             {sending ? (
               <>
@@ -145,7 +147,7 @@ export const ClientNpsSection: React.FC<ClientNpsSectionProps> = ({ client, clas
               <>
                 <Send className="w-4 h-4" />
                 <span>
-                  {currentMonthNps ? 'Copiar link da pesquisa' : 'Enviar pesquisa de satisfação'}
+                  {currentMonthNps ? t('Copiar link da pesquisa') : t('Enviar pesquisa de satisfação')}
                 </span>
               </>
             )}
@@ -162,7 +164,7 @@ export const ClientNpsSection: React.FC<ClientNpsSectionProps> = ({ client, clas
             </div>
             <div>
               <span className="text-[10px] font-extrabold uppercase tracking-wider text-stone-400 block">
-                Pesquisa do Mês Atual
+                {t('Pesquisa do Mês Atual')}
               </span>
               <p className="text-sm font-bold text-stone-800 capitalize">
                 {currentMonthName}
@@ -181,17 +183,17 @@ export const ClientNpsSection: React.FC<ClientNpsSectionProps> = ({ client, clas
                       type="button"
                       onClick={() => handleCopyExisting(currentMonthNps.token)}
                       className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded-lg text-xs font-semibold transition-colors"
-                      title="Copiar link público"
+                      title={t('Copiar link público')}
                     >
                       {copiedToken === currentMonthNps.token ? (
                         <>
                           <Check className="w-3.5 h-3.5 text-emerald-600" />
-                          <span className="text-emerald-700">Copiado</span>
+                          <span className="text-emerald-700">{t('Copiado')}</span>
                         </>
                       ) : (
                         <>
                           <Copy className="w-3.5 h-3.5 text-stone-500" />
-                          <span>Copiar link</span>
+                          <span>{t('Copiar link')}</span>
                         </>
                       )}
                     </button>
@@ -200,7 +202,7 @@ export const ClientNpsSection: React.FC<ClientNpsSectionProps> = ({ client, clas
                       target="_blank"
                       rel="noreferrer"
                       className="p-1.5 text-stone-400 hover:text-[#13284D] transition-colors"
-                      title="Abrir página pública"
+                      title={t('Abrir página pública')}
                     >
                       <ExternalLink className="w-4 h-4" />
                     </a>
@@ -281,7 +283,7 @@ export const ClientNpsSection: React.FC<ClientNpsSectionProps> = ({ client, clas
                           </p>
                           {item.isCurrent && (
                             <span className="px-1.5 py-0.5 bg-blue-50 text-blue-700 border border-blue-100 rounded text-[9px] font-black uppercase tracking-wider">
-                              Atual
+                              {t('Atual')}
                             </span>
                           )}
                         </div>
@@ -290,7 +292,7 @@ export const ClientNpsSection: React.FC<ClientNpsSectionProps> = ({ client, clas
                             ? `Respondido em ${dayjs(rec.responded_at).format('DD/MM/YYYY [às] HH:mm')}`
                             : isWaiting && rec.sent_at
                             ? `Enviado em ${dayjs(rec.sent_at).format('DD/MM/YYYY')}`
-                            : 'Pesquisa não enviada'}
+                            : t('Pesquisa não enviada')}
                         </p>
                       </div>
                     </div>
@@ -303,7 +305,7 @@ export const ClientNpsSection: React.FC<ClientNpsSectionProps> = ({ client, clas
                             type="button"
                             onClick={() => handleCopyExisting(rec.token)}
                             className="p-1.5 text-stone-400 hover:text-stone-700 transition-colors"
-                            title="Copiar link"
+                            title={t('Copiar link')}
                           >
                             {copiedToken === rec.token ? (
                               <Check className="w-3.5 h-3.5 text-emerald-600" />
@@ -314,7 +316,7 @@ export const ClientNpsSection: React.FC<ClientNpsSectionProps> = ({ client, clas
                         </>
                       ) : (
                         <span className="text-[11px] text-stone-400 italic">
-                          Sem registro
+                          {t('Sem registro')}
                         </span>
                       )}
                     </div>

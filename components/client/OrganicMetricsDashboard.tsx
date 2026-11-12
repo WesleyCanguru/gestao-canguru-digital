@@ -41,6 +41,7 @@ import {
 } from 'recharts';
 import dayjs from 'dayjs';
 import 'dayjs/locale/pt-br';
+import { useT } from '../../lib/i18n';
 
 dayjs.locale('pt-br');
 
@@ -67,6 +68,7 @@ export const OrganicMetricsDashboard: React.FC<OrganicMetricsDashboardProps> = (
   agencyId,
   clientName
 }) => {
+  const { t } = useT();
   const { userRole } = useAuth();
   const [metrics, setMetrics] = useState<SocialMetric[]>([]);
   const [loading, setLoading] = useState(true);
@@ -432,10 +434,10 @@ export const OrganicMetricsDashboard: React.FC<OrganicMetricsDashboardProps> = (
   // Tabs do gráfico temporal filtrando métricas não suportadas
   const chartMetricTabs = useMemo(() => {
     return [
-      { id: 'reach', label: 'Alcance' },
-      { id: 'impressions', label: 'Impressões' },
-      { id: 'engagement', label: 'Engajamento' },
-      { id: 'followers', label: 'Seguidores' },
+      { id: 'reach', label: t('Alcance') },
+      { id: 'impressions', label: t('Impressões') },
+      { id: 'engagement', label: t('Engajamento') },
+      { id: 'followers', label: t('Seguidores') },
     ].filter(tab => {
       if (tab.id === 'reach' && PLATFORMS_WITHOUT_REACH.includes(selectedPlatform)) return false;
       if (tab.id === 'engagement' && PLATFORMS_WITHOUT_ENGAGEMENT.includes(selectedPlatform)) return false;
@@ -472,7 +474,7 @@ export const OrganicMetricsDashboard: React.FC<OrganicMetricsDashboardProps> = (
       }`}>
         {isPositive ? <TrendingUp size={13} className="text-emerald-600" /> : <TrendingDown size={13} className="text-rose-600" />}
         <span>{isPositive ? '+' : ''}{variation.toFixed(1)}%</span>
-        <span className="text-stone-400 font-normal text-[10px]">vs ant.</span>
+        <span className="text-stone-400 font-normal text-[10px]">{t('vs ant.')}</span>
       </span>
     );
   };
@@ -483,10 +485,10 @@ export const OrganicMetricsDashboard: React.FC<OrganicMetricsDashboardProps> = (
   };
 
   const chartColorMap = {
-    reach: { stroke: '#13284D', fill: '#13284D', label: 'Alcance Diário' },
-    impressions: { stroke: '#2563EB', fill: '#2563EB', label: 'Impressões Diárias' },
-    engagement: { stroke: '#059669', fill: '#059669', label: 'Engajamento Diário' },
-    followers: { stroke: '#7C3AED', fill: '#7C3AED', label: 'Seguidores Ganhos' },
+    reach: { stroke: '#13284D', fill: '#13284D', label: t('Alcance Diário') },
+    impressions: { stroke: '#2563EB', fill: '#2563EB', label: t('Impressões Diárias') },
+    engagement: { stroke: '#059669', fill: '#059669', label: t('Engajamento Diário') },
+    followers: { stroke: '#7C3AED', fill: '#7C3AED', label: t('Seguidores Ganhos') },
   };
 
   const currentChartConfig = chartColorMap[activeChartMetric] || chartColorMap.impressions;
@@ -503,7 +505,7 @@ export const OrganicMetricsDashboard: React.FC<OrganicMetricsDashboardProps> = (
           </div>
           <div className="space-y-1 font-mono">
             <div className="flex items-center justify-between gap-3 text-xs">
-              <span className="text-stone-300 font-sans">{currentChartConfig.label}:</span>
+              <span className="text-stone-300 font-sans">{t(currentChartConfig.label)}:</span>
               <span className="font-bold text-emerald-400 text-sm">{formatNumber(dataPoint.value)}</span>
             </div>
             {dateItem && activeChartMetric !== 'reach' && showReachCard && (
@@ -529,8 +531,8 @@ export const OrganicMetricsDashboard: React.FC<OrganicMetricsDashboardProps> = (
     return (
       <div className="py-24 text-center text-stone-400 flex flex-col items-center justify-center">
         <RefreshCw size={32} className="animate-spin text-[#13284D] mb-4" />
-        <p className="text-sm font-semibold text-stone-600">Carregando métricas de redes sociais...</p>
-        <p className="text-xs text-stone-400 mt-1">Buscando dados sincronizados das redes sociais</p>
+        <p className="text-sm font-semibold text-stone-600">{t('Carregando métricas de redes sociais...')}</p>
+        <p className="text-xs text-stone-400 mt-1">{t('Buscando dados sincronizados das redes sociais')}</p>
       </div>
     );
   }
@@ -543,10 +545,10 @@ export const OrganicMetricsDashboard: React.FC<OrganicMetricsDashboardProps> = (
           <Activity size={30} />
         </div>
         <h3 className="text-xl sm:text-2xl font-bold text-[#13284D] mb-3 tracking-tight">
-          Nenhuma métrica de redes sociais sincronizada ainda
+          {t('Nenhuma métrica de redes sociais sincronizada ainda')}
         </h3>
         <p className="text-sm text-stone-500 max-w-lg mx-auto leading-relaxed mb-6 font-medium">
-          Os dados de alcance, impressões e engajamento das redes sociais serão coletados automaticamente todos os dias por nossa rotina de sincronização e exibidos neste painel.
+          {t('Os dados de alcance, impressões e engajamento das redes sociais serão coletados automaticamente todos os dias por nossa rotina de sincronização e exibidos neste painel.')}
         </p>
         <div className="inline-flex items-center gap-2 px-4 py-2 bg-stone-50 rounded-xl text-xs font-semibold text-stone-500 border border-stone-200/60">
           <Sparkles size={14} className="text-amber-500" />
@@ -564,12 +566,12 @@ export const OrganicMetricsDashboard: React.FC<OrganicMetricsDashboardProps> = (
   const savesPct = Math.round((processedData.saves / totalEng) * 100);
 
   const periods: { id: PeriodType; label: string }[] = [
-    { id: '7d', label: 'Últimos 7 dias' },
-    { id: '30d', label: 'Últimos 30 dias' },
-    { id: '90d', label: 'Últimos 90 dias' },
-    { id: 'este_mes', label: 'Este mês' },
-    { id: 'mes_anterior', label: 'Mês anterior' },
-    { id: 'este_ano', label: 'Este ano' },
+    { id: '7d', label: t('Últimos 7 dias') },
+    { id: '30d', label: t('Últimos 30 dias') },
+    { id: '90d', label: t('Últimos 90 dias') },
+    { id: 'este_mes', label: t('Este mês') },
+    { id: 'mes_anterior', label: t('Mês anterior') },
+    { id: 'este_ano', label: t('Este ano') },
   ];
 
   return (
@@ -626,10 +628,10 @@ export const OrganicMetricsDashboard: React.FC<OrganicMetricsDashboardProps> = (
                   ? 'bg-green-50 text-green-600 border border-green-200'
                   : 'bg-gray-50 text-gray-500 hover:bg-gray-100 hover:text-gray-700 border border-gray-200/60'
               }`}
-              title="Copiar link direto para esta visualização"
+              title={t('Copiar link direto para esta visualização')}
             >
               <Link2 size={13} />
-              <span>{linkCopied ? 'Link copiado!' : 'Copiar link'}</span>
+              <span>{linkCopied ? t('Link copiado!') : t('Copiar link')}</span>
             </button>
           )}
         </div>
@@ -647,7 +649,7 @@ export const OrganicMetricsDashboard: React.FC<OrganicMetricsDashboardProps> = (
                     : 'text-stone-500 hover:text-stone-900 hover:bg-stone-200/50'
                 }`}
               >
-                {p.label}
+                {t(p.label)}
               </button>
             ))}
           </div>
@@ -666,7 +668,7 @@ export const OrganicMetricsDashboard: React.FC<OrganicMetricsDashboardProps> = (
             <div>
               <div className="flex items-center justify-between mb-2 sm:mb-3">
                 <span className="text-[10px] sm:text-xs font-bold uppercase tracking-wider text-stone-500">
-                  Alcance Único
+                  {t('Alcance Único')}
                 </span>
                 <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-blue-50 text-blue-700 flex items-center justify-center">
                   <Users size={15} />
@@ -676,10 +678,10 @@ export const OrganicMetricsDashboard: React.FC<OrganicMetricsDashboardProps> = (
                 {formatNumber(processedData.reach)}
               </div>
               {selectedPlatform === 'linkedin' && processedData.reach === 0 && (
-                <p className="text-[10px] text-amber-500 mt-1">Coleta expandida a partir de ago/2026</p>
+                <p className="text-[10px] text-amber-500 mt-1">{t('Coleta expandida a partir de ago/2026')}</p>
               )}
               <p className="text-[10px] sm:text-[11px] text-stone-400 font-medium mt-0.5">
-                {selectedPlatform === 'linkedin' ? 'Membros únicos alcançados' : 'Contas alcançadas'}
+                {selectedPlatform === 'linkedin' ? t('Membros únicos alcançados') : t('Contas alcançadas')}
               </p>
             </div>
             <div className="mt-3 pt-2.5 sm:mt-4 sm:pt-3 border-t border-stone-100 flex items-center justify-between">
@@ -693,7 +695,7 @@ export const OrganicMetricsDashboard: React.FC<OrganicMetricsDashboardProps> = (
           <div>
             <div className="flex items-center justify-between mb-2 sm:mb-3">
               <span className="text-[10px] sm:text-xs font-bold uppercase tracking-wider text-stone-500">
-                Impressões
+                {t('Impressões')}
               </span>
               <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-indigo-50 text-indigo-700 flex items-center justify-center">
                 <Eye size={15} />
@@ -703,7 +705,7 @@ export const OrganicMetricsDashboard: React.FC<OrganicMetricsDashboardProps> = (
               {formatNumber(processedData.impressions)}
             </div>
             <p className="text-[10px] sm:text-[11px] text-stone-400 font-medium mt-0.5">
-              Visualizações totais
+              {t('Visualizações totais')}
             </p>
           </div>
           <div className="mt-3 pt-2.5 sm:mt-4 sm:pt-3 border-t border-stone-100 flex items-center justify-between">
@@ -717,7 +719,7 @@ export const OrganicMetricsDashboard: React.FC<OrganicMetricsDashboardProps> = (
             <div>
               <div className="flex items-center justify-between mb-2 sm:mb-3">
                 <span className="text-[10px] sm:text-xs font-bold uppercase tracking-wider text-stone-500">
-                  Engajamento Total
+                  {t('Engajamento Total')}
                 </span>
                 <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center">
                   <Heart size={15} />
@@ -734,10 +736,10 @@ export const OrganicMetricsDashboard: React.FC<OrganicMetricsDashboardProps> = (
                 )}
               </div>
               {selectedPlatform === 'linkedin' && processedData.totalEngagement === 0 && (
-                <p className="text-[10px] text-amber-500 mt-1">Coleta expandida a partir de ago/2026</p>
+                <p className="text-[10px] text-amber-500 mt-1">{t('Coleta expandida a partir de ago/2026')}</p>
               )}
               <p className="text-[10px] sm:text-[11px] text-stone-400 font-medium mt-0.5">
-                {selectedPlatform === 'linkedin' ? 'Reações, comentários e republicações' : 'Curtidas, comentários e salvos'}
+                {selectedPlatform === 'linkedin' ? t('Reações, comentários e republicações') : t('Curtidas, comentários e salvos')}
               </p>
             </div>
             <div className="mt-3 pt-2.5 sm:mt-4 sm:pt-3 border-t border-stone-100 flex items-center justify-between">
@@ -751,7 +753,7 @@ export const OrganicMetricsDashboard: React.FC<OrganicMetricsDashboardProps> = (
           <div>
             <div className="flex items-center justify-between mb-2 sm:mb-3">
               <span className="text-[10px] sm:text-xs font-bold uppercase tracking-wider text-stone-500">
-                Novos Seguidores
+                {t('Novos Seguidores')}
               </span>
               <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-purple-50 text-purple-700 flex items-center justify-center">
                 <TrendingUp size={15} />
@@ -768,7 +770,7 @@ export const OrganicMetricsDashboard: React.FC<OrganicMetricsDashboardProps> = (
               )}
             </div>
             <p className="text-[10px] sm:text-[11px] text-stone-400 font-medium mt-0.5">
-              Saldo de crescimento
+              {t('Saldo de crescimento')}
             </p>
           </div>
           <div className="mt-3 pt-2.5 sm:mt-4 sm:pt-3 border-t border-stone-100 flex items-center justify-between">
@@ -788,7 +790,7 @@ export const OrganicMetricsDashboard: React.FC<OrganicMetricsDashboardProps> = (
               Evolução Temporal ({periodLabel})
             </h3>
             <p className="text-xs text-stone-400 font-medium">
-              Acompanhamento diário de performance orgânica
+              {t('Acompanhamento diário de performance orgânica')}
             </p>
           </div>
 
@@ -804,7 +806,7 @@ export const OrganicMetricsDashboard: React.FC<OrganicMetricsDashboardProps> = (
                     : 'text-stone-500 hover:text-stone-900 hover:bg-stone-200/50'
                 }`}
               >
-                {m.label}
+                {t(m.label)}
               </button>
             ))}
           </div>
@@ -852,7 +854,7 @@ export const OrganicMetricsDashboard: React.FC<OrganicMetricsDashboardProps> = (
       {/* ========================================================================= */}
       <div>
         <h3 className="text-sm font-bold text-[#13284D] uppercase tracking-wider mb-3">
-          Detalhamento de Interações & Atividades
+          {t('Detalhamento de Interações & Atividades')}
         </h3>
 
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
@@ -863,7 +865,7 @@ export const OrganicMetricsDashboard: React.FC<OrganicMetricsDashboardProps> = (
               <div className="flex items-center gap-2 text-rose-600 mb-2">
                 <Heart size={15} />
                 <span className="text-xs font-bold text-stone-600">
-                  {selectedPlatform === 'linkedin' ? 'Reações' : 'Curtidas'}
+                  {selectedPlatform === 'linkedin' ? t('Reações') : t('Curtidas')}
                 </span>
               </div>
               <div className="text-lg sm:text-xl font-bold text-[#13284D] font-mono">
@@ -877,7 +879,7 @@ export const OrganicMetricsDashboard: React.FC<OrganicMetricsDashboardProps> = (
             <div className="bg-white rounded-2xl p-4 border border-stone-200/70 shadow-xs">
               <div className="flex items-center gap-2 text-blue-600 mb-2">
                 <MessageCircle size={15} />
-                <span className="text-xs font-bold text-stone-600">Comentários</span>
+                <span className="text-xs font-bold text-stone-600">{t('Comentários')}</span>
               </div>
               <div className="text-lg sm:text-xl font-bold text-[#13284D] font-mono">
                 {formatNumber(processedData.comments)}
@@ -891,7 +893,7 @@ export const OrganicMetricsDashboard: React.FC<OrganicMetricsDashboardProps> = (
               <div className="flex items-center gap-2 text-indigo-600 mb-2">
                 <Share2 size={15} />
                 <span className="text-xs font-bold text-stone-600">
-                  {selectedPlatform === 'linkedin' ? 'Republicações' : 'Compartilhados'}
+                  {selectedPlatform === 'linkedin' ? t('Republicações') : t('Compartilhados')}
                 </span>
               </div>
               <div className="text-lg sm:text-xl font-bold text-[#13284D] font-mono">
@@ -905,7 +907,7 @@ export const OrganicMetricsDashboard: React.FC<OrganicMetricsDashboardProps> = (
             <div className="bg-white rounded-2xl p-4 border border-stone-200/70 shadow-xs">
               <div className="flex items-center gap-2 text-amber-600 mb-2">
                 <Bookmark size={15} />
-                <span className="text-xs font-bold text-stone-600">Salvamentos</span>
+                <span className="text-xs font-bold text-stone-600">{t('Salvamentos')}</span>
               </div>
               <div className="text-lg sm:text-xl font-bold text-[#13284D] font-mono">
                 {formatNumber(processedData.saves)}
@@ -919,7 +921,7 @@ export const OrganicMetricsDashboard: React.FC<OrganicMetricsDashboardProps> = (
               <div className="flex items-center gap-2 text-purple-600 mb-2">
                 <Users size={15} />
                 <span className="text-xs font-bold text-stone-600">
-                  {selectedPlatform === 'linkedin' ? 'Visitas à Página' : 'Visitas ao Perfil'}
+                  {selectedPlatform === 'linkedin' ? t('Visitas à Página') : t('Visitas ao Perfil')}
                 </span>
               </div>
               <div className="text-lg sm:text-xl font-bold text-[#13284D] font-mono">
@@ -933,7 +935,7 @@ export const OrganicMetricsDashboard: React.FC<OrganicMetricsDashboardProps> = (
             <div className="bg-white rounded-2xl p-4 border border-stone-200/70 shadow-xs">
               <div className="flex items-center gap-2 text-teal-600 mb-2">
                 <MousePointer size={15} />
-                <span className="text-xs font-bold text-stone-600">Cliques no Link</span>
+                <span className="text-xs font-bold text-stone-600">{t('Cliques no Link')}</span>
               </div>
               <div className="text-lg sm:text-xl font-bold text-[#13284D] font-mono">
                 {formatNumber(processedData.websiteClicks)}
@@ -946,7 +948,7 @@ export const OrganicMetricsDashboard: React.FC<OrganicMetricsDashboardProps> = (
             <div className="bg-white rounded-2xl p-4 border border-stone-200/70 shadow-xs">
               <div className="flex items-center gap-2 text-red-600 mb-2">
                 <Video size={15} />
-                <span className="text-xs font-bold text-stone-600">Views de Vídeo</span>
+                <span className="text-xs font-bold text-stone-600">{t('Views de Vídeo')}</span>
               </div>
               <div className="text-lg sm:text-xl font-bold text-[#13284D] font-mono">
                 {formatNumber(processedData.videoViews)}
@@ -965,10 +967,10 @@ export const OrganicMetricsDashboard: React.FC<OrganicMetricsDashboardProps> = (
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
             <div>
               <h4 className="text-sm font-bold text-[#13284D]">
-                Distribuição das Interações
+                {t('Distribuição das Interações')}
               </h4>
               <p className="text-xs text-stone-400 font-medium">
-                Composição do engajamento total no período selecionado
+                {t('Composição do engajamento total no período selecionado')}
               </p>
             </div>
             <div className="text-xs font-semibold text-stone-500">
@@ -978,9 +980,9 @@ export const OrganicMetricsDashboard: React.FC<OrganicMetricsDashboardProps> = (
 
           {/* Barra de Proporção Colorida */}
           <div className="h-3 w-full bg-stone-100 rounded-full overflow-hidden flex mb-4">
-            {likesPct > 0 && <div style={{ width: `${likesPct}%` }} className="bg-rose-500 h-full" title={`${selectedPlatform === 'linkedin' ? 'Reações' : 'Curtidas'}: ${likesPct}%`} />}
+            {likesPct > 0 && <div style={{ width: `${likesPct}%` }} className="bg-rose-500 h-full" title={`${selectedPlatform === 'linkedin' ? t('Reações') : t('Curtidas')}: ${likesPct}%`} />}
             {commentsPct > 0 && <div style={{ width: `${commentsPct}%` }} className="bg-blue-500 h-full" title={`Comentários: ${commentsPct}%`} />}
-            {sharesPct > 0 && <div style={{ width: `${sharesPct}%` }} className="bg-indigo-500 h-full" title={`${selectedPlatform === 'linkedin' ? 'Republicações' : 'Compartilhamentos'}: ${sharesPct}%`} />}
+            {sharesPct > 0 && <div style={{ width: `${sharesPct}%` }} className="bg-indigo-500 h-full" title={`${selectedPlatform === 'linkedin' ? t('Republicações') : t('Compartilhamentos')}: ${sharesPct}%`} />}
             {savesPct > 0 && <div style={{ width: `${savesPct}%` }} className="bg-amber-500 h-full" title={`Salvamentos: ${savesPct}%`} />}
           </div>
 
@@ -988,23 +990,23 @@ export const OrganicMetricsDashboard: React.FC<OrganicMetricsDashboardProps> = (
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
             <div className="flex items-center gap-2">
               <span className="w-2.5 h-2.5 rounded-full bg-rose-500 shrink-0" />
-              <span className="text-stone-600 font-medium">{selectedPlatform === 'linkedin' ? 'Reações:' : 'Curtidas:'}</span>
+              <span className="text-stone-600 font-medium">{selectedPlatform === 'linkedin' ? t('Reações:') : t('Curtidas:')}</span>
               <span className="font-bold text-[#13284D] font-mono">{likesPct}% ({formatNumber(processedData.likes)})</span>
             </div>
             <div className="flex items-center gap-2">
               <span className="w-2.5 h-2.5 rounded-full bg-blue-500 shrink-0" />
-              <span className="text-stone-600 font-medium">Comentários:</span>
+              <span className="text-stone-600 font-medium">{t('Comentários:')}</span>
               <span className="font-bold text-[#13284D] font-mono">{commentsPct}% ({formatNumber(processedData.comments)})</span>
             </div>
             <div className="flex items-center gap-2">
               <span className="w-2.5 h-2.5 rounded-full bg-indigo-500 shrink-0" />
-              <span className="text-stone-600 font-medium">{selectedPlatform === 'linkedin' ? 'Republicações:' : 'Shares:'}</span>
+              <span className="text-stone-600 font-medium">{selectedPlatform === 'linkedin' ? t('Republicações:') : t('Shares:')}</span>
               <span className="font-bold text-[#13284D] font-mono">{sharesPct}% ({formatNumber(processedData.shares)})</span>
             </div>
             {savesPct > 0 && (
               <div className="flex items-center gap-2">
                 <span className="w-2.5 h-2.5 rounded-full bg-amber-500 shrink-0" />
-                <span className="text-stone-600 font-medium">Salvos:</span>
+                <span className="text-stone-600 font-medium">{t('Salvos:')}</span>
                 <span className="font-bold text-[#13284D] font-mono">{savesPct}% ({formatNumber(processedData.saves)})</span>
               </div>
             )}
@@ -1028,7 +1030,7 @@ export const OrganicMetricsDashboard: React.FC<OrganicMetricsDashboardProps> = (
                 )}
               </h4>
               <p className="text-xs text-stone-400 font-medium mt-0.5">
-                Desempenho das publicações do TikTok do cliente
+                {t('Desempenho das publicações do TikTok do cliente')}
               </p>
             </div>
             {loadingTiktokPosts && (
@@ -1041,21 +1043,21 @@ export const OrganicMetricsDashboard: React.FC<OrganicMetricsDashboardProps> = (
             <div className="min-w-[640px]">
               {/* Cabeçalho Estático da Tabela */}
               <div className="grid grid-cols-12 px-3 py-2.5 bg-stone-50/90 rounded-xl text-xs font-semibold text-stone-500 border border-stone-200/50 mb-2 sticky top-0 z-10 backdrop-blur-md">
-                <div className="col-span-6 text-left font-medium">Conteúdo</div>
-                <div className="col-span-2 text-center font-medium">Visualizações</div>
-                <div className="col-span-1 text-center font-medium">Curtidas</div>
-                <div className="col-span-1 text-center font-medium">Comentários</div>
-                <div className="col-span-2 text-center font-medium">Compartilhamentos</div>
+                <div className="col-span-6 text-left font-medium">{t('Conteúdo')}</div>
+                <div className="col-span-2 text-center font-medium">{t('Visualizações')}</div>
+                <div className="col-span-1 text-center font-medium">{t('Curtidas')}</div>
+                <div className="col-span-1 text-center font-medium">{t('Comentários')}</div>
+                <div className="col-span-2 text-center font-medium">{t('Compartilhamentos')}</div>
               </div>
 
               {/* Lista de Publicações */}
               {loadingTiktokPosts ? (
                 <div className="py-12 text-center text-xs text-stone-400 animate-pulse">
-                  Carregando publicações do TikTok...
+                  {t('Carregando publicações do TikTok...')}
                 </div>
               ) : tiktokPosts.length === 0 ? (
                 <div className="py-12 text-center text-xs text-stone-400">
-                  Nenhuma publicação do TikTok encontrada para este cliente.
+                  {t('Nenhuma publicação do TikTok encontrada para este cliente.')}
                 </div>
               ) : (
                 <div className="divide-y divide-stone-100">

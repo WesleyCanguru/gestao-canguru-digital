@@ -64,6 +64,7 @@ export function normalizePostType(type?: string | null, isLinkedIn?: boolean): s
 }
 
 import { STATUS_CONFIG } from '../constants';
+import { useT } from '../lib/i18n';
 
 const STATUS_OPTIONS: { value: PostStatus; label: string }[] = Object.keys(STATUS_CONFIG)
   .filter(k => !['theme_pending', 'theme_rejected', 'theme_approved_with_notes', 'theme_approved', 'internal_review', 'deleted'].includes(k))
@@ -73,6 +74,7 @@ const STATUS_OPTIONS: { value: PostStatus; label: string }[] = Object.keys(STATU
   }));
 
 export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, groupKeys, onClose, onUpdate, isNew = false, defaultDate = '', clientOverride, isMasterMap = false }) => {
+  const { t } = useT();
   const { userRole, activeClient: contextActiveClient, agencyId } = useAuth();
   
   const [agencyClients, setAgencyClients] = useState<any[]>([]);
@@ -1139,19 +1141,19 @@ export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, group
 
   const getStatusLabel = (s: string) => {
     const map: Record<string, string> = {
-        'theme_pending': 'Tema para Aprovação',
-        'theme_approved': 'Tema Aprovado',
-        'theme_approved_with_notes': 'Tema Aprovado (Obs)',
-        'theme_rejected': 'Tema Reprovado',
-        'draft': 'Em Produção',
-        'pending_approval': 'Esperando Aprovação',
-        'changes_requested': 'Ajustes Solicitados',
-        'rejected': 'Reprovado',
-        'internal_review': 'Discussão Interna',
-        'approved': 'Aprovado',
-        'scheduled': 'Programado',
-        'published': 'Publicado',
-        'deleted': 'Excluído'
+        'theme_pending': t('Tema para Aprovação'),
+        'theme_approved': t('Tema Aprovado'),
+        'theme_approved_with_notes': t('Tema Aprovado (Obs)'),
+        'theme_rejected': t('Tema Reprovado'),
+        'draft': t('Em Produção'),
+        'pending_approval': t('Esperando Aprovação'),
+        'changes_requested': t('Ajustes Solicitados'),
+        'rejected': t('Reprovado'),
+        'internal_review': t('Discussão Interna'),
+        'approved': t('Aprovado'),
+        'scheduled': t('Programado'),
+        'published': t('Publicado'),
+        'deleted': t('Excluído')
     };
     return map[s] || s;
   };
@@ -1238,7 +1240,7 @@ export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, group
                                   onClick={() => setPreviewPlatform('meta')}
                                   className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg text-[9px] sm:text-[10px] font-bold flex items-center gap-1.5 sm:gap-2 transition-all tracking-widest uppercase ${activePreviewPlatform === 'meta' ? 'bg-white text-black shadow-lg' : 'text-white/60 hover:text-white hover:bg-white/5'}`}
                               >
-                                  <Instagram size={14} /> <span className="hidden sm:inline">Instagram</span>
+                                  <Instagram size={14} /> <span className="hidden sm:inline">{t('Instagram')}</span>
                               </button>
                           )}
                           {selectedPlatforms.includes('linkedin') && (
@@ -1246,7 +1248,7 @@ export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, group
                                   onClick={() => setPreviewPlatform('linkedin')}
                                   className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg text-[9px] sm:text-[10px] font-bold flex items-center gap-1.5 sm:gap-2 transition-all tracking-widest uppercase ${activePreviewPlatform === 'linkedin' ? 'bg-white text-black shadow-lg' : 'text-white/60 hover:text-white hover:bg-white/5'}`}
                               >
-                                  <Linkedin size={14} /> <span className="hidden sm:inline">LinkedIn</span>
+                                  <Linkedin size={14} /> <span className="hidden sm:inline">{t('LinkedIn')}</span>
                               </button>
                           )}
                           {selectedPlatforms.includes('tiktok') && (
@@ -1254,7 +1256,7 @@ export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, group
                                   onClick={() => setPreviewPlatform('tiktok')}
                                   className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg text-[9px] sm:text-[10px] font-bold flex items-center gap-1.5 sm:gap-2 transition-all tracking-widest uppercase ${activePreviewPlatform === 'tiktok' ? 'bg-white text-black shadow-lg' : 'text-white/60 hover:text-white hover:bg-white/5'}`}
                               >
-                                  <span className="font-bold">♪</span> <span className="hidden sm:inline">TikTok</span>
+                                  <span className="font-bold">♪</span> <span className="hidden sm:inline">{t('TikTok')}</span>
                               </button>
                           )}
                       </div>
@@ -1268,7 +1270,7 @@ export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, group
                           <div className="w-16 h-16 bg-brand-dark/20 flex items-center justify-center rounded-2xl mx-auto mb-6 border border-brand-dark/30 shadow-inner">
                               <FileText className="text-brand-dark w-8 h-8" />
                           </div>
-                          <h3 className="text-xs uppercase tracking-[0.2em] font-bold text-gray-400 mb-2">Proposta de Tema</h3>
+                          <h3 className="text-xs uppercase tracking-[0.2em] font-bold text-gray-400 mb-2">{t('Proposta de Tema')}</h3>
                           <h4 className="font-serif text-2xl text-white mb-6 leading-tight">{editedTheme || post?.theme || 'Sem tema definido'}</h4>
                           <div className="bg-black/20 p-5 rounded-2xl text-left border border-white/5 shadow-inner mb-4">
                               <p className="text-sm text-gray-300 leading-relaxed whitespace-pre-wrap">{editedBullets || post?.bullets?.join('\n') || 'Nenhuma descrição detalhada fornecida.'}</p>
@@ -1276,14 +1278,14 @@ export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, group
                           
                           {['theme_rejected'].includes(post?.status || manualStatus) && post?.theme_rejection_reason && (
                               <div className="bg-rose-500/20 text-rose-100 p-4 rounded-xl text-left border border-rose-500/30">
-                                  <span className="block text-[10px] font-bold uppercase tracking-widest mb-1 text-rose-300">Motivo da Reprovação</span>
+                                  <span className="block text-[10px] font-bold uppercase tracking-widest mb-1 text-rose-300">{t('Motivo da Reprovação')}</span>
                                   <p className="text-sm whitespace-pre-wrap">{post.theme_rejection_reason}</p>
                               </div>
                           )}
                           
                           {['theme_approved_with_notes'].includes(post?.status || manualStatus) && post?.theme_client_notes && (
                               <div className="bg-amber-500/20 text-amber-100 p-4 rounded-xl text-left border border-amber-500/30">
-                                  <span className="block text-[10px] font-bold uppercase tracking-widest mb-1 text-amber-300">Observação</span>
+                                  <span className="block text-[10px] font-bold uppercase tracking-widest mb-1 text-amber-300">{t('Observação')}</span>
                                   <p className="text-sm whitespace-pre-wrap">{post.theme_client_notes}</p>
                               </div>
                           )}
@@ -1312,7 +1314,7 @@ export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, group
                    <div>
                       <div className="flex items-center gap-2">
                         {isNew ? (
-                            <h2 className="font-serif text-xl sm:text-2xl text-brand-dark tracking-tight">Nova Publicação</h2>
+                            <h2 className="font-serif text-xl sm:text-2xl text-brand-dark tracking-tight">{t('Nova Publicação')}</h2>
                         ) : (
                             <h2 className="font-serif text-xl sm:text-2xl text-brand-dark tracking-tight">{effectiveDayContent.day.split(' ')[0]}</h2>
                         )}
@@ -1324,7 +1326,7 @@ export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, group
                       </div>
                       <div className="flex items-center gap-2 mt-1">
                         <span className="text-[8px] sm:text-[9px] text-gray-400 uppercase font-bold tracking-[0.2em]">
-                            {selectedPlatforms.length > 1 ? 'Multi-plataforma' : (previewPlatform === 'meta' ? 'Instagram/Face' : previewPlatform === 'tiktok' ? 'TikTok' : 'LinkedIn')}
+                            {selectedPlatforms.length > 1 ? t('Multi-plataforma') : (previewPlatform === 'meta' ? 'Instagram/Face' : previewPlatform === 'tiktok' ? t('TikTok') : 'LinkedIn')}
                         </span>
                         <div className="w-1 h-1 rounded-full bg-gray-300" />
                         <span className="text-[8px] sm:text-[9px] text-gray-400 uppercase font-bold tracking-[0.2em]">
@@ -1335,13 +1337,13 @@ export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, group
                    {userRole === 'admin' && (
                        <div className="flex gap-1.5 sm:gap-2 self-end sm:self-auto">
                           {!isNew && (
-                              <button onClick={handleCopyLink} className="p-2 sm:p-2.5 text-gray-400 hover:text-brand-dark hover:bg-black/[0.03] rounded-xl border border-black/[0.05] transition-all" title="Copiar Link"><Link size={14} className="sm:w-4 sm:h-4" /></button>
+                              <button onClick={handleCopyLink} className="p-2 sm:p-2.5 text-gray-400 hover:text-brand-dark hover:bg-black/[0.03] rounded-xl border border-black/[0.05] transition-all" title={t('Copiar Link')}><Link size={14} className="sm:w-4 sm:h-4" /></button>
                           )}
                           {!isNew && (
-                              <button onClick={handleDeletePost} className="p-2 sm:p-2.5 text-red-300 hover:text-red-500 hover:bg-red-50 rounded-xl border border-transparent transition-all" title="Excluir"><Trash2 size={14} className="sm:w-4 sm:h-4" /></button>
+                              <button onClick={handleDeletePost} className="p-2 sm:p-2.5 text-red-300 hover:text-red-500 hover:bg-red-50 rounded-xl border border-transparent transition-all" title={t('Excluir')}><Trash2 size={14} className="sm:w-4 sm:h-4" /></button>
                           )}
                           <button onClick={() => setIsEditing(!isEditing)} className={`text-[9px] sm:text-[10px] font-bold uppercase tracking-widest px-3 sm:px-5 py-2 sm:py-2.5 rounded-xl border flex items-center gap-1.5 sm:gap-2 transition-all ${isEditing ? 'bg-brand-dark text-white border-brand-dark shadow-lg shadow-brand-dark/20' : 'bg-white text-gray-600 border-black/[0.08] hover:bg-gray-50 shadow-sm'}`}>
-                              <Edit3 size={12} className="sm:w-3.5 sm:h-3.5" /> {isEditing ? 'Concluir' : 'Editar'}
+                              <Edit3 size={12} className="sm:w-3.5 sm:h-3.5" /> {isEditing ? t('Concluir') : t('Editar')}
                           </button>
                        </div>
                    )}
@@ -1351,9 +1353,9 @@ export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, group
                {userRole === 'approver' && !isNew && (
                    <div className="flex flex-col gap-2">
                        <div className="flex gap-2">
-                           <button onClick={handleApprove} className="flex-1 flex items-center justify-center gap-1.5 px-3 py-3.5 bg-brand-dark hover:bg-black text-white rounded-xl font-bold text-[10px] sm:text-[11px] uppercase tracking-widest shadow-xl shadow-brand-dark/10 transition-all active:scale-95"><CheckCircle2 size={16} /> Aprovar</button>
-                           <button onClick={handleRequestChanges} className="flex-1 flex items-center justify-center gap-1.5 px-3 py-3.5 bg-white hover:bg-orange-50 text-orange-600 border border-orange-100 rounded-xl font-bold text-[10px] sm:text-[11px] uppercase tracking-widest transition-all active:scale-95"><AlertTriangle size={16} /> Ajuste</button>
-                           <button onClick={handleReject} className="flex-1 flex items-center justify-center gap-1.5 px-3 py-3.5 bg-white hover:bg-red-50 text-red-600 border border-red-100 rounded-xl font-bold text-[10px] sm:text-[11px] uppercase tracking-widest transition-all active:scale-95"><XCircle size={16} /> Reprovar</button>
+                           <button onClick={handleApprove} className="flex-1 flex items-center justify-center gap-1.5 px-3 py-3.5 bg-brand-dark hover:bg-black text-white rounded-xl font-bold text-[10px] sm:text-[11px] uppercase tracking-widest shadow-xl shadow-brand-dark/10 transition-all active:scale-95"><CheckCircle2 size={16} /> {t('Aprovar')}</button>
+                           <button onClick={handleRequestChanges} className="flex-1 flex items-center justify-center gap-1.5 px-3 py-3.5 bg-white hover:bg-orange-50 text-orange-600 border border-orange-100 rounded-xl font-bold text-[10px] sm:text-[11px] uppercase tracking-widest transition-all active:scale-95"><AlertTriangle size={16} /> {t('Ajuste')}</button>
+                           <button onClick={handleReject} className="flex-1 flex items-center justify-center gap-1.5 px-3 py-3.5 bg-white hover:bg-red-50 text-red-600 border border-red-100 rounded-xl font-bold text-[10px] sm:text-[11px] uppercase tracking-widest transition-all active:scale-95"><XCircle size={16} /> {t('Reprovar')}</button>
                        </div>
                    </div>
                )}
@@ -1373,7 +1375,7 @@ export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, group
                     {/* Seletor de Cliente para o Mapa Master */}
                     {isMasterMap && isNew && (
                       <div className="bg-white p-5 rounded-2xl border border-black/[0.05] shadow-sm mb-5">
-                          <h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-[0.2em] mb-4 flex items-center gap-2"><Building2 size={14} className="text-brand-dark" /> Selecionar Cliente *</h3>
+                          <h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-[0.2em] mb-4 flex items-center gap-2"><Building2 size={14} className="text-brand-dark" /> {t('Selecionar Cliente *')}</h3>
                           <div className="relative">
                               <select 
                                   value={activeClient?.id || ''} 
@@ -1383,7 +1385,7 @@ export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, group
                                   }}
                                   className="w-full appearance-none bg-white border border-black/[0.08] text-brand-dark py-3 px-4 rounded-xl leading-tight focus:outline-none focus:ring-2 focus:ring-brand-dark/10 focus:border-brand-dark font-bold text-[11px] uppercase tracking-widest transition-all"
                               >
-                                  <option value="">Selecione um cliente...</option>
+                                  <option value="">{t('Selecione um cliente...')}</option>
                                   {agencyClients.map(c => (
                                       <option key={c.id} value={c.id}>{c.name}</option>
                                   ))}
@@ -1395,7 +1397,7 @@ export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, group
 
                     {/* 1. Status */}
                     <div className="bg-white p-5 rounded-2xl border border-black/[0.05] shadow-sm mb-5">
-                        <h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-[0.2em] mb-4 flex items-center gap-2"><AlertTriangle size={14} className="text-brand-dark" /> Status da Publicação</h3>
+                        <h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-[0.2em] mb-4 flex items-center gap-2"><AlertTriangle size={14} className="text-brand-dark" /> {t('Status da Publicação')}</h3>
                         <div className="relative">
                             <select 
                                 value={manualStatus} 
@@ -1419,7 +1421,7 @@ export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, group
                             {selectedPlatforms.length > 1 && (
                                 <div className="flex items-center gap-2">
                                     <span className={`text-[9px] font-bold uppercase tracking-widest ${useDifferentTimes ? 'text-brand-dark' : 'text-gray-400'}`}>
-                                        Horários por Plataforma
+                                        {t('Horários por Plataforma')}
                                     </span>
                                     <button 
                                         type="button"
@@ -1445,18 +1447,18 @@ export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, group
                         <div className="flex flex-col gap-5">
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 <div className="z-20">
-                                    <label className="text-[9px] font-bold text-gray-400 uppercase tracking-widest block mb-2">Data da Publicação</label>
+                                    <label className="text-[9px] font-bold text-gray-400 uppercase tracking-widest block mb-2">{t('Data da Publicação')}</label>
                                     <CustomDatePicker value={postDate} onChange={setPostDate} />
                                 </div>
 
                                 {!useDifferentTimes ? (
                                     <div className="z-10">
-                                        <label className="text-[9px] font-bold text-gray-400 uppercase tracking-widest block mb-2">Horário</label>
+                                        <label className="text-[9px] font-bold text-gray-400 uppercase tracking-widest block mb-2">{t('Horário')}</label>
                                         <CustomTimePicker value={postTime} onChange={setPostTime} />
                                     </div>
                                 ) : (
                                     <div className="col-span-1 sm:col-span-2 space-y-3 p-3 bg-gray-50 rounded-xl border border-black/[0.05]">
-                                        <label className="text-[9px] font-bold text-gray-400 uppercase tracking-widest block">Horários Específicos por Plataforma</label>
+                                        <label className="text-[9px] font-bold text-gray-400 uppercase tracking-widest block">{t('Horários Específicos por Plataforma')}</label>
                                         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                                             {selectedPlatforms.includes('meta') && (
                                                 <div>
@@ -1497,7 +1499,7 @@ export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, group
                             </div>
 
                             <div>
-                                <label className="text-[9px] font-bold text-gray-400 uppercase tracking-widest block mb-2">Plataformas</label>
+                                <label className="text-[9px] font-bold text-gray-400 uppercase tracking-widest block mb-2">{t('Plataformas')}</label>
                                 <div className="flex gap-3">
                                     <button 
                                         type="button"
@@ -1527,14 +1529,14 @@ export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, group
 
                     {/* 3. Estrutura */}
                     <div className="bg-white p-5 rounded-2xl border border-black/[0.05] shadow-sm mb-5">
-                       <h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-[0.2em] mb-4 flex items-center gap-2"><LayoutTemplate size={14} className="text-brand-dark" /> Estrutura do Conteúdo</h3>
+                       <h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-[0.2em] mb-4 flex items-center gap-2"><LayoutTemplate size={14} className="text-brand-dark" /> {t('Estrutura do Conteúdo')}</h3>
                        <div className="space-y-4">
                           <div>
-                            <label className="text-[9px] font-bold text-gray-400 uppercase tracking-widest block mb-2">Tema Central</label>
+                            <label className="text-[9px] font-bold text-gray-400 uppercase tracking-widest block mb-2">{t('Tema Central')}</label>
                             <input type="text" value={editedTheme} onChange={(e) => setEditedTheme(e.target.value)} className="w-full text-xs font-bold p-3 border border-black/[0.08] rounded-xl focus:ring-2 focus:ring-brand-dark/10 focus:border-brand-dark outline-none transition-all" />
                           </div>
                           <div>
-                            <label className="text-[9px] font-bold text-gray-400 uppercase tracking-widest block mb-2">Formato da Entrega</label>
+                            <label className="text-[9px] font-bold text-gray-400 uppercase tracking-widest block mb-2">{t('Formato da Entrega')}</label>
                             <div className="relative">
                               <select value={editedType} onChange={(e) => setEditedType(e.target.value)} className="w-full appearance-none text-xs font-bold p-3 border border-black/[0.08] rounded-xl focus:ring-2 focus:ring-brand-dark/10 focus:border-brand-dark outline-none bg-white transition-all">
                                  {!currentFormatOptions.includes(editedType) && (
@@ -1546,7 +1548,7 @@ export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, group
                             </div>
                           </div>
                           <div>
-                            <label className="text-[9px] font-bold text-gray-400 uppercase tracking-widest block mb-2">Descrição da publicação</label>
+                            <label className="text-[9px] font-bold text-gray-400 uppercase tracking-widest block mb-2">{t('Descrição da publicação')}</label>
                             <textarea value={editedBullets} onChange={(e) => setEditedBullets(e.target.value)} rows={4} className="w-full text-xs p-3 border border-black/[0.08] rounded-xl focus:ring-2 focus:ring-brand-dark/10 focus:border-brand-dark outline-none resize-none leading-relaxed transition-all" />
                           </div>
                           
@@ -1588,9 +1590,9 @@ export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, group
                               </div>
                               <div className="text-center">
                                 <span className={`text-[10px] font-bold uppercase tracking-widest block ${isDragging ? 'text-brand-dark' : 'text-gray-500'}`}>
-                                    {isUploading ? 'Enviando...' : isDragging ? 'Solte os arquivos' : isMediaRequired ? 'Carregar Mídia' : 'Carregar Mídia (Opcional)'}
+                                    {isUploading ? t('Enviando...') : isDragging ? t('Solte os arquivos') : isMediaRequired ? t('Carregar Mídia') : t('Carregar Mídia (Opcional)')}
                                 </span>
-                                <span className="text-[8px] text-gray-400 font-medium mt-1 block">Arraste ou clique para selecionar</span>
+                                <span className="text-[8px] text-gray-400 font-medium mt-1 block">{t('Arraste ou clique para selecionar')}</span>
                               </div>
                         </label>
 
@@ -1606,7 +1608,7 @@ export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, group
                                       onClick={() => setVideoThumbnailUrl(null)} 
                                       className="text-[9px] text-red-500 font-bold uppercase tracking-widest hover:underline"
                                    >
-                                      Remover
+                                      {t('Remover')}
                                    </button>
                                 )}
                              </div>
@@ -1614,7 +1616,7 @@ export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, group
                              <div className="flex items-center gap-4">
                                 <div className="w-20 h-20 bg-black/10 rounded-xl overflow-hidden flex-shrink-0 border border-black/10">
                                    {videoThumbnailUrl ? (
-                                      <img src={videoThumbnailUrl} className="w-full h-full object-cover" alt="Thumbnail" />
+                                      <img src={videoThumbnailUrl} className="w-full h-full object-cover" alt={t('Thumbnail')} />
                                    ) : (
                                       <div className="w-full h-full flex items-center justify-center text-gray-400">
                                          <ImageIcon size={24} className="opacity-30" />
@@ -1648,10 +1650,10 @@ export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, group
                                          }}
                                       />
                                       <span className="text-[10px] font-bold uppercase tracking-widest text-gray-600">
-                                         {isUploadingThumbnail ? 'Enviando...' : 'Carregar Capa'}
+                                         {isUploadingThumbnail ? t('Enviando...') : t('Carregar Capa')}
                                       </span>
                                    </label>
-                                   <p className="text-[9px] text-gray-400 mt-2 font-medium">Recomendado: 1080x1920 (Reels) ou 1080x1350 (Feed)</p>
+                                   <p className="text-[9px] text-gray-400 mt-2 font-medium">{t('Recomendado: 1080x1920 (Reels) ou 1080x1350 (Feed)')}</p>
                                 </div>
                              </div>
                           </div>
@@ -1659,9 +1661,9 @@ export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, group
 
                         {/* Caption Switcher */}
                         <div className="flex items-center justify-between mb-4 border-b border-black/[0.03] pb-3">
-                             <label className="text-[9px] font-bold text-gray-400 uppercase tracking-widest">Legenda da Publicação</label>
+                             <label className="text-[9px] font-bold text-gray-400 uppercase tracking-widest">{t('Legenda da Publicação')}</label>
                              <div className="flex items-center gap-3">
-                                <span className={`text-[9px] font-bold uppercase tracking-widest ${useDifferentCaptions ? 'text-brand-dark' : 'text-gray-400'}`}>Legendas Customizadas</span>
+                                <span className={`text-[9px] font-bold uppercase tracking-widest ${useDifferentCaptions ? 'text-brand-dark' : 'text-gray-400'}`}>{t('Legendas Customizadas')}</span>
                                 <button 
                                     type="button"
                                     onClick={() => {
@@ -1692,19 +1694,19 @@ export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, group
                                     <span className={`text-[10px] font-bold ${captionMeta.length > 3000 ? 'text-red-500 font-extrabold' : 'text-stone-400'}`}>
                                       {captionMeta.length} / 3.000 caracteres
                                     </span>
-                                    <span className="text-[8px] text-[#0077B5] font-bold tracking-widest uppercase">LinkedIn</span>
+                                    <span className="text-[8px] text-[#0077B5] font-bold tracking-widest uppercase">{t('LinkedIn')}</span>
                                   </div>
                                 ) : (
-                                  <div className="absolute bottom-3 right-3 text-[8px] text-gray-400 font-bold bg-white/80 backdrop-blur-sm px-2 py-1 rounded-lg border border-black/[0.05] pointer-events-none tracking-widest uppercase">Legenda Geral</div>
+                                  <div className="absolute bottom-3 right-3 text-[8px] text-gray-400 font-bold bg-white/80 backdrop-blur-sm px-2 py-1 rounded-lg border border-black/[0.05] pointer-events-none tracking-widest uppercase">{t('Legenda Geral')}</div>
                                 )}
                             </div>
                         ) : (
                             <div className="space-y-5">
                                 {selectedPlatforms.includes('meta') && (
                                     <div className="relative">
-                                        <div className="flex items-center gap-2 mb-2 text-[9px] font-bold uppercase tracking-widest text-purple-600"><Instagram size={12}/> Instagram</div>
+                                        <div className="flex items-center gap-2 mb-2 text-[9px] font-bold uppercase tracking-widest text-purple-600"><Instagram size={12}/> {t('Instagram')}</div>
                                         <textarea 
-                                            placeholder="Legenda exclusiva para Instagram..." 
+                                            placeholder={t('Legenda exclusiva para Instagram...')} 
                                             value={captionMeta} 
                                             onChange={e => setCaptionMeta(e.target.value)} 
                                             className="w-full h-40 px-4 py-3 border border-purple-100 bg-purple-50/10 rounded-2xl text-xs focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 outline-none resize-none leading-relaxed transition-all" 
@@ -1714,13 +1716,13 @@ export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, group
                                 {selectedPlatforms.includes('linkedin') && (
                                     <div className="relative">
                                         <div className="flex items-center justify-between mb-2">
-                                          <div className="flex items-center gap-2 text-[9px] font-bold uppercase tracking-widest text-[#0077B5]"><Linkedin size={12}/> LinkedIn</div>
+                                          <div className="flex items-center gap-2 text-[9px] font-bold uppercase tracking-widest text-[#0077B5]"><Linkedin size={12}/> {t('LinkedIn')}</div>
                                           <span className={`text-[10px] font-bold ${captionLinkedin.length > 3000 ? 'text-red-500 font-extrabold' : 'text-stone-400'}`}>
                                             {captionLinkedin.length} / 3.000 caracteres
                                           </span>
                                         </div>
                                         <textarea 
-                                            placeholder="Escreva o conteúdo completo do post..." 
+                                            placeholder={t('Escreva o conteúdo completo do post...')} 
                                             value={captionLinkedin} 
                                             onChange={e => setCaptionLinkedin(e.target.value)} 
                                             className="w-full min-h-[160px] h-48 px-4 py-3 border border-blue-100 bg-blue-50/10 rounded-2xl text-xs focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none resize-none leading-relaxed transition-all" 
@@ -1729,9 +1731,9 @@ export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, group
                                 )}
                                 {selectedPlatforms.includes('tiktok') && (
                                     <div className="relative">
-                                        <div className="flex items-center gap-2 mb-2 text-[9px] font-bold uppercase tracking-widest text-black"><span className="font-bold text-xs">♪</span> TikTok</div>
+                                        <div className="flex items-center gap-2 mb-2 text-[9px] font-bold uppercase tracking-widest text-black"><span className="font-bold text-xs">♪</span> {t('TikTok')}</div>
                                         <textarea 
-                                            placeholder="Legenda exclusiva para TikTok..." 
+                                            placeholder={t('Legenda exclusiva para TikTok...')} 
                                             value={captionTiktok} 
                                             onChange={e => setCaptionTiktok(e.target.value)} 
                                             className="w-full h-40 px-4 py-3 border border-gray-200 bg-gray-50/50 rounded-2xl text-xs focus:ring-2 focus:ring-black/20 focus:border-black outline-none resize-none leading-relaxed transition-all" 
@@ -1765,21 +1767,21 @@ export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, group
                     <div className="p-6 border-b border-black/[0.03] space-y-6 bg-white/30">
                         <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
                             <div className="bg-white p-4 rounded-2xl border border-black/[0.03] shadow-sm">
-                                <span className="text-[8px] font-bold text-gray-400 uppercase tracking-widest block mb-1">Tema</span>
+                                <span className="text-[8px] font-bold text-gray-400 uppercase tracking-widest block mb-1">{t('Tema')}</span>
                                 <p className="text-[11px] font-bold text-brand-dark leading-tight">{editedTheme}</p>
                             </div>
                             <div className="bg-white p-4 rounded-2xl border border-black/[0.03] shadow-sm">
-                                <span className="text-[8px] font-bold text-gray-400 uppercase tracking-widest block mb-1">Formato</span>
+                                <span className="text-[8px] font-bold text-gray-400 uppercase tracking-widest block mb-1">{t('Formato')}</span>
                                 <p className="text-[11px] font-bold text-brand-dark leading-tight">{editedType}</p>
                             </div>
                             <div className="bg-white p-4 rounded-2xl border border-black/[0.03] shadow-sm col-span-2 lg:col-span-1">
-                                <span className="text-[8px] font-bold text-gray-400 uppercase tracking-widest block mb-1">Horário Previsto</span>
+                                <span className="text-[8px] font-bold text-gray-400 uppercase tracking-widest block mb-1">{t('Horário Previsto')}</span>
                                 <p className="text-[11px] font-bold text-brand-dark leading-tight">{postTime || 'Não definido'}</p>
                             </div>
                         </div>
                         {editedBullets && (
                             <div className="bg-white p-4 rounded-2xl border border-black/[0.03] shadow-sm">
-                                <span className="text-[8px] font-bold text-gray-400 uppercase tracking-widest block mb-2">Descrição da publicação</span>
+                                <span className="text-[8px] font-bold text-gray-400 uppercase tracking-widest block mb-2">{t('Descrição da publicação')}</span>
                                 <p className="text-[11px] text-gray-700 leading-relaxed whitespace-pre-wrap">{editedBullets}</p>
                             </div>
                         )}
@@ -1802,8 +1804,8 @@ export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, group
                              <div className="w-16 h-16 rounded-full border border-dashed border-gray-400 flex items-center justify-center mb-4">
                                <Send size={24} className="text-gray-400" />
                              </div>
-                             <p className="text-[10px] font-bold uppercase tracking-widest text-gray-500">Nenhum comentário ainda</p>
-                             <p className="text-[9px] text-gray-400 mt-1">Inicie a conversa sobre esta publicação</p>
+                             <p className="text-[10px] font-bold uppercase tracking-widest text-gray-500">{t('Nenhum comentário ainda')}</p>
+                             <p className="text-[9px] text-gray-400 mt-1">{t('Inicie a conversa sobre esta publicação')}</p>
                           </div>
                         ) : (
                           comments.map((comment) => (
@@ -1826,7 +1828,7 @@ export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, group
                                     <div className={`p-4 rounded-2xl text-[13px] shadow-sm relative group leading-relaxed ${comment.author_role === 'admin' ? 'bg-white text-brand-dark rounded-tr-none border border-black/[0.03]' : comment.author_role === 'approver' ? 'bg-green-50 text-green-900 rounded-tl-none border border-green-100' : 'bg-purple-50 text-purple-900 rounded-tl-none border border-purple-100'}`}>
                                        <p className="whitespace-pre-wrap break-words">{comment.content}</p>
                                        {userRole === 'admin' && (
-                                         <button onClick={() => setConfirmDeleteCommentId(comment.id)} className="absolute -top-2 -right-2 bg-white text-gray-400 hover:text-red-500 rounded-full p-1.5 shadow-md border border-black/[0.05] opacity-0 group-hover:opacity-100 transition-all" title="Excluir"><Trash2 size={12} /></button>
+                                         <button onClick={() => setConfirmDeleteCommentId(comment.id)} className="absolute -top-2 -right-2 bg-white text-gray-400 hover:text-red-500 rounded-full p-1.5 shadow-md border border-black/[0.05] opacity-0 group-hover:opacity-100 transition-all" title={t('Excluir')}><Trash2 size={12} /></button>
                                        )}
                                     </div>
                                 </div>
@@ -1846,7 +1848,7 @@ export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, group
                         <textarea 
                           value={newComment} 
                           onChange={e => setNewComment(e.target.value)} 
-                          placeholder="Adicionar comentário estratégico..." 
+                          placeholder={t('Adicionar comentário estratégico...')} 
                           className="flex-grow pl-5 pr-14 py-4 bg-black/[0.02] border border-black/[0.05] rounded-2xl outline-none text-sm focus:ring-2 focus:ring-brand-dark/10 focus:border-brand-dark transition-all resize-none overflow-y-auto min-h-[56px] max-h-[150px] my-auto" 
                           rows={Math.min(5, newComment.split('\n').length || 1)}
                           onKeyDown={e => {
@@ -1891,7 +1893,7 @@ export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, group
 
       <ConfirmModal
         isOpen={confirmDeletePost}
-        title="Confirmar Exclusão"
+        title={t('Confirmar Exclusão')}
         message="Tem certeza que deseja excluir esta publicação?"
         onConfirm={handleDeletePost}
         onCancel={() => setConfirmDeletePost(false)}
@@ -1899,7 +1901,7 @@ export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, group
 
       <ConfirmModal
         isOpen={!!confirmDeleteCommentId}
-        title="Excluir comentário"
+        title={t('Excluir comentário')}
         message="Tem certeza que deseja excluir este comentário?"
         onConfirm={() => confirmDeleteCommentId && handleDeleteComment(confirmDeleteCommentId)}
         onCancel={() => setConfirmDeleteCommentId(null)}

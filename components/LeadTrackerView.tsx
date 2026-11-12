@@ -1,5 +1,6 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
+import { useT } from '../lib/i18n';
 import { 
   ChevronLeft, 
   ChevronRight, 
@@ -88,7 +89,8 @@ const useClientMoney = () => {
   const { activeClient } = useAuth();
   const currency = ((activeClient as any)?.currency || 'BRL').toUpperCase();
   const symbol = currency === 'USD' ? 'US$' : currency === 'EUR' ? '€' : 'R$';
-  const money = (v: number) => Number(v || 0).toLocaleString('pt-BR', { style: 'currency', currency });
+  const { locale } = useT();
+  const money = (v: number) => Number(v || 0).toLocaleString(locale, { style: 'currency', currency });
   return { currency, symbol, money };
 };
 
@@ -131,6 +133,7 @@ export const isContractSentStage = (stageName?: string, isVendaNegocio = false) 
 };
 
 export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, config, onBack }) => {
+  const { t, lang, locale } = useT();
   const { symbol: moneySymbol, money } = useClientMoney();
   const { fetchLeads, addLead, updateLead, deleteLead, updateLeadStage, updateLeadsPositions } = useLeadTracker();
   const [leads, setLeads] = useState<ClientLead[]>([]);
@@ -302,7 +305,7 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
       const revenue = mLeads.reduce((acc, l) => acc + (l.deal_value || 0), 0);
       
       monthsData.push({
-        label: mDate.format('MMMM'),
+        label: mDate.toDate().toLocaleDateString(locale, { month: 'long' }),
         value: revenue,
         count: mLeads.length
       });
@@ -465,15 +468,15 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
 
   const handleSaveLead = async () => {
     if (!formData.lead_name?.trim()) {
-      alert(isVendaNegocio ? 'Nome do interessado é obrigatório.' : 'Nome do Lead é obrigatório.');
+      alert(isVendaNegocio ? t('Nome do interessado é obrigatório.') : t('Nome do Lead é obrigatório.'));
       return;
     }
     if (!formData.potential) {
-      alert('Selecione o potencial do interessado.');
+      alert(t('Selecione o potencial do interessado.'));
       return;
     }
     if (!formData.notes?.trim() && !isVendaNegocio) {
-      alert('Observações é obrigatório. Registre o que o lead procura.');
+      alert(t('Observações é obrigatório. Registre o que o lead procura.'));
       return;
     }
 
@@ -700,7 +703,7 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
   const handleConfirmWin = async () => {
     if (!leadToWin) return;
     if (!closedAtDate) {
-      alert('A data é obrigatória.');
+      alert(t('A data é obrigatória.'));
       return;
     }
     try {
@@ -871,14 +874,14 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
           <div>
             <div className="flex items-center gap-2 text-white/50 text-[10px] font-bold tracking-[0.2em] uppercase mb-4">
               <Users size={12} />
-              <span>{isVendaNegocio ? 'Acompanhamento de Interessados' : 'Acompanhamento de Leads'}</span>
+              <span>{isVendaNegocio ? t('Acompanhamento de Interessados') : t('Acompanhamento de Leads')}</span>
             </div>
             <h1 className="text-4xl sm:text-5xl font-serif italic tracking-tight mb-6">
-              CRM & Oportunidades
+              {t('CRM & Oportunidades')}
             </h1>
             <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/5 border border-white/10 text-xs font-medium text-white/70">
               <TrendingUp size={14} />
-              <span>Gerencie seu funil de vendas</span>
+              <span>{t('Gerencie seu funil de vendas')}</span>
             </div>
           </div>
           
@@ -891,17 +894,17 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
                   ? 'bg-white/5 text-white/40 border-white/10 cursor-not-allowed opacity-60'
                   : 'bg-white/10 hover:bg-white/20 text-white border-white/20'
               }`}
-              title={isVendaNegocio ? "Exportar todos os interessados para CSV" : "Exportar todos os leads para CSV"}
+              title={isVendaNegocio ? t('Exportar todos os interessados para CSV') : t('Exportar todos os leads para CSV')}
             >
               <Download size={18} />
-              <span>Exportar</span>
+              <span>{t('Exportar')}</span>
             </button>
             <button 
               onClick={handleOpenAddModal}
               className="flex items-center gap-2 px-6 py-2.5 bg-white text-black rounded-xl font-bold hover:bg-gray-100 transition-colors"
             >
               <Plus size={20} />
-              <span>{isVendaNegocio ? 'Novo Interessado' : 'Novo Lead'}</span>
+              <span>{isVendaNegocio ? t('Novo Interessado') : t('Novo Lead')}</span>
             </button>
           </div>
         </div>
@@ -934,7 +937,7 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
               activeCRMTab === 'fechados' ? 'text-brand-dark font-black' : 'text-gray-400 hover:text-brand-dark'
             }`}
           >
-            {isVendaNegocio ? '🤝 Venda do negócio' : '🤝 Contratos Fechados'}
+            {isVendaNegocio ? t('🤝 Venda do negócio') : t('🤝 Contratos Fechados')}
             {activeCRMTab === 'fechados' && <motion.div layoutId="activeCRMTabLine" className="absolute bottom-0 inset-x-0 h-0.5 bg-brand-dark" />}
           </button>
           <button
@@ -943,7 +946,7 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
               activeCRMTab === 'perdidos' ? 'text-brand-dark font-black' : 'text-gray-400 hover:text-brand-dark'
             }`}
           >
-            {isVendaNegocio ? '💔 Interessados que não seguiram' : '💔 Leads Perdidos'}
+            {isVendaNegocio ? t('💔 Interessados que não seguiram') : t('💔 Leads Perdidos')}
             {activeCRMTab === 'perdidos' && <motion.div layoutId="activeCRMTabLine" className="absolute bottom-0 inset-x-0 h-0.5 bg-brand-dark" />}
           </button>
         </div>
@@ -957,7 +960,7 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
               className="bg-transparent text-xs font-bold text-brand-dark focus:ring-0 outline-none border-none py-1.5 pl-3 pr-8 cursor-pointer select-none"
             >
               {MONTHS_LIST.map(m => (
-                <option key={m.value} value={m.value} className="bg-white text-gray-800 font-medium py-1">{m.label}</option>
+                <option key={m.value} value={m.value} className="bg-white text-gray-800 font-medium py-1">{t(m.label)}</option>
               ))}
             </select>
 
@@ -988,7 +991,7 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
               {stages.map(stage => (
                 <div key={stage} className="w-80 flex flex-col h-full bg-gray-50/10 rounded-[2rem] p-4 border border-black/[0.01]">
                   <div className="flex items-center justify-between mb-4 px-2">
-                    <h3 className="font-bold text-gray-700 text-sm">{stage}</h3>
+                    <h3 className="font-bold text-gray-700 text-sm">{t(stage)}</h3>
                     <span className="bg-white border border-black/[0.05] text-gray-500 text-xs font-bold px-2.5 py-1 rounded-full">
                       {leadsByStage[stage]?.length || 0}
                     </span>
@@ -1017,7 +1020,7 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
                         ))
                       ) : (
                         <div className="py-8 text-center text-xs text-gray-400 italic">
-                          {isVendaNegocio ? 'Nenhum interessado nesta etapa' : 'Nenhum lead nesta etapa'}
+                          {isVendaNegocio ? t('Nenhum interessado nesta etapa') : t('Nenhum lead nesta etapa')}
                         </div>
                       )}
                     </DroppableColumn>
@@ -1030,7 +1033,7 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
                 <div className="flex items-center justify-between mb-4 px-2">
                   {showLost ? (
                     <>
-                      <h3 className="font-bold text-red-750 text-sm">{isVendaNegocio ? 'Não seguiram' : 'Perdido'}</h3>
+                      <h3 className="font-bold text-red-750 text-sm">{isVendaNegocio ? t('Não seguiram') : t('Perdido')}</h3>
                       <div className="flex items-center gap-2">
                         <span className="bg-white border border-red-100/50 text-red-600 text-xs font-bold px-2.5 py-1 rounded-full">
                           {leadsByStage['Perdido']?.length || 0}
@@ -1045,7 +1048,7 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
                       <button 
                         onClick={() => setShowLost(true)}
                         className="bg-red-50 text-red-650 text-xs font-bold px-2 py-2 rounded-full hover:bg-red-100 transition-colors"
-                        title={isVendaNegocio ? "Ver que não seguiram" : "Ver Perdidos"}
+                        title={isVendaNegocio ? t('Ver que não seguiram') : t('Ver Perdidos')}
                       >
                         {leadsByStage['Perdido']?.length || 0}
                       </button>
@@ -1077,7 +1080,7 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
                         ))
                       ) : (
                         <div className="py-8 text-center text-xs text-gray-400 italic">
-                          {isVendaNegocio ? 'Nenhum interessado que não seguiu' : 'Nenhum lead marcado como perdido'}
+                          {isVendaNegocio ? t('Nenhum interessado que não seguiu') : t('Nenhum lead marcado como perdido')}
                         </div>
                       )}
                     </DroppableColumn>
@@ -1126,8 +1129,8 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
           <div className="flex-1 bg-white border border-black/[0.05] rounded-[2rem] p-6 sm:p-8 shadow-sm space-y-6">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-black/[0.03] pb-4">
               <div>
-                <h2 className="text-xl font-bold text-brand-dark">Histórico de Contratos Fechados</h2>
-                <p className="text-xs text-gray-400 mt-1 font-medium">Todos os fechamentos acumulados da agência (Histórico completo)</p>
+                <h2 className="text-xl font-bold text-brand-dark">{t('Histórico de Contratos Fechados')}</h2>
+                <p className="text-xs text-gray-400 mt-1 font-medium">{t('Todos os fechamentos acumulados da agência (Histórico completo)')}</p>
               </div>
               
               <div className="flex flex-wrap items-center gap-3">
@@ -1136,9 +1139,9 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
                   onChange={(e) => setFilterSpecialty(e.target.value)}
                   className="bg-gray-50 border border-black/[0.05] rounded-xl px-3 py-1.5 text-xs font-semibold focus:ring-1 focus:ring-brand-dark outline-none cursor-pointer"
                 >
-                  <option value="">Todas Especialidades</option>
+                  <option value="">{t('Todas Especialidades')}</option>
                   {config.specialty_options?.map(opt => (
-                    <option key={opt} value={opt}>{opt}</option>
+                    <option key={opt} value={opt}>{t(opt)}</option>
                   ))}
                 </select>
 
@@ -1147,11 +1150,11 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
                   onChange={(e) => setFilterSource(e.target.value)}
                   className="bg-gray-50 border border-black/[0.05] rounded-xl px-3 py-1.5 text-xs font-semibold focus:ring-1 focus:ring-brand-dark outline-none cursor-pointer"
                 >
-                  <option value="">Todas as Fontes</option>
-                  <option value="Google Ads">Google Ads</option>
-                  <option value="Instagram">Instagram</option>
-                  <option value="Site orgânico">Site orgânico</option>
-                  <option value="Indicação">Indicação</option>
+                  <option value="">{t('Todas as Fontes')}</option>
+                  <option value="Google Ads">{t('Google Ads')}</option>
+                  <option value="Instagram">{t('Instagram')}</option>
+                  <option value="Site orgânico">{t('Site orgânico')}</option>
+                  <option value="Indicação">{t('Indicação')}</option>
                 </select>
 
                 <select
@@ -1159,7 +1162,7 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
                   onChange={(e) => setFilterOrigin(e.target.value)}
                   className="bg-gray-50 border border-black/[0.05] rounded-xl px-3 py-1.5 text-xs font-semibold focus:ring-1 focus:ring-brand-dark outline-none cursor-pointer"
                 >
-                  <option value="">Todas Localidades</option>
+                  <option value="">{t('Todas Localidades')}</option>
                   {BRAZILIAN_STATES.map(st => (
                     <option key={st} value={st}>{st}</option>
                   ))}
@@ -1170,7 +1173,7 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
             {/* Mini Dashboard de Fechados */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 shrink-0">
               <div className="bg-emerald-50/30 border border-emerald-500/10 rounded-2xl p-4 flex flex-col justify-between">
-                <span className="text-[10px] uppercase font-bold text-emerald-800/60 mb-1">Total Geral</span>
+                <span className="text-[10px] uppercase font-bold text-emerald-800/60 mb-1">{t('Total Geral')}</span>
                 <div className="text-xl font-black text-emerald-900 tracking-tight">
                   {money(statsFechados.totalRevenue)}
                 </div>
@@ -1192,14 +1195,14 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
                 <table className="min-w-full border-collapse text-left">
                   <thead>
                     <tr className="border-b border-black/[0.03] text-[10px] uppercase tracking-wider font-bold text-gray-400">
-                      <th className="pb-3 pl-2">Fechamento</th>
-                      <th className="pb-3">Nome</th>
-                      <th className="pb-3">Telefone</th>
-                      <th className="pb-3">Especialidade</th>
-                      <th className="pb-3">Local</th>
-                      <th className="pb-3">Potencial</th>
-                      <th className="pb-3">Valor</th>
-                      <th className="pb-3 pr-2 text-right">Canal</th>
+                      <th className="pb-3 pl-2">{t('Fechamento')}</th>
+                      <th className="pb-3">{t('Nome')}</th>
+                      <th className="pb-3">{t('Telefone')}</th>
+                      <th className="pb-3">{t('Especialidade')}</th>
+                      <th className="pb-3">{t('Local')}</th>
+                      <th className="pb-3">{t('Potencial')}</th>
+                      <th className="pb-3">{t('Valor')}</th>
+                      <th className="pb-3 pr-2 text-right">{t('Canal')}</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-black/[0.02]">
@@ -1212,16 +1215,16 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
                           className="text-xs font-semibold text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer"
                         >
                           <td className="py-3.5 pl-2 text-emerald-700 font-bold">
-                            {dayjs(closedDate).format('DD/MM/YYYY')}
+                            {dayjs(closedDate).format(lang === 'en' ? 'MM/DD/YYYY' : 'DD/MM/YYYY')}
                           </td>
                           <td className="py-3.5 font-bold text-gray-900">{lead.lead_name}</td>
                           <td className="py-3.5 text-gray-500 font-normal">{lead.phone || '—'}</td>
                           <td className="py-3.5 italic text-brand-dark">{lead.specialty || '—'}</td>
                           <td className="py-3.5 uppercase text-gray-500">{lead.origin || '—'}</td>
                           <td className="py-3.5">
-                            {lead.potential === 'alto' && <span className="text-green-700 font-bold">🔥 Alto</span>}
-                            {lead.potential === 'medio' && <span className="text-yellow-700 font-bold">⚡ Médio</span>}
-                            {lead.potential === 'baixo' && <span className="text-gray-600 font-bold">❄️ Baixo</span>}
+                            {lead.potential === 'alto' && <span className="text-green-700 font-bold">{t('🔥 Alto')}</span>}
+                            {lead.potential === 'medio' && <span className="text-yellow-700 font-bold">{t('⚡ Médio')}</span>}
+                            {lead.potential === 'baixo' && <span className="text-gray-600 font-bold">{t('❄️ Baixo')}</span>}
                           </td>
                           <td className="py-3.5 text-emerald-800 font-black">
                             {money(Number(lead.deal_value || 0))}
@@ -1237,7 +1240,7 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
                 </table>
               ) : (
                 <div className="py-12 text-center text-sm text-gray-400 italic">
-                  Nenhum lead fechado encontrado com os filtros aplicados
+                  {t('Nenhum lead fechado encontrado com os filtros aplicados')}
                 </div>
               )}
             </div>
@@ -1250,8 +1253,8 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
           <div className="flex-1 bg-white border border-black/[0.05] rounded-[2rem] p-6 sm:p-8 shadow-sm space-y-6">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-black/[0.03] pb-4">
               <div>
-                <h2 className="text-xl font-bold text-red-700">Interessados que não seguiram</h2>
-                <p className="text-xs text-gray-400 mt-1 font-medium">Oportunidades de venda que não seguiram no funil comercial</p>
+                <h2 className="text-xl font-bold text-red-700">{t('Interessados que não seguiram')}</h2>
+                <p className="text-xs text-gray-400 mt-1 font-medium">{t('Oportunidades de venda que não seguiram no funil comercial')}</p>
               </div>
               
               <div className="flex flex-wrap items-center gap-3">
@@ -1260,13 +1263,13 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
                   onChange={(e) => setFilterSource(e.target.value)}
                   className="bg-gray-50 border border-black/[0.05] rounded-xl px-3 py-1.5 text-xs font-semibold focus:ring-1 focus:ring-brand-dark outline-none cursor-pointer"
                 >
-                  <option value="">Todas as Fontes</option>
-                  <option value="Meta Ads">Meta Ads</option>
-                  <option value="Google Ads">Google Ads</option>
-                  <option value="Google orgânico">Google orgânico</option>
-                  <option value="Redes sociais">Redes sociais</option>
-                  <option value="Indicação">Indicação</option>
-                  <option value="Direto">Direto</option>
+                  <option value="">{t('Todas as Fontes')}</option>
+                  <option value="Meta Ads">{t('Meta Ads')}</option>
+                  <option value="Google Ads">{t('Google Ads')}</option>
+                  <option value="Google orgânico">{t('Google orgânico')}</option>
+                  <option value="Redes sociais">{t('Redes sociais')}</option>
+                  <option value="Indicação">{t('Indicação')}</option>
+                  <option value="Direto">{t('Direto')}</option>
                 </select>
               </div>
             </div>
@@ -1289,13 +1292,13 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
                 <table className="min-w-full border-collapse text-left">
                   <thead>
                     <tr className="border-b border-black/[0.03] text-[10px] uppercase tracking-wider font-bold text-gray-400">
-                      <th className="pb-3 pl-2">Data de entrada</th>
-                      <th className="pb-3">Nome</th>
-                      <th className="pb-3">WhatsApp</th>
-                      <th className="pb-3">Perfil</th>
-                      <th className="pb-3">Capital Disponível</th>
-                      <th className="pb-3">Motivo da Perda</th>
-                      <th className="pb-3 pr-2 text-right">Canal</th>
+                      <th className="pb-3 pl-2">{t('Data de entrada')}</th>
+                      <th className="pb-3">{t('Nome')}</th>
+                      <th className="pb-3">{t('WhatsApp')}</th>
+                      <th className="pb-3">{t('Perfil')}</th>
+                      <th className="pb-3">{t('Capital Disponível')}</th>
+                      <th className="pb-3">{t('Motivo da Perda')}</th>
+                      <th className="pb-3 pr-2 text-right">{t('Canal')}</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-black/[0.02]">
@@ -1308,7 +1311,7 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
                           className="text-xs font-semibold text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer"
                         >
                           <td className="py-3.5 pl-2 text-gray-400">
-                            {dayjs(leadDate).format('DD/MM/YYYY')}
+                            {dayjs(leadDate).format(lang === 'en' ? 'MM/DD/YYYY' : 'DD/MM/YYYY')}
                           </td>
                           <td className="py-3.5 font-bold text-gray-900">{lead.lead_name}</td>
                           <td className="py-3.5 text-gray-500 font-normal">{lead.phone || '—'}</td>
@@ -1346,7 +1349,7 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
                 </table>
               ) : (
                 <div className="py-12 text-center text-sm text-gray-400 italic">
-                  Nenhum interessado que não seguiu encontrado com os filtros aplicados
+                  {t('Nenhum interessado que não seguiu encontrado com os filtros aplicados')}
                 </div>
               )}
             </div>
@@ -1355,8 +1358,8 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
           <div className="flex-1 bg-white border border-black/[0.05] rounded-[2rem] p-6 sm:p-8 shadow-sm space-y-6">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-black/[0.03] pb-4">
               <div>
-                <h2 className="text-xl font-bold text-red-700">Histórico de Leads Perdidos</h2>
-                <p className="text-xs text-gray-400 mt-1 font-medium">Todas as oportunidades perdidas no funil comercial</p>
+                <h2 className="text-xl font-bold text-red-700">{t('Histórico de Leads Perdidos')}</h2>
+                <p className="text-xs text-gray-400 mt-1 font-medium">{t('Todas as oportunidades perdidas no funil comercial')}</p>
               </div>
               
               <div className="flex flex-wrap items-center gap-3">
@@ -1365,9 +1368,9 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
                   onChange={(e) => setFilterSpecialty(e.target.value)}
                   className="bg-gray-50 border border-black/[0.05] rounded-xl px-3 py-1.5 text-xs font-semibold focus:ring-1 focus:ring-brand-dark outline-none cursor-pointer"
                 >
-                  <option value="">Todas Especialidades</option>
+                  <option value="">{t('Todas Especialidades')}</option>
                   {config.specialty_options?.map(opt => (
-                    <option key={opt} value={opt}>{opt}</option>
+                    <option key={opt} value={opt}>{t(opt)}</option>
                   ))}
                 </select>
 
@@ -1376,11 +1379,11 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
                   onChange={(e) => setFilterSource(e.target.value)}
                   className="bg-gray-50 border border-black/[0.05] rounded-xl px-3 py-1.5 text-xs font-semibold focus:ring-1 focus:ring-brand-dark outline-none cursor-pointer"
                 >
-                  <option value="">Todas as Fontes</option>
-                  <option value="Google Ads">Google Ads</option>
-                  <option value="Instagram">Instagram</option>
-                  <option value="Site orgânico">Site orgânico</option>
-                  <option value="Indicação">Indicação</option>
+                  <option value="">{t('Todas as Fontes')}</option>
+                  <option value="Google Ads">{t('Google Ads')}</option>
+                  <option value="Instagram">{t('Instagram')}</option>
+                  <option value="Site orgânico">{t('Site orgânico')}</option>
+                  <option value="Indicação">{t('Indicação')}</option>
                 </select>
               </div>
             </div>
@@ -1403,13 +1406,13 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
                 <table className="min-w-full border-collapse text-left">
                   <thead>
                     <tr className="border-b border-black/[0.03] text-[10px] uppercase tracking-wider font-bold text-gray-400">
-                      <th className="pb-3 pl-2">Data do Lead</th>
-                      <th className="pb-3">Nome</th>
-                      <th className="pb-3">Telefone</th>
-                      <th className="pb-3">Especialidade</th>
-                      <th className="pb-3">Local</th>
-                      <th className="pb-3">Motivo da Perda</th>
-                      <th className="pb-3 pr-2 text-right">Canal</th>
+                      <th className="pb-3 pl-2">{t('Data do Lead')}</th>
+                      <th className="pb-3">{t('Nome')}</th>
+                      <th className="pb-3">{t('Telefone')}</th>
+                      <th className="pb-3">{t('Especialidade')}</th>
+                      <th className="pb-3">{t('Local')}</th>
+                      <th className="pb-3">{t('Motivo da Perda')}</th>
+                      <th className="pb-3 pr-2 text-right">{t('Canal')}</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-black/[0.02]">
@@ -1422,7 +1425,7 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
                           className="text-xs font-semibold text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer"
                         >
                           <td className="py-3.5 pl-2 text-gray-400">
-                            {dayjs(leadDate).format('DD/MM/YYYY')}
+                            {dayjs(leadDate).format(lang === 'en' ? 'MM/DD/YYYY' : 'DD/MM/YYYY')}
                           </td>
                           <td className="py-3.5 font-bold text-gray-900">{lead.lead_name}</td>
                           <td className="py-3.5 text-gray-500 font-normal">{lead.phone || '—'}</td>
@@ -1442,7 +1445,7 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
                 </table>
               ) : (
                 <div className="py-12 text-center text-sm text-gray-400 italic">
-                  Nenhum lead perdido encontrado com os filtros aplicados
+                  {t('Nenhum lead perdido encontrado com os filtros aplicados')}
                 </div>
               )}
             </div>
@@ -1467,7 +1470,7 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
                   <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center text-blue-600">
                     <Users size={20} />
                   </div>
-                  <span className="premium-label">Leads no Mês</span>
+                  <span className="premium-label">{t('Leads no Mês')}</span>
                 </div>
                 <div className="text-4xl font-bold tracking-tighter">{stats.total}</div>
               </div>
@@ -1477,7 +1480,7 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
                   <div className="w-10 h-10 rounded-xl bg-emerald-50 flex items-center justify-center text-emerald-600">
                     <CheckSquare size={20} />
                   </div>
-                  <span className="premium-label">Fechados no Mês</span>
+                  <span className="premium-label">{t('Fechados no Mês')}</span>
                 </div>
                 <div className="text-4xl font-bold tracking-tighter text-emerald-600">{stats.closedMonth}</div>
               </div>
@@ -1487,7 +1490,7 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
                   <div className="w-10 h-10 rounded-xl bg-purple-50 flex items-center justify-center text-purple-600">
                     <TrendingUp size={20} />
                   </div>
-                  <span className="premium-label">Taxa de Conversão</span>
+                  <span className="premium-label">{t('Taxa de Conversão')}</span>
                 </div>
                 <div className="text-4xl font-bold tracking-tighter text-purple-600">{stats.conversionRate}%</div>
               </div>
@@ -1497,16 +1500,16 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
                   <div className="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center text-amber-600">
                     <FileText size={20} />
                   </div>
-                  <span className="premium-label font-bold text-amber-800">Dinheiro em Negociação</span>
+                  <span className="premium-label font-bold text-amber-800">{t('Dinheiro em Negociação')}</span>
                 </div>
                 <div className="text-2xl font-black tracking-tight text-amber-700">
                   {money(stats.contractSentRevenue)}
                 </div>
                 <div className="text-[10px] text-gray-400 mt-2 font-semibold">
                   <div className="text-amber-600 font-bold flex items-center gap-1 mb-1">
-                    <span>💼 Dinheiro na Mesa</span>
+                    <span>{t('💼 Dinheiro na Mesa')}</span>
                   </div>
-                  <div>{stats.contractSentCount} {stats.contractSentCount === 1 ? 'lead em negociação' : 'leads em negociação'} este mês</div>
+                  <div>{stats.contractSentCount} {stats.contractSentCount === 1 ? t('lead em negociação') : t('leads em negociação')} {t('este mês')}</div>
                 </div>
               </div>
 
@@ -1515,13 +1518,13 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
                   <div className="w-10 h-10 rounded-xl bg-emerald-50 flex items-center justify-center text-emerald-600">
                     <DollarSign size={20} />
                   </div>
-                  <span className="premium-label">Faturamento CRM</span>
+                  <span className="premium-label">{t('Faturamento CRM')}</span>
                 </div>
                 <div className="text-2xl font-bold tracking-tight text-emerald-700">
                   {money(stats.revenue)}
                 </div>
                 <div className="text-[10px] text-gray-400 mt-1 font-semibold">
-                  Soma dos contratos fechados de fato
+                  {t('Soma dos contratos fechados de fato')}
                 </div>
               </div>
             </div>
@@ -1530,8 +1533,8 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
               {/* Gráfico de Barras dos Últimos 6 Meses */}
               <div className="lg:col-span-2 bg-white border border-black/[0.05] rounded-[2rem] p-6 sm:p-8 shadow-sm">
-                <h3 className="text-base font-bold text-brand-dark mb-1">Performance Comercial (Últimos 6 Meses)</h3>
-                <p className="text-xs text-gray-400 mb-6 font-medium">Gráfico comparativo de Novos Leads vs Contratos Fechados</p>
+                <h3 className="text-base font-bold text-brand-dark mb-1">{t('Performance Comercial (Últimos 6 Meses)')}</h3>
+                <p className="text-xs text-gray-400 mb-6 font-medium">{t('Gráfico comparativo de Novos Leads vs Contratos Fechados')}</p>
                 
                 <div className="h-[280px] w-full">
                   <ResponsiveContainer width="100%" height="100%">
@@ -1551,8 +1554,8 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
               {/* Motivos de Perda no Mês */}
               <div className="bg-white border border-black/[0.05] rounded-[2rem] p-6 sm:p-8 shadow-sm flex flex-col justify-between">
                 <div>
-                  <h3 className="text-base font-bold text-brand-dark mb-1">Perdas do Mês</h3>
-                  <p className="text-xs text-gray-400 mb-6">Motivos recorrentes na etapa de perda comercial</p>
+                  <h3 className="text-base font-bold text-brand-dark mb-1">{t('Perdas do Mês')}</h3>
+                  <p className="text-xs text-gray-400 mb-6">{t('Motivos recorrentes na etapa de perda comercial')}</p>
 
                   {stats.lostCount > 0 ? (
                     <div className="space-y-4">
@@ -1576,14 +1579,14 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
                     </div>
                   ) : (
                     <div className="h-[180px] flex items-center justify-center text-sm text-gray-400 italic">
-                      Nenhum lead perdido neste período
+                      {t('Nenhum lead perdido neste período')}
                     </div>
                   )}
                 </div>
 
                 {stats.lostCount > 0 && (
                   <div className="mt-4 pt-4 border-t border-black/[0.03] flex items-center justify-between text-xs text-gray-500">
-                    <span>Total de perdas no mês:</span>
+                    <span>{t('Total de perdas no mês:')}</span>
                     <span className="font-bold text-red-600">{stats.lostCount} leads</span>
                   </div>
                 )}
@@ -1614,7 +1617,7 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
               <div className="flex items-start justify-between border-b border-black/[0.03] pb-4">
                 <div>
                   <span className="text-[10px] uppercase font-bold tracking-widest text-gray-400">
-                    {isVendaNegocio ? 'Ficha do Interessado' : 'Ficha do Lead'}
+                    {isVendaNegocio ? t('Ficha do Interessado') : t('Ficha do Lead')}
                   </span>
                   <h3 className="text-2xl font-bold tracking-tight text-brand-dark mt-1">
                     {selectedLeadForView.lead_name}
@@ -1630,11 +1633,11 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
                   {/* Bloco 1: Contato */}
                   <div className="bg-gray-50 p-4 rounded-2xl border border-black/[0.03]">
                     <span className="text-[10px] uppercase font-black text-gray-400 block mb-3 tracking-wider">
-                      Contato
+                      {t('Contato')}
                     </span>
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                       <div>
-                        <span className="text-[10px] font-bold text-gray-400 uppercase block">WhatsApp</span>
+                        <span className="text-[10px] font-bold text-gray-400 uppercase block">{t('WhatsApp')}</span>
                         {selectedLeadForView.phone ? (
                           <a
                             href={`https://wa.me/55${selectedLeadForView.phone.replace(/\D/g, '')}`}
@@ -1650,11 +1653,11 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
                         )}
                       </div>
                       <div>
-                        <span className="text-[10px] font-bold text-gray-400 uppercase block">E-mail</span>
+                        <span className="text-[10px] font-bold text-gray-400 uppercase block">{t('E-mail')}</span>
                         <span className="text-xs font-semibold text-gray-800 break-all">{selectedLeadForView.email || '—'}</span>
                       </div>
                       <div>
-                        <span className="text-[10px] font-bold text-gray-400 uppercase block">Cidade</span>
+                        <span className="text-[10px] font-bold text-gray-400 uppercase block">{t('Cidade')}</span>
                         <span className="text-xs font-semibold text-gray-800">{selectedLeadForView.city || '—'}</span>
                       </div>
                     </div>
@@ -1663,20 +1666,20 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
                   {/* Bloco 2: Qualificação */}
                   <div className="bg-gray-50 p-4 rounded-2xl border border-black/[0.03]">
                     <span className="text-[10px] uppercase font-black text-gray-400 block mb-3 tracking-wider">
-                      Qualificação
+                      {t('Qualificação')}
                     </span>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
                       <div>
-                        <span className="text-[10px] font-bold text-gray-400 uppercase block">Potencial</span>
+                        <span className="text-[10px] font-bold text-gray-400 uppercase block">{t('Potencial')}</span>
                         <div className="mt-0.5">
                           {selectedLeadForView.potential === 'alto' && (
                             <span className="inline-block px-2 py-0.5 bg-emerald-100 text-emerald-800 rounded-md text-xs font-bold">
-                              Alto potencial
+                              {t('Alto potencial')}
                             </span>
                           )}
                           {selectedLeadForView.potential === 'baixo' && (
                             <span className="inline-block px-2 py-0.5 bg-gray-200 text-gray-700 rounded-md text-xs font-bold">
-                              Baixo potencial
+                              {t('Baixo potencial')}
                             </span>
                           )}
                           {!selectedLeadForView.potential && <span className="text-xs text-gray-500">—</span>}
@@ -1696,7 +1699,7 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
                   {/* Bloco 3: Origem */}
                   <div className="bg-gray-50 p-4 rounded-2xl border border-black/[0.03]">
                     <span className="text-[10px] uppercase font-black text-gray-400 block mb-2 tracking-wider">
-                      Origem
+                      {t('Origem')}
                     </span>
                     <p className="text-xs font-bold text-brand-dark uppercase tracking-wider flex items-center gap-1.5 mb-3">
                       {getSourceIcon(selectedLeadForView.source)}
@@ -1706,7 +1709,7 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
                     {/* Bloco recolhível: Dados do anúncio (UTM) */}
                     <details className="mt-2 text-xs bg-white rounded-xl p-3 border border-gray-200 group">
                       <summary className="font-bold text-gray-700 cursor-pointer select-none flex items-center justify-between">
-                        <span>Dados do anúncio (UTM / Rastreamento)</span>
+                        <span>{t('Dados do anúncio (UTM / Rastreamento)')}</span>
                         <ChevronDown size={14} className="group-open:rotate-180 transition-transform" />
                       </summary>
                       <div className="mt-3 pt-3 border-t border-gray-100 space-y-1.5 text-gray-600">
@@ -1718,7 +1721,7 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
                             </div>
                           ))
                         ) : (
-                          <p className="text-[11px] text-gray-400 italic">Nenhum dado UTM registrado para este interessado.</p>
+                          <p className="text-[11px] text-gray-400 italic">{t('Nenhum dado UTM registrado para este interessado.')}</p>
                         )}
                       </div>
                     </details>
@@ -1727,39 +1730,39 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
                   {/* Bloco 4: Observações internas */}
                   <div className="bg-gray-50 p-4 rounded-2xl border border-black/[0.03]">
                     <span className="text-[10px] uppercase font-black text-gray-400 block mb-2 tracking-wider">
-                      Observações internas
+                      {t('Observações internas')}
                     </span>
                     <p className="text-xs font-medium text-gray-700 whitespace-pre-wrap leading-relaxed">
-                      {selectedLeadForView.notes || 'Nenhuma observação interna registrada.'}
+                      {selectedLeadForView.notes || t('Nenhuma observação interna registrada.')}
                     </p>
                   </div>
 
                   {/* Se Vendido */}
                   {(selectedLeadForView.kanban_stage === 'Vendido' || selectedLeadForView.closed) && (
                     <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 space-y-2">
-                      <span className="text-[10px] uppercase font-black text-emerald-800 block">Dados da Venda</span>
+                      <span className="text-[10px] uppercase font-black text-emerald-800 block">{t('Dados da Venda')}</span>
                       <div className="grid grid-cols-2 gap-3 text-xs">
                         <div>
-                          <span className="text-gray-500 font-medium block">Valor da Venda:</span>
+                          <span className="text-gray-500 font-medium block">{t('Valor da Venda:')}</span>
                           <span className="font-black text-emerald-900 text-sm">
                             {money(Number(selectedLeadForView.deal_value || 0))}
                           </span>
                         </div>
                         <div>
-                          <span className="text-gray-500 font-medium block">Data da Venda:</span>
+                          <span className="text-gray-500 font-medium block">{t('Data da Venda:')}</span>
                           <span className="font-bold text-gray-800">
-                            {dayjs(selectedLeadForView.closed_at || selectedLeadForView.created_at).format('DD/MM/YYYY')}
+                            {dayjs(selectedLeadForView.closed_at || selectedLeadForView.created_at).format(lang === 'en' ? 'MM/DD/YYYY' : 'DD/MM/YYYY')}
                           </span>
                         </div>
                         {selectedLeadForView.form_data?.venda_pagamento && (
                           <div className="col-span-2">
-                            <span className="text-gray-500 font-medium block">Forma de Pagamento:</span>
+                            <span className="text-gray-500 font-medium block">{t('Forma de Pagamento:')}</span>
                             <span className="font-bold text-gray-800">{selectedLeadForView.form_data.venda_pagamento}</span>
                           </div>
                         )}
                         {selectedLeadForView.form_data?.venda_observacoes && (
                           <div className="col-span-2">
-                            <span className="text-gray-500 font-medium block">Observações da Venda:</span>
+                            <span className="text-gray-500 font-medium block">{t('Observações da Venda:')}</span>
                             <span className="font-medium text-gray-700">{selectedLeadForView.form_data.venda_observacoes}</span>
                           </div>
                         )}
@@ -1770,7 +1773,7 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
                   {/* Se Perdido */}
                   {selectedLeadForView.kanban_stage === 'Perdido' && (
                     <div className="bg-red-50 border border-red-200 rounded-2xl p-4">
-                      <span className="text-[10px] uppercase font-black text-red-800 block mb-1">Motivo da Perda</span>
+                      <span className="text-[10px] uppercase font-black text-red-800 block mb-1">{t('Motivo da Perda')}</span>
                       <p className="text-sm font-bold text-red-900">{selectedLeadForView.loss_reason || '—'}</p>
                     </div>
                   )}
@@ -1779,40 +1782,40 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
                 <>
                   <div className="grid grid-cols-2 gap-6">
                     <div>
-                      <span className="text-[10px] uppercase font-black text-gray-400 block mb-1">Status Atual</span>
+                      <span className="text-[10px] uppercase font-black text-gray-400 block mb-1">{t('Status Atual')}</span>
                       <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-brand-dark/5 text-xs font-bold text-brand-dark">
                         <span>{selectedLeadForView.kanban_stage}</span>
                       </div>
                     </div>
 
                     <div>
-                      <span className="text-[10px] uppercase font-black text-gray-400 block mb-1">Potencial</span>
+                      <span className="text-[10px] uppercase font-black text-gray-400 block mb-1">{t('Potencial')}</span>
                       <div>
-                        {selectedLeadForView.potential === 'alto' && <span className="text-xs font-bold text-green-700">🔥 Alto</span>}
-                        {selectedLeadForView.potential === 'medio' && <span className="text-xs font-bold text-yellow-700">⚡ Médio</span>}
-                        {selectedLeadForView.potential === 'baixo' && <span className="text-xs font-bold text-gray-600">❄️ Baixo</span>}
+                        {selectedLeadForView.potential === 'alto' && <span className="text-xs font-bold text-green-700">{t('🔥 Alto')}</span>}
+                        {selectedLeadForView.potential === 'medio' && <span className="text-xs font-bold text-yellow-700">{t('⚡ Médio')}</span>}
+                        {selectedLeadForView.potential === 'baixo' && <span className="text-xs font-bold text-gray-600">{t('❄️ Baixo')}</span>}
                       </div>
                     </div>
 
                     <div>
-                      <span className="text-[10px] uppercase font-black text-gray-400 block mb-1">Especialidade</span>
+                      <span className="text-[10px] uppercase font-black text-gray-400 block mb-1">{t('Especialidade')}</span>
                       <p className="text-sm font-semibold text-gray-800">{selectedLeadForView.specialty || '—'}</p>
                     </div>
 
                     <div>
-                      <span className="text-[10px] uppercase font-black text-gray-400 block mb-1">Faturamento Estimado</span>
+                      <span className="text-[10px] uppercase font-black text-gray-400 block mb-1">{t('Faturamento Estimado')}</span>
                       <p className="text-sm font-extrabold text-emerald-800">
                         {money(Number(selectedLeadForView.deal_value || 0))}
                       </p>
                     </div>
 
                     <div>
-                      <span className="text-[10px] uppercase font-black text-gray-400 block mb-1">Contato</span>
+                      <span className="text-[10px] uppercase font-black text-gray-400 block mb-1">{t('Contato')}</span>
                       <p className="text-sm font-semibold text-gray-800">{selectedLeadForView.phone || '—'}</p>
                     </div>
 
                     <div>
-                      <span className="text-[10px] uppercase font-black text-gray-400 block mb-1">Canal de Origem</span>
+                      <span className="text-[10px] uppercase font-black text-gray-400 block mb-1">{t('Canal de Origem')}</span>
                       <p className="text-xs font-bold text-brand-dark uppercase tracking-wider flex items-center gap-1.5 mt-1">
                         {getSourceIcon(selectedLeadForView.source)}
                         <span>{selectedLeadForView.source || '—'}</span>
@@ -1820,30 +1823,30 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
                     </div>
 
                     <div>
-                      <span className="text-[10px] uppercase font-black text-gray-400 block mb-1">Estado / Região</span>
+                      <span className="text-[10px] uppercase font-black text-gray-400 block mb-1">{t('Estado / Região')}</span>
                       <p className="text-sm font-semibold uppercase text-gray-800">{selectedLeadForView.origin || '—'}</p>
                     </div>
 
                     <div>
-                      <span className="text-[10px] uppercase font-black text-gray-400 block mb-1">Data de Cadastro</span>
+                      <span className="text-[10px] uppercase font-black text-gray-400 block mb-1">{t('Data de Cadastro')}</span>
                       <p className="text-sm font-semibold text-gray-500">
-                        {dayjs(selectedLeadForView.lead_date || selectedLeadForView.created_at).format('DD/MM/YYYY')}
+                        {dayjs(selectedLeadForView.lead_date || selectedLeadForView.created_at).format(lang === 'en' ? 'MM/DD/YYYY' : 'DD/MM/YYYY')}
                       </p>
                     </div>
                   </div>
 
                   {isClosedStage(selectedLeadForView.kanban_stage) && (
                     <div className="bg-emerald-50/50 border border-emerald-500/10 rounded-2xl p-4">
-                      <span className="text-[10px] uppercase font-black text-emerald-800 block mb-1">Concluído em</span>
+                      <span className="text-[10px] uppercase font-black text-emerald-800 block mb-1">{t('Concluído em')}</span>
                       <p className="text-sm font-bold text-emerald-900">
-                        {dayjs(selectedLeadForView.closed_at || selectedLeadForView.lead_date || selectedLeadForView.created_at).format('DD/MM/YYYY')}
+                        {dayjs(selectedLeadForView.closed_at || selectedLeadForView.lead_date || selectedLeadForView.created_at).format(lang === 'en' ? 'MM/DD/YYYY' : 'DD/MM/YYYY')}
                       </p>
                     </div>
                   )}
 
                   {selectedLeadForView.kanban_stage === 'Perdido' && (
                     <div className="bg-red-50/50 border border-red-500/10 rounded-2xl p-4">
-                      <span className="text-[10px] uppercase font-black text-red-800 block mb-1">Motivo da Perda</span>
+                      <span className="text-[10px] uppercase font-black text-red-800 block mb-1">{t('Motivo da Perda')}</span>
                       <p className="text-sm font-bold text-red-900">
                         {selectedLeadForView.loss_reason || '—'}
                       </p>
@@ -1851,9 +1854,9 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
                   )}
 
                   <div className="space-y-2 border-t border-black/[0.03] pt-4">
-                    <span className="text-[10px] uppercase font-black text-gray-400 block">Observações / Informações de Histórico</span>
+                    <span className="text-[10px] uppercase font-black text-gray-400 block">{t('Observações / Informações de Histórico')}</span>
                     <div className="bg-gray-50 rounded-2xl p-4 text-xs font-medium text-gray-600 whitespace-pre-wrap leading-relaxed max-h-40 overflow-y-auto">
-                      {selectedLeadForView.notes || 'Nenhuma observação registrada.'}
+                      {selectedLeadForView.notes || t('Nenhuma observação registrada.')}
                     </div>
                   </div>
                 </>
@@ -1867,13 +1870,13 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
                   }}
                   className="px-5 py-2.5 bg-gray-100 hover:bg-gray-200 text-brand-dark rounded-xl font-bold text-xs uppercase tracking-wider transition-colors"
                 >
-                  Editar Dados
+                  {t('Editar Dados')}
                 </button>
                 <button
                   onClick={() => setIsViewModalOpen(false)}
                   className="px-5 py-2.5 bg-brand-dark text-white rounded-xl font-bold text-xs uppercase tracking-wider transition-colors"
                 >
-                  OK / Fechar
+                  {t('OK / Fechar')}
                 </button>
               </div>
             </motion.div>
@@ -1899,8 +1902,8 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
               <div className="flex items-center justify-between mb-8">
                 <h3 className="text-2xl font-bold tracking-tight">
                   {isVendaNegocio
-                    ? (editingLead ? 'Editar Interessado' : 'Novo Interessado')
-                    : (editingLead ? 'Editar Lead' : 'Novo Lead')}
+                    ? (editingLead ? t('Editar Interessado') : t('Novo Interessado'))
+                    : (editingLead ? t('Editar Lead') : t('Novo Lead'))}
                 </h3>
                 <button onClick={() => setIsModalOpen(false)} className="p-2 hover:bg-gray-100 rounded-full transition-colors">
                   <X size={20} />
@@ -1922,19 +1925,19 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
               ) : (
                 <div className="space-y-5">
                   <div>
-                    <label className="premium-label mb-2 block">Nome do Lead *</label>
+                    <label className="premium-label mb-2 block">{t('Nome do Lead *')}</label>
                     <input 
                       type="text"
                       value={formData.lead_name || ''}
                       onChange={(e) => setFormData(prev => ({ ...prev, lead_name: e.target.value }))}
                       className="w-full bg-gray-50 border border-black/[0.05] rounded-2xl p-4 text-sm font-medium focus:ring-2 focus:ring-brand-green/20 outline-none"
-                      placeholder="Ex: João Silva"
+                      placeholder={t('Ex: João Silva')}
                     />
                   </div>
 
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <label className="premium-label mb-2 block">Telefone</label>
+                      <label className="premium-label mb-2 block">{t('Telefone')}</label>
                       <input 
                         type="text"
                         value={formData.phone || ''}
@@ -1944,7 +1947,7 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
                       />
                     </div>
                     <div>
-                      <label className="premium-label mb-2 block">Data de Contato</label>
+                      <label className="premium-label mb-2 block">{t('Data de Contato')}</label>
                       <input 
                         type="date"
                         value={formData.lead_date || ''}
@@ -1956,48 +1959,48 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
 
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <label className="premium-label mb-2 block">Fonte</label>
+                      <label className="premium-label mb-2 block">{t('Fonte')}</label>
                       <select 
                         value={formData.source || LEAD_SOURCES[0]}
                         onChange={(e) => setFormData(prev => ({ ...prev, source: e.target.value }))}
                         className="w-full bg-gray-50 border border-black/[0.05] rounded-2xl p-4 text-sm font-medium focus:ring-2 focus:ring-brand-green/20 outline-none"
                       >
                         {LEAD_SOURCES.map(opt => (
-                          <option key={opt} value={opt}>{opt}</option>
+                          <option key={opt} value={opt}>{t(opt)}</option>
                         ))}
                       </select>
                     </div>
                     <div>
-                      <label className="premium-label mb-2 block">Origem (Local)</label>
+                      <label className="premium-label mb-2 block">{t('Origem (Local)')}</label>
                       <select 
                         value={formData.origin || ''}
                         onChange={(e) => setFormData(prev => ({ ...prev, origin: e.target.value }))}
                         className="w-full bg-gray-50 border border-black/[0.05] rounded-2xl p-4 text-sm font-medium focus:ring-2 focus:ring-brand-green/20 outline-none"
                       >
-                        <option value="">Selecione o estado...</option>
+                        <option value="">{t('Selecione o estado...')}</option>
                         {BRAZILIAN_STATES.map(opt => (
-                          <option key={opt} value={opt}>{opt}</option>
+                          <option key={opt} value={opt}>{t(opt)}</option>
                         ))}
                       </select>
                     </div>
                   </div>
 
                   <div>
-                    <label className="premium-label mb-2 block">Especialidade</label>
+                    <label className="premium-label mb-2 block">{t('Especialidade')}</label>
                     <select 
                       value={formData.specialty || ''}
                       onChange={(e) => setFormData(prev => ({ ...prev, specialty: e.target.value }))}
                       className="w-full bg-gray-50 border border-black/[0.05] rounded-2xl p-4 text-sm font-medium focus:ring-2 focus:ring-brand-green/20 outline-none"
                     >
-                      <option value="">Selecione...</option>
+                      <option value="">{t('Selecione...')}</option>
                       {config.specialty_options?.map(opt => (
-                        <option key={opt} value={opt}>{opt}</option>
+                        <option key={opt} value={opt}>{t(opt)}</option>
                       ))}
                     </select>
                   </div>
 
                   <div>
-                    <label className="premium-label mb-2 block">Potencial *</label>
+                    <label className="premium-label mb-2 block">{t('Potencial *')}</label>
                     <div className="grid grid-cols-3 gap-3">
                       <button 
                         type="button"
@@ -2008,7 +2011,7 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
                             : 'bg-white border-black/[0.05] text-gray-400 hover:bg-gray-50'
                         }`}
                       >
-                        🔥 Alto
+                        {t('🔥 Alto')}
                       </button>
                       <button 
                         type="button"
@@ -2019,7 +2022,7 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
                             : 'bg-white border-black/[0.05] text-gray-400 hover:bg-gray-50'
                         }`}
                       >
-                        ⚡ Médio
+                        {t('⚡ Médio')}
                       </button>
                       <button 
                         type="button"
@@ -2030,14 +2033,14 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
                             : 'bg-white border-black/[0.05] text-gray-400 hover:bg-gray-50'
                         }`}
                       >
-                        ❄️ Baixo
+                        {t('❄️ Baixo')}
                       </button>
                     </div>
                   </div>
 
                   {isClosedStage(formData.kanban_stage) && (
                     <div>
-                      <label className="premium-label mb-2 block font-black text-emerald-800">📅 Data do Contrato Fechado (De Fato)</label>
+                      <label className="premium-label mb-2 block font-black text-emerald-800">{t('📅 Data do Contrato Fechado (De Fato)')}</label>
                       <input 
                         type="date"
                         value={formData.closed_at || ''}
@@ -2048,7 +2051,7 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
                   )}
 
                   <div>
-                    <label className="premium-label mb-2 block">Observações *</label>
+                    <label className="premium-label mb-2 block">{t('Observações *')}</label>
                     <textarea 
                       value={formData.notes || ''}
                       onChange={(e) => setFormData(prev => ({ ...prev, notes: e.target.value }))}
@@ -2061,7 +2064,7 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
                     onClick={handleSaveLead}
                     className="w-full premium-button premium-button-primary py-4 mt-4"
                   >
-                    Salvar Lead
+                    {t('Salvar Lead')}
                   </button>
                 </div>
               )}
@@ -2086,7 +2089,7 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
               className="bg-white rounded-[2.5rem] p-8 w-full max-w-sm relative z-10 shadow-2xl"
             >
               <h3 className="text-xl font-bold tracking-tight mb-6">
-                {isVendaNegocio ? 'Qual o motivo de não seguir?' : 'Qual o motivo da perda?'}
+                {isVendaNegocio ? t('Qual o motivo de não seguir?') : t('Qual o motivo da perda?')}
               </h3>
               
               <select 
@@ -2095,7 +2098,7 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
                 className="w-full bg-gray-50 border border-black/[0.05] rounded-2xl p-4 text-sm font-medium focus:ring-2 focus:ring-brand-green/20 outline-none mb-6"
               >
                 {currentLossReasons.map(opt => (
-                  <option key={opt} value={opt}>{opt}</option>
+                  <option key={opt} value={opt}>{t(opt)}</option>
                 ))}
               </select>
 
@@ -2104,7 +2107,7 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
                   type="text"
                   value={customLossReason}
                   onChange={(e) => setCustomLossReason(e.target.value)}
-                  placeholder="Especifique o motivo..."
+                  placeholder={t('Especifique o motivo...')}
                   className="w-full bg-gray-50 border border-black/[0.05] rounded-2xl p-4 text-sm font-medium focus:ring-2 focus:ring-brand-green/20 outline-none mb-6"
                 />
               )}
@@ -2114,13 +2117,13 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
                   onClick={() => setIsLossModalOpen(false)}
                   className="flex-1 py-3 rounded-xl font-bold text-gray-500 hover:bg-gray-100 transition-colors"
                 >
-                  Cancelar
+                  {t('Cancelar')}
                 </button>
                 <button 
                   onClick={handleConfirmLoss}
                   className="flex-1 py-3 rounded-xl font-bold bg-red-500 text-white hover:bg-red-600 transition-colors shadow-lg shadow-red-500/20"
                 >
-                  Confirmar
+                  {t('Confirmar')}
                 </button>
               </div>
             </motion.div>
@@ -2151,16 +2154,16 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
                 <DollarSign size={32} />
               </div>
               <h3 className="text-xl font-bold tracking-tight mb-2 text-center">
-                {isVendaNegocio ? 'Registrar venda do negócio' : 'Contrato Fechado! 🎉'}
+                {isVendaNegocio ? t('Registrar venda do negócio') : t('Contrato Fechado! 🎉')}
               </h3>
               <p className="text-sm text-gray-500 mb-6 text-center">
-                {isVendaNegocio ? 'Informe os detalhes da venda do estabelecimento' : 'Informe os detalhes do fechamento'}
+                {isVendaNegocio ? t('Informe os detalhes da venda do estabelecimento') : t('Informe os detalhes do fechamento')}
               </p>
               
               <div className="space-y-4 mb-6">
                 <div>
                   <label className="text-[10px] uppercase font-bold text-gray-400 mb-1 block">
-                    {isVendaNegocio ? 'Data da venda *' : 'Data do Contrato (De Fato) *'}
+                    {isVendaNegocio ? t('Data da venda *') : t('Data do Contrato (De Fato) *')}
                   </label>
                   <input 
                     type="date"
@@ -2173,7 +2176,7 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
 
                 <div>
                   <label className="text-[10px] uppercase font-bold text-gray-400 mb-1 block">
-                    {isVendaNegocio ? 'Valor da venda' : 'Valor do Contrato'}
+                    {isVendaNegocio ? t('Valor da venda') : t('Valor do Contrato')}
                   </label>
                   <div className="relative">
                     <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 font-bold">{moneySymbol}</span>
@@ -2191,29 +2194,29 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
                 {isVendaNegocio ? (
                   <>
                     <div>
-                      <label className="text-[10px] uppercase font-bold text-gray-400 mb-1 block">Forma de pagamento</label>
+                      <label className="text-[10px] uppercase font-bold text-gray-400 mb-1 block">{t('Forma de pagamento')}</label>
                       <input 
                         type="text"
                         value={vendaPagamento}
                         onChange={(e) => setVendaPagamento(e.target.value)}
                         className="w-full bg-gray-50 border border-black/[0.05] rounded-2xl p-3 text-sm font-medium focus:ring-2 focus:ring-brand-green/20 outline-none"
-                        placeholder="Ex: À vista, Entrada de 50% + 10x..."
+                        placeholder={t('Ex: À vista, Entrada de 50% + 10x...')}
                       />
                     </div>
 
                     <div>
-                      <label className="text-[10px] uppercase font-bold text-gray-400 mb-1 block">Observações da venda</label>
+                      <label className="text-[10px] uppercase font-bold text-gray-400 mb-1 block">{t('Observações da venda')}</label>
                       <textarea 
                         value={vendaObservacoes}
                         onChange={(e) => setVendaObservacoes(e.target.value)}
                         className="w-full bg-gray-50 border border-black/[0.05] rounded-2xl p-3 text-sm font-medium focus:ring-2 focus:ring-brand-green/20 outline-none h-20 resize-none"
-                        placeholder="Condições, acordos, termos..."
+                        placeholder={t('Condições, acordos, termos...')}
                       />
                     </div>
                   </>
                 ) : (
                   <div>
-                    <label className="text-[10px] uppercase font-bold text-gray-400 mb-1 block">Motivo do Fechamento / Notas</label>
+                    <label className="text-[10px] uppercase font-bold text-gray-400 mb-1 block">{t('Motivo do Fechamento / Notas')}</label>
                     <textarea 
                       value={winNotes}
                       onChange={(e) => setWinNotes(e.target.value)}
@@ -2233,7 +2236,7 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
                   }}
                   className="flex-1 py-3 rounded-xl font-bold text-gray-500 hover:bg-gray-100 transition-colors"
                 >
-                  Cancelar
+                  {t('Cancelar')}
                 </button>
                 <button 
                   onClick={handleConfirmWin}
@@ -2242,7 +2245,7 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
                     !closedAtDate ? 'bg-gray-300 cursor-not-allowed' : 'bg-emerald-600 text-white hover:bg-emerald-700 shadow-lg shadow-emerald-500/20'
                   }`}
                 >
-                  Confirmar
+                  {t('Confirmar')}
                 </button>
               </div>
             </motion.div>
@@ -2268,21 +2271,21 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
               <div className="w-16 h-16 bg-red-50 text-red-500 rounded-full flex items-center justify-center mx-auto mb-6">
                 <AlertTriangle size={32} />
               </div>
-              <h3 className="text-xl font-bold tracking-tight mb-2">Excluir Lead?</h3>
-              <p className="text-sm text-gray-500 mb-8">Esta ação não pode ser desfeita. Tem certeza que deseja remover este lead?</p>
+              <h3 className="text-xl font-bold tracking-tight mb-2">{t('Excluir Lead?')}</h3>
+              <p className="text-sm text-gray-500 mb-8">{t('Esta ação não pode ser desfeita. Tem certeza que deseja remover este lead?')}</p>
               
               <div className="flex gap-3">
                 <button 
                   onClick={() => setIsDeleteModalOpen(false)}
                   className="flex-1 py-3 rounded-xl font-bold text-gray-500 hover:bg-gray-100 transition-colors"
                 >
-                  Cancelar
+                  {t('Cancelar')}
                 </button>
                 <button 
                   onClick={confirmDeleteLead}
                   className="flex-1 py-3 rounded-xl font-bold bg-red-500 text-white hover:bg-red-600 transition-colors shadow-lg shadow-red-500/20"
                 >
-                  Excluir
+                  {t('Excluir')}
                 </button>
               </div>
             </motion.div>
@@ -2313,12 +2316,12 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
               <div className="w-16 h-16 bg-amber-50 text-amber-500 rounded-full flex items-center justify-center mx-auto mb-6">
                 <FileText size={32} />
               </div>
-              <h3 className="text-xl font-bold tracking-tight mb-2 text-center">Proposta Enviada! 💼</h3>
-              <p className="text-sm text-gray-500 mb-6 text-center">Informe o valor estimado da proposta que foi enviada para o lead (dinheiro na mesa!).</p>
+              <h3 className="text-xl font-bold tracking-tight mb-2 text-center">{t('Proposta Enviada! 💼')}</h3>
+              <p className="text-sm text-gray-500 mb-6 text-center">{t('Informe o valor estimado da proposta que foi enviada para o lead (dinheiro na mesa!).')}</p>
               
               <div className="space-y-4 mb-6 text-left">
                 <div>
-                  <label className="text-[10px] uppercase font-bold text-gray-400 mb-1 block">Valor da Proposta</label>
+                  <label className="text-[10px] uppercase font-bold text-gray-400 mb-1 block">{t('Valor da Proposta')}</label>
                   <div className="relative">
                     <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 font-bold">{moneySymbol}</span>
                     <input 
@@ -2344,13 +2347,13 @@ export const LeadTrackerView: React.FC<LeadTrackerViewProps> = ({ clientId, conf
                   }}
                   className="flex-1 py-3 rounded-xl font-bold text-gray-500 hover:bg-gray-100 transition-colors"
                 >
-                  Cancelar
+                  {t('Cancelar')}
                 </button>
                 <button 
                   onClick={handleConfirmContractValue}
                   className="flex-1 py-3 rounded-xl font-bold bg-amber-500 text-white hover:bg-amber-600 transition-colors shadow-lg shadow-amber-500/20"
                 >
-                  Confirmar
+                  {t('Confirmar')}
                 </button>
               </div>
             </motion.div>
@@ -2387,6 +2390,7 @@ const LeadCard: React.FC<LeadCardProps & { isOverlay?: boolean }> = ({
   isVendaNegocio,
   isOverlay 
 }) => {
+  const { t, lang } = useT();
   const { symbol: moneySymbol } = useClientMoney();
   const isClosed = isVendaNegocio ? lead.kanban_stage === 'Vendido' : lead.kanban_stage === 'Fechado';
   const isLost = lead.kanban_stage === 'Perdido';
@@ -2451,7 +2455,7 @@ const LeadCard: React.FC<LeadCardProps & { isOverlay?: boolean }> = ({
 
       {/* Header */}
       <div className="pr-16 mb-3">
-        <h4 className="font-bold text-gray-800 text-sm leading-tight mb-1">{lead.lead_name || 'Sem nome'}</h4>
+        <h4 className="font-bold text-gray-800 text-sm leading-tight mb-1">{lead.lead_name || t('Sem nome')}</h4>
         {lead.phone && (
           <button 
             onClick={handlePhoneClick}
@@ -2468,7 +2472,7 @@ const LeadCard: React.FC<LeadCardProps & { isOverlay?: boolean }> = ({
         <div className="flex flex-wrap gap-1.5 mb-3">
           {lead.potential === 'alto' && (
             <span className="px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-800 text-[10px] font-bold">
-              Alto potencial
+              {t('Alto potencial')}
             </span>
           )}
           {lead.form_data?.capital && (
@@ -2489,20 +2493,20 @@ const LeadCard: React.FC<LeadCardProps & { isOverlay?: boolean }> = ({
           {lead.source && (
             <span className="px-2 py-0.5 rounded-md bg-gray-100 text-gray-600 text-[10px] font-bold flex items-center gap-1" title={lead.source}>
               {getSourceIcon(lead.source)}
-              <span>{lead.source}</span>
+              <span>{t(lead.source)}</span>
             </span>
           )}
         </div>
       ) : (
         <div className="flex flex-wrap gap-1.5 mb-3">
           {lead.potential === 'alto' && (
-            <span className="px-2 py-0.5 rounded-md bg-green-100 text-green-700 text-[10px] font-bold">🔥 Alto</span>
+            <span className="px-2 py-0.5 rounded-md bg-green-100 text-green-700 text-[10px] font-bold">{t('🔥 Alto')}</span>
           )}
           {lead.potential === 'medio' && (
-            <span className="px-2 py-0.5 rounded-md bg-yellow-100 text-yellow-800 text-[10px] font-bold">⚡ Médio</span>
+            <span className="px-2 py-0.5 rounded-md bg-yellow-100 text-yellow-800 text-[10px] font-bold">{t('⚡ Médio')}</span>
           )}
           {lead.potential === 'baixo' && (
-            <span className="px-2 py-0.5 rounded-md bg-gray-100 text-gray-600 text-[10px] font-bold">❄️ Baixo</span>
+            <span className="px-2 py-0.5 rounded-md bg-gray-100 text-gray-600 text-[10px] font-bold">{t('❄️ Baixo')}</span>
           )}
           {lead.specialty && (
             <span className="px-2 py-0.5 rounded-md bg-brand-dark/5 text-brand-dark text-[10px] font-bold truncate max-w-[120px]">
@@ -2545,7 +2549,7 @@ const LeadCard: React.FC<LeadCardProps & { isOverlay?: boolean }> = ({
           onPointerDown={e => e.stopPropagation()}
         >
           <span className="text-[10px] font-bold uppercase">
-            {isClosed ? (isVendaNegocio ? 'Valor da Venda' : 'Valor Fechado') : isLost ? 'Valor Perdido' : 'Valor Estimado'}
+            {isClosed ? (isVendaNegocio ? t('Valor da Venda') : t('Valor Fechado')) : isLost ? t('Valor Perdido') : t('Valor Estimado')}
           </span>
           <div className="flex items-center gap-1">
             <span className="text-xs font-bold">{moneySymbol}</span>
@@ -2570,16 +2574,16 @@ const LeadCard: React.FC<LeadCardProps & { isOverlay?: boolean }> = ({
       {isLost && lead.loss_reason && (
         <div className="mb-3 bg-red-50 rounded-lg p-2 border border-red-100">
           <span className="text-[10px] font-bold text-red-700 uppercase block mb-0.5">
-            {isVendaNegocio ? 'Motivo de não seguir' : 'Motivo da perda'}
+            {isVendaNegocio ? t('Motivo de não seguir') : t('Motivo da perda')}
           </span>
-          <span className="text-xs text-red-600 font-medium">{lead.loss_reason}</span>
+          <span className="text-xs text-red-600 font-medium">{t(lead.loss_reason)}</span>
         </div>
       )}
 
       {/* Footer */}
       <div className="flex items-center justify-between mt-2 pt-3 border-t border-black/[0.05]">
-        <span className="text-[10px] text-gray-400 font-medium" title="Data de Contato">
-          {dayjs(lead.lead_date || lead.created_at).format('DD/MM/YYYY')}
+        <span className="text-[10px] text-gray-400 font-medium" title={t('Data de Contato')}>
+          {dayjs(lead.lead_date || lead.created_at).format(lang === 'en' ? 'MM/DD/YYYY' : 'DD/MM/YYYY')}
         </span>
         
         <div className="relative" onPointerDown={e => e.stopPropagation()}>
@@ -2588,14 +2592,14 @@ const LeadCard: React.FC<LeadCardProps & { isOverlay?: boolean }> = ({
             value={lead.kanban_stage || ''}
             onChange={(e) => onMove(lead.id, e.target.value)}
           >
-            <option value="" disabled>Mover para...</option>
+            <option value="" disabled>{t('Mover para...')}</option>
             {stages.map(s => (
-              <option key={s} value={s}>{s}</option>
+              <option key={s} value={s}>{t(s)}</option>
             ))}
-            <option value="Perdido">Perdido</option>
+            <option value="Perdido">{t('Perdido')}</option>
           </select>
           <div className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-gray-500 hover:text-brand-dark transition-colors pointer-events-none">
-            {isVendaNegocio ? 'Mover interessado' : 'Mover para'} <ChevronDown size={12} />
+            {isVendaNegocio ? t('Mover interessado') : t('Mover para')} <ChevronDown size={12} />
           </div>
         </div>
       </div>

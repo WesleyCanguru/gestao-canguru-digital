@@ -7,8 +7,10 @@ import { Logo } from './Logo';
 import { CheckCircle2, AlertTriangle, Send, User, Loader2, XCircle, Instagram, Linkedin, MessageSquare, History } from 'lucide-react';
 import { recordPostRevision, fetchPostRevisions } from '../lib/postRevisions';
 import { PostRevisionTimeline } from './PostRevisionTimeline';
+import { applyPublicLang, useT } from '../lib/i18n';
 
 export const PublicApprovalScreen: React.FC = () => {
+  const { t } = useT();
   const [loading, setLoading] = useState(true);
   
   // States para Multi-plataforma
@@ -77,7 +79,7 @@ export const PublicApprovalScreen: React.FC = () => {
              .select('*')
              .eq('id', dbData.client_id)
              .maybeSingle();
-          if (clientData) setClient(clientData as Client);
+          if (clientData) { applyPublicLang(clientData); setClient(clientData as Client); }
 
           // Parse image_url if it's a stringified array
           const parsedImage = parseImageUrl(dbData.image_url);
@@ -276,7 +278,7 @@ export const PublicApprovalScreen: React.FC = () => {
            agency_id: primaryPost.agency_id || agencyId || 1,
            author_role: 'approver',
            author_name: name,
-           content: isThemeMode ? `✅ APROVOU o tema${hasLinked ? ' (e a versão vinculada)' : ''}.` : `✅ APROVOU a publicação${hasLinked ? ' (e a versão vinculada)' : ''}.`,
+           content: isThemeMode ? `✅ APROVOU o tema${hasLinked ? t(' (e a versão vinculada)') : ''}.` : `✅ APROVOU a publicação${hasLinked ? t(' (e a versão vinculada)') : ''}.`,
            visible_to_admin: true
         };
         const { data: insertedComment, error: commentError } = await supabase.from('comments').insert(newCommentObj).select().single();
@@ -337,7 +339,7 @@ export const PublicApprovalScreen: React.FC = () => {
             post: { ...item.post, status: approvedStatus }
         })));
         
-        setSuccessMessage(isThemeMode ? 'Tema aprovado com sucesso!' : 'Publicação aprovada com sucesso!');
+        setSuccessMessage(isThemeMode ? t('Tema aprovado com sucesso!') : 'Publicação aprovada com sucesso!');
         setPendingAction(null);
      } catch (err) {
         console.error('Erro ao aprovar:', err);
@@ -449,7 +451,7 @@ export const PublicApprovalScreen: React.FC = () => {
             post: { ...item.post, status: rejectedStatus, ...extraFields }
         })));
 
-        setSuccessMessage(isThemeMode ? 'Tema reprovado com sucesso!' : 'Publicação reprovada com sucesso!');
+        setSuccessMessage(isThemeMode ? t('Tema reprovado com sucesso!') : 'Publicação reprovada com sucesso!');
         setShowCommentBox(false);
         setComment('');
         setPendingAction(null);
@@ -564,7 +566,7 @@ export const PublicApprovalScreen: React.FC = () => {
             post: { ...item.post, status: changesStatus, ...extraFields }
         })));
 
-        setSuccessMessage(isThemeMode ? 'Tema aprovado com observação!' : 'Solicitação de ajuste enviada!');
+        setSuccessMessage(isThemeMode ? t('Tema aprovado com observação!') : 'Solicitação de ajuste enviada!');
         setShowCommentBox(false);
         setComment('');
         setPendingAction(null);
@@ -582,7 +584,7 @@ export const PublicApprovalScreen: React.FC = () => {
   if (error || !primaryContent || !primaryPost) return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 text-brand-dark p-6 text-center">
           <XCircle size={48} className="text-red-400 mb-4" />
-          <h2 className="text-xl font-bold mb-2">Link Indisponível</h2>
+          <h2 className="text-xl font-bold mb-2">{t('Link Indisponível')}</h2>
           <p className="text-gray-500">{error}</p>
       </div>
   );
@@ -621,18 +623,18 @@ export const PublicApprovalScreen: React.FC = () => {
 
   const getStatusLabel = (s?: string) => {
     const map: Record<string, string> = {
-        'theme_pending': 'Tema para Aprovação',
-        'theme_approved': 'Tema Aprovado',
-        'theme_approved_with_notes': 'Tema Aprovado (Obs)',
-        'theme_rejected': 'Tema Reprovado',
-        'draft': 'Em Produção',
-        'pending_approval': 'Esperando Aprovação',
-        'changes_requested': 'Ajustes Solicitados',
-        'rejected': 'Reprovado',
-        'internal_review': 'Discussão Interna',
-        'approved': 'Aprovado',
-        'scheduled': 'Programado',
-        'published': 'Publicado'
+        'theme_pending': t('Tema para Aprovação'),
+        'theme_approved': t('Tema Aprovado'),
+        'theme_approved_with_notes': t('Tema Aprovado (Obs)'),
+        'theme_rejected': t('Tema Reprovado'),
+        'draft': t('Em Produção'),
+        'pending_approval': t('Esperando Aprovação'),
+        'changes_requested': t('Ajustes Solicitados'),
+        'rejected': t('Reprovado'),
+        'internal_review': t('Discussão Interna'),
+        'approved': t('Aprovado'),
+        'scheduled': t('Programado'),
+        'published': t('Publicado')
     };
     return map[s || 'draft'] || s;
   };
@@ -653,12 +655,12 @@ export const PublicApprovalScreen: React.FC = () => {
                 )}
                 <div className="h-6 w-px bg-gray-100 hidden sm:block"></div>
                 <div className="flex items-center gap-2 opacity-40 hover:opacity-100 transition-opacity duration-500">
-                   <span className="text-[7px] uppercase tracking-[0.3em] text-gray-400 font-bold hidden lg:block">Strategy by</span>
+                   <span className="text-[7px] uppercase tracking-[0.3em] text-gray-400 font-bold hidden lg:block">{t('Strategy by')}</span>
                    <Logo size="small" />
                 </div>
              </div>
              <div className="text-right">
-                <span className="block text-[10px] text-gray-400 uppercase tracking-widest font-bold">Ambiente de Aprovação</span>
+                <span className="block text-[10px] text-gray-400 uppercase tracking-widest font-bold">{t('Ambiente de Aprovação')}</span>
                 {userName && <span className="text-xs font-bold text-blue-600">Olá, {userName}</span>}
              </div>
           </div>
@@ -674,7 +676,7 @@ export const PublicApprovalScreen: React.FC = () => {
                   {typeof lightboxImage === 'string' && lightboxImage.match(/\.(mp4|webm|ogg)$/i) ? (
                       <video src={lightboxImage} controls className="w-full h-full object-contain rounded-lg shadow-2xl" onClick={(e) => e.stopPropagation()} />
                   ) : (
-                      <img src={lightboxImage as string} alt="Full size" className="w-full h-full object-contain rounded-lg shadow-2xl" onClick={(e) => e.stopPropagation()} />
+                      <img src={lightboxImage as string} alt={t('Full size')} className="w-full h-full object-contain rounded-lg shadow-2xl" onClick={(e) => e.stopPropagation()} />
                   )}
               </div>
           )}
@@ -686,7 +688,7 @@ export const PublicApprovalScreen: React.FC = () => {
                      <div className="w-24 h-24 bg-green-100 rounded-full flex items-center justify-center mb-8 shadow-2xl shadow-green-200/50">
                          <CheckCircle2 size={48} className="text-green-600" />
                      </div>
-                     <h2 className="text-4xl font-bold text-gray-900 tracking-tighter mb-4">Concluído!</h2>
+                     <h2 className="text-4xl font-bold text-gray-900 tracking-tighter mb-4">{t('Concluído!')}</h2>
                      <p className="text-lg text-gray-500 font-medium mb-12 px-8 leading-relaxed">
                         {successMessage}
                      </p>
@@ -694,7 +696,7 @@ export const PublicApprovalScreen: React.FC = () => {
                        onClick={() => setSuccessMessage('')}
                        className="px-8 py-4 bg-brand-dark hover:bg-black text-white rounded-2xl font-bold uppercase tracking-[0.2em] text-[11px] transition-all shadow-xl shadow-brand-dark/20 flex items-center gap-3"
                      >
-                        Voltar para Publicação
+                        {t('Voltar para Publicação')}
                      </button>
                  </div>
              </div>
@@ -740,7 +742,7 @@ export const PublicApprovalScreen: React.FC = () => {
                               <div className="w-16 h-16 bg-white/10 flex items-center justify-center rounded-2xl mx-auto mb-6 border border-white/20">
                                   <AlertTriangle className="text-[#5DCAA5] w-8 h-8" />
                               </div>
-                              <h3 className="text-xs uppercase tracking-[0.2em] font-bold text-gray-400 mb-2">Proposta de Tema</h3>
+                              <h3 className="text-xs uppercase tracking-[0.2em] font-bold text-gray-400 mb-2">{t('Proposta de Tema')}</h3>
                               <h4 className="font-serif text-2xl text-white mb-6 leading-tight">{safePost.theme || 'Sem tema definido'}</h4>
                               <div className="bg-white/5 p-5 rounded-2xl text-left border border-white/10 shadow-inner">
                                   <p className="text-sm text-gray-300 leading-relaxed whitespace-pre-wrap">{safePost.bullets?.join('\n') || 'Nenhuma descrição fornecida.'}</p>
@@ -749,7 +751,7 @@ export const PublicApprovalScreen: React.FC = () => {
                       ) : (
                           <>
                               <div className="absolute top-2 right-2 z-10 opacity-0 group-hover:opacity-100 transition-opacity bg-black/50 text-white text-xs px-2 py-1 rounded pointer-events-none">
-                                 Clique para ampliar
+                                 {t('Clique para ampliar')}
                               </div>
                               {activeTab === 'linkedin' ? (
                                  <LinkedInView 
@@ -812,12 +814,12 @@ export const PublicApprovalScreen: React.FC = () => {
                       {hasMultiple ? (
                           <div className="mb-6 p-3 bg-blue-50 border border-blue-100 rounded-lg text-xs text-blue-700 font-medium text-center flex items-center justify-center gap-2">
                               <CheckCircle2 size={14} />
-                              Esta aprovação se aplica a todas as versões vinculadas da publicação.
+                              {t('Esta aprovação se aplica a todas as versões vinculadas da publicação.')}
                           </div>
                       ) : (
                           <div className={`mb-6 p-3 border rounded-lg text-xs font-bold text-center flex items-center justify-center gap-2 ${primaryContent.platform === 'meta' ? 'bg-purple-50 border-purple-100 text-purple-700' : (primaryContent.platform === 'tiktok' ? 'bg-black text-white border-black' : 'bg-blue-50 border-blue-100 text-blue-700')}`}>
                               <CheckCircle2 size={14} />
-                              {primaryContent.platform === 'meta' ? 'Publicação exclusiva do Instagram' : (primaryContent.platform === 'tiktok' ? 'Publicação exclusiva do TikTok' : 'Publicação exclusiva do LinkedIn')}
+                              {primaryContent.platform === 'meta' ? t('Publicação exclusiva do Instagram') : (primaryContent.platform === 'tiktok' ? t('Publicação exclusiva do TikTok') : 'Publicação exclusiva do LinkedIn')}
                           </div>
                       )}
 
@@ -876,7 +878,7 @@ export const PublicApprovalScreen: React.FC = () => {
                       {/* Name Prompt */}
                       {showNamePrompt && (
                          <div className="animate-in fade-in slide-in-from-bottom-2">
-                            <label className="block text-sm font-bold text-gray-700 mb-2">Para continuar, qual seu nome?</label>
+                            <label className="block text-sm font-bold text-gray-700 mb-2">{t('Para continuar, qual seu nome?')}</label>
                             <input 
                               autoFocus
                               type="text" 
@@ -886,8 +888,8 @@ export const PublicApprovalScreen: React.FC = () => {
                               className="w-full p-3 border border-gray-300 rounded-lg mb-4 focus:ring-2 focus:ring-blue-500 outline-none"
                             />
                             <div className="flex gap-2">
-                               <button onClick={handleNameSubmit} disabled={!userName.trim()} className="flex-1 bg-blue-600 text-white py-2 rounded-lg font-bold disabled:opacity-50">Continuar</button>
-                               <button onClick={() => setShowNamePrompt(false)} className="px-4 text-gray-500">Cancelar</button>
+                               <button onClick={handleNameSubmit} disabled={!userName.trim()} className="flex-1 bg-blue-600 text-white py-2 rounded-lg font-bold disabled:opacity-50">{t('Continuar')}</button>
+                               <button onClick={() => setShowNamePrompt(false)} className="px-4 text-gray-500">{t('Cancelar')}</button>
                             </div>
                          </div>
                       )}
@@ -896,7 +898,7 @@ export const PublicApprovalScreen: React.FC = () => {
                       {showCommentBox && (
                          <div className="animate-in fade-in slide-in-from-bottom-2">
                             <label className="block text-sm font-bold text-gray-700 mb-2">
-                                {pendingAction === 'reject' ? 'Qual a justificativa da reprovação?' : 'O que precisa ser ajustado?'}
+                                {pendingAction === 'reject' ? t('Qual a justificativa da reprovação?') : t('O que precisa ser ajustado?')}
                             </label>
                             <textarea 
                               autoFocus
@@ -912,9 +914,9 @@ export const PublicApprovalScreen: React.FC = () => {
                                  className={`flex-1 text-white py-2 rounded-lg font-bold disabled:opacity-50 flex items-center justify-center gap-2 ${pendingAction === 'reject' ? 'bg-red-600' : 'bg-orange-600'}`}
                                >
                                   {submitting ? <Loader2 className="animate-spin" size={16} /> : <Send size={16} />}
-                                  {pendingAction === 'reject' ? 'Enviar Reprovação' : 'Enviar Solicitação'}
+                                  {pendingAction === 'reject' ? t('Enviar Reprovação') : t('Enviar Solicitação')}
                                </button>
-                               <button onClick={() => setShowCommentBox(false)} disabled={submitting} className="px-4 text-gray-500 font-medium">Cancelar</button>
+                               <button onClick={() => setShowCommentBox(false)} disabled={submitting} className="px-4 text-gray-500 font-medium">{t('Cancelar')}</button>
                             </div>
                          </div>
                       )}
@@ -960,7 +962,7 @@ export const PublicApprovalScreen: React.FC = () => {
 
                    <p className="text-xs text-gray-400 text-center leading-relaxed">
                       Ao aprovar, a publicação será marcada como pronta.<br/>
-                      Ao solicitar ajustes, a equipe será notificada.
+                      {t('Ao solicitar ajustes, a equipe será notificada.')}
                    </p>
                 </div>
              </div>

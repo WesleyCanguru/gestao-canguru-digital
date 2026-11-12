@@ -1,5 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
+import { useT } from '../lib/i18n';
 import { useOnboardingPending } from '../lib/onboardingPending';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
@@ -88,6 +89,7 @@ export const Navigation: React.FC<SidebarProps> = ({
   const [availableClients, setAvailableClients] = useState<Client[]>([]);
   const [hasCredentials, setHasCredentials] = useState<boolean>(false);
   const { userRole, logout, agencyId, agencyName, agencies, switchAgency, can, viewAsClient } = useAuth();
+  const { t } = useT();
   const [isAgencyDropdownOpen, setIsAgencyDropdownOpen] = useState(false);
   const currentAgency = agencies.find(a => a.agency_id === agencyId) || null;
   const onboardingPending = useOnboardingPending(agencyId, view === 'agency' && userRole === 'admin');
@@ -239,7 +241,7 @@ export const Navigation: React.FC<SidebarProps> = ({
         
         return {
           ...item,
-          label: shouldShowHiddenTag ? `${item.label} (Oculto)` : item.label,
+          label: shouldShowHiddenTag ? `${t(item.label)} (Oculto)` : t(item.label),
           isInactive: isHiddenForClient && !forceShowAsActive
         };
       });
@@ -354,7 +356,7 @@ export const Navigation: React.FC<SidebarProps> = ({
         {!isCollapsed && (
           <div className="flex flex-col">
             <span className="text-[10px] uppercase tracking-[0.3em] text-gray-400 font-bold whitespace-nowrap">
-              {view === 'agency' ? 'Painel Interno' : userRole === 'admin' ? 'Explorando Cliente' : 'Painel do Cliente'}
+              {view === 'agency' ? 'Painel Interno' : userRole === 'admin' ? 'Explorando Cliente' : t('Painel do Cliente')}
             </span>
             {view === 'agency' && agencies.length > 1 ? (
               <div className="relative">
@@ -556,10 +558,10 @@ export const Navigation: React.FC<SidebarProps> = ({
             w-full flex items-center gap-3 p-3 rounded-2xl text-red-400 hover:bg-red-50 transition-all
             ${isCollapsed ? 'justify-center' : ''}
           `}
-          title="Sair"
+          title={t('Sair')}
         >
           <LogOut size={18} />
-          {!isCollapsed && <span className="text-[10px] font-bold uppercase tracking-widest">Sair</span>}
+          {!isCollapsed && <span className="text-[10px] font-bold uppercase tracking-widest">{t('Sair')}</span>}
         </button>
       </div>
     </div>

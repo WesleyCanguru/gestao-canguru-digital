@@ -1,4 +1,5 @@
 import React from 'react';
+import { useT, fmtMoney } from '../../lib/i18n';
 import { formatCurrency } from '../../lib/currencyUtils';
 import { AlertTriangle, CheckCircle, Flame } from 'lucide-react';
 
@@ -27,12 +28,13 @@ export const MediaBudgetProgressBar: React.FC<MediaBudgetProgressBarProps> = ({
   compact = false,
   currency = 'BRL',
 }) => {
-  const fmt = (v: number) => formatCurrency(v, currency);
+  const { t, locale } = useT();
+  const fmt = (v: number) => fmtMoney(v, currency, locale);
   if (budgetAmount <= 0) {
     return (
       <div className="bg-stone-50 border border-stone-200/60 rounded-2xl p-3.5 text-xs text-stone-500 flex items-center justify-between">
-        <span className="font-semibold text-stone-600">{platformLabel} — Verba não configurada</span>
-        <span className="text-[11px] font-mono font-semibold">Investido no mês: {fmt(investedAmount)}</span>
+        <span className="font-semibold text-stone-600">{platformLabel} — {t('Verba não configurada')}</span>
+        <span className="text-[11px] font-mono font-semibold">{t('Investido no mês:')} {fmt(investedAmount)}</span>
       </div>
     );
   }
@@ -64,12 +66,12 @@ export const MediaBudgetProgressBar: React.FC<MediaBudgetProgressBarProps> = ({
             {platformLabel}
           </span>
           <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full border ${badgeBg}`}>
-            {isOverBudget ? 'VERBA ESTOURADA' : `${percentage}% Consumido`}
+            {isOverBudget ? t('VERBA ESTOURADA') : t('{p}% Consumido', { p: percentage })}
           </span>
         </div>
 
         <div className="text-xs font-bold text-stone-700 font-mono">
-          Investido: <span className="text-[#13284D]">{fmt(investedAmount)}</span> de{' '}
+          {t('Investido:')} <span className="text-[#13284D]">{fmt(investedAmount)}</span> {t('de')}{' '}
           <span className="text-stone-500">{fmt(budgetAmount)}</span>
         </div>
       </div>
@@ -87,7 +89,7 @@ export const MediaBudgetProgressBar: React.FC<MediaBudgetProgressBarProps> = ({
         {isOverBudget ? (
           <div className="flex items-center gap-1.5 text-rose-600 font-bold">
             <Flame size={14} className="shrink-0" />
-            <span>Verba estourada em {fmt(exceededAmount)} ({percentage}%)</span>
+            <span>{t('Verba estourada em {v} ({p}%)', { v: fmt(exceededAmount), p: percentage })}</span>
           </div>
         ) : (
           <div className="flex items-center gap-1.5 text-stone-600">
@@ -97,7 +99,7 @@ export const MediaBudgetProgressBar: React.FC<MediaBudgetProgressBarProps> = ({
               <CheckCircle size={14} className="text-emerald-500 shrink-0" />
             )}
             <span>
-              {percentage}% — Restam <strong className="text-stone-800 font-mono">{fmt(remainingAmount)}</strong>
+              {percentage}% — {t('Restam')} <strong className="text-stone-800 font-mono">{fmt(remainingAmount)}</strong>
             </span>
           </div>
         )}

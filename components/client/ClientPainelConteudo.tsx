@@ -52,6 +52,7 @@ import {
 } from 'recharts';
 import dayjs from 'dayjs';
 import 'dayjs/locale/pt-br';
+import { useT } from '../../lib/i18n';
 
 dayjs.locale('pt-br');
 
@@ -121,6 +122,7 @@ export const ClientPainelConteudo: React.FC<ClientPainelConteudoProps> = ({
   subtitleOverride,
   isNossoConteudo
 }) => {
+  const { t } = useT();
   const { activeClient: authActiveClient, userRole } = useAuth();
   const activeClient = overrideClient !== undefined ? overrideClient : authActiveClient;
   const { monthlyPlans } = useEditorialData(activeClient?.id);
@@ -330,7 +332,7 @@ export const ClientPainelConteudo: React.FC<ClientPainelConteudoProps> = ({
       monthsToInclude.push({
         year: now.year(),
         month: now.month() + 1,
-        label: `${MONTH_SHORT_NAMES[now.month()]}/${String(now.year()).slice(2)}`
+        label: `${t(MONTH_SHORT_NAMES[now.month()])}/${String(now.year()).slice(2)}`
       });
     } else if (dashboardPeriod === 'ultimos_2_meses') {
       startDate = now.subtract(1, 'month').startOf('month');
@@ -340,12 +342,12 @@ export const ClientPainelConteudo: React.FC<ClientPainelConteudoProps> = ({
       monthsToInclude.push({
         year: m1.year(),
         month: m1.month() + 1,
-        label: `${MONTH_SHORT_NAMES[m1.month()]}/${String(m1.year()).slice(2)}`
+        label: `${t(MONTH_SHORT_NAMES[m1.month()])}/${String(m1.year()).slice(2)}`
       });
       monthsToInclude.push({
         year: now.year(),
         month: now.month() + 1,
-        label: `${MONTH_SHORT_NAMES[now.month()]}/${String(now.year()).slice(2)}`
+        label: `${t(MONTH_SHORT_NAMES[now.month()])}/${String(now.year()).slice(2)}`
       });
     } else if (dashboardPeriod === 'ultimos_3_meses') {
       startDate = now.subtract(2, 'month').startOf('month');
@@ -356,7 +358,7 @@ export const ClientPainelConteudo: React.FC<ClientPainelConteudoProps> = ({
         monthsToInclude.push({
           year: m.year(),
           month: m.month() + 1,
-          label: `${MONTH_SHORT_NAMES[m.month()]}/${String(m.year()).slice(2)}`
+          label: `${t(MONTH_SHORT_NAMES[m.month()])}/${String(m.year()).slice(2)}`
         });
       }
     } else if (dashboardPeriod === 'este_ano') {
@@ -367,7 +369,7 @@ export const ClientPainelConteudo: React.FC<ClientPainelConteudoProps> = ({
         monthsToInclude.push({
           year: now.year(),
           month: m,
-          label: MONTH_SHORT_NAMES[m - 1]
+          label: t(MONTH_SHORT_NAMES[m - 1])
         });
       }
     } else {
@@ -394,7 +396,7 @@ export const ClientPainelConteudo: React.FC<ClientPainelConteudoProps> = ({
         monthsToInclude.push({
           year: curr.year(),
           month: curr.month() + 1,
-          label: `${MONTH_SHORT_NAMES[curr.month()]}/${String(curr.year()).slice(2)}`
+          label: `${t(MONTH_SHORT_NAMES[curr.month()])}/${String(curr.year()).slice(2)}`
         });
         curr = curr.add(1, 'month');
       }
@@ -693,7 +695,7 @@ export const ClientPainelConteudo: React.FC<ClientPainelConteudoProps> = ({
     switch (status) {
       case 'published':
         return {
-          label: 'Publicado',
+          label: t('Publicado'),
           badgeClass: 'bg-emerald-50 text-emerald-700 border-emerald-200/60',
           dotClass: 'bg-emerald-500'
         };
@@ -701,33 +703,33 @@ export const ClientPainelConteudo: React.FC<ClientPainelConteudoProps> = ({
       case 'theme_approved':
       case 'scheduled':
         return {
-          label: status === 'scheduled' ? 'Agendado' : 'Aprovado',
+          label: status === 'scheduled' ? t('Agendado') : t('Aprovado'),
           badgeClass: 'bg-blue-50 text-blue-700 border-blue-200/60',
           dotClass: 'bg-blue-500'
         };
       case 'pending_approval':
       case 'theme_pending':
         return {
-          label: 'Aguardando Aprovação',
+          label: t('Aguardando Aprovação'),
           badgeClass: 'bg-amber-50 text-amber-800 border-amber-200/60',
           dotClass: 'bg-amber-500 animate-pulse'
         };
       case 'changes_requested':
         return {
-          label: 'Alteração Solicitada',
+          label: t('Alteração Solicitada'),
           badgeClass: 'bg-orange-50 text-orange-800 border-orange-200/60',
           dotClass: 'bg-orange-500'
         };
       case 'rejected':
       case 'theme_rejected':
         return {
-          label: 'Reprovado',
+          label: t('Reprovado'),
           badgeClass: 'bg-rose-50 text-rose-700 border-rose-200/60',
           dotClass: 'bg-rose-500'
         };
       default:
         return {
-          label: 'Rascunho',
+          label: t('Rascunho'),
           badgeClass: 'bg-stone-50 text-stone-600 border-stone-200/60',
           dotClass: 'bg-stone-400'
         };
@@ -795,7 +797,7 @@ export const ClientPainelConteudo: React.FC<ClientPainelConteudoProps> = ({
             <span className="truncate">{data.name}</span>
           </div>
           <div className="flex items-center justify-between gap-3 font-mono pt-0.5">
-            <span className="text-stone-400 text-xs font-sans">Volume:</span>
+            <span className="text-stone-400 text-xs font-sans">{t('Volume:')}</span>
             <span className="text-emerald-400 font-bold">{data.value} {data.value === 1 ? 'post' : 'posts'} <span className="text-stone-400 font-normal">({pct}%)</span></span>
           </div>
         </div>
@@ -811,11 +813,11 @@ export const ClientPainelConteudo: React.FC<ClientPainelConteudoProps> = ({
         <div className="bg-stone-900 text-white p-3.5 rounded-2xl shadow-xl border border-stone-800 text-xs min-w-[160px] space-y-1.5">
           <div className="font-bold text-stone-300 text-xs border-b border-stone-800 pb-1 flex items-center justify-between">
             <span>{label}</span>
-            <span className="text-[10px] text-emerald-400 uppercase tracking-widest font-mono font-bold">Volume</span>
+            <span className="text-[10px] text-emerald-400 uppercase tracking-widest font-mono font-bold">{t('Volume')}</span>
           </div>
           <div className="flex items-center justify-between gap-4 font-mono pt-0.5">
-            <span className="text-stone-400 text-xs font-sans">Total planejado:</span>
-            <span className="text-emerald-400 font-bold text-sm">{count} {count === 1 ? 'publicação' : 'publicações'}</span>
+            <span className="text-stone-400 text-xs font-sans">{t('Total planejado:')}</span>
+            <span className="text-emerald-400 font-bold text-sm">{count} {count === 1 ? t('publicação') : t('publicações')}</span>
           </div>
         </div>
       );
@@ -824,21 +826,21 @@ export const ClientPainelConteudo: React.FC<ClientPainelConteudoProps> = ({
   };
 
   const clientStatusDropdownOptions: CustomDropdownOption[] = useMemo(() => [
-    { value: 'all', label: 'Todos os status', icon: <Filter size={14} className="text-stone-400" /> },
-    { value: 'pending_approval', label: 'Aguardando Aprovação', badgeColor: '#F59E0B' },
-    { value: 'changes_requested', label: 'Alteração Solicitada', badgeColor: '#EA580C' },
+    { value: 'all', label: t('Todos os status'), icon: <Filter size={14} className="text-stone-400" /> },
+    { value: 'pending_approval', label: t('Aguardando Aprovação'), badgeColor: '#F59E0B' },
+    { value: 'changes_requested', label: t('Alteração Solicitada'), badgeColor: '#EA580C' },
     { value: 'approved', label: 'Aprovado / Agendado', badgeColor: '#3B82F6' },
-    { value: 'published', label: 'Publicado', badgeColor: '#10B981' },
-    { value: 'draft', label: 'Rascunho', badgeColor: '#9CA3AF' },
-    { value: 'rejected', label: 'Reprovado', badgeColor: '#EF4444' },
+    { value: 'published', label: t('Publicado'), badgeColor: '#10B981' },
+    { value: 'draft', label: t('Rascunho'), badgeColor: '#9CA3AF' },
+    { value: 'rejected', label: t('Reprovado'), badgeColor: '#EF4444' },
   ], []);
 
   const clientPeriodDropdownOptions: CustomDropdownOption[] = useMemo(() => [
-    { value: 'esta_semana', label: 'Esta semana', icon: <CalendarIcon size={14} className="text-stone-400" /> },
-    { value: 'este_mes', label: 'Este mês', icon: <CalendarIcon size={14} className="text-stone-400" /> },
-    { value: 'ultimos_30', label: 'Últimos 30 dias', icon: <CalendarIcon size={14} className="text-stone-400" /> },
-    { value: 'este_ano', label: 'Este ano', icon: <CalendarIcon size={14} className="text-stone-400" /> },
-    { value: 'todos', label: 'Todo o período', icon: <CalendarIcon size={14} className="text-stone-400" /> },
+    { value: 'esta_semana', label: t('Esta semana'), icon: <CalendarIcon size={14} className="text-stone-400" /> },
+    { value: 'este_mes', label: t('Este mês'), icon: <CalendarIcon size={14} className="text-stone-400" /> },
+    { value: 'ultimos_30', label: t('Últimos 30 dias'), icon: <CalendarIcon size={14} className="text-stone-400" /> },
+    { value: 'este_ano', label: t('Este ano'), icon: <CalendarIcon size={14} className="text-stone-400" /> },
+    { value: 'todos', label: t('Todo o período'), icon: <CalendarIcon size={14} className="text-stone-400" /> },
   ], []);
 
   if (showGate) {
@@ -861,7 +863,7 @@ export const ClientPainelConteudo: React.FC<ClientPainelConteudoProps> = ({
     return (
       <div className="py-20 text-center text-stone-400 flex flex-col items-center justify-center">
         <RefreshCw size={28} className="animate-spin text-brand-dark mb-3" />
-        <p className="text-sm font-medium">Carregando painel de conteúdo...</p>
+        <p className="text-sm font-medium">{t('Carregando painel de conteúdo...')}</p>
       </div>
     );
   }
@@ -898,7 +900,7 @@ export const ClientPainelConteudo: React.FC<ClientPainelConteudoProps> = ({
             }`}
           >
             <BarChart3 size={15} className={activeTab === 'dashboard' ? 'text-emerald-600' : 'text-stone-400'} />
-            <span>Dashboard</span>
+            <span>{t('Dashboard')}</span>
           </button>
 
           <button
@@ -910,7 +912,7 @@ export const ClientPainelConteudo: React.FC<ClientPainelConteudoProps> = ({
             }`}
           >
             <ListFilter size={15} className={activeTab === 'publicacoes' ? 'text-emerald-600' : 'text-stone-400'} />
-            <span>Publicações</span>
+            <span>{t('Publicações')}</span>
             {posts.length > 0 && (
               <span className="text-[10px] bg-stone-100 text-stone-600 px-1.5 py-0.5 rounded-md font-mono">
                 {posts.length}
@@ -927,7 +929,7 @@ export const ClientPainelConteudo: React.FC<ClientPainelConteudoProps> = ({
             }`}
           >
             <CalendarIcon size={15} className={activeTab === 'mapa' ? 'text-emerald-400' : 'text-emerald-600'} />
-            <span className="font-extrabold tracking-wide">Mapa Editorial</span>
+            <span className="font-extrabold tracking-wide">{t('Mapa Editorial')}</span>
           </button>
         </div>
       </div>
@@ -948,16 +950,16 @@ export const ClientPainelConteudo: React.FC<ClientPainelConteudoProps> = ({
           <div className="bg-white rounded-2xl p-3 sm:p-4 border border-stone-200/70 shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
             <div className="flex items-center gap-2 text-xs font-bold text-stone-700">
               <Filter size={14} className="text-emerald-600" />
-              <span>Filtrar período do Dashboard:</span>
+              <span>{t('Filtrar período do Dashboard:')}</span>
             </div>
 
             <div className="flex items-center gap-1.5 overflow-x-auto w-full sm:w-auto pb-1 sm:pb-0">
               {[
-                { id: 'este_mes', label: 'Este mês' },
-                { id: 'ultimos_2_meses', label: 'Últimos 2 meses' },
-                { id: 'ultimos_3_meses', label: 'Últimos 3 meses' },
-                { id: 'este_ano', label: 'Este ano' },
-                { id: 'todo_periodo', label: 'Todo o período' }
+                { id: 'este_mes', label: t('Este mês') },
+                { id: 'ultimos_2_meses', label: t('Últimos 2 meses') },
+                { id: 'ultimos_3_meses', label: t('Últimos 3 meses') },
+                { id: 'este_ano', label: t('Este ano') },
+                { id: 'todo_periodo', label: t('Todo o período') }
               ].map((p) => (
                 <button
                   key={p.id}
@@ -968,7 +970,7 @@ export const ClientPainelConteudo: React.FC<ClientPainelConteudoProps> = ({
                       : 'bg-stone-50 hover:bg-stone-100 text-stone-600 border border-stone-200/60'
                   }`}
                 >
-                  {p.label}
+                  {t(p.label)}
                 </button>
               ))}
             </div>
@@ -988,7 +990,7 @@ export const ClientPainelConteudo: React.FC<ClientPainelConteudoProps> = ({
             >
               <div className="flex items-center justify-between mb-3">
                 <span className="text-xs font-bold text-emerald-800 uppercase tracking-wider">
-                  Total no período
+                  {t('Total no período')}
                 </span>
                 <div className="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center group-hover:scale-110 transition-transform">
                   <Layers size={18} />
@@ -1012,7 +1014,7 @@ export const ClientPainelConteudo: React.FC<ClientPainelConteudoProps> = ({
             >
               <div className="flex items-center justify-between mb-3">
                 <span className="text-xs font-bold text-blue-800 uppercase tracking-wider">
-                  Publicados
+                  {t('Publicados')}
                 </span>
                 <div className="w-9 h-9 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center group-hover:scale-110 transition-transform">
                   <CheckCircle2 size={18} />
@@ -1022,7 +1024,7 @@ export const ClientPainelConteudo: React.FC<ClientPainelConteudoProps> = ({
                 {loading ? '...' : dashboardSummary.publicadosNoPeriodo}
               </div>
               <p className="text-[11px] text-stone-400 font-medium mt-1">
-                Postados no período selecionado
+                {t('Postados no período selecionado')}
               </p>
             </div>
 
@@ -1036,7 +1038,7 @@ export const ClientPainelConteudo: React.FC<ClientPainelConteudoProps> = ({
             >
               <div className="flex items-center justify-between mb-3">
                 <span className="text-xs font-bold text-amber-800 uppercase tracking-wider">
-                  Aguardando aprovação
+                  {t('Aguardando aprovação')}
                 </span>
                 <div className="w-9 h-9 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center group-hover:scale-110 transition-transform">
                   <Clock size={18} />
@@ -1046,7 +1048,7 @@ export const ClientPainelConteudo: React.FC<ClientPainelConteudoProps> = ({
                 {loading ? '...' : dashboardSummary.totalAguardandoAprovacao}
               </div>
               <p className="text-[11px] text-stone-400 font-medium mt-1 flex items-center gap-1">
-                <span>Pendentes de sua avaliação</span>
+                <span>{t('Pendentes de sua avaliação')}</span>
                 {dashboardSummary.totalAguardandoAprovacao > 0 && (
                   <span className="inline-block w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>
                 )}
@@ -1063,7 +1065,7 @@ export const ClientPainelConteudo: React.FC<ClientPainelConteudoProps> = ({
             >
               <div className="flex items-center justify-between mb-3">
                 <span className="text-xs font-bold text-orange-800 uppercase tracking-wider">
-                  Alteração solicitada
+                  {t('Alteração solicitada')}
                 </span>
                 <div className="w-9 h-9 rounded-xl bg-orange-50 text-orange-600 flex items-center justify-center group-hover:scale-110 transition-transform">
                   <Edit3 size={18} />
@@ -1073,7 +1075,7 @@ export const ClientPainelConteudo: React.FC<ClientPainelConteudoProps> = ({
                 {loading ? '...' : dashboardSummary.totalAlteracaoSolicitada}
               </div>
               <p className="text-[11px] text-stone-400 font-medium mt-1">
-                Em ajuste pela agência
+                {t('Em ajuste pela agência')}
               </p>
             </div>
 
@@ -1087,16 +1089,16 @@ export const ClientPainelConteudo: React.FC<ClientPainelConteudoProps> = ({
               <div className="flex items-center justify-between mb-6">
                 <div>
                   <h3 className="text-base sm:text-lg font-bold text-brand-dark tracking-tight">
-                    Publicações por Mês
+                    {t('Publicações por Mês')}
                   </h3>
                   <p className="text-xs text-stone-400 font-medium">
                     Distribuição mensal por status ({filteredPeriodLabel})
                   </p>
                 </div>
                 <div className="hidden sm:flex items-center gap-3 text-[11px] font-medium text-stone-500">
-                  <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>Publicado</span>
-                  <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-blue-500"></span>Aprovado</span>
-                  <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-amber-500"></span>Aguardando</span>
+                  <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>{t('Publicado')}</span>
+                  <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-blue-500"></span>{t('Aprovado')}</span>
+                  <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-amber-500"></span>{t('Aguardando')}</span>
                 </div>
               </div>
 
@@ -1122,10 +1124,10 @@ export const ClientPainelConteudo: React.FC<ClientPainelConteudoProps> = ({
                 <div className="flex items-center justify-between mb-4">
                   <div>
                     <h3 className="text-base sm:text-lg font-bold text-brand-dark tracking-tight">
-                      Mix de Formatos
+                      {t('Mix de Formatos')}
                     </h3>
                     <p className="text-xs text-stone-400 font-medium">
-                      Tipos de conteúdo mais produzidos no período
+                      {t('Tipos de conteúdo mais produzidos no período')}
                     </p>
                   </div>
                   <div className="w-8 h-8 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center">
@@ -1135,7 +1137,7 @@ export const ClientPainelConteudo: React.FC<ClientPainelConteudoProps> = ({
 
                 {typePieData.length === 0 ? (
                   <div className="h-[220px] flex flex-col items-center justify-center text-center text-stone-400 text-xs">
-                    <p>Nenhuma publicação encontrada no período.</p>
+                    <p>{t('Nenhuma publicação encontrada no período.')}</p>
                   </div>
                 ) : (
                   <div className="h-[200px] w-full">
@@ -1189,15 +1191,15 @@ export const ClientPainelConteudo: React.FC<ClientPainelConteudoProps> = ({
             <div className="flex items-center justify-between mb-6">
               <div>
                 <h3 className="text-base sm:text-lg font-bold text-brand-dark tracking-tight">
-                  Evolução do Volume de Conteúdo
+                  {t('Evolução do Volume de Conteúdo')}
                 </h3>
                 <p className="text-xs text-stone-400 font-medium">
-                  Tendência de postagens planejadas ao longo do período selecionado
+                  {t('Tendência de postagens planejadas ao longo do período selecionado')}
                 </p>
               </div>
               <div className="flex items-center gap-2 text-xs font-bold text-emerald-700 bg-emerald-50 px-3 py-1.5 rounded-xl">
                 <TrendingUp size={14} />
-                <span>Volume Total</span>
+                <span>{t('Volume Total')}</span>
               </div>
             </div>
 
@@ -1268,7 +1270,7 @@ export const ClientPainelConteudo: React.FC<ClientPainelConteudoProps> = ({
                   }}
                   className="text-xs font-bold text-stone-400 hover:text-stone-700 px-2 py-1.5 transition-colors cursor-pointer"
                 >
-                  Limpar filtros
+                  {t('Limpar filtros')}
                 </button>
               )}
             </div>
@@ -1279,7 +1281,7 @@ export const ClientPainelConteudo: React.FC<ClientPainelConteudoProps> = ({
                 <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-stone-400" />
                 <input
                   type="text"
-                  placeholder="Buscar por tema ou formato..."
+                  placeholder={t('Buscar por tema ou formato...')}
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-stone-50 border border-stone-200/80 text-xs text-stone-800 placeholder-stone-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 font-medium"
@@ -1292,7 +1294,7 @@ export const ClientPainelConteudo: React.FC<ClientPainelConteudoProps> = ({
                   className="flex items-center gap-1.5 px-4 py-2.5 bg-brand-dark text-white rounded-xl text-xs font-bold shadow-md hover:bg-stone-800 transition-all cursor-pointer whitespace-nowrap shrink-0"
                 >
                   <Plus size={15} />
-                  <span>Nova Publicação</span>
+                  <span>{t('Nova Publicação')}</span>
                 </button>
               )}
             </div>
@@ -1302,14 +1304,14 @@ export const ClientPainelConteudo: React.FC<ClientPainelConteudoProps> = ({
           {loading ? (
             <div className="py-20 text-center text-stone-400">
               <RefreshCw size={28} className="animate-spin mx-auto mb-2 text-stone-300" />
-              <p className="text-sm font-medium">Carregando publicações...</p>
+              <p className="text-sm font-medium">{t('Carregando publicações...')}</p>
             </div>
           ) : postsGroupedByDate.length === 0 ? (
             <div className="py-16 px-6 rounded-3xl bg-stone-50/70 border border-dashed border-stone-200 text-center flex flex-col items-center justify-center">
               <CheckCircle2 size={36} className="text-stone-300 mb-3" />
-              <p className="text-base font-bold text-stone-700">Nenhuma publicação encontrada para os filtros selecionados.</p>
+              <p className="text-base font-bold text-stone-700">{t('Nenhuma publicação encontrada para os filtros selecionados.')}</p>
               <p className="text-xs text-stone-400 mt-1 max-w-md">
-                Tente ajustar o filtro de status ou período para visualizar outras postagens.
+                {t('Tente ajustar o filtro de status ou período para visualizar outras postagens.')}
               </p>
             </div>
           ) : (
@@ -1389,7 +1391,7 @@ export const ClientPainelConteudo: React.FC<ClientPainelConteudoProps> = ({
                           <div className="flex items-center justify-between sm:justify-end gap-3 shrink-0 self-end sm:self-center">
                             <span className={`inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1 rounded-full border ${statusBadge.badgeClass}`}>
                               <span className={`w-1.5 h-1.5 rounded-full ${statusBadge.dotClass}`}></span>
-                              {statusBadge.label}
+                              {t(statusBadge.label)}
                             </span>
                             <ChevronRight size={18} className="text-stone-300 group-hover:text-stone-600 transition-colors hidden sm:block" />
                           </div>

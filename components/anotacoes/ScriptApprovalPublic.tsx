@@ -1,15 +1,18 @@
 import React, { useEffect, useState } from 'react';
+import { BRAND } from '../../lib/brand';
 import { supabase } from '../../lib/supabase';
 import { ScriptEditor } from './ScriptEditor';
 import { Script } from '../../hooks/useScripts';
 import { Logo } from '../Logo';
 import { ShieldAlert, Check } from 'lucide-react';
+import { applyPublicLang, useT } from '../../lib/i18n';
 
 interface ScriptApprovalPublicProps {
   scriptId: string;
 }
 
 export const ScriptApprovalPublic: React.FC<ScriptApprovalPublicProps> = ({ scriptId }) => {
+  const { t } = useT();
   const [script, setScript] = useState<Script | null>(null);
   const [clientName, setClientName] = useState('');
   const [loading, setLoading] = useState(true);
@@ -26,7 +29,7 @@ export const ScriptApprovalPublic: React.FC<ScriptApprovalPublicProps> = ({ scri
       
       const { data, error } = await supabase
         .from('scripts')
-        .select('*, client:clients(name)')
+        .select('*, client:clients(name, agency_id, lang:traffic_strategy_data->>language)')
         .eq('id', scriptId)
         .maybeSingle();
 
@@ -44,7 +47,7 @@ export const ScriptApprovalPublic: React.FC<ScriptApprovalPublicProps> = ({ scri
       }
 
       setScript(data);
-      setClientName(data.client?.name || '');
+      applyPublicLang(data.client); setClientName(data.client?.name || '');
     } catch (err) {
       console.error('Erro ao buscar o roteiro:', err);
       setUnavailable(true);
@@ -92,13 +95,13 @@ export const ScriptApprovalPublic: React.FC<ScriptApprovalPublicProps> = ({ scri
             <ShieldAlert size={32} />
           </div>
           <div>
-            <h2 className="text-2xl font-black text-brand-dark tracking-tight">Indisponível</h2>
+            <h2 className="text-2xl font-black text-brand-dark tracking-tight">{t('Indisponível')}</h2>
             <p className="text-gray-500 text-sm font-medium mt-2 leading-relaxed">
-              Este roteiro não está disponível ou já foi marcado como gravado.
+              {t('Este roteiro não está disponível ou já foi marcado como gravado.')}
             </p>
           </div>
           <div className="pt-2 border-t border-gray-50">
-            <p className="text-[10px] text-gray-400 font-extrabold uppercase tracking-widest leading-none">Canguru Digital</p>
+            <p className="text-[10px] text-gray-400 font-extrabold uppercase tracking-widest leading-none">{BRAND.by}</p>
           </div>
         </div>
       </div>
@@ -112,11 +115,11 @@ export const ScriptApprovalPublic: React.FC<ScriptApprovalPublicProps> = ({ scri
         <div className="flex items-center gap-3">
           <Logo className="h-8 w-auto text-brand-dark" />
           <div className="h-6 w-[1.5px] bg-gray-200"></div>
-          <span className="text-xs text-gray-400 font-extrabold uppercase tracking-widest hidden sm:inline">Roteiros Colaborativos</span>
+          <span className="text-xs text-gray-400 font-extrabold uppercase tracking-widest hidden sm:inline">{t('Roteiros Colaborativos')}</span>
         </div>
         <div className="flex items-center gap-2">
           <span className="text-[10px] font-extrabold text-blue-600 bg-blue-50 border border-blue-100 px-3 py-1.5 rounded-full uppercase tracking-wider">
-            Modo Colaborativo
+            {t('Modo Colaborativo')}
           </span>
         </div>
       </header>
@@ -134,7 +137,7 @@ export const ScriptApprovalPublic: React.FC<ScriptApprovalPublicProps> = ({ scri
       </main>
 
       <footer className="py-6 text-center text-[10px] text-gray-400 font-bold uppercase tracking-widest border-t border-gray-100 bg-white">
-        © {new Date().getFullYear()} Canguru Digital. Todos os direitos reservados.
+        © {new Date().getFullYear()} {BRAND.by}. Todos os direitos reservados.
       </footer>
     </div>
   );

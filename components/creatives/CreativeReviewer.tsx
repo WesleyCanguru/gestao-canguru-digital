@@ -9,6 +9,7 @@ import {
   counts as countItems, signMedia, getReviewerName, setReviewerName,
 } from '../../lib/creatives';
 import { CreativeStage, CreativeThumb } from './CreativeMedia';
+import { makeT, toUiLang, useUiLang, UiLang } from '../../lib/i18n';
 
 type Mode = 'client' | 'public' | 'preview';
 type Stage = 'intro' | 'grid' | 'focus' | 'done';
@@ -44,6 +45,9 @@ export const CreativeReviewer: React.FC<Props> = ({ batchId, token, mode, client
   const textRef = useRef<HTMLTextAreaElement>(null);
 
   const readOnly = mode === 'preview';
+  const [clientLang, setClientLang] = useState<UiLang | null>(null);
+  const viewerLang = useUiLang();
+  const { t } = makeT(mode === 'client' ? viewerLang : (clientLang ?? 'pt'));
 
   useEffect(() => {
     let alive = true;
@@ -57,9 +61,12 @@ export const CreativeReviewer: React.FC<Props> = ({ batchId, token, mode, client
       const { data: its } = await supabase.from('creative_items').select('*').eq('batch_id', (b as any).id).order('position').order('created_at');
       const list = ((its as CreativeItem[]) || []);
       const sig = await signMedia(list);
-      if (!clientName) {
-        const { data: c } = await supabase.from('clients').select('name').eq('id', (b as any).client_id).maybeSingle();
-        if (alive && c) setCName((c as any).name || '');
+      {
+        const { data: c } = await supabase.from('clients').select('name, agency_id, lang:traffic_strategy_data->>language').eq('id', (b as any).client_id).maybeSingle();
+        if (alive && c) {
+          if (!clientName) setCName((c as any).name || '');
+          setClientLang(toUiLang((c as any).lang ?? ((c as any).agency_id === 7 ? 'en' : 'pt')));
+        }
       }
       if (!alive) return;
       setBatch(b as CreativeBatch); setItems(list); setSigned(sig); setLoading(false);
@@ -102,12 +109,12 @@ export const CreativeReviewer: React.FC<Props> = ({ batchId, token, mode, client
     setBusy(true);
     const { error: e } = await supabase.rpc('decide_creative', { p_item: item.id, p_status: status, p_feedback: feedback ?? null, p_name: name.trim() || null });
     setBusy(false);
-    if (e) { setFlash({ text: e.message || 'Não foi possível salvar. Tente de novo.', tone: 'warn' }); return; }
+    if (e) { setFlash({ text: e.message || t('Não foi possível salvar. Tente de novo.'), tone: 'warn' }); return; }
     const updated = items.map(i => i.id === item.id ? { ...i, status, feedback: status === 'changes' ? (feedback || '') : status === 'approved' ? (feedback || null) : null, decided_at: status === 'pending' ? null : new Date().toISOString() } : i);
     setItems(updated);
     setAsking(false); setFix('');
-    if (status === 'pending') { setFlash({ text: 'Voltou para pendente.', tone: 'ok' }); return; }
-    setFlash({ text: status === 'approved' ? 'Aprovado' : 'Ajuste enviado', tone: status === 'approved' ? 'ok' : 'warn' });
+    if (status === 'pending') { setFlash({ text: t('Voltou para pendente.'), tone: 'ok' }); return; }
+    setFlash({ text: status === 'approved' ? t('Aprovado') : t('Ajuste enviado'), tone: status === 'approved' ? 'ok' : 'warn' });
     const next = nextPendingAfter(item.id, updated);
     setTimeout(() => {
       if (next) { setStatusF('all'); setCurrent(next.id); }
@@ -120,7 +127,7 @@ export const CreativeReviewer: React.FC<Props> = ({ batchId, token, mode, client
     setBusy(true);
     const { error: e } = await supabase.rpc('finish_creative_review', { p_batch: batch.id, p_name: name.trim() || null });
     setBusy(false);
-    if (e) { setFlash({ text: 'Não foi possível concluir. Tente de novo.', tone: 'warn' }); return; }
+    if (e) { setFlash({ text: t('Não foi possível concluir. Tente de novo.'), tone: 'warn' }); return; }
     setBatch({ ...batch, status: 'reviewed', reviewed_at: new Date().toISOString() });
     setFinished(true);
   };
@@ -149,7 +156,7 @@ export const CreativeReviewer: React.FC<Props> = ({ batchId, token, mode, client
     <div className="min-h-[60vh] flex items-center justify-center p-6">
       <div className="max-w-md w-full bg-white rounded-3xl p-8 border border-gray-100 shadow-sm text-center">
         <AlertCircle className="mx-auto text-rose-500 mb-3" size={28} />
-        <p className="font-bold text-brand-dark">{error || 'Não encontramos estes criativos.'}</p>
+        <p className="font-bold text-brand-dark">{t(error || 'Não encontramos estes criativos.')}</p>
       </div>
     </div>
   );
@@ -162,7 +169,7 @@ export const CreativeReviewer: React.FC<Props> = ({ batchId, token, mode, client
       <div className="max-w-6xl mx-auto px-4 py-3 flex items-center gap-3">
         {onClose && <button onClick={onClose} className="p-2 -ml-2 rounded-xl hover:bg-gray-50 text-gray-500" aria-label="Voltar"><ChevronLeft size={20} /></button>}
         <div className="min-w-0 flex-1">
-          <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 truncate">{cName || 'Criativos'}</p>
+          <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 truncate">{cName || t('Criativos')}</p>
           <p className="font-bold text-brand-dark truncate">{batch.title}</p>
         </div>
         <div className="hidden sm:block w-44">
@@ -170,13 +177,13 @@ export const CreativeReviewer: React.FC<Props> = ({ batchId, token, mode, client
           <div className="h-1.5 rounded-full bg-gray-100 mt-1 overflow-hidden"><div className="h-full bg-emerald-500 rounded-full transition-all" style={{ width: `${pct}%` }} /></div>
         </div>
         {stage === 'focus'
-          ? <button onClick={() => setStage('grid')} className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-gray-200 text-xs font-bold text-gray-700"><LayoutGrid size={14} /> <span className="hidden sm:inline">Ver todos</span></button>
-          : c.total > 0 && stage !== 'intro' && <button onClick={startReview} className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-brand-dark text-white text-xs font-bold"><PlayCircle size={14} /> {c.pending ? 'Revisar' : 'Rever'}</button>}
+          ? <button onClick={() => setStage('grid')} className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-gray-200 text-xs font-bold text-gray-700"><LayoutGrid size={14} /> <span className="hidden sm:inline">{t('Ver todos')}</span></button>
+          : c.total > 0 && stage !== 'intro' && <button onClick={startReview} className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-brand-dark text-white text-xs font-bold"><PlayCircle size={14} /> {c.pending ? t('Revisar') : t('Rever')}</button>}
       </div>
       <div className="sm:hidden h-1 bg-gray-100"><div className="h-full bg-emerald-500 transition-all" style={{ width: `${pct}%` }} /></div>
-      {readOnly && <div className="bg-amber-50 text-amber-800 text-xs font-bold text-center py-1.5 border-t border-amber-100 inline-flex w-full items-center justify-center gap-1.5"><Eye size={13} /> Pré-visualização da equipe: é assim que o cliente vê. Os botões não salvam.</div>}
-      {!readOnly && batch.status === 'draft' && <div className="bg-gray-50 text-gray-600 text-xs font-bold text-center py-1.5 border-t">Este lote ainda não foi enviado.</div>}
-      {batch.status === 'closed' && <div className="bg-gray-50 text-gray-600 text-xs font-bold text-center py-1.5 border-t">Lote encerrado pela agência. Só para consulta.</div>}
+      {readOnly && <div className="bg-amber-50 text-amber-800 text-xs font-bold text-center py-1.5 border-t border-amber-100 inline-flex w-full items-center justify-center gap-1.5"><Eye size={13} /> {t('Pré-visualização da equipe: é assim que o cliente vê. Os botões não salvam.')}</div>}
+      {!readOnly && batch.status === 'draft' && <div className="bg-gray-50 text-gray-600 text-xs font-bold text-center py-1.5 border-t">{t('Este lote ainda não foi enviado.')}</div>}
+      {batch.status === 'closed' && <div className="bg-gray-50 text-gray-600 text-xs font-bold text-center py-1.5 border-t">{t('Lote encerrado pela agência. Só para consulta.')}</div>}
     </div>
   );
 
@@ -191,29 +198,29 @@ export const CreativeReviewer: React.FC<Props> = ({ batchId, token, mode, client
               {items.slice(0, 4).map(i => <CreativeThumb key={i.id} item={i} signed={signed} className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl ring-4 ring-white shadow" />)}
             </div>
             <h1 className="text-2xl sm:text-3xl font-bold text-brand-dark tracking-tight">{batch.title}</h1>
-            <p className="text-sm text-gray-500 mt-2">{c.total} {c.total === 1 ? 'criativo' : 'criativos'} para a sua aprovação{cName ? ` · ${cName}` : ''}</p>
+            <p className="text-sm text-gray-500 mt-2">{t(c.total === 1 ? '{n} criativo para a sua aprovação' : '{n} criativos para a sua aprovação', { n: c.total })}{cName ? ` · ${cName}` : ''}</p>
             {batch.description && <p className="text-sm text-gray-600 mt-4 whitespace-pre-wrap text-left bg-gray-50 rounded-2xl p-4">{batch.description}</p>}
             <div className="flex flex-wrap justify-center gap-2 mt-5">
               {(['image', 'carousel', 'video'] as const).filter(k => c[k] > 0).map(k => {
                 const Icon = KIND_ICON[k];
-                return <span key={k} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gray-50 border border-gray-100 text-xs font-bold text-gray-700"><Icon size={13} /> {c[k]} {c[k] === 1 ? KIND_LABEL[k].toLowerCase() : KIND_LABEL_PLURAL[k].toLowerCase()}</span>;
+                return <span key={k} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gray-50 border border-gray-100 text-xs font-bold text-gray-700"><Icon size={13} /> {c[k]} {c[k] === 1 ? t(KIND_LABEL[k]).toLowerCase() : t(KIND_LABEL_PLURAL[k]).toLowerCase()}</span>;
               })}
             </div>
             {canDecide && (
               <div className="mt-7 text-left space-y-1.5">
-                <label className="text-[10px] font-bold uppercase tracking-widest text-gray-500">Seu nome</label>
-                <input value={name} onChange={e => setName(e.target.value)} placeholder="Para a agência saber quem aprovou"
+                <label className="text-[10px] font-bold uppercase tracking-widest text-gray-500">{t('Seu nome')}</label>
+                <input value={name} onChange={e => setName(e.target.value)} placeholder={t('Para a agência saber quem aprovou')}
                   className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:bg-white focus:ring-2 focus:ring-brand-dark/20 outline-none" />
               </div>
             )}
             <div className="mt-6 grid gap-2">
               <button onClick={startReview} disabled={!c.total}
                 className="w-full py-4 rounded-2xl bg-brand-dark text-white font-bold text-base inline-flex items-center justify-center gap-2 hover:bg-black disabled:opacity-50">
-                <PlayCircle size={20} /> {c.pending === c.total ? 'Começar a revisão' : `Continuar (${c.pending} pendentes)`}
+                <PlayCircle size={20} /> {c.pending === c.total ? t('Começar a revisão') : t('Continuar ({n} pendentes)', { n: c.pending })}
               </button>
-              <button onClick={() => setStage('grid')} className="w-full py-3 rounded-2xl border border-gray-200 text-sm font-bold text-gray-700 inline-flex items-center justify-center gap-2"><LayoutGrid size={16} /> Ver todos de uma vez</button>
+              <button onClick={() => setStage('grid')} className="w-full py-3 rounded-2xl border border-gray-200 text-sm font-bold text-gray-700 inline-flex items-center justify-center gap-2"><LayoutGrid size={16} /> {t('Ver todos de uma vez')}</button>
             </div>
-            <p className="text-[11px] text-gray-400 mt-5">Uma peça por vez: veja, toque em Aprovar ou Pedir ajuste e a próxima abre sozinha.</p>
+            <p className="text-[11px] text-gray-400 mt-5">{t('Uma peça por vez: veja, toque em Aprovar ou Pedir ajuste e a próxima abre sozinha.')}</p>
           </div>
         </div>
       </div>
@@ -230,33 +237,33 @@ export const CreativeReviewer: React.FC<Props> = ({ batchId, token, mode, client
           <div className="bg-white rounded-[2rem] border border-black/[0.04] shadow-[0_20px_50px_rgba(0,0,0,0.06)] p-7 sm:p-10">
             <div className="text-center">
               <div className="w-14 h-14 mx-auto rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center mb-4">{finished ? <Check size={28} /> : <PartyPopper size={28} />}</div>
-              <h2 className="text-2xl font-bold text-brand-dark">{finished ? 'Pronto! A agência foi avisada.' : c.pending ? 'Quase lá' : 'Você revisou tudo'}</h2>
-              <p className="text-sm text-gray-500 mt-1">{finished ? 'Os ajustes voltam para você revisar assim que ficarem prontos.' : c.pending ? `Faltam ${c.pending} ${c.pending === 1 ? 'peça' : 'peças'}.` : 'Confira o resumo e conclua.'}</p>
+              <h2 className="text-2xl font-bold text-brand-dark">{finished ? t('Pronto! A agência foi avisada.') : c.pending ? t('Quase lá') : t('Você revisou tudo')}</h2>
+              <p className="text-sm text-gray-500 mt-1">{finished ? t('Os ajustes voltam para você revisar assim que ficarem prontos.') : c.pending ? t(c.pending === 1 ? 'Falta {n} peça.' : 'Faltam {n} peças.', { n: c.pending }) : t('Confira o resumo e conclua.')}</p>
             </div>
             <div className="grid grid-cols-3 gap-2 mt-6 text-center">
-              <div className="rounded-2xl bg-emerald-50 py-3"><p className="text-2xl font-bold text-emerald-700 tabular-nums">{c.approved}</p><p className="text-[11px] text-emerald-700/80 font-bold">Aprovados</p></div>
-              <div className="rounded-2xl bg-amber-50 py-3"><p className="text-2xl font-bold text-amber-700 tabular-nums">{c.changes}</p><p className="text-[11px] text-amber-700/80 font-bold">Ajustes</p></div>
-              <div className="rounded-2xl bg-gray-50 py-3"><p className="text-2xl font-bold text-gray-600 tabular-nums">{c.pending}</p><p className="text-[11px] text-gray-500 font-bold">Pendentes</p></div>
+              <div className="rounded-2xl bg-emerald-50 py-3"><p className="text-2xl font-bold text-emerald-700 tabular-nums">{c.approved}</p><p className="text-[11px] text-emerald-700/80 font-bold">{t('Aprovados')}</p></div>
+              <div className="rounded-2xl bg-amber-50 py-3"><p className="text-2xl font-bold text-amber-700 tabular-nums">{c.changes}</p><p className="text-[11px] text-amber-700/80 font-bold">{t('Ajustes')}</p></div>
+              <div className="rounded-2xl bg-gray-50 py-3"><p className="text-2xl font-bold text-gray-600 tabular-nums">{c.pending}</p><p className="text-[11px] text-gray-500 font-bold">{t('Pendentes')}</p></div>
             </div>
             {changes.length > 0 && (
               <div className="mt-6 space-y-2">
-                <p className="text-[10px] font-bold uppercase tracking-widest text-gray-500">Ajustes que você pediu</p>
+                <p className="text-[10px] font-bold uppercase tracking-widest text-gray-500">{t('Ajustes que você pediu')}</p>
                 {changes.map(i => (
                   <button key={i.id} onClick={() => { setStatusF('all'); setKind('all'); openFocus(i.id); }} className="w-full flex items-start gap-3 p-2 rounded-2xl hover:bg-gray-50 text-left">
                     <CreativeThumb item={i} signed={signed} className="w-12 h-12 rounded-xl shrink-0" />
-                    <span className="min-w-0"><span className="block text-sm font-bold text-brand-dark truncate">{i.title || KIND_LABEL[i.kind]}</span><span className="block text-xs text-gray-500 line-clamp-2">{i.feedback}</span></span>
+                    <span className="min-w-0"><span className="block text-sm font-bold text-brand-dark truncate">{i.title || t(KIND_LABEL[i.kind])}</span><span className="block text-xs text-gray-500 line-clamp-2">{i.feedback}</span></span>
                   </button>
                 ))}
               </div>
             )}
             <div className="mt-7 grid gap-2">
-              {c.pending > 0 && <button onClick={startReview} className="w-full py-4 rounded-2xl bg-brand-dark text-white font-bold inline-flex items-center justify-center gap-2"><PlayCircle size={18} /> Revisar as {c.pending} pendentes</button>}
+              {c.pending > 0 && <button onClick={startReview} className="w-full py-4 rounded-2xl bg-brand-dark text-white font-bold inline-flex items-center justify-center gap-2"><PlayCircle size={18} /> {t('Revisar as {n} pendentes', { n: c.pending })}</button>}
               {c.pending === 0 && canDecide && !finished && batch.status === 'sent' && (
                 <button onClick={finish} disabled={busy} className="w-full py-4 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold inline-flex items-center justify-center gap-2 disabled:opacity-60">
-                  {busy ? <Loader2 size={18} className="animate-spin" /> : <Check size={18} />} Concluir revisão e avisar a agência
+                  {busy ? <Loader2 size={18} className="animate-spin" /> : <Check size={18} />} {t('Concluir revisão e avisar a agência')}
                 </button>
               )}
-              <button onClick={() => setStage('grid')} className="w-full py-3 rounded-2xl border border-gray-200 text-sm font-bold text-gray-700">Ver todos</button>
+              <button onClick={() => setStage('grid')} className="w-full py-3 rounded-2xl border border-gray-200 text-sm font-bold text-gray-700">{t('Ver todos')}</button>
             </div>
           </div>
         </div>
@@ -272,18 +279,18 @@ export const CreativeReviewer: React.FC<Props> = ({ batchId, token, mode, client
         <div className="max-w-6xl mx-auto px-4 py-5 space-y-4">
           <div className="flex flex-col sm:flex-row gap-2 sm:items-center sm:justify-between">
             <div className="flex gap-2 overflow-x-auto pb-1">
-              {kindTabs.map(k => <button key={k} onClick={() => setKind(k)} className={chip(kind === k)}>{k === 'all' ? `Todos (${c.total})` : `${KIND_LABEL_PLURAL[k]} (${c[k]})`}</button>)}
+              {kindTabs.map(k => <button key={k} onClick={() => setKind(k)} className={chip(kind === k)}>{k === 'all' ? `${t('Todos')} (${c.total})` : `${t(KIND_LABEL_PLURAL[k])} (${c[k]})`}</button>)}
             </div>
             <div className="flex gap-2 overflow-x-auto pb-1">
               {(['all', 'pending', 'approved', 'changes'] as const).map(s => (
                 <button key={s} onClick={() => setStatusF(s)} className={chip(statusF === s)}>
-                  {s === 'all' ? 'Qualquer status' : `${STATUS_LABEL[s]} (${c[s]})`}
+                  {s === 'all' ? t('Qualquer status') : `${t(STATUS_LABEL[s])} (${c[s]})`}
                 </button>
               ))}
             </div>
           </div>
           {filtered.length === 0 ? (
-            <p className="text-center text-sm text-gray-500 py-16">{c.total ? 'Nenhuma peça neste filtro.' : 'Nenhuma peça neste lote ainda.'}</p>
+            <p className="text-center text-sm text-gray-500 py-16">{c.total ? t('Nenhuma peça neste filtro.') : t('Nenhuma peça neste lote ainda.')}</p>
           ) : (
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
               {filtered.map((i, n) => (
@@ -291,13 +298,13 @@ export const CreativeReviewer: React.FC<Props> = ({ batchId, token, mode, client
                   <div className="relative">
                     <CreativeThumb item={i} signed={signed} className="aspect-[4/5] w-full" />
                     <span className={`absolute top-2 left-2 px-2 py-0.5 rounded-md border text-[10px] font-bold ${STATUS_STYLE[i.status]}`}>
-                      {i.status === 'approved' ? <span className="inline-flex items-center gap-0.5"><Check size={10} /> Aprovado</span> : STATUS_LABEL[i.status]}
+                      {i.status === 'approved' ? <span className="inline-flex items-center gap-0.5"><Check size={10} /> {t('Aprovado')}</span> : t(STATUS_LABEL[i.status])}
                     </span>
                     {i.version > 1 && <span className="absolute bottom-2 left-2 px-1.5 py-0.5 rounded-md bg-blue-600 text-white text-[10px] font-bold">v{i.version}</span>}
                   </div>
                   <div className="p-3">
-                    <p className="text-xs font-bold text-brand-dark truncate">{i.title || `${KIND_LABEL[i.kind]} ${n + 1}`}</p>
-                    <p className="text-[11px] text-gray-400 truncate">{KIND_LABEL[i.kind]}{i.placement ? ` · ${i.placement}` : ''}</p>
+                    <p className="text-xs font-bold text-brand-dark truncate">{i.title || `${t(KIND_LABEL[i.kind])} ${n + 1}`}</p>
+                    <p className="text-[11px] text-gray-400 truncate">{t(KIND_LABEL[i.kind])}{i.placement ? ` · ${i.placement}` : ''}</p>
                   </div>
                 </button>
               ))}
@@ -320,93 +327,93 @@ export const CreativeReviewer: React.FC<Props> = ({ batchId, token, mode, client
           {flash && (
             <div className={`absolute top-4 left-1/2 -translate-x-1/2 px-4 py-2 rounded-full text-sm font-bold shadow-lg ${flash.tone === 'ok' ? 'bg-emerald-500 text-white' : 'bg-amber-400 text-amber-950'}`}>{flash.text}</div>
           )}
-          <button onClick={() => go(-1)} disabled={idx <= 0} className="hidden lg:flex absolute left-3 bottom-3 items-center gap-1 px-3 py-2 rounded-xl bg-white/10 text-white text-xs font-bold hover:bg-white/20 disabled:opacity-30"><ChevronLeft size={14} /> Anterior</button>
-          <button onClick={() => go(1)} disabled={idx >= filtered.length - 1} className="hidden lg:flex absolute right-3 bottom-3 items-center gap-1 px-3 py-2 rounded-xl bg-white/10 text-white text-xs font-bold hover:bg-white/20 disabled:opacity-30">Próxima <ChevronRight size={14} /></button>
+          <button onClick={() => go(-1)} disabled={idx <= 0} className="hidden lg:flex absolute left-3 bottom-3 items-center gap-1 px-3 py-2 rounded-xl bg-white/10 text-white text-xs font-bold hover:bg-white/20 disabled:opacity-30"><ChevronLeft size={14} /> {t('Anterior')}</button>
+          <button onClick={() => go(1)} disabled={idx >= filtered.length - 1} className="hidden lg:flex absolute right-3 bottom-3 items-center gap-1 px-3 py-2 rounded-xl bg-white/10 text-white text-xs font-bold hover:bg-white/20 disabled:opacity-30">{t('Próxima')} <ChevronRight size={14} /></button>
         </div>
 
         <div className="bg-white lg:rounded-3xl lg:border lg:border-black/[0.04] lg:shadow-sm flex flex-col lg:h-[calc(100vh-150px)]">
           <div className="p-5 flex-1 overflow-y-auto space-y-4">
             <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-xs font-bold text-gray-400 tabular-nums">Peça {idx + 1} de {filtered.length}</span>
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-gray-50 border border-gray-100 text-[11px] font-bold text-gray-600"><KIcon size={11} /> {KIND_LABEL[item.kind]}{item.kind === 'carousel' ? ` · ${item.media.length}` : ''}</span>
+              <span className="text-xs font-bold text-gray-400 tabular-nums">{t('Peça {a} de {b}', { a: idx + 1, b: filtered.length })}</span>
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-gray-50 border border-gray-100 text-[11px] font-bold text-gray-600"><KIcon size={11} /> {t(KIND_LABEL[item.kind])}{item.kind === 'carousel' ? ` · ${item.media.length}` : ''}</span>
               {item.placement && <span className="px-2 py-0.5 rounded-md bg-gray-50 border border-gray-100 text-[11px] font-bold text-gray-600">{item.placement}</span>}
-              {item.version > 1 && <span className="px-2 py-0.5 rounded-md bg-blue-50 border border-blue-100 text-[11px] font-bold text-blue-700">Versão {item.version}</span>}
-              <span className={`ml-auto px-2 py-0.5 rounded-md border text-[11px] font-bold ${STATUS_STYLE[item.status]}`}>{STATUS_LABEL[item.status]}</span>
+              {item.version > 1 && <span className="px-2 py-0.5 rounded-md bg-blue-50 border border-blue-100 text-[11px] font-bold text-blue-700">{t('Versão')} {item.version}</span>}
+              <span className={`ml-auto px-2 py-0.5 rounded-md border text-[11px] font-bold ${STATUS_STYLE[item.status]}`}>{t(STATUS_LABEL[item.status])}</span>
             </div>
             {item.title && <h2 className="text-lg font-bold text-brand-dark leading-snug">{item.title}</h2>}
             {prev?.feedback && (
               <div className="rounded-2xl bg-blue-50 border border-blue-100 p-3">
-                <p className="text-[10px] font-bold uppercase tracking-widest text-blue-700">Ajuste pedido na versão {prev.version}</p>
+                <p className="text-[10px] font-bold uppercase tracking-widest text-blue-700">{t('Ajuste pedido na versão')} {prev.version}</p>
                 <p className="text-sm text-blue-900 mt-1 whitespace-pre-wrap">{prev.feedback}</p>
               </div>
             )}
             {item.caption && (
               <div>
-                <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1">Legenda / texto do anúncio</p>
+                <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1">{t('Legenda / texto do anúncio')}</p>
                 <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">{item.caption}</p>
               </div>
             )}
             {item.status === 'changes' && item.feedback && !asking && (
               <div className="rounded-2xl bg-amber-50 border border-amber-100 p-3">
-                <p className="text-[10px] font-bold uppercase tracking-widest text-amber-700">Seu pedido de ajuste</p>
+                <p className="text-[10px] font-bold uppercase tracking-widest text-amber-700">{t('Seu pedido de ajuste')}</p>
                 <p className="text-sm text-amber-900 mt-1 whitespace-pre-wrap">{item.feedback}</p>
               </div>
             )}
             {asking && (
               <div className="space-y-2">
-                <p className="text-sm font-bold text-brand-dark">O que precisa ajustar?</p>
+                <p className="text-sm font-bold text-brand-dark">{t('O que precisa ajustar?')}</p>
                 <div className="flex flex-wrap gap-1.5">
                   {QUICK_FIXES.map(q => (
-                    <button key={q} onClick={() => setFix(f => (f ? `${f}${/[.\n]$/.test(f) ? '' : '.'} ${q}` : q))}
-                      className="px-2.5 py-1 rounded-full border border-gray-200 text-[11px] font-bold text-gray-600 hover:bg-gray-50">{q}</button>
+                    <button key={q} onClick={() => setFix(f => (f ? `${f}${/[.\n]$/.test(f) ? '' : '.'} ${t(q)}` : t(q)))}
+                      className="px-2.5 py-1 rounded-full border border-gray-200 text-[11px] font-bold text-gray-600 hover:bg-gray-50">{t(q)}</button>
                   ))}
                 </div>
-                <textarea ref={textRef} value={fix} onChange={e => setFix(e.target.value)} rows={4} placeholder="Ex.: trocar a foto por uma com a fachada; aumentar o preço na arte"
+                <textarea ref={textRef} value={fix} onChange={e => setFix(e.target.value)} rows={4} placeholder={t('Ex.: trocar a foto por uma com a fachada; aumentar o preço na arte')}
                   className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-2xl text-sm focus:bg-white focus:ring-2 focus:ring-amber-300 outline-none resize-none"
                   onKeyDown={e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey) && fix.trim()) decide('changes', fix.trim()); }} />
               </div>
             )}
             {canDecide && !asking && (
-              <p className="hidden lg:flex items-center gap-1.5 text-[11px] text-gray-400"><Keyboard size={12} /> Atalhos: A aprova · R pede ajuste · ← → navega</p>
+              <p className="hidden lg:flex items-center gap-1.5 text-[11px] text-gray-400"><Keyboard size={12} /> {t('Atalhos: A aprova · R pede ajuste · ← → navega')}</p>
             )}
           </div>
 
           <div className="sticky bottom-0 p-4 border-t border-gray-100 bg-white lg:rounded-b-3xl">
             {!canDecide ? (
               <div className="flex gap-2">
-                <button onClick={() => go(-1)} disabled={idx <= 0} className="flex-1 py-3 rounded-2xl border border-gray-200 text-sm font-bold text-gray-700 disabled:opacity-40">Anterior</button>
-                <button onClick={() => go(1)} disabled={idx >= filtered.length - 1} className="flex-1 py-3 rounded-2xl bg-brand-dark text-white text-sm font-bold disabled:opacity-40">Próxima</button>
+                <button onClick={() => go(-1)} disabled={idx <= 0} className="flex-1 py-3 rounded-2xl border border-gray-200 text-sm font-bold text-gray-700 disabled:opacity-40">{t('Anterior')}</button>
+                <button onClick={() => go(1)} disabled={idx >= filtered.length - 1} className="flex-1 py-3 rounded-2xl bg-brand-dark text-white text-sm font-bold disabled:opacity-40">{t('Próxima')}</button>
               </div>
             ) : asking ? (
               <div className="flex gap-2">
-                <button onClick={() => { setAsking(false); setFix(''); }} className="px-4 py-3.5 rounded-2xl border border-gray-200 text-sm font-bold text-gray-600">Cancelar</button>
+                <button onClick={() => { setAsking(false); setFix(''); }} className="px-4 py-3.5 rounded-2xl border border-gray-200 text-sm font-bold text-gray-600">{t('Cancelar')}</button>
                 <button onClick={() => decide('changes', fix.trim())} disabled={!fix.trim() || busy}
                   className="flex-1 py-3.5 rounded-2xl bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold disabled:opacity-50 inline-flex items-center justify-center gap-2">
-                  {busy ? <Loader2 size={16} className="animate-spin" /> : <Pencil size={16} />} Enviar ajuste
+                  {busy ? <Loader2 size={16} className="animate-spin" /> : <Pencil size={16} />} {t('Enviar ajuste')}
                 </button>
               </div>
             ) : item.status === 'pending' ? (
               <div className="grid grid-cols-2 gap-2">
-                <button onClick={() => setAsking(true)} disabled={busy} className="py-4 rounded-2xl border-2 border-amber-300 text-amber-700 hover:bg-amber-50 text-sm font-bold inline-flex items-center justify-center gap-2"><Pencil size={17} /> Pedir ajuste</button>
+                <button onClick={() => setAsking(true)} disabled={busy} className="py-4 rounded-2xl border-2 border-amber-300 text-amber-700 hover:bg-amber-50 text-sm font-bold inline-flex items-center justify-center gap-2"><Pencil size={17} /> {t('Pedir ajuste')}</button>
                 <button onClick={() => decide('approved')} disabled={busy} className="py-4 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold inline-flex items-center justify-center gap-2 disabled:opacity-60">
-                  {busy ? <Loader2 size={17} className="animate-spin" /> : <Check size={18} />} Aprovar
+                  {busy ? <Loader2 size={17} className="animate-spin" /> : <Check size={18} />} {t('Aprovar')}
                 </button>
               </div>
             ) : (
               <div className="flex gap-2">
-                <button onClick={() => decide('pending')} disabled={busy} className="px-4 py-3 rounded-2xl border border-gray-200 text-xs font-bold text-gray-600 inline-flex items-center gap-1.5"><RotateCcw size={14} /> Desfazer</button>
-                <button onClick={() => go(1)} disabled={idx >= filtered.length - 1} className="flex-1 py-3 rounded-2xl bg-brand-dark text-white text-sm font-bold disabled:opacity-40 inline-flex items-center justify-center gap-1">Próxima <ChevronRight size={16} /></button>
+                <button onClick={() => decide('pending')} disabled={busy} className="px-4 py-3 rounded-2xl border border-gray-200 text-xs font-bold text-gray-600 inline-flex items-center gap-1.5"><RotateCcw size={14} /> {t('Desfazer')}</button>
+                <button onClick={() => go(1)} disabled={idx >= filtered.length - 1} className="flex-1 py-3 rounded-2xl bg-brand-dark text-white text-sm font-bold disabled:opacity-40 inline-flex items-center justify-center gap-1">{t('Próxima')} <ChevronRight size={16} /></button>
               </div>
             )}
             {canDecide && c.pending === 0 && batch.status === 'sent' && (
-              <button onClick={() => setStage('done')} className="w-full mt-2 py-3 rounded-2xl bg-emerald-50 text-emerald-700 text-sm font-bold">Tudo revisado · ver resumo e concluir</button>
+              <button onClick={() => setStage('done')} className="w-full mt-2 py-3 rounded-2xl bg-emerald-50 text-emerald-700 text-sm font-bold">{t('Tudo revisado · ver resumo e concluir')}</button>
             )}
           </div>
         </div>
       </div>
       <div className="lg:hidden flex justify-between px-4 py-3 text-xs font-bold text-gray-500">
-        <button onClick={() => go(-1)} disabled={idx <= 0} className="inline-flex items-center gap-1 disabled:opacity-30"><ChevronLeft size={14} /> Anterior</button>
-        <button onClick={() => go(1)} disabled={idx >= filtered.length - 1} className="inline-flex items-center gap-1 disabled:opacity-30">Próxima <ChevronRight size={14} /></button>
+        <button onClick={() => go(-1)} disabled={idx <= 0} className="inline-flex items-center gap-1 disabled:opacity-30"><ChevronLeft size={14} /> {t('Anterior')}</button>
+        <button onClick={() => go(1)} disabled={idx >= filtered.length - 1} className="inline-flex items-center gap-1 disabled:opacity-30">{t('Próxima')} <ChevronRight size={14} /></button>
       </div>
     </div>
   );

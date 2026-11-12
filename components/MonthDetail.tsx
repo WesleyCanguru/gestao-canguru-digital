@@ -19,6 +19,7 @@ import { CustomDatePicker } from './CustomPickers';
 import { fetchRejectionCountsForClient } from '../lib/postRevisions';
 
 import { Client } from '../types';
+import { useT } from '../lib/i18n';
 
 interface MonthDetailProps {
   monthName?: string;
@@ -63,6 +64,7 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({
   showShareButton = true,
   agencyId: propAgencyId
 }) => {
+  const { t } = useT();
   const { userRole, activeClient: authActiveClient, agencyId: authAgencyId } = useAuth();
   const activeClient = overrideClient !== undefined ? overrideClient : authActiveClient;
   const agencyId = propAgencyId !== undefined ? propAgencyId : authAgencyId;
@@ -304,21 +306,21 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({
         return {
           bg: 'bg-emerald-50 border-emerald-100 hover:border-emerald-200 text-emerald-800',
           badge: 'bg-emerald-500 text-white',
-          label: 'Aprovado',
+          label: t('Aprovado'),
           dot: 'bg-emerald-500'
         };
       case 'revision':
         return {
           bg: 'bg-blue-50 border-blue-100 hover:border-blue-200 text-blue-800',
           badge: 'bg-blue-500 text-white',
-          label: 'Solicitado Alteração',
+          label: t('Solicitado Alteração'),
           dot: 'bg-blue-500'
         };
       case 'rejected':
         return {
           bg: 'bg-rose-50 border-rose-100 hover:border-rose-200 text-rose-800',
           badge: 'bg-rose-500 text-white',
-          label: 'Reprovado',
+          label: t('Reprovado'),
           dot: 'bg-rose-500'
         };
       case 'pending':
@@ -326,7 +328,7 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({
         return {
           bg: 'bg-amber-50/60 border-amber-100 hover:border-amber-200 text-amber-800',
           badge: 'bg-amber-500 text-white',
-          label: 'Aguardando Avaliação',
+          label: t('Aguardando Avaliação'),
           dot: 'bg-amber-500 animate-pulse'
         };
     }
@@ -1105,9 +1107,9 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({
 
       setConfirmAction({
         isOpen: true,
-        title: 'Mover Publicação',
+        title: t('Mover Publicação'),
         message: `Tem certeza que deseja mover esta publicação para o dia ${d}/${m}?`,
-        confirmText: 'Mover',
+        confirmText: t('Mover'),
         confirmButtonColor: 'brand',
         onConfirm: async () => {
           setConfirmAction(prev => ({ ...prev, isOpen: false }));
@@ -1208,9 +1210,9 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({
 
       setConfirmAction({
         isOpen: true,
-        title: 'Mover Sugestão de Tema',
+        title: t('Mover Sugestão de Tema'),
         message: `Tem certeza que deseja mover esta sugestão de tema para o dia ${d}/${m}?`,
-        confirmText: 'Mover',
+        confirmText: t('Mover'),
         confirmButtonColor: 'brand',
         onConfirm: async () => {
           setConfirmAction(prev => ({ ...prev, isOpen: false }));
@@ -1276,9 +1278,9 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({
 
     setConfirmAction({
       isOpen: true,
-      title: 'Publicar',
-      message: 'Marcar esta publicação (todas as plataformas) como PUBLICADA?',
-      confirmText: 'Publicar',
+      title: t('Publicar'),
+      message: t('Marcar esta publicação (todas as plataformas) como PUBLICADA?'),
+      confirmText: t('Publicar'),
       confirmButtonColor: 'brand',
       onConfirm: async () => {
         setConfirmAction(prev => ({ ...prev, isOpen: false }));
@@ -1337,9 +1339,9 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({
     
     setConfirmAction({
       isOpen: true,
-      title: 'Excluir Publicações',
+      title: t('Excluir Publicações'),
       message: `Tem certeza que deseja excluir ${selectedPosts.size} publicação(ões)?`,
-      confirmText: 'Excluir',
+      confirmText: t('Excluir'),
       confirmButtonColor: 'red',
       onConfirm: async () => {
         setConfirmAction(prev => ({ ...prev, isOpen: false }));
@@ -1405,9 +1407,9 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({
     
     setConfirmAction({
       isOpen: true,
-      title: 'Alterar Status',
+      title: t('Alterar Status'),
       message: `Deseja mudar o status de ${selectedPosts.size} publicações para "${getStatusLabel(newStatus)}"?`,
-      confirmText: 'Confirmar',
+      confirmText: t('Confirmar'),
       confirmButtonColor: 'brand',
       onConfirm: async () => {
         setConfirmAction(prev => ({ ...prev, isOpen: false }));
@@ -1499,15 +1501,15 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({
         <div className="w-20 h-20 bg-gray-50 rounded-full flex items-center justify-center text-gray-300 mb-8">
           <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
         </div>
-        <h2 className="text-3xl font-bold text-brand-dark mb-4 tracking-tight">Conteúdo em Preparação</h2>
+        <h2 className="text-3xl font-bold text-brand-dark mb-4 tracking-tight">{t('Conteúdo em Preparação')}</h2>
         <p className="text-gray-500 mb-10 max-w-md leading-relaxed font-medium">
-          Nossa equipe está finalizando a estratégia e o planejamento editorial para este mês. Você será notificado assim que estiver liberado para aprovação.
+          {t('Nossa equipe está finalizando a estratégia e o planejamento editorial para este mês. Você será notificado assim que estiver liberado para aprovação.')}
         </p>
         <button 
           onClick={onBack} 
           className="px-10 py-5 bg-brand-dark text-white rounded-2xl font-bold text-[11px] uppercase tracking-[0.2em] shadow-xl shadow-brand-dark/20 hover:scale-105 active:scale-95 transition-all"
         >
-          Voltar ao Dashboard
+          {t('Voltar ao Dashboard')}
         </button>
       </div>
     );
@@ -1516,8 +1518,8 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({
   if (!currentPlan) {
     return (
       <div className="text-center py-20">
-        <h2 className="text-xl font-bold text-gray-800 mb-4">Plano não encontrado para este mês</h2>
-        <button onClick={onBack} className="px-6 py-2 bg-gray-100 rounded-lg">Voltar</button>
+        <h2 className="text-xl font-bold text-gray-800 mb-4">{t('Plano não encontrado para este mês')}</h2>
+        <button onClick={onBack} className="px-6 py-2 bg-gray-100 rounded-lg">{t('Voltar')}</button>
       </div>
     );
   }
@@ -1624,7 +1626,7 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({
                 <button 
                   onClick={(e) => { e.stopPropagation(); handleCreatePost(d); }}
                   className="opacity-100 md:opacity-0 md:group-hover:opacity-100 text-gray-400 hover:text-blue-500 transition-all p-1"
-                  title="Criar publicação neste dia"
+                  title={t('Criar publicação neste dia')}
                 >
                   <Plus size={16} />
                 </button>
@@ -1691,7 +1693,7 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({
                       return (
                         <div className="flex flex-wrap items-center gap-1.5 text-[9px] font-medium mb-2 bg-gray-50/90 p-1 rounded-md border border-black/[0.04]">
                           {pts.map(({ platform, time }) => (
-                            <div key={platform} className="flex items-center gap-1 text-gray-700" title={`${platform === 'meta' ? 'Instagram' : platform === 'linkedin' ? 'LinkedIn' : 'TikTok'}: ${time}`}>
+                            <div key={platform} className="flex items-center gap-1 text-gray-700" title={`${platform === 'meta' ? t('Instagram') : platform === 'linkedin' ? t('LinkedIn') : t('TikTok')}: ${time}`}>
                               {platform === 'meta' && <Instagram size={10} className="text-[#E1306C] shrink-0" />}
                               {platform === 'linkedin' && <Linkedin size={10} className="text-[#0077B5] shrink-0" />}
                               {platform === 'tiktok' && <span className="text-[9px] font-bold text-black leading-none shrink-0">♪</span>}
@@ -1720,7 +1722,7 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({
                           <button 
                              onClick={(e) => handleQuickPublish(e, group)}
                              className="opacity-100 sm:opacity-0 sm:group-hover/card:opacity-100 p-1.5 rounded-lg bg-white text-gray-400 hover:text-green-600 hover:bg-green-50 shadow-sm border border-black/[0.03] transition-all"
-                             title="Marcar como Publicado"
+                             title={t('Marcar como Publicado')}
                           >
                               <Check size={12} />
                           </button>
@@ -1745,10 +1747,10 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({
                     borderColor: getThemeStatusColor(overallStatus) + '60',
                     boxShadow: `0 4px 12px ${getThemeStatusColor(overallStatus)}08`
                   }}
-                  title="Sugestão de Tema - Arraste para mover de data"
+                  title={t('Sugestão de Tema - Arraste para mover de data')}
                 >
                   <div className="flex items-center justify-between">
-                    <span className="text-[8px] font-extrabold uppercase tracking-widest text-gray-400">Sugestão de Tema</span>
+                    <span className="text-[8px] font-extrabold uppercase tracking-widest text-gray-400">{t('Sugestão de Tema')}</span>
                     <div className="flex items-center gap-1">
                       {statusObj.converted_to_post && (
                         <span className="px-1 py-0.5 text-[7px] font-extrabold uppercase bg-emerald-100 text-emerald-800 rounded flex items-center gap-0.5">
@@ -1809,10 +1811,10 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({
                       }}
                       disabled={isSavingTheme}
                       className="mt-1 w-full py-1.5 px-2 bg-brand-dark hover:bg-black text-white text-[8px] font-black uppercase tracking-wider rounded-lg transition-all flex items-center justify-center gap-1 shadow-xs active:scale-95"
-                      title="Transformar este tema aprovado em uma publicação no calendário"
+                      title={t('Transformar este tema aprovado em uma publicação no calendário')}
                     >
                       <Sparkles size={10} className="text-brand-green" />
-                      {statusObj.converted_to_post ? 'Gerar Post Novamente' : 'Transformar em Publicação'}
+                      {statusObj.converted_to_post ? t('Gerar Post Novamente') : t('Transformar em Publicação')}
                     </button>
                   )}
                 </div>
@@ -1921,7 +1923,7 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({
             <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full border border-black/[0.05] flex items-center justify-center group-hover:border-brand-dark group-hover:bg-brand-dark group-hover:text-white transition-all duration-300">
               <ArrowLeft size={14} className="sm:w-4 sm:h-4" />
             </div>
-            <span className="hidden sm:inline">Voltar</span>
+            <span className="hidden sm:inline">{t('Voltar')}</span>
           </motion.button>
         ) : <div />}
 
@@ -1963,14 +1965,14 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({
                       ? 'bg-green-50 border-green-100 text-green-600 hover:bg-green-100 shadow-sm' 
                       : 'bg-gray-50 border-gray-100 text-gray-500 hover:bg-gray-100'
                   }`}
-                  title={currentPlan?.is_released ? 'Bloquear acesso do cliente' : 'Liberar acesso para o cliente'}
+                  title={currentPlan?.is_released ? t('Bloquear acesso do cliente') : t('Liberar acesso para o cliente')}
                 >
                   {currentPlan?.is_released ? (
                     <CheckCircle2 size={14} />
                   ) : (
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
                   )}
-                  {currentPlan?.is_released ? 'Mês Liberado' : 'Mês Oculto'}
+                  {currentPlan?.is_released ? t('Mês Liberado') : t('Mês Oculto')}
                 </motion.button>
             )}
 
@@ -1986,7 +1988,7 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({
             )}
 
             <div className="flex flex-col sm:flex-row items-center gap-2 sm:gap-4 w-full sm:w-auto">
-                <span className="text-[9px] uppercase tracking-widest text-gray-400 font-bold ml-1 sm:ml-0">Visualização:</span>
+                <span className="text-[9px] uppercase tracking-widest text-gray-400 font-bold ml-1 sm:ml-0">{t('Visualização:')}</span>
                 <div className="flex bg-white rounded-xl sm:rounded-2xl p-1 sm:p-1.5 border border-black/[0.03] shadow-[0_4px_15px_rgba(0,0,0,0.03)] w-full sm:w-auto justify-between sm:justify-start">
                     <button onClick={() => setViewMode('list')} className={`flex flex-1 sm:flex-none items-center justify-center gap-1.5 sm:gap-2 px-3 sm:px-6 py-2 sm:py-2.5 rounded-lg sm:rounded-xl text-[9px] sm:text-[10px] font-bold uppercase tracking-widest transition-all duration-300 ${viewMode === 'list' ? 'bg-brand-dark text-white shadow-lg' : 'text-gray-400 hover:bg-gray-50'}`}>
                         <List size={14} /> <span>Lista</span>
@@ -2012,7 +2014,7 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({
                   onClick={handlePrevMonth}
                   disabled={monthIndex === 0}
                   className="w-8 h-8 rounded-xl flex items-center justify-center text-white/70 hover:text-white hover:bg-white/15 active:scale-95 transition-all disabled:opacity-25 disabled:cursor-not-allowed cursor-pointer"
-                  title="Mês anterior"
+                  title={t('Mês anterior')}
                 >
                   <ChevronLeft size={18} />
                 </button>
@@ -2023,10 +2025,10 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({
                     type="button"
                     onClick={() => setMonthPickerOpen(!monthPickerOpen)}
                     className="flex items-center gap-2 px-3 py-1.5 rounded-xl hover:bg-white/15 transition-all cursor-pointer select-none group"
-                    title="Clique para selecionar outro mês"
+                    title={t('Clique para selecionar outro mês')}
                   >
                     <span className="text-base sm:text-lg font-extrabold text-white tracking-tight leading-none">
-                      {monthName}
+                      {t(monthName)}
                     </span>
                     <span className="text-xs font-bold font-mono text-white/80 bg-white/10 px-2 py-0.5 rounded-md border border-white/10 leading-tight">
                       {pickerYear}
@@ -2106,7 +2108,7 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({
                   onClick={handleNextMonth}
                   disabled={monthIndex === 11}
                   className="w-8 h-8 rounded-xl flex items-center justify-center text-white/70 hover:text-white hover:bg-white/15 active:scale-95 transition-all disabled:opacity-25 disabled:cursor-not-allowed cursor-pointer"
-                  title="Próximo mês"
+                  title={t('Próximo mês')}
                 >
                   <ChevronRight size={18} />
                 </button>
@@ -2117,7 +2119,7 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({
                 <button
                   type="button"
                   onClick={handleCopyMonthLink}
-                  title="Copiar link do mês"
+                  title={t('Copiar link do mês')}
                   style={{
                     display: 'flex',
                     alignItems: 'center',
@@ -2136,7 +2138,7 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({
                   className="hover:bg-white/20 active:scale-95 transition-all cursor-pointer shadow-sm select-none"
                 >
                   {copiadoMesLink ? <Check size={14} /> : <Link2 size={14} />}
-                  <span>{copiadoMesLink ? 'Link copiado!' : 'Copiar link do mês'}</span>
+                  <span>{copiadoMesLink ? t('Link copiado!') : t('Copiar link do mês')}</span>
                 </button>
               )}
 
@@ -2166,7 +2168,7 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({
                   type="button"
                   onClick={() => setShowRejectedModal(true)}
                   className="flex items-center gap-1.5 px-3 py-1.5 bg-white/10 hover:bg-white/20 rounded-xl text-[10px] sm:text-[11px] font-bold uppercase tracking-wider transition-all backdrop-blur-md border border-white/10 text-white cursor-pointer active:scale-95"
-                  title="Ver histórico de publicações reprovadas pelo cliente"
+                  title={t('Ver histórico de publicações reprovadas pelo cliente')}
                 >
                   <span>📋</span> {rejectedPostsCount} Reprovadas
                 </button>
@@ -2193,7 +2195,7 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({
                   value={editTheme} 
                   onChange={e => setEditTheme(e.target.value)}
                   className="flex-1 bg-white/5 border border-white/10 rounded-xl px-3.5 py-1.5 text-xs text-white placeholder-white/20 focus:outline-none focus:border-white/40 transition-all font-medium"
-                  placeholder="Tema do Mês (ex: Inovação e Segurança)"
+                  placeholder={t('Tema do Mês (ex: Inovação e Segurança)')}
                 />
                 <div className="flex items-center justify-end gap-2">
                   <button 
@@ -2210,7 +2212,7 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({
                     className="flex items-center gap-1 px-3.5 py-1.5 bg-white text-brand-dark hover:bg-gray-100 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all disabled:opacity-50 shadow-md cursor-pointer"
                   >
                     {isSavingPlan ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />} 
-                    Salvar
+                    {t('Salvar')}
                   </button>
                 </div>
               </div>
@@ -2288,7 +2290,7 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({
                                {hasMeta && <Instagram size={12} className="text-[#E1306C]" />}
                                {hasLinkedin && <Linkedin size={12} className="text-[#0077B5]" />}
                                {hasTikTok && <div className="w-3.5 h-3.5 rounded-full bg-black flex items-center justify-center -ml-0.5"><span className="text-[7px] text-white font-bold leading-none -mt-[0.5px]" style={{ textShadow: '-1px -1px 0 #00f2fe, 1px 1px 0 #fe0979' }}>♪</span></div>}
-                               <span className="capitalize text-[10px] hidden md:inline">{group.platforms.length > 1 ? 'Multi' : group.platforms[0]}</span>
+                               <span className="capitalize text-[10px] hidden md:inline">{group.platforms.length > 1 ? t('Multi') : group.platforms[0]}</span>
                             </div>
                             <span className="inline-block md:mt-2 px-2 py-0.5 rounded text-[9px] font-bold border border-black/10 bg-white/50 uppercase text-gray-700">{getStatusLabel(group.status)}</span>
                          </div>
@@ -2338,9 +2340,9 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({
                             <button 
                                 onClick={(e) => handleQuickPublish(e, group)}
                                 className="flex items-center justify-center gap-2 px-3 py-2 bg-white text-gray-500 border border-gray-200 rounded-lg hover:bg-green-50 hover:text-green-700 hover:border-green-200 transition-all shadow-sm md:ml-4 mt-2 md:mt-0 w-full md:w-auto"
-                                title="Publicar Agora"
+                                title={t('Publicar Agora')}
                             >
-                                <Check size={16} /> <span className="text-xs font-bold">Publicar</span>
+                                <Check size={16} /> <span className="text-xs font-bold">{t('Publicar')}</span>
                             </button>
                          )}
                       </div>
@@ -2368,7 +2370,7 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({
                       {themes.length === 0 ? (
                         <div className="text-center py-12 px-4 bg-white rounded-2xl border border-gray-100 shadow-sm flex flex-col items-center justify-center">
                           <Sparkles size={36} className="text-gray-300 mb-3 animate-pulse" />
-                          <h3 className="font-bold text-gray-700 mb-1">Nenhum tema sugerido</h3>
+                          <h3 className="font-bold text-gray-700 mb-1">{t('Nenhum tema sugerido')}</h3>
                           <p className="text-xs text-gray-400 max-w-sm mb-4">
                             {userRole === 'admin' 
                               ? "Cadastre sugestões de temas de conteúdo para o cliente avaliar e aprovar antes de iniciar a produção."
@@ -2435,7 +2437,7 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({
                                     )}
                                     {hasTheme2 && (
                                       <span className="text-[9px] font-bold text-brand-dark bg-brand-dark/5 px-2 py-0.5 rounded-full border border-brand-dark/10">
-                                        Duas Sugestões
+                                        {t('Duas Sugestões')}
                                       </span>
                                     )}
                                   </div>
@@ -2452,7 +2454,7 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({
                                       <span className="text-amber-500 flex-shrink-0 mt-0.5">💡</span>
                                       <div className="space-y-0.5">
                                         <span className="font-bold text-gray-800 text-[13px] inline-flex items-center gap-1.5 mr-1">
-                                          Tema 1:
+                                          {t('Tema 1:')}
                                         </span>
                                         <span className="text-gray-600 text-[13px] font-medium leading-relaxed">{theme.theme_1}</span>
                                         <span className="ml-2 px-2 py-0.5 bg-gray-100 text-gray-600 rounded-lg text-[9px] font-extrabold uppercase tracking-wider">
@@ -2467,7 +2469,7 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({
                                         <span className="text-amber-400 flex-shrink-0 mt-0.5">💡</span>
                                         <div className="space-y-0.5">
                                           <span className="font-bold text-gray-800 text-[13px] inline-flex items-center gap-1.5 mr-1">
-                                            Tema 2:
+                                            {t('Tema 2:')}
                                           </span>
                                           <span className="text-gray-600 text-[13px] font-medium leading-relaxed">{theme.theme_2}</span>
                                           <span className="ml-2 px-2 py-0.5 bg-gray-100 text-gray-600 rounded-lg text-[9px] font-extrabold uppercase tracking-wider">
@@ -2489,10 +2491,10 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({
                                       }}
                                       disabled={isSavingTheme}
                                       className="flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-brand-dark hover:bg-black text-white transition-all text-[10px] font-black uppercase tracking-widest w-full md:w-auto shadow-sm active:scale-95"
-                                      title="Transformar este tema aprovado em uma publicação no calendário"
+                                      title={t('Transformar este tema aprovado em uma publicação no calendário')}
                                     >
                                       <Sparkles size={12} className="text-brand-green" />
-                                      <span>{statusObj.converted_to_post ? 'Transformar Novamente' : 'Transformar em Publicação'}</span>
+                                      <span>{statusObj.converted_to_post ? t('Transformar Novamente') : t('Transformar em Publicação')}</span>
                                     </button>
                                   )}
                                   <button
@@ -2581,7 +2583,7 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({
             <div className="bg-brand-dark p-6 text-white flex justify-between items-center shrink-0">
               <div>
                 <span className="text-[10px] font-black uppercase tracking-[0.2em] text-brand-green">
-                  Calendário Editorial
+                  {t('Calendário Editorial')}
                 </span>
                 <h3 className="text-lg font-extrabold tracking-tight mt-1">
                   Sugestão de Temas — {selectedThemeDate ? dayjs(selectedThemeDate).format('DD [de] MMMM [de] YYYY') : `Dia ${selectedThemeDay} de ${monthName}`}
@@ -2642,7 +2644,7 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({
                 <div className="p-5 bg-amber-50 rounded-2xl border border-amber-200 space-y-3 animate-in fade-in duration-300">
                   <div className="flex items-center gap-2 text-amber-800">
                     <Sparkles size={18} className="text-amber-500 shrink-0" />
-                    <h4 className="font-extrabold text-xs uppercase tracking-wider">Qual publicação você quer para este dia?</h4>
+                    <h4 className="font-extrabold text-xs uppercase tracking-wider">{t('Qual publicação você quer para este dia?')}</h4>
                   </div>
                   <p className="text-xs text-amber-700 leading-relaxed">
                     Você aprovou os dois temas para o mesmo dia! Selecione qual deles será publicado no <strong>Dia {selectedThemeDay}</strong>. O outro tema será reposicionado para outro dia pela equipe da agência.
@@ -2657,7 +2659,7 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({
                       className="w-full bg-brand-dark hover:bg-opacity-95 text-white text-[10px] font-black uppercase tracking-widest py-3 px-4 rounded-xl transition-all shadow-md active:scale-95 text-left flex items-center justify-between"
                     >
                       <span>💡 1. {theme1}</span>
-                      <span className="bg-brand-green/20 text-brand-green text-[9px] px-2 py-0.5 rounded">Escolher este</span>
+                      <span className="bg-brand-green/20 text-brand-green text-[9px] px-2 py-0.5 rounded">{t('Escolher este')}</span>
                     </button>
                     <button
                       onClick={async () => {
@@ -2668,7 +2670,7 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({
                       className="w-full bg-brand-dark hover:bg-opacity-95 text-white text-[10px] font-black uppercase tracking-widest py-3 px-4 rounded-xl transition-all shadow-md active:scale-95 text-left flex items-center justify-between"
                     >
                       <span>💡 2. {theme2}</span>
-                      <span className="bg-brand-green/20 text-brand-green text-[9px] px-2 py-0.5 rounded">Escolher este</span>
+                      <span className="bg-brand-green/20 text-brand-green text-[9px] px-2 py-0.5 rounded">{t('Escolher este')}</span>
                     </button>
                   </div>
                 </div>
@@ -2697,7 +2699,7 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({
                       <div className="p-5 bg-blue-50/70 border border-blue-200 rounded-2xl space-y-2 animate-in fade-in duration-300">
                         <div className="flex items-center gap-2 text-blue-800">
                           <span className="text-base shrink-0">⚠️</span>
-                          <h4 className="font-extrabold text-xs uppercase tracking-wider">Pedido de Alteração do Cliente:</h4>
+                          <h4 className="font-extrabold text-xs uppercase tracking-wider">{t('Pedido de Alteração do Cliente:')}</h4>
                         </div>
                         <p className="text-xs text-blue-700 italic font-semibold leading-relaxed bg-white/60 p-3.5 rounded-xl border border-blue-100">
                           "{selectedTheme.client_comment}"
@@ -2708,30 +2710,30 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({
                     {/* Tema 1 */}
                     <div className="p-5 rounded-2xl border border-gray-100 bg-gray-50/30 space-y-4">
                       <div className="flex items-center justify-between">
-                        <span className="text-[10px] font-black uppercase tracking-[0.15em] text-gray-400">Sugestão de Tema 1</span>
-                        <span className="text-[10px] font-bold text-brand-dark bg-brand-dark/5 px-2 py-0.5 rounded-md">Obrigatório</span>
+                        <span className="text-[10px] font-black uppercase tracking-[0.15em] text-gray-400">{t('Sugestão de Tema 1')}</span>
+                        <span className="text-[10px] font-bold text-brand-dark bg-brand-dark/5 px-2 py-0.5 rounded-md">{t('Obrigatório')}</span>
                       </div>
                       <div className="space-y-3">
                         <div>
-                          <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5">Ideia de Tema</label>
+                          <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5">{t('Ideia de Tema')}</label>
                           <textarea
                             value={theme1}
                             onChange={(e) => setTheme1(e.target.value)}
-                            placeholder="Digite o título ou ideia do tema"
+                            placeholder={t('Digite o título ou ideia do tema')}
                             className="w-full bg-white border border-gray-200 rounded-xl px-4 py-2.5 text-xs text-gray-900 focus:outline-none focus:border-brand-dark focus:ring-1 focus:ring-brand-dark transition-all resize-none min-h-[60px]"
                           />
                         </div>
                         <div>
-                          <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5">Formato</label>
+                          <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5">{t('Formato')}</label>
                           <select
                             value={format1}
                             onChange={(e) => setFormat1(e.target.value)}
                             className="w-full bg-white border border-gray-200 rounded-xl px-4 py-2.5 text-xs text-gray-900 focus:outline-none focus:border-brand-dark focus:ring-1 focus:ring-brand-dark transition-all font-semibold"
                           >
-                            <option value="Carrossel">Carrossel</option>
-                            <option value="Estático">Estático</option>
-                            <option value="Reels">Reels</option>
-                            <option value="Repost">Repost</option>
+                            <option value="Carrossel">{t('Carrossel')}</option>
+                            <option value="Estático">{t('Estático')}</option>
+                            <option value="Reels">{t('Reels')}</option>
+                            <option value="Repost">{t('Repost')}</option>
                           </select>
                         </div>
                       </div>
@@ -2752,30 +2754,30 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({
                           <X size={10} /> Remover
                         </button>
                         <div className="flex items-center justify-between">
-                          <span className="text-[10px] font-black uppercase tracking-[0.15em] text-gray-400">Sugestão de Tema 2</span>
-                          <span className="text-[10px] font-bold text-gray-400 bg-gray-100 px-2 py-0.5 rounded-md">Opcional</span>
+                          <span className="text-[10px] font-black uppercase tracking-[0.15em] text-gray-400">{t('Sugestão de Tema 2')}</span>
+                          <span className="text-[10px] font-bold text-gray-400 bg-gray-100 px-2 py-0.5 rounded-md">{t('Opcional')}</span>
                         </div>
                         <div className="space-y-3">
                           <div>
-                            <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5">Ideia de Tema</label>
+                            <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5">{t('Ideia de Tema')}</label>
                             <textarea
                               value={theme2}
                               onChange={(e) => setTheme2(e.target.value)}
-                              placeholder="Digite o título ou ideia do tema (opcional)"
+                              placeholder={t('Digite o título ou ideia do tema (opcional)')}
                               className="w-full bg-white border border-gray-200 rounded-xl px-4 py-2.5 text-xs text-gray-900 focus:outline-none focus:border-brand-dark focus:ring-1 focus:ring-brand-dark transition-all resize-none min-h-[60px]"
                             />
                           </div>
                           <div>
-                            <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5">Formato</label>
+                            <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5">{t('Formato')}</label>
                             <select
                               value={format2}
                               onChange={(e) => setFormat2(e.target.value)}
                               className="w-full bg-white border border-gray-200 rounded-xl px-4 py-2.5 text-xs text-gray-900 focus:outline-none focus:border-brand-dark focus:ring-1 focus:ring-brand-dark transition-all font-semibold"
                             >
-                              <option value="Carrossel">Carrossel</option>
-                              <option value="Estático">Estático</option>
-                              <option value="Reels">Reels</option>
-                              <option value="Repost">Repost</option>
+                              <option value="Carrossel">{t('Carrossel')}</option>
+                              <option value="Estático">{t('Estático')}</option>
+                              <option value="Reels">{t('Reels')}</option>
+                              <option value="Repost">{t('Repost')}</option>
                             </select>
                           </div>
                         </div>
@@ -2797,7 +2799,7 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({
                     <div className="p-4 rounded-2xl border border-gray-150 bg-gray-50/50 flex items-center justify-between">
                       <div className="flex items-center gap-2 text-gray-500">
                         <CalendarIcon size={14} />
-                        <span className="text-[10px] font-bold uppercase tracking-wider">Data de Publicação</span>
+                        <span className="text-[10px] font-bold uppercase tracking-wider">{t('Data de Publicação')}</span>
                       </div>
                       <span className="text-xs font-extrabold text-brand-dark">
                         {selectedThemeDate ? dayjs(selectedThemeDate).format('DD/MM/YYYY') : '-'}
@@ -2810,13 +2812,13 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({
                           <div className="flex items-center gap-2 text-emerald-800">
                             <Sparkles size={16} className="text-emerald-600 shrink-0" />
                             <h4 className="font-extrabold text-xs uppercase tracking-wider">
-                              {themeStatusState.converted_to_post ? 'Tema Já Transformado em Publicação' : 'Tema Aprovado! Pronto para virar post'}
+                              {themeStatusState.converted_to_post ? t('Tema Já Transformado em Publicação') : t('Tema Aprovado! Pronto para virar post')}
                             </h4>
                           </div>
                           <p className="text-xs text-emerald-700 font-medium leading-relaxed">
                             {themeStatusState.converted_to_post 
-                              ? 'Uma publicação foi gerada no calendário com este tema. A sugestão continua salva aqui como Aprovada.' 
-                              : 'Clique para criar automaticamente a publicação no calendário mantendo o tema e o formato aprovados.'}
+                              ? t('Uma publicação foi gerada no calendário com este tema. A sugestão continua salva aqui como Aprovada.') 
+                              : t('Clique para criar automaticamente a publicação no calendário mantendo o tema e o formato aprovados.')}
                           </p>
                         </div>
                         <button
@@ -2825,7 +2827,7 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({
                           className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-black uppercase tracking-widest py-3 px-5 rounded-xl transition-all shadow-md flex items-center justify-center gap-2 shrink-0 active:scale-95"
                         >
                           <Sparkles size={14} />
-                          <span>{themeStatusState.converted_to_post ? 'Gerar Outra Publicação' : 'Transformar em Publicação'}</span>
+                          <span>{themeStatusState.converted_to_post ? t('Gerar Outra Publicação') : t('Transformar em Publicação')}</span>
                         </button>
                       </div>
                     )}
@@ -2834,7 +2836,7 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({
                       <div className="p-5 bg-blue-50/70 border border-blue-200 rounded-2xl space-y-2">
                         <div className="flex items-center gap-2 text-blue-800">
                           <span className="text-base shrink-0">⚠️</span>
-                          <h4 className="font-extrabold text-xs uppercase tracking-wider">Pedido de Alteração do Cliente:</h4>
+                          <h4 className="font-extrabold text-xs uppercase tracking-wider">{t('Pedido de Alteração do Cliente:')}</h4>
                         </div>
                         <p className="text-xs text-blue-700 italic font-semibold leading-relaxed bg-white/60 p-3.5 rounded-xl border border-blue-100">
                           "{selectedTheme.client_comment}"
@@ -2845,15 +2847,15 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({
                     {/* Tema 1 (Leitura) */}
                     <div className="p-5 rounded-2xl border border-gray-150 bg-white shadow-sm space-y-3">
                       <div className="flex items-center justify-between">
-                        <span className="text-[9px] font-black uppercase tracking-widest text-gray-400">Sugestão 1</span>
+                        <span className="text-[9px] font-black uppercase tracking-widest text-gray-400">{t('Sugestão 1')}</span>
                         <span className={`px-2.5 py-1 text-[8px] font-black uppercase tracking-wider rounded-md text-white ${
                           themeStatusState.status_1 === 'approved' ? 'bg-emerald-500' :
                           themeStatusState.status_1 === 'rejected' ? 'bg-rose-500' :
                           themeStatusState.status_1 === 'revision' ? 'bg-blue-500' :
                           'bg-yellow-500'
                         }`}>
-                          {themeStatusState.status_1 === 'approved' && themeStatusState.chosen_theme === 1 ? 'Aprovado (Que Segue)' :
-                           themeStatusState.status_1 === 'approved' ? 'Aprovado (Aguardando Escolha)' :
+                          {themeStatusState.status_1 === 'approved' && themeStatusState.chosen_theme === 1 ? t('Aprovado (Que Segue)') :
+                           themeStatusState.status_1 === 'approved' ? t('Aprovado (Aguardando Escolha)') :
                            getThemeStatusLabel(themeStatusState.status_1)}
                         </span>
                       </div>
@@ -2868,12 +2870,12 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({
                           className="mt-3 px-3.5 py-2 bg-brand-dark hover:bg-black text-white rounded-xl text-[9px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5 shadow-sm"
                         >
                           <Sparkles size={12} className="text-brand-green" />
-                          Transformar Tema 1 em Publicação
+                          {t('Transformar Tema 1 em Publicação')}
                         </button>
                       )}
                       {themeStatusState.status_1 !== 'pending' && themeStatusState.comment_1 && (
                         <div className="mt-2.5 p-3 rounded-xl bg-gray-50 border border-gray-100 text-xs text-gray-600 italic">
-                          <span className="font-bold text-[9px] uppercase text-gray-400 tracking-wider block mb-1">Feedback do Cliente:</span>
+                          <span className="font-bold text-[9px] uppercase text-gray-400 tracking-wider block mb-1">{t('Feedback do Cliente:')}</span>
                           "{themeStatusState.comment_1}"
                         </div>
                       )}
@@ -2883,15 +2885,15 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({
                     {theme2.trim() && (
                       <div className="p-5 rounded-2xl border border-gray-150 bg-white shadow-sm space-y-3 animate-in fade-in duration-300">
                         <div className="flex items-center justify-between">
-                          <span className="text-[9px] font-black uppercase tracking-widest text-gray-400">Sugestão 2</span>
+                          <span className="text-[9px] font-black uppercase tracking-widest text-gray-400">{t('Sugestão 2')}</span>
                           <span className={`px-2.5 py-1 text-[8px] font-black uppercase tracking-wider rounded-md text-white ${
                             themeStatusState.status_2 === 'approved' ? 'bg-emerald-500' :
                             themeStatusState.status_2 === 'rejected' ? 'bg-rose-500' :
                             themeStatusState.status_2 === 'revision' ? 'bg-blue-500' :
                             'bg-yellow-500'
                           }`}>
-                            {themeStatusState.status_2 === 'approved' && themeStatusState.chosen_theme === 2 ? 'Aprovado (Que Segue)' :
-                             themeStatusState.status_2 === 'approved' ? 'Aprovado (Aguardando Escolha)' :
+                            {themeStatusState.status_2 === 'approved' && themeStatusState.chosen_theme === 2 ? t('Aprovado (Que Segue)') :
+                             themeStatusState.status_2 === 'approved' ? t('Aprovado (Aguardando Escolha)') :
                              getThemeStatusLabel(themeStatusState.status_2 || 'pending')}
                           </span>
                         </div>
@@ -2906,12 +2908,12 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({
                             className="mt-3 px-3.5 py-2 bg-brand-dark hover:bg-black text-white rounded-xl text-[9px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5 shadow-sm"
                           >
                             <Sparkles size={12} className="text-brand-green" />
-                            Transformar Tema 2 em Publicação
+                            {t('Transformar Tema 2 em Publicação')}
                           </button>
                         )}
                         {themeStatusState.status_2 !== 'pending' && themeStatusState.comment_2 && (
                           <div className="mt-2.5 p-3 rounded-xl bg-gray-50 border border-gray-100 text-xs text-gray-600 italic">
-                            <span className="font-bold text-[9px] uppercase text-gray-400 tracking-wider block mb-1">Feedback do Cliente:</span>
+                            <span className="font-bold text-[9px] uppercase text-gray-400 tracking-wider block mb-1">{t('Feedback do Cliente:')}</span>
                             "{themeStatusState.comment_2}"
                           </div>
                         )}
@@ -2931,7 +2933,7 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({
                   }`}>
                     <div className="flex items-center justify-between">
                       <span className="text-[8px] font-black uppercase tracking-widest text-brand-dark border border-brand-dark/10 px-2.5 py-1 rounded-md bg-white shadow-sm">
-                        Sugestão 1
+                        {t('Sugestão 1')}
                       </span>
                       <span className={`px-2.5 py-1 text-[8px] font-black uppercase tracking-wider rounded-md text-white ${
                         themeStatusState.status_1 === 'approved' ? 'bg-emerald-500' :
@@ -2939,8 +2941,8 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({
                         themeStatusState.status_1 === 'revision' ? 'bg-blue-500' :
                         'bg-yellow-500'
                       }`}>
-                        {themeStatusState.status_1 === 'approved' && themeStatusState.chosen_theme === 1 ? 'Aprovado (Que Segue)' :
-                         themeStatusState.status_1 === 'approved' ? 'Aprovado (Aguardando Escolha)' :
+                        {themeStatusState.status_1 === 'approved' && themeStatusState.chosen_theme === 1 ? t('Aprovado (Que Segue)') :
+                         themeStatusState.status_1 === 'approved' ? t('Aprovado (Aguardando Escolha)') :
                          getThemeStatusLabel(themeStatusState.status_1)}
                       </span>
                     </div>
@@ -2987,7 +2989,7 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({
                     {activeAction && activeAction.suggestionIndex === 1 && (
                       <div className="bg-white border border-gray-150 rounded-2xl p-4 mt-4 space-y-3 shadow-inner animate-in slide-in-from-top-3 duration-300">
                         <span className="text-[8px] font-black uppercase tracking-widest text-gray-400">
-                          {activeAction.type === 'revision' ? 'Pedir Alteração — Sugestão 1' : 'Reprovar — Sugestão 1'}
+                          {activeAction.type === 'revision' ? t('Pedir Alteração — Sugestão 1') : t('Reprovar — Sugestão 1')}
                         </span>
                         <textarea
                           value={actionReason}
@@ -3000,7 +3002,7 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({
                             onClick={() => setActiveAction(null)}
                             className="px-3 py-1.5 rounded-lg hover:bg-gray-100 text-gray-500 text-[9px] font-bold uppercase tracking-wider"
                           >
-                            Cancelar
+                            {t('Cancelar')}
                           </button>
                           <button
                             onClick={async () => {
@@ -3016,7 +3018,7 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({
                               activeAction.type === 'revision' ? 'bg-blue-500 hover:bg-blue-600' : 'bg-rose-500 hover:bg-rose-600'
                             }`}
                           >
-                            Confirmar
+                            {t('Confirmar')}
                           </button>
                         </div>
                       </div>
@@ -3028,7 +3030,7 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({
                         {themeStatusState.comment_1 && (
                           <div className="bg-white/80 border border-black/[0.03] rounded-xl p-3 text-xs text-gray-600">
                             <span className="font-bold text-[9px] uppercase text-gray-400 tracking-wider block mb-1">
-                              {themeStatusState.status_1 === 'revision' ? 'Feedback de Alteração:' : 'Motivo da Reprovação:'}
+                              {themeStatusState.status_1 === 'revision' ? t('Feedback de Alteração:') : t('Motivo da Reprovação:')}
                             </span>
                             {editingCommentIndex === 1 ? (
                               <div className="space-y-3 mt-1.5">
@@ -3042,14 +3044,14 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({
                                     onClick={() => setEditingCommentIndex(null)}
                                     className="px-3 py-1.5 rounded bg-gray-100 text-gray-600 text-[9px] font-bold uppercase transition-all"
                                   >
-                                    Cancelar
+                                    {t('Cancelar')}
                                   </button>
                                   <button
                                     onClick={() => handleSaveEditedComment(1)}
                                     disabled={isSavingTheme}
                                     className="px-3 py-1.5 rounded bg-brand-dark text-white hover:bg-opacity-95 text-[9px] font-bold uppercase transition-all"
                                   >
-                                    Salvar
+                                    {t('Salvar')}
                                   </button>
                                 </div>
                               </div>
@@ -3074,7 +3076,7 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({
                             )}
                             {confirmResetIndex === 1 ? (
                               <div className="flex items-center gap-2 bg-rose-50 border border-rose-100 px-3 py-1.5 rounded-xl ml-auto animate-in fade-in duration-200">
-                                <span className="text-[9px] font-bold text-rose-700">Confirmar?</span>
+                                <span className="text-[9px] font-bold text-rose-700">{t('Confirmar?')}</span>
                                 <button
                                   onClick={async (e) => {
                                     e.stopPropagation();
@@ -3083,7 +3085,7 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({
                                   }}
                                   className="px-2 py-0.5 bg-rose-500 hover:bg-rose-600 text-white rounded text-[8px] font-black uppercase transition-all"
                                 >
-                                  Sim
+                                  {t('Sim')}
                                 </button>
                                 <button
                                   onClick={(e) => {
@@ -3092,7 +3094,7 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({
                                   }}
                                   className="px-2 py-0.5 bg-gray-150 hover:bg-gray-200 text-gray-700 rounded text-[8px] font-black uppercase transition-all"
                                 >
-                                  Não
+                                  {t('Não')}
                                 </button>
                               </div>
                             ) : (
@@ -3120,7 +3122,7 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({
                     }`}>
                       <div className="flex items-center justify-between">
                         <span className="text-[8px] font-black uppercase tracking-widest text-brand-dark border border-brand-dark/10 px-2.5 py-1 rounded-md bg-white shadow-sm">
-                          Sugestão 2
+                          {t('Sugestão 2')}
                         </span>
                         <span className={`px-2.5 py-1 text-[8px] font-black uppercase tracking-wider rounded-md text-white ${
                           themeStatusState.status_2 === 'approved' ? 'bg-emerald-500' :
@@ -3128,8 +3130,8 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({
                           themeStatusState.status_2 === 'revision' ? 'bg-blue-500' :
                           'bg-yellow-500'
                         }`}>
-                          {themeStatusState.status_2 === 'approved' && themeStatusState.chosen_theme === 2 ? 'Aprovado (Que Segue)' :
-                           themeStatusState.status_2 === 'approved' ? 'Aprovado (Aguardando Escolha)' :
+                          {themeStatusState.status_2 === 'approved' && themeStatusState.chosen_theme === 2 ? t('Aprovado (Que Segue)') :
+                           themeStatusState.status_2 === 'approved' ? t('Aprovado (Aguardando Escolha)') :
                            getThemeStatusLabel(themeStatusState.status_2 || 'pending')}
                         </span>
                       </div>
@@ -3176,7 +3178,7 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({
                       {activeAction && activeAction.suggestionIndex === 2 && (
                         <div className="bg-white border border-gray-150 rounded-2xl p-4 mt-4 space-y-3 shadow-inner animate-in slide-in-from-top-3 duration-300">
                           <span className="text-[8px] font-black uppercase tracking-widest text-gray-400">
-                            {activeAction.type === 'revision' ? 'Pedir Alteração — Sugestão 2' : 'Reprovar — Sugestão 2'}
+                            {activeAction.type === 'revision' ? t('Pedir Alteração — Sugestão 2') : t('Reprovar — Sugestão 2')}
                           </span>
                           <textarea
                             value={actionReason}
@@ -3189,7 +3191,7 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({
                               onClick={() => setActiveAction(null)}
                               className="px-3 py-1.5 rounded-lg hover:bg-gray-100 text-gray-500 text-[9px] font-bold uppercase tracking-wider"
                             >
-                              Cancelar
+                              {t('Cancelar')}
                             </button>
                             <button
                               onClick={async () => {
@@ -3205,7 +3207,7 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({
                                 activeAction.type === 'revision' ? 'bg-blue-500 hover:bg-blue-600' : 'bg-rose-500 hover:bg-rose-600'
                               }`}
                             >
-                              Confirmar
+                              {t('Confirmar')}
                             </button>
                           </div>
                         </div>
@@ -3217,7 +3219,7 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({
                           {themeStatusState.comment_2 && (
                             <div className="bg-white/80 border border-black/[0.03] rounded-xl p-3 text-xs text-gray-600">
                               <span className="font-bold text-[9px] uppercase text-gray-400 tracking-wider block mb-1">
-                                {themeStatusState.status_2 === 'revision' ? 'Feedback de Alteração:' : 'Motivo da Reprovação:'}
+                                {themeStatusState.status_2 === 'revision' ? t('Feedback de Alteração:') : t('Motivo da Reprovação:')}
                               </span>
                               {editingCommentIndex === 2 ? (
                                 <div className="space-y-3 mt-1.5">
@@ -3231,14 +3233,14 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({
                                       onClick={() => setEditingCommentIndex(null)}
                                       className="px-3 py-1.5 rounded bg-gray-100 text-gray-600 text-[9px] font-bold uppercase transition-all"
                                     >
-                                      Cancelar
+                                      {t('Cancelar')}
                                     </button>
                                     <button
                                       onClick={() => handleSaveEditedComment(2)}
                                       disabled={isSavingTheme}
                                       className="px-3 py-1.5 rounded bg-brand-dark text-white hover:bg-opacity-95 text-[9px] font-bold uppercase transition-all"
                                     >
-                                      Salvar
+                                      {t('Salvar')}
                                     </button>
                                   </div>
                                 </div>
@@ -3263,7 +3265,7 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({
                                )}
                                {confirmResetIndex === 2 ? (
                                  <div className="flex items-center gap-2 bg-rose-50 border border-rose-100 px-3 py-1.5 rounded-xl ml-auto animate-in fade-in duration-200">
-                                   <span className="text-[9px] font-bold text-rose-700">Confirmar?</span>
+                                   <span className="text-[9px] font-bold text-rose-700">{t('Confirmar?')}</span>
                                    <button
                                      onClick={async (e) => {
                                        e.stopPropagation();
@@ -3272,7 +3274,7 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({
                                      }}
                                      className="px-2 py-0.5 bg-rose-500 hover:bg-rose-600 text-white rounded text-[8px] font-black uppercase transition-all"
                                    >
-                                     Sim
+                                     {t('Sim')}
                                    </button>
                                    <button
                                      onClick={(e) => {
@@ -3281,7 +3283,7 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({
                                      }}
                                      className="px-2 py-0.5 bg-gray-150 hover:bg-gray-200 text-gray-700 rounded text-[8px] font-black uppercase transition-all"
                                    >
-                                     Não
+                                     {t('Não')}
                                    </button>
                                  </div>
                                ) : (
@@ -3310,7 +3312,7 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({
                   {selectedTheme && (
                     confirmDelete ? (
                       <div className="flex items-center gap-2 bg-rose-50 border border-rose-100 px-3 py-1.5 rounded-xl mr-auto animate-in fade-in duration-200">
-                        <span className="text-[10px] font-bold text-rose-700">Confirmar Exclusão?</span>
+                        <span className="text-[10px] font-bold text-rose-700">{t('Confirmar Exclusão?')}</span>
                         <button
                           onClick={async () => {
                             setConfirmDelete(false);
@@ -3318,13 +3320,13 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({
                           }}
                           className="px-3 py-1 bg-rose-500 hover:bg-rose-600 text-white rounded-lg text-[9px] font-black uppercase transition-all"
                         >
-                          Sim
+                          {t('Sim')}
                         </button>
                         <button
                           onClick={() => setConfirmDelete(false)}
                           className="px-3 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-[9px] font-black uppercase transition-all"
                         >
-                          Não
+                          {t('Não')}
                         </button>
                       </div>
                     ) : (
@@ -3358,7 +3360,7 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({
                         }}
                         className="flex items-center gap-2 px-5 py-2.5 rounded-xl hover:bg-gray-100 text-gray-500 transition-all text-[10px] font-black uppercase tracking-widest"
                       >
-                        Cancelar
+                        {t('Cancelar')}
                       </button>
                       <button
                         onClick={async () => {
@@ -3370,7 +3372,7 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({
                         className="flex items-center gap-2 px-7 py-2.5 rounded-xl bg-brand-dark text-white hover:bg-opacity-90 transition-all text-[10px] font-black uppercase tracking-widest disabled:opacity-50 shadow-lg"
                       >
                         {isSavingTheme ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />}
-                        {selectedTheme ? 'Atualizar' : 'Salvar Sugestão'}
+                        {selectedTheme ? t('Atualizar') : t('Salvar Sugestão')}
                       </button>
                     </>
                   ) : (
@@ -3379,7 +3381,7 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({
                         onClick={() => setIsThemeModalOpen(false)}
                         className="flex items-center gap-2 px-5 py-2.5 rounded-xl hover:bg-gray-100 text-gray-500 transition-all text-[10px] font-black uppercase tracking-widest"
                       >
-                        Fechar
+                        {t('Fechar')}
                       </button>
                       {selectedTheme && (getOverallDayStatus(selectedTheme) === 'approved' || themeStatusState.status_1 === 'approved' || themeStatusState.status_2 === 'approved') && (
                         <button
@@ -3388,7 +3390,7 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({
                           className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white transition-all text-[10px] font-black uppercase tracking-widest shadow-lg disabled:opacity-50"
                         >
                           <Sparkles size={12} />
-                          {themeStatusState.converted_to_post ? 'Transformar Novamente' : 'Transformar em Publicação'}
+                          {themeStatusState.converted_to_post ? t('Transformar Novamente') : t('Transformar em Publicação')}
                         </button>
                       )}
                       <button
@@ -3407,7 +3409,7 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({
                     onClick={() => setIsThemeModalOpen(false)}
                     className="flex items-center gap-2 px-5 py-2.5 rounded-xl hover:bg-gray-100 text-gray-500 transition-all text-[10px] font-black uppercase tracking-widest"
                   >
-                    Fechar
+                    {t('Fechar')}
                   </button>
                 </>
               )}
@@ -3441,8 +3443,8 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({
                 {selectedPosts.size}
               </div>
               <div className="flex flex-col">
-                <span className="text-[10px] font-black uppercase tracking-[0.2em] text-white">Selecionados</span>
-                <span className="text-[9px] font-medium text-white/40 uppercase tracking-widest">Publicações do mês</span>
+                <span className="text-[10px] font-black uppercase tracking-[0.2em] text-white">{t('Selecionados')}</span>
+                <span className="text-[9px] font-medium text-white/40 uppercase tracking-widest">{t('Publicações do mês')}</span>
               </div>
             </div>
 
@@ -3450,7 +3452,7 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({
             <div className="flex flex-col gap-3">
               <div className="flex items-center gap-2">
                 <Sparkles size={10} className="text-brand-green" />
-                <span className="text-[9px] font-black uppercase tracking-[0.2em] text-white/50">Mudar Status em Massa</span>
+                <span className="text-[9px] font-black uppercase tracking-[0.2em] text-white/50">{t('Mudar Status em Massa')}</span>
               </div>
               
               <div className="flex flex-wrap items-center gap-2">
@@ -3461,16 +3463,16 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({
                   className="group flex items-center gap-2 px-5 py-2.5 rounded-xl bg-brand-green text-brand-dark hover:bg-white transition-all active:scale-95 disabled:opacity-50 shadow-lg shadow-brand-green/10"
                 >
                   <FileCheck size={14} className="group-hover:scale-110 transition-transform" />
-                  <span className="text-[10px] font-black uppercase tracking-widest">Enviar p/ Aprovação</span>
+                  <span className="text-[10px] font-black uppercase tracking-widest">{t('Enviar p/ Aprovação')}</span>
                 </button>
 
                 <div className="h-4 w-px bg-white/10 mx-1 hidden md:block" />
 
                 {[
-                  { id: 'draft', label: 'Produção', icon: <Edit2 size={12} /> },
-                  { id: 'approved', label: 'Aprovar', icon: <Check size={12} /> },
-                  { id: 'scheduled', label: 'Agendar', icon: <CalendarIcon size={12} /> },
-                  { id: 'published', label: 'Publicar', icon: <CheckCircle2 size={12} /> }
+                  { id: 'draft', label: t('Produção'), icon: <Edit2 size={12} /> },
+                  { id: 'approved', label: t('Aprovar'), icon: <Check size={12} /> },
+                  { id: 'scheduled', label: t('Agendar'), icon: <CalendarIcon size={12} /> },
+                  { id: 'published', label: t('Publicar'), icon: <CheckCircle2 size={12} /> }
                 ].map((s) => (
                   <button
                     key={s.id}
@@ -3491,14 +3493,14 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({
                 onClick={handleBulkDelete}
                 disabled={isDeleting || isBulkUpdating}
                 className="w-11 h-11 flex items-center justify-center bg-rose-500/10 text-rose-500 hover:bg-rose-500 hover:text-white rounded-2xl transition-all shadow-lg active:scale-90"
-                title="Excluir Selecionados"
+                title={t('Excluir Selecionados')}
               >
                 <Trash size={18} />
               </button>
               <button 
                 onClick={() => setSelectedPosts(new Set())}
                 className="w-11 h-11 flex items-center justify-center bg-white/5 hover:bg-white/20 text-white/60 hover:text-white rounded-2xl transition-all active:scale-90"
-                title="Desmarcar Todos"
+                title={t('Desmarcar Todos')}
               >
                 <X size={18} />
               </button>

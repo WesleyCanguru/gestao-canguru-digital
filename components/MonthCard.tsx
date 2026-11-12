@@ -3,6 +3,7 @@ import React from 'react';
 import { MonthPlan, MonthColor } from '../types';
 import { Target, ArrowRight, Lock } from 'lucide-react';
 import { motion } from 'motion/react';
+import { useT } from '../lib/i18n';
 
 interface MonthCardProps {
   data: MonthPlan;
@@ -43,6 +44,7 @@ const colorStyles: Record<MonthColor, { border: string; bg: string; text: string
 };
 
 export const MonthCard: React.FC<MonthCardProps> = ({ data, onClick, postCount = 0, isLocked = false }) => {
+  const { t } = useT();
   const style = colorStyles[data.color];
 
   return (
@@ -76,7 +78,7 @@ export const MonthCard: React.FC<MonthCardProps> = ({ data, onClick, postCount =
               )}
             </div>
             <h3 className={`text-2xl font-bold leading-tight tracking-tight ${isLocked ? 'text-gray-400' : 'text-brand-dark group-hover:text-gray-600 transition-colors'}`}>
-              {isLocked ? 'Sendo desenvolvido...' : data.title}
+              {isLocked ? t('Sendo desenvolvido...') : data.title}
             </h3>
           </div>
           <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shadow-sm border border-black/[0.02] ${isLocked ? 'bg-gray-50 text-gray-300' : 'bg-gray-50 text-gray-300 group-hover:bg-brand-dark group-hover:text-white transition-all duration-500'}`}>

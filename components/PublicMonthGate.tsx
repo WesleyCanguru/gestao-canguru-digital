@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { BRAND } from '../lib/brand';
 import { MONTH_NAMES } from '../hooks/useEditorialData';
+import { useT } from '../lib/i18n';
 
 export interface PublicMonthGateProps {
   clientName: string;      // ex: "Next Safety"
@@ -17,9 +18,10 @@ export const PublicMonthGate: React.FC<PublicMonthGateProps> = ({
   ano,
   onEnter,
 }) => {
+  const { t, lang } = useT();
   const [name, setName] = useState('');
   const nomeMes = MONTH_NAMES[(mes >= 1 && mes <= 12 ? mes - 1 : 0)] || 'Janeiro';
-  const nomeMesFormatado = `${nomeMes} de ${ano}`;
+  const nomeMesFormatado = lang === 'en' ? `${t(nomeMes)} ${ano}` : `${nomeMes} de ${ano}`;
 
   return (
     <div style={{
@@ -71,7 +73,7 @@ export const PublicMonthGate: React.FC<PublicMonthGateProps> = ({
           textTransform: 'uppercase', 
           marginBottom: 10 
         }}>
-          Mapa Editorial
+          {t('Mapa Editorial')}
         </p>
 
         <h1 style={{ 
@@ -85,14 +87,14 @@ export const PublicMonthGate: React.FC<PublicMonthGateProps> = ({
         </h1>
 
         <p style={{ color: '#8A8F98', fontSize: 14, lineHeight: 1.6, marginBottom: 36 }}>
-          Para visualizar e aprovar as publicações deste mês, informe seu nome.
+          {t('Para visualizar e aprovar as publicações deste mês, informe seu nome.')}
         </p>
 
         <input
           value={name}
           onChange={(e) => setName(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && name.trim() && onEnter(name.trim())}
-          placeholder="Seu nome"
+          placeholder={t('Seu nome')}
           autoFocus
           style={{
             width: '100%',
@@ -126,11 +128,11 @@ export const PublicMonthGate: React.FC<PublicMonthGateProps> = ({
             transition: 'all 0.2s',
           }}
         >
-          Entrar no calendário
+          {t('Entrar no calendário')}
         </button>
 
         <p style={{ color: '#c4c4c4', fontSize: 12, marginTop: 20, lineHeight: 1.5 }}>
-          Seu nome ficará registrado com suas aprovações e comentários.
+          {t('Seu nome ficará registrado com suas aprovações e comentários.')}
         </p>
       </div>
 

@@ -1,4 +1,5 @@
 import { clientLang, isStarterClient } from './strategy/ClientStartCard';
+import { BRAND } from '../lib/brand';
 import { trBriefing } from '../lib/briefingI18n';
 import { tr } from '../lib/accessGuides';
 import React, { useState, useEffect } from 'react';
@@ -77,7 +78,7 @@ export const handleDownloadBriefingPDF = (briefing: any, clientName: string, cus
           }).join('')}
         </div>
         
-        <div class="footer">Gerado por Canguru Digital</div>
+        <div class="footer">Gerado por ${BRAND.by}</div>
         <script>
           function goBack() {
             try {
