@@ -11,7 +11,6 @@ import {
   Zap,
   ClipboardList,
   FolderOpen,
-  Globe,
   Sparkles,
   BookOpen,
   Camera,
@@ -52,7 +51,6 @@ interface ClientHomeProps {
   onNavigateToStrategicBriefings: () => void;
   onNavigateToDocuments: () => void;
   onNavigateToPaidTraffic: () => void;
-  onNavigateToWebsite: () => void;
   onNavigateToPasswordVault: () => void;
   onNavigateToTutorials: () => void;
   onNavigateToAiPhotos: () => void;
@@ -76,7 +74,6 @@ export const ClientHome: React.FC<ClientHomeProps> = ({
   onNavigateToStrategicBriefings,
   onNavigateToDocuments,
   onNavigateToPaidTraffic,
-  onNavigateToWebsite,
   onNavigateToPasswordVault,
   onNavigateToTutorials,
   onNavigateToAiPhotos,
@@ -427,7 +424,6 @@ export const ClientHome: React.FC<ClientHomeProps> = ({
   const showCrm = activeClient?.features_settings?.crm ?? activeClient?.features_settings?.is_lead_tracking_enabled ?? (activeClient as any)?.is_lead_tracking_enabled ?? true;
   const showAiPhotos = getFeature('ai_photos', hasService('Fotos com IA'));
   const showBriefings = getFeature('briefings', hasService('Social Media') || hasService('Tráfego Pago'));
-  const showWebsite = getFeature('website', hasService('Website'));
   const showDocuments = getFeature('drive', true);
   const showTutorials = getFeature('tutorials', true);
   const showRoteiros = getFeature('roteiros', true);
@@ -498,14 +494,6 @@ export const ClientHome: React.FC<ClientHomeProps> = ({
       icon: Camera,
       visible: showAiPhotos,
       action: onNavigateToAiPhotos
-    },
-    {
-      id: 'website',
-      label: 'Website',
-      subtitle: 'Acompanhamento do site',
-      icon: Globe,
-      visible: showWebsite,
-      action: onNavigateToWebsite
     },
     {
       id: 'lockbox',

@@ -18,7 +18,6 @@ import { tr } from './lib/accessGuides';
 import { ClientHome } from './components/ClientHome';
 import { BriefingsView } from './components/BriefingsView';
 import { PaidTrafficView } from './components/PaidTrafficView';
-import WebsiteView from './components/WebsiteView';
 import { ContractFormScreen } from './components/ContractFormScreen';
 // import AdminView from './components/AdminView'; // Removed redundant view
 import { useEditorialData, MONTH_NAMES } from './hooks/useEditorialData';
@@ -56,7 +55,7 @@ dayjs.locale('pt-br');
 
 import { Navigation } from './components/Navigation';
 
-type ViewState = 'home' | 'month-detail' | 'onboarding' | 'dashboard' | 'briefings' | 'strategic-briefings' | 'paid-traffic' | 'website' | 'password-vault' | 'tutorials' | 'ai-photos' | 'agencyDashboard' | 'crm' | 'roteiros' | 'organico' | 'nps' | 'criativos';
+type ViewState = 'home' | 'month-detail' | 'onboarding' | 'dashboard' | 'briefings' | 'strategic-briefings' | 'paid-traffic' | 'password-vault' | 'tutorials' | 'ai-photos' | 'agencyDashboard' | 'crm' | 'roteiros' | 'organico' | 'nps' | 'criativos';
 
 interface MainAppProps {
   initialView?: ViewState;
@@ -410,8 +409,6 @@ const MainApp: React.FC<MainAppProps> = ({ initialView, onExitAgencyDashboard, o
                       Voltar ao Dashboard
                     </button>
                   </div>
-                ) : view === 'website' ? (
-                  <WebsiteView onBack={() => setView('dashboard')} />
                 ) : view === 'paid-traffic' ? (
                   <PaidTrafficView onBack={() => setView('dashboard')} />
                 ) : view === 'crm' ? (
@@ -424,7 +421,6 @@ const MainApp: React.FC<MainAppProps> = ({ initialView, onExitAgencyDashboard, o
                     onNavigateToStrategicBriefings={() => setView('strategic-briefings')}
                     onNavigateToDocuments={() => {}} // Redirection handled in ClientHome
                     onNavigateToPaidTraffic={() => setView('paid-traffic')}
-                    onNavigateToWebsite={() => setView('website')}
                     onNavigateToPasswordVault={() => setView('password-vault')}
                     onNavigateToTutorials={() => setView('tutorials')}
                     onNavigateToAiPhotos={() => setView('ai-photos')}
@@ -569,7 +565,6 @@ const MainApp: React.FC<MainAppProps> = ({ initialView, onExitAgencyDashboard, o
                     onNavigateToStrategicBriefings={() => setView('strategic-briefings')}
                     onNavigateToDocuments={() => {}} // Redirection handled in ClientHome
                     onNavigateToPaidTraffic={() => setView('paid-traffic')}
-                    onNavigateToWebsite={() => setView('website')}
                     onNavigateToPasswordVault={() => setView('password-vault')}
                     onNavigateToTutorials={() => setView('tutorials')}
                     onNavigateToAiPhotos={() => setView('ai-photos')}
