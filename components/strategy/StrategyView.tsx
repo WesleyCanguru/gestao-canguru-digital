@@ -14,6 +14,20 @@ export interface StrategyContent {
   pontos_em_aberto?: string[];
 }
 
+/** Garante que as listas da estratégia sejam listas (o modelo às vezes devolve texto quebrado). */
+export function normalizeStrategy(raw: unknown): StrategyContent {
+  const c: any = raw && typeof raw === 'object' ? { ...(raw as any) } : {};
+  const asList = (v: unknown) => {
+    if (Array.isArray(v)) return v.filter(x => x != null);
+    if (typeof v === 'string') { try { const p = JSON.parse(v); return Array.isArray(p) ? p : []; } catch { return []; } }
+    return [];
+  };
+  for (const k of ['publicos', 'campanhas', 'metricas', 'cronograma', 'precisamos_do_cliente', 'pontos_em_aberto']) c[k] = asList(c[k]);
+  if (c.investimento && typeof c.investimento !== 'object') c.investimento = undefined;
+  for (const k of ['resumo', 'objetivo_principal', 'oferta']) if (typeof c[k] !== 'string') c[k] = undefined;
+  return c as StrategyContent;
+}
+
 export interface StrategyRow {
   id: string;
   client_id: string;
@@ -45,7 +59,8 @@ const ES: Record<string, string> = {
   'Como vamos medir': 'Cómo vamos a medir', 'Cronograma': 'Cronograma', 'O que precisamos de você': 'Lo que necesitamos de ti',
 };
 
-export const StrategyView: React.FC<{ content: StrategyContent; internal?: boolean; english?: boolean; lang?: 'pt' | 'en' | 'es' }> = ({ content: c, internal, english, lang }) => {
+export const StrategyView: React.FC<{ content: StrategyContent; internal?: boolean; english?: boolean; lang?: 'pt' | 'en' | 'es' }> = ({ content, internal, english, lang }) => {
+  const c = normalizeStrategy(content);
   const l = lang ?? (english ? 'en' : 'pt');
   const t = (pt: string, en: string) => (l === 'en' ? en : l === 'es' ? (ES[pt] ?? pt) : pt);
   return (

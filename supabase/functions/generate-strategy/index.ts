@@ -137,32 +137,47 @@ Deno.serve(async (req) => {
     const userMsg = `Dados do cliente (JSON):\n${JSON.stringify(context, null, 2)}` +
       (extra ? `\n\nInstruções ou anotações da equipe (por exemplo, resumo da reunião):\n${extra}` : "");
 
-    const resp = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: { "x-api-key": apiKey, "anthropic-version": "2023-06-01", "content-type": "application/json" },
-      body: JSON.stringify({
-        model: MODEL,
-        max_tokens: 6000,
-        system,
-        tools: [STRATEGY_TOOL],
-        tool_choice: { type: "auto" },
-        messages: [{ role: "user", content: userMsg }],
-      }),
-    });
-    const out = await resp.json();
-    if (!resp.ok) {
-      console.error(out);
-      const msg = out?.error?.message ?? "Erro ao chamar o Claude.";
-      return json({ error: `Claude: ${msg}` }, 502);
+    // Confere o formato: listas precisam ser listas e nada de marcação de ferramenta vazando no texto.
+    const isValid = (c: any) => {
+      if (!c || typeof c !== "object" || typeof c.resumo !== "string" || !c.resumo.trim()) return false;
+      for (const k of ["publicos", "campanhas"]) if (!Array.isArray(c[k]) || c[k].length === 0) return false;
+      for (const k of ["metricas", "cronograma", "precisamos_do_cliente", "pontos_em_aberto"]) if (c[k] != null && !Array.isArray(c[k])) return false;
+      if (c.investimento != null && typeof c.investimento !== "object") return false;
+      return !/<\/?parameter|<\/?invoke|antml:/.test(JSON.stringify(c));
+    };
+
+    let strategyContent: any = null;
+    let out: any = null;
+    for (let attempt = 0; attempt < 2 && !strategyContent; attempt++) {
+      const resp = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: { "x-api-key": apiKey, "anthropic-version": "2023-06-01", "content-type": "application/json" },
+        body: JSON.stringify({
+          model: MODEL,
+          max_tokens: 8000,
+          system,
+          tools: [STRATEGY_TOOL],
+          tool_choice: attempt === 0 ? { type: "auto" } : { type: "tool", name: "salvar_estrategia" },
+          messages: [{ role: "user", content: userMsg }],
+        }),
+      });
+      out = await resp.json();
+      if (!resp.ok) {
+        console.error(out);
+        const msg = out?.error?.message ?? "Erro ao chamar o Claude.";
+        return json({ error: `Claude: ${msg}` }, 502);
+      }
+      let candidate = (out.content ?? []).find((c: { type: string }) => c.type === "tool_use")?.input ?? null;
+      if (!candidate) {
+        // Plano B: o modelo respondeu em texto; tenta achar o JSON
+        const text = (out.content ?? []).filter((c: { type: string }) => c.type === "text").map((c: { text: string }) => c.text).join("\n");
+        const m = text.match(/\{[\s\S]*\}/);
+        try { candidate = m ? JSON.parse(m[0]) : null; } catch { candidate = null; }
+      }
+      if (isValid(candidate)) strategyContent = candidate;
+      else console.warn("estratégia fora do formato, tentativa", attempt + 1, out?.stop_reason);
     }
-    let strategyContent = (out.content ?? []).find((c: { type: string }) => c.type === "tool_use")?.input ?? null;
-    if (!strategyContent) {
-      // Plano B: o modelo respondeu em texto; tenta achar o JSON
-      const text = (out.content ?? []).filter((c: { type: string }) => c.type === "text").map((c: { text: string }) => c.text).join("\n");
-      const m = text.match(/\{[\s\S]*\}/);
-      try { strategyContent = m ? JSON.parse(m[0]) : null; } catch { strategyContent = null; }
-    }
-    if (!strategyContent || !strategyContent.resumo) return json({ error: "O Claude não devolveu a estratégia. Tente de novo." }, 502);
+    if (!strategyContent) return json({ error: "O Claude não devolveu a estratégia no formato certo. Tente de novo." }, 502);
 
     const { data: saved, error } = await admin.from("client_strategies").insert({
       client_id: clientId,

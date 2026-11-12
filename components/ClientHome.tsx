@@ -1,4 +1,5 @@
 import { ClientStartCard } from './strategy/ClientStartCard';
+import { firstNameOf } from '../lib/names';
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useAuth, supabase } from '../lib/supabase';
 import {
@@ -142,7 +143,7 @@ export const ClientHome: React.FC<ClientHomeProps> = ({
   // Primeiro nome do responsável ou cliente
   const getFirstName = () => {
     const name = activeClient?.responsible || activeClient?.name || 'Cliente';
-    return name.trim().split(' ')[0];
+    return firstNameOf(name);
   };
 
   // Nome do mês e ano formatados
