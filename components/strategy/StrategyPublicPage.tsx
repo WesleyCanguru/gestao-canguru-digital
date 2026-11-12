@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { callFunction, supabase } from '../../lib/supabase';
-import type { StrategyContent } from './StrategyView';
+import { normalizeStrategy, type StrategyContent } from './StrategyView';
 import { PreviewCloseButton } from '../../lib/previewClose';
 
 /**
@@ -170,7 +170,7 @@ export const StrategyPublicPage: React.FC<{ token: string }> = ({ token }) => {
   }
 
   const { strategy: s, client, agency } = data;
-  const c = s.content || {};
+  const c = normalizeStrategy(s.content);
   const sentDate = s.sent_at ? new Date(s.sent_at).toLocaleDateString(lang === 'en' ? 'en-US' : lang === 'es' ? 'es' : 'pt-BR', { day: '2-digit', month: 'long', year: 'numeric' }) : '';
   const waDigits = (agency?.contact_whatsapp || '').replace(/\D/g, '');
   const waHref = waDigits ? `https://wa.me/${waDigits}?text=${encodeURIComponent(t(`Olá! Aqui é da ${client.name}, sobre a estratégia.`, `Hi! This is ${client.name}, about the strategy.`, `¡Hola! Te escribe ${client.name}, sobre la estrategia.`))}` : null;

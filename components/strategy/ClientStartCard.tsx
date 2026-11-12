@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { firstNameOf } from '../../lib/names';
 import { supabase } from '../../lib/supabase';
 import { StrategyRow, StrategyView } from './StrategyView';
 import { AccessChoice, AccessGuideCard, emptyAccess } from './AccessGuideCard';
@@ -123,7 +124,7 @@ export const ClientStartCard: React.FC<{
     { label: t('Campanha no ar', 'Campaign live', 'Campaña al aire'), done: false },
   ];
   const pendingPlatforms = (['meta', 'google'] as Platform[]).filter(p => access[p].status !== 'verified');
-  const firstName = (client.responsible || '').split(' ')[0];
+  const firstName = firstNameOf(client.responsible);
   const wa = agency?.contact_whatsapp ? `https://wa.me/${agency.contact_whatsapp}?text=${encodeURIComponent(t(`Olá! Aqui é da ${client.name}.`, `Hi! This is ${client.name}.`, `¡Hola! Te escribe ${client.name}.`))}` : null;
 
   const title = strategy?.status === 'sent' ? t('Sua estratégia está pronta para você aprovar', 'Your strategy is ready for your approval', 'Tu estrategia está lista para que la apruebes')
