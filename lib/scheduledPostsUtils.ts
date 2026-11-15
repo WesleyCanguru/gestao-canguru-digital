@@ -27,12 +27,27 @@ export function parseTime(timeStr?: string | null): { hours: number; minutes: nu
   return { hours: 0, minutes: 0 };
 }
 
-export function getTargetDateTime(dateKey?: string | null, scheduledTime?: string | null): Date | null {
+// Diferença (minutos) entre o relógio do fuso e o UTC naquele instante.
+function tzOffsetMinutes(tz: string, at: Date): number {
+  try {
+    const parts = new Intl.DateTimeFormat('en-US', { timeZone: tz, hourCycle: 'h23', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }).formatToParts(at);
+    const g = (t: string) => parseInt(parts.find(p => p.type === t)?.value || '0', 10);
+    return Math.round((Date.UTC(g('year'), g('month') - 1, g('day'), g('hour') % 24, g('minute')) - at.getTime()) / 60000);
+  } catch { return -180; }
+}
+
+/**
+ * Instante em que o post deve ir ao ar. O horário é o do FUSO DO CLIENTE (padrão: Brasília),
+ * não o de quem está com a Bolsa aberta. Ex.: post às 18:00 de um cliente do Brasil vira publicado
+ * às 18:00 de Brasília, mesmo que a equipe esteja em Paris.
+ */
+export function getTargetDateTime(dateKey?: string | null, scheduledTime?: string | null, clientTz: string = 'America/Sao_Paulo'): Date | null {
   if (!dateKey) return null;
   const dateParts = parseDateFromKey(dateKey);
   if (!dateParts) return null;
   const { hours, minutes } = parseTime(scheduledTime);
-  return new Date(dateParts.year, dateParts.month - 1, dateParts.day, hours, minutes, 0);
+  const naive = Date.UTC(dateParts.year, dateParts.month - 1, dateParts.day, hours, minutes, 0);
+  return new Date(naive - tzOffsetMinutes(clientTz || 'America/Sao_Paulo', new Date(naive)) * 60000);
 }
 
 export function shouldAutoPublish(post: { status?: string; date_key?: string; scheduled_time?: string | null }): boolean {
