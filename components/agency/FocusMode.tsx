@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import { AgencyTask } from '../../types';
 import { useFocus, FOCUS_TIME, SHORT_BREAK_TIME, LONG_BREAK_TIME, READY_CHECK_TIME } from '../../lib/FocusContext';
+import { isTaskPendingInCurrentCycle } from '../../lib/tasks';
 
 interface FocusModeProps {
   tasks?: AgencyTask[];
@@ -55,7 +56,7 @@ export const FocusMode: React.FC<FocusModeProps> = ({ tasks, onOpenNewTask }) =>
 
   // Combined tasks list
   const availableTasks = (tasks && tasks.length > 0) ? tasks : todayTasks;
-  const pendingTasks = availableTasks.filter(t => t.status !== 'completed');
+  const pendingTasks = availableTasks.filter(t => isTaskPendingInCurrentCycle(t as any));
 
   // ====================================================
   // SCREEN 1: SELECTION MODAL ("Qual tarefa você deseja fazer agora?")

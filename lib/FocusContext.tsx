@@ -450,9 +450,13 @@ export const FocusProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       }
 
       // 2. Update task status if completed
+      // Recorrente (diária/semanal/mensal) continua 'pending': o ciclo é decidido por completed_at,
+      // assim amanhã ela volta e o modo foco registra o tempo de novo.
       if (completed) {
+        const { data: tk } = await supabase.from('agency_tasks').select('recurrence_type').eq('id', focusSession.taskId).maybeSingle();
+        const recurring = !!tk?.recurrence_type && tk.recurrence_type !== 'none';
         await supabase.from('agency_tasks').update({
-          status: 'completed',
+          status: recurring ? 'pending' : 'completed',
           completed_at: now.toISOString()
         })
         .eq('id', focusSession.taskId);
