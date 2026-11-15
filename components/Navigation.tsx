@@ -24,6 +24,7 @@ import {
   FolderOpen,
   ShieldCheck,
   BookOpen,
+  FileBarChart,
   Camera,
   Megaphone,
   ChevronDown,
@@ -160,6 +161,7 @@ export const Navigation: React.FC<SidebarProps> = ({
       { id: 'tasks', label: 'Processos & Tarefas', icon: ClipboardList },
       { id: 'anotacoes', label: 'Anotações', icon: NotebookPen },
       { id: 'guias', label: 'Guias', icon: BookOpen },
+      { id: 'relatorios', label: 'Relatórios', icon: FileBarChart },
     ] },
     { id: 'g-gestao', label: 'Gestão', icon: BarChart3, items: [
       { id: 'pessoas', label: 'Pessoas e prazos', icon: UserCheck },
@@ -204,6 +206,7 @@ export const Navigation: React.FC<SidebarProps> = ({
 
       const allModules = [
         { id: 'dashboard', label: 'Início', icon: Home, featureKey: null, defaultVisible: true },
+        { id: 'relatorios', label: 'Relatórios', icon: FileBarChart, featureKey: 'relatorios', defaultVisible: true },
         { id: 'crm', label: 'CRM', icon: Kanban, featureKey: 'crm', defaultVisible: false },
         { id: 'month-detail', label: 'Painel de Conteúdo', icon: LayoutDashboard, featureKey: 'mapa', defaultVisible: hasService('Social Media') },
         { id: 'organico', label: 'Redes Sociais', icon: TrendingUp, featureKey: 'organico', defaultVisible: hasService('Social Media') },
@@ -213,7 +216,8 @@ export const Navigation: React.FC<SidebarProps> = ({
         { id: 'ai-photos', label: 'Fotos IA', icon: Camera, featureKey: 'ai_photos', defaultVisible: hasService('Fotos com IA') },
         { id: 'roteiros', label: 'Roteiros', icon: FileText, featureKey: 'roteiros', defaultVisible: true },
         { id: 'password-vault', label: 'Senhas', icon: ShieldCheck, featureKey: 'password_vault', defaultVisible: true },
-        { id: 'tutorials', label: 'Tutoriais', icon: BookOpen, featureKey: 'tutorials', defaultVisible: true }
+        { id: 'tutorials', label: 'Tutoriais', icon: BookOpen, featureKey: 'tutorials', defaultVisible: true },
+        { id: 'nps', label: 'NPS', icon: HeartHandshake, featureKey: 'nps', defaultVisible: true }
       ];
 
       // Aplicar ordem personalizada se existir
@@ -270,6 +274,7 @@ export const Navigation: React.FC<SidebarProps> = ({
 
     // Início (sempre primeiro)
     items.push({ id: 'dashboard', label: 'Início', icon: Home });
+    items.push({ id: 'relatorios', label: 'Relatórios', icon: FileBarChart });
 
     if (hasSocialMedia) {
       // Clientes com Social Media:

@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { callFunction, supabase } from '../../lib/supabase';
 import { formatMoney } from '../../lib/money';
 import { PreviewCloseButton } from '../../lib/previewClose';
+import { getGeo } from '../../lib/geo';
 
 /**
  * Página pública da proposta gerada na Bolsa (/p/<slug>), no visual da proposta do Álvaro.
@@ -75,7 +76,7 @@ export const ProposalPublicPage: React.FC<{ slug: string }> = ({ slug }) => {
   useEffect(() => {
     if (state !== 'ok' || noTrack || tracked.current) return;
     tracked.current = true;
-    track(slug, 'open');
+    getGeo().then(g => track(slug, 'open', { city: g.city, region: g.region, country: g.country }));
     let visible = 0; let last = Date.now(); let active = !document.hidden;
     const tick = () => { if (active) visible += (Date.now() - last) / 1000; last = Date.now(); };
     const onVis = () => { tick(); active = !document.hidden; if (document.hidden) track(slug, 'read_time', { seconds: Math.round(visible) }); };

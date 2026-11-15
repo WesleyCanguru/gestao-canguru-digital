@@ -9,7 +9,7 @@
       "destination": "/propostas/alvaro-petrus-360.html"
     },
     {
-      "source": "/(.*)",
+      "source": "/((?!api/).*)",
       "destination": "/index.html"
     }
   ]

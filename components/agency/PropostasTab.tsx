@@ -6,6 +6,7 @@ import dayjs from 'dayjs';
 import { ExternalLink, Copy, Eye, Clock, MessageCircle, Monitor, Smartphone, ChevronDown, Plus, Sparkles, Send, Trash2, Loader2, X, History, RotateCcw } from 'lucide-react';
 import { callFunction } from '../../lib/supabase';
 import { NewProposalModal } from '../proposals/NewProposalModal';
+import { geoLabel } from '../../lib/geo';
 
 type Proposal = { id: string; slug: string; prospect_name: string; title: string | null; whatsapp?: string | null; language?: string | null; version?: number; content?: any; draft_content?: any; draft_instructions?: string | null; draft_created_at?: string | null; monthly_value: number | null; setup_value: number | null; currency: string | null; status: string | null; created_at: string };
 type Version = { id: string; version: number; created_at: string };
@@ -193,7 +194,7 @@ export const PropostasTab: React.FC = () => {
                   <div className="border-t border-gray-100 overflow-x-auto">
                     <table className="w-full text-sm">
                       <thead><tr className="text-[11px] text-gray-400 uppercase tracking-wider text-left">
-                        <th className="px-5 py-2.5 font-semibold">Quando</th><th className="px-5 py-2.5 font-semibold">Aparelho</th><th className="px-5 py-2.5 font-semibold">Navegador</th><th className="px-5 py-2.5 font-semibold">Leu por</th><th className="px-5 py-2.5 font-semibold">WhatsApp</th>
+                        <th className="px-5 py-2.5 font-semibold">Quando</th><th className="px-5 py-2.5 font-semibold">De onde</th><th className="px-5 py-2.5 font-semibold">Aparelho</th><th className="px-5 py-2.5 font-semibold">Navegador</th><th className="px-5 py-2.5 font-semibold">Leu por</th><th className="px-5 py-2.5 font-semibold">WhatsApp</th>
                       </tr></thead>
                       <tbody className="divide-y divide-gray-50">
                         {s.opens.map(o => {
@@ -202,6 +203,7 @@ export const PropostasTab: React.FC = () => {
                           return (
                             <tr key={o.id}>
                               <td className="px-5 py-2.5 whitespace-nowrap">{dayjs(o.created_at).format('DD/MM/YYYY [às] HH:mm')}</td>
+                              <td className="px-5 py-2.5 whitespace-nowrap text-gray-600">{geoLabel(o as any) || '—'}</td>
                               <td className="px-5 py-2.5 whitespace-nowrap"><span className="inline-flex items-center gap-1.5">{ua.mobile ? <Smartphone size={14} /> : <Monitor size={14} />} {ua.device}</span></td>
                               <td className="px-5 py-2.5">{ua.browser}</td>
                               <td className="px-5 py-2.5 whitespace-nowrap">{o.session_id && s.readBySession[o.session_id] ? fmtDur(s.readBySession[o.session_id]) : '—'}</td>
