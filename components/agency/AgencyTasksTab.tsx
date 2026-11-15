@@ -123,6 +123,7 @@ import {
   cleanDescriptionFromMeta,
   ProcessTypeInfo 
 } from '../../lib/processSla';
+import { getMonthlyTaskState, isTaskPendingInCurrentCycle, getLastWeeklyOccurrence } from '../../lib/tasks';
 
 const PROCESS_TYPES = [
   { id: 'carrossel', name: 'Publicação', icon: ImageIcon, color: 'text-purple-500 bg-purple-50 border-purple-100' },
@@ -131,94 +132,6 @@ const PROCESS_TYPES = [
   { id: 'campanha_google', name: 'Campanha Google Ads', icon: Search, color: 'text-green-500 bg-green-50 border-green-100' },
   { id: 'relatorio_mensal', name: 'Relatório Mensal', icon: BarChart3, color: 'text-orange-500 bg-orange-50 border-orange-100' },
 ];
-
-// --- FUNÇÕES DE RECORRÊNCIA DAS TAREFAS ---
-
-// Retorna o estado de pendência ou agendamento de uma tarefa mensal
-function getMonthlyTaskState(task: AgencyTask, now = new Date()): 'pending' | 'completed' | 'not_started' {
-  const diaConfigurado = task.recurrence_days?.[0] ? parseInt(task.recurrence_days[0], 10) : null;
-  if (!diaConfigurado) return 'pending';
-
-  const inicioCicloAtual = new Date(now.getFullYear(), now.getMonth(), diaConfigurado);
-
-  if (task.completed_at) {
-    const lastDone = new Date(task.completed_at);
-    // Se a última conclusão foi depois ou igual ao início do ciclo do mês atual, ela está concluída
-    if (lastDone >= inicioCicloAtual && now >= inicioCicloAtual) {
-      return 'completed';
-    }
-    // Caso de cantinho: o mês começou, mas ainda não chegou o dia do mês configurado, e a tarefa foi concluída no ciclo do mês anterior
-    if (now < inicioCicloAtual) {
-      const inicioCicloMesAnterior = new Date(now.getFullYear(), now.getMonth() - 1, diaConfigurado);
-      if (lastDone >= inicioCicloMesAnterior) {
-        return 'completed';
-      }
-    }
-  }
-
-  // Se hoje ainda não chegou o dia do mês configurado, o ciclo do mês atual ainda não abriu
-  if (now < inicioCicloAtual) {
-    return 'not_started';
-  }
-
-  return 'pending';
-}
-
-// Retorna a data/hora do início do ciclo semanal atual (última ocorrência passada do dia configurado)
-function getLastWeeklyOccurrence(recurrenceDays: number[], from: Date): Date | null {
-  if (!recurrenceDays || recurrenceDays.length === 0) return null;
-  
-  let mostRecent: Date | null = null;
-  for (const dayOfWeek of recurrenceDays) {
-    const d = new Date(from);
-    d.setHours(0, 0, 0, 0);
-    const currentDay = d.getDay(); // 0-6
-    const diff = (currentDay - dayOfWeek + 7) % 7;
-    d.setDate(d.getDate() - diff);
-    
-    if (!mostRecent || d > mostRecent) {
-      mostRecent = d;
-    }
-  }
-  return mostRecent;
-}
-
-// Retorna true se a tarefa precisa ser feita no ciclo atual (está pendente)
-function isTaskPendingInCurrentCycle(task: AgencyTask): boolean {
-  if (task.recurrence_type === 'none' || !task.recurrence_type) {
-    return task.status !== 'completed';
-  }
-
-  if (!task.completed_at) return true;
-
-  const lastDone = new Date(task.completed_at);
-  const now = new Date();
-
-  if (task.recurrence_type === 'daily') {
-    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    return lastDone < todayStart;
-  }
-
-  if (task.recurrence_type === 'weekly') {
-    const days = (task.recurrence_days || []).map((d: any) => parseInt(d, 10)).filter((d: any) => !isNaN(d));
-    let cycleStart = getLastWeeklyOccurrence(days, now);
-    if (!cycleStart) {
-      // Fallback: início da semana atual (segunda-feira passada)
-      const d = new Date(now);
-      d.setHours(0, 0, 0, 0);
-      const day = d.getDay();
-      const diff = d.getDate() - day + (day === 0 ? -6 : 1); // ajusta para segunda-feira
-      cycleStart = new Date(d.setDate(diff));
-    }
-    return lastDone < cycleStart;
-  }
-
-  if (task.recurrence_type === 'monthly') {
-    return getMonthlyTaskState(task, now) === 'pending';
-  }
-
-  return task.status !== 'completed';
-}
 
 // Ordena tarefas pelo sort_order persistido; se for 0 ou nulo, cai na data de criação (preservando ordem natural/criação)
 function sortTasksByOrder(taskList: AgencyTask[]): AgencyTask[] {
@@ -1607,7 +1520,7 @@ const TodasTasks: React.FC<{
   const [loading, setLoading] = useState(true);
   const [filterClient, setFilterClient] = useState('all');
   const [filterProcessOnly, setFilterProcessOnly] = useState(false);
-  const [filterAssignee, setFilterAssignee] = useState('all');
+  const [filterAssignee, setFilterAssignee] = useState('mine');
   const [filterFront, setFilterFront] = useState('all');
   const [isCompletedExpanded, setIsCompletedExpanded] = useState(false);
   const { userName } = useAuth();
@@ -1934,7 +1847,6 @@ const TodasTasks: React.FC<{
           >
             <option value="all">Todos os responsáveis</option>
             <option value="mine">Minhas tarefas</option>
-            <option value="none">Sem responsável</option>
             {assigneeNames.map(n => <option key={n} value={n}>{n}</option>)}
           </select>
           {fronts.length > 0 && (
@@ -2737,7 +2649,7 @@ const TaskFormDrawer: React.FC<{
   onSuccess: () => void;
   onStartFocus?: (task: AgencyTask) => void;
 }> = ({ clients, task, onClose, onSuccess, onStartFocus }) => {
-  const { agencyId } = useAuth();
+  const { agencyId, userName } = useAuth();
   const assigneeOptions = useAssigneeOptions(agencyId);
   const [assigneeMode, setAssigneeMode] = useState<'list' | 'other'>('list');
   const fronts = getFronts(agencyId);
@@ -2759,7 +2671,8 @@ const TaskFormDrawer: React.FC<{
     stage: string;
   }>({
     stage: task?.stage || '',
-    assignee_name: task?.assignee_name || '',
+    // Dono obrigatório: tarefa nova nasce com quem está criando.
+    assignee_name: task?.assignee_name || userName || '',
     front: task?.front || '',
     title: task?.title || '',
     client_id: task?.client_id || '',
@@ -3012,7 +2925,6 @@ const TaskFormDrawer: React.FC<{
                   }}
                   className="bolsa-select"
                 >
-                  <option value="">Sem responsável</option>
                   {assigneeOptions.map(o => <option key={o.name} value={o.name}>{o.name}{o.user_id ? '' : ' (externo)'}</option>)}
                   {form.assignee_name && assigneeMode === 'list' && !assigneeOptions.some(o => o.name === form.assignee_name) && (
                     <option value={form.assignee_name}>{form.assignee_name}</option>
@@ -3141,7 +3053,7 @@ const TaskFormDrawer: React.FC<{
               <Trash2 size={24} />
             </button>
           )}
-          {task && onStartFocus && task.status !== 'completed' && (
+          {task && onStartFocus && isTaskPendingInCurrentCycle(task) && (
             <button 
               type="button" 
               onClick={() => onStartFocus(task)} 
