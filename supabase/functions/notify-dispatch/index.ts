@@ -84,16 +84,17 @@ Deno.serve(async () => {
     const { data: posts } = postIds.length ? await db.from("posts").select("id, date_key, theme, theme_title, caption").in("id", postIds) : { data: [] as any[] };
     const pm = new Map((posts || []).map((p: any) => [p.id, p]));
     const b = brandOf(a, "pt");
-    const label: Record<string, string> = { post_approved: "Aprovou", post_changes_requested: "Pediu ajuste", post_rejected: "Reprovou", access_help: "Pediu ajuda" };
+    const label: Record<string, string> = { post_approved: "Aprovou", post_changes_requested: "Pediu ajuste", post_rejected: "Reprovou", access_help: "Pediu ajuda", health_drop: "Saúde caiu" };
     const items = list.map((r) => {
       const p = pm.get(r.ref_id);
+      if (r.kind === "health_drop") return { title: `Saúde caiu para ${r.payload?.score} (era ${r.payload?.prev})`, meta: (r.payload?.reasons || []).join(" · ") || "Sem motivo específico registrado", url: b.appUrl, tag: "Saúde do cliente" };
       if (r.kind === "access_help") return { title: `Conta do ${r.payload?.platform === "google" ? "Google Ads" : "Meta"}`, meta: "Pediu ajuda no onboarding para conectar a conta", url: b.appUrl, tag: label[r.kind] };
       return { title: p ? postTitle(p) : "Post", meta: p ? fmtPostDate(p.date_key, null, "pt") : "", url: p ? `${b.appUrl}/?mode=public&id=${encodeURIComponent(p.date_key)}` : b.appUrl, tag: label[r.kind] || r.kind };
     });
     const kinds = [...new Set(list.map((r) => r.kind))];
     const head = kinds.length === 1 ? label[kinds[0]] : "Respondeu";
     const subject = `${c?.name || "Cliente"} · ${head.toLowerCase()}${list.length > 1 ? ` (${list.length})` : ""}`;
-    const html = layout(b, "pt", { title: `${c?.name || "Cliente"} ${head.toLowerCase()}`, intro: "Atualização feita pelo cliente agora há pouco.", items, button: { label: "Abrir a Bolsa", url: b.appUrl }, footnote: "Aviso automático para a equipe." });
+    const html = layout(b, "pt", { title: `${c?.name || "Cliente"} ${head.toLowerCase()}`, intro: kinds.includes("health_drop") ? "A saúde do cliente caiu nesta semana. Veja os motivos abaixo." : "Atualização feita pelo cliente agora há pouco.", items, button: { label: "Abrir a Bolsa", url: b.appUrl }, footnote: "Aviso automático para a equipe." });
     const res = await sendEmail({ from: b.from, to, subject, html });
     if (res.ok) { await mark(ids, { status: "sent", sent_at: now.toISOString(), to_emails: to, subject }); report.team += 1; }
     else { await mark(ids, { status: "failed", error: res.error }); report.failed += ids.length; }

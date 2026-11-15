@@ -3,6 +3,9 @@ import { applyBrandToDocument } from './lib/brand';
 applyBrandToDocument();
 import ReactDOM from 'react-dom/client';
 import App from './App';
+import { ErrorBoundary } from './components/ErrorBoundary';
+import { installErrorLog } from './lib/errorLog';
+installErrorLog();
 import OneSignal from 'react-onesignal';
 
 // Configurações do OneSignal por agência/domínio
@@ -36,6 +39,8 @@ if (!rootElement) {
 const root = ReactDOM.createRoot(rootElement);
 root.render(
   <React.StrictMode>
-    <App />
+    <ErrorBoundary>
+      <App />
+    </ErrorBoundary>
   </React.StrictMode>
 );

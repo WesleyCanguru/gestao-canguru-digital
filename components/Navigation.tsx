@@ -25,6 +25,7 @@ import {
   ShieldCheck,
   BookOpen,
   FileBarChart,
+  Palette,
   Camera,
   Megaphone,
   ChevronDown,
@@ -215,6 +216,7 @@ export const Navigation: React.FC<SidebarProps> = ({
         { id: 'criativos', label: 'Criativos', icon: Megaphone, featureKey: 'criativos', defaultVisible: services.includes('Tráfego Pago') },
         { id: 'ai-photos', label: 'Fotos IA', icon: Camera, featureKey: 'ai_photos', defaultVisible: hasService('Fotos com IA') },
         { id: 'roteiros', label: 'Roteiros', icon: FileText, featureKey: 'roteiros', defaultVisible: true },
+        { id: 'marca', label: 'Marca', icon: Palette, featureKey: 'marca', defaultVisible: true },
         { id: 'password-vault', label: 'Senhas', icon: ShieldCheck, featureKey: 'password_vault', defaultVisible: true },
         { id: 'tutorials', label: 'Tutoriais', icon: BookOpen, featureKey: 'tutorials', defaultVisible: true },
         { id: 'nps', label: 'NPS', icon: HeartHandshake, featureKey: 'nps', defaultVisible: true }

@@ -3,6 +3,7 @@ import dayjs from 'dayjs';
 import { Loader2, MessageCircle, Plus, Pencil, X, Check, AlertTriangle, Clock, UserPlus, Copy, CalendarClock, Eye, CheckCircle2, Users, ChevronDown, Timer } from 'lucide-react';
 import { supabase, useAuth } from '../../lib/supabase';
 import { TASK_STAGES, stageInfo, nudgeMessage, waNumber } from '../../lib/people';
+import { WorkloadPanel } from './WorkloadPanel';
 
 /**
  * Pessoas e prazos: quem está fazendo o quê, o que está atrasado e o botão de cobrar no WhatsApp.
@@ -236,6 +237,8 @@ export const PessoasTab: React.FC = () => {
           </div>
         )}
       </div>
+
+      <WorkloadPanel />
 
       {err && <p className="text-sm font-bold text-rose-600">{err}</p>}
 
