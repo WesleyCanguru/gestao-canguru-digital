@@ -35,6 +35,8 @@ import { ScriptApprovalPublic } from './components/anotacoes/ScriptApprovalPubli
 import { ClientPainelConteudo } from './components/client/ClientPainelConteudo';
 import { OrganicMetricsDashboard } from './components/client/OrganicMetricsDashboard';
 import { PublicMonthPage } from './components/PublicMonthPage';
+import { ReportPage } from './components/reports/ReportPage';
+import { ClientReportsView } from './components/reports/ClientReportsView';
 import { NpsPublicScreen } from './components/nps/NpsPublicScreen';
 import { ClientNpsSection } from './components/nps/ClientNpsSection';
 import { PublicClientOnboarding } from './components/PublicClientOnboarding';
@@ -56,7 +58,7 @@ dayjs.locale('pt-br');
 
 import { Navigation } from './components/Navigation';
 
-type ViewState = 'home' | 'month-detail' | 'onboarding' | 'dashboard' | 'briefings' | 'strategic-briefings' | 'paid-traffic' | 'password-vault' | 'tutorials' | 'ai-photos' | 'agencyDashboard' | 'crm' | 'roteiros' | 'organico' | 'nps' | 'criativos';
+type ViewState = 'home' | 'month-detail' | 'onboarding' | 'dashboard' | 'briefings' | 'strategic-briefings' | 'paid-traffic' | 'password-vault' | 'tutorials' | 'ai-photos' | 'agencyDashboard' | 'crm' | 'roteiros' | 'organico' | 'nps' | 'criativos' | 'relatorios';
 
 interface MainAppProps {
   initialView?: ViewState;
@@ -87,7 +89,7 @@ const MainApp: React.FC<MainAppProps> = ({ initialView, onExitAgencyDashboard, o
     // ?tab=propostas (ou outra aba da agência) abre direto nela; usado pelo botão Fechar da visualização da proposta/estratégia
     if (typeof window === 'undefined') return 'home';
     const tab = new URLSearchParams(window.location.search).get('tab');
-    return tab && ['propostas', 'onboarding', 'contratos', 'prospeccao', 'financeiro', 'tasks', 'clientes', 'guias'].includes(tab) ? tab : 'home';
+    return tab && ['propostas', 'onboarding', 'contratos', 'prospeccao', 'financeiro', 'tasks', 'clientes', 'guias', 'relatorios'].includes(tab) ? tab : 'home';
   });
   const [painelTab, setPainelTab] = useState<'dashboard' | 'publicacoes' | 'mapa'>('dashboard');
   const [painelFilterStatus, setPainelFilterStatus] = useState<string>('all');
@@ -493,6 +495,10 @@ const MainApp: React.FC<MainAppProps> = ({ initialView, onExitAgencyDashboard, o
                     )}
                     <AiPhotosView />
                   </div>
+                ) : view === 'relatorios' ? (
+                  <div className="bg-white rounded-[2.5rem] border border-black/[0.03] shadow-sm min-h-[60vh] p-6 sm:p-10">
+                    <ClientReportsView />
+                  </div>
                 ) : view === 'criativos' ? (
                   <div className="bg-white rounded-[2.5rem] border border-black/[0.03] shadow-sm min-h-[80vh] p-6 sm:p-10">
                     {!showNav && (
@@ -872,6 +878,12 @@ const App: React.FC = () => {
   const guideMatch = typeof window !== 'undefined' ? window.location.pathname.match(/^\/g\/([a-z0-9-]{3,80})\/?$/) : null;
   if (guideMatch) {
     return <GuidePage slug={guideMatch[1]} />;
+  }
+
+  // Relatório em página: /r/<token> (cliente: semanal/mensal/trimestral; equipe: diário/semanal/mensal)
+  const reportMatch = typeof window !== 'undefined' ? window.location.pathname.match(/^\/r\/([a-f0-9]{32})\/?$/) : null;
+  if (reportMatch) {
+    return <ReportPage token={reportMatch[1]} />;
   }
 
   // Aprovação de criativos: /criativos/<token>
