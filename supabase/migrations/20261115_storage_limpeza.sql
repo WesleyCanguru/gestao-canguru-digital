@@ -1,0 +1,5 @@
+-- Limpeza do Storage (aprovada por Wesley em 15/11): funções storage_orphan_files / storage_old_published_media,
+-- log em storage_cleanup_log, edge function storage-cleanup. Rodado em 15/11: 428 arquivos soltos (1,11 GB) apagados.
+-- Agendado: 'limpeza-midia-6-meses' todo dia 1 às 03:30 UTC (mídia de posts publicados há mais de 6 meses; o post fica).
+-- Arquivo apagado não volta. Para parar a limpeza automática: select cron.unschedule('limpeza-midia-6-meses');
+-- (definições completas aplicadas via migração storage_cleanup_funcs)

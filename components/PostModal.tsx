@@ -65,6 +65,8 @@ export function normalizePostType(type?: string | null, isLinkedIn?: boolean): s
 
 import { STATUS_CONFIG } from '../constants';
 import { useT } from '../lib/i18n';
+import { ViewerTime } from './ViewerTime';
+import { tzShort } from '../lib/locales';
 
 const STATUS_OPTIONS: { value: PostStatus; label: string }[] = Object.keys(STATUS_CONFIG)
   .filter(k => !['theme_pending', 'theme_rejected', 'theme_approved_with_notes', 'theme_approved', 'internal_review', 'deleted'].includes(k))
@@ -1455,6 +1457,7 @@ export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, group
                                     <div className="z-10">
                                         <label className="text-[9px] font-bold text-gray-400 uppercase tracking-widest block mb-2">{t('Horário')}</label>
                                         <CustomTimePicker value={postTime} onChange={setPostTime} />
+                                        {postDate && postTime && <p className="text-[10px] mt-1"><span className="text-gray-400">{postTime} {tzShort((activeClient as any)?.timezone || 'America/Sao_Paulo')}</span> <ViewerTime dateKey={postDate.split('-').reverse().join('-')} time={postTime} clientTz={(activeClient as any)?.timezone} /></p>}
                                     </div>
                                 ) : (
                                     <div className="col-span-1 sm:col-span-2 space-y-3 p-3 bg-gray-50 rounded-xl border border-black/[0.05]">
@@ -1776,7 +1779,7 @@ export const PostModal: React.FC<PostModalProps> = ({ dayContent, dateKey, group
                             </div>
                             <div className="bg-white p-4 rounded-2xl border border-black/[0.03] shadow-sm col-span-2 lg:col-span-1">
                                 <span className="text-[8px] font-bold text-gray-400 uppercase tracking-widest block mb-1">{t('Horário Previsto')}</span>
-                                <p className="text-[11px] font-bold text-brand-dark leading-tight">{postTime || 'Não definido'}</p>
+                                <p className="text-[11px] font-bold text-brand-dark leading-tight">{postTime || 'Não definido'}{postTime && postDate && <ViewerTime dateKey={postDate.split('-').reverse().join('-')} time={postTime} clientTz={(activeClient as any)?.timezone} className="ml-1 text-gray-400 font-medium" />}</p>
                             </div>
                         </div>
                         {editedBullets && (

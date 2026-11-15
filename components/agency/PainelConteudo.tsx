@@ -49,6 +49,7 @@ import {
 } from 'recharts';
 import dayjs from 'dayjs';
 import 'dayjs/locale/pt-br';
+import { ViewerTime } from '../ViewerTime';
 
 dayjs.locale('pt-br');
 
@@ -240,7 +241,8 @@ export const PainelConteudo: React.FC<PainelConteudoProps> = ({
             color,
             initials,
             client_status,
-            cancelled_at
+            cancelled_at,
+            timezone
           )
         `)
         .eq('agency_id', agencyId)
@@ -595,7 +597,8 @@ export const PainelConteudo: React.FC<PainelConteudoProps> = ({
             name: clientInfo.name || 'Cliente',
             logo_url: clientInfo.logo_url,
             color: clientInfo.color,
-            initials: clientInfo.initials
+            initials: clientInfo.initials,
+            ...({ timezone: (clientInfo as any).timezone } as any)
           },
           type: post.type || 'Post',
           theme: post.theme || post.theme_title || 'Sem tema definido',
@@ -1537,6 +1540,7 @@ export const PainelConteudo: React.FC<PainelConteudoProps> = ({
                                 {item.scheduled_time && (
                                   <span className="text-[10px] font-mono text-stone-400 bg-stone-100 px-1.5 py-0.5 rounded">
                                     {item.scheduled_time}
+                                    <ViewerTime dateKey={item.primaryKey} time={item.scheduled_time} clientTz={(item.client as any).timezone} className="ml-1 text-stone-400" />
                                   </span>
                                 )}
                               </div>

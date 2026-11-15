@@ -20,6 +20,7 @@ import { fetchRejectionCountsForClient } from '../lib/postRevisions';
 
 import { Client } from '../types';
 import { useT } from '../lib/i18n';
+import { ViewerTime } from './ViewerTime';
 
 interface MonthDetailProps {
   monthName?: string;
@@ -1711,6 +1712,7 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({
                       <div className="flex items-center gap-1.5 text-[9px] text-gray-500 font-medium mb-2">
                         <Clock size={10} />
                         {displayTime}
+                        <ViewerTime dateKey={group.primaryKey} time={displayTime} clientTz={(activeClient as any)?.timezone} />
                       </div>
                     );
                   })()}
@@ -2330,6 +2332,7 @@ export const MonthDetail: React.FC<MonthDetailProps> = ({
                                   <div className="flex items-center gap-1 text-[10px] text-gray-500 font-medium mb-2">
                                      <Clock size={11} />
                                      <span>{displayTime}</span>
+                                     <ViewerTime dateKey={group.primaryKey} time={displayTime} clientTz={(activeClient as any)?.timezone} />
                                   </div>
                                );
                             })()}

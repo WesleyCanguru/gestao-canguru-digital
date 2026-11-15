@@ -10,6 +10,7 @@ import { Client, ClientLeadConfig } from '../types';
 import { getAnnualOverviewTemplate } from '../constants';
 import { parseCurrencyInput } from '../lib/currencyUtils';
 import { CURRENCIES } from '../lib/money';
+import { CLIENT_LANGS, TIMEZONES, LANG_DEFAULTS, TEAM_FRONTS } from '../lib/locales';
 import dayjs from 'dayjs';
 import { ClientMediaBudgetSection } from './client/ClientMediaBudgetSection';
 import { 
@@ -151,6 +152,12 @@ const REORDERABLE_MODULES = [
 
 export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
   const { agencyId, viewAsClient, can } = useAuth();
+  const [teamMembers, setTeamMembers] = useState<{ user_id: string; display_name: string }[]>([]);
+  useEffect(() => {
+    if (!agencyId) return;
+    supabase.from('agency_members').select('user_id, display_name').eq('agency_id', agencyId).eq('is_active', true)
+      .then(({ data }) => setTeamMembers(((data as any[]) || []).filter(m => m.user_id)));
+  }, [agencyId]);
   const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -252,6 +259,12 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
     logo_url: '',
     base_value: '' as string | number,
     currency: 'BRL' as string,
+    language: 'pt' as string,
+    timezone: 'America/Sao_Paulo' as string,
+    city: '' as string,
+    notify_enabled: false,
+    notify_emails: '' as string,
+    team_owners: {} as Record<string, string>,
     due_day: 10,
     briefings_waived: false,
     is_lead_tracking_enabled: false,
@@ -403,6 +416,11 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
         logo_url: form.logo_url || null,
         base_value: parseCurrencyInput(form.base_value),
         currency: form.currency || 'BRL',
+        timezone: form.timezone || 'America/Sao_Paulo',
+        city: form.city.trim() || null,
+        notify_enabled: form.notify_enabled,
+        notify_emails: form.notify_emails.split(/[,;\s]+/).map(e => e.trim().toLowerCase()).filter(e => /.+@.+\..+/.test(e)),
+        team_owners: Object.fromEntries(Object.entries(form.team_owners || {}).filter(([, v]) => v)),
         due_day: form.due_day,
         briefings_waived: form.briefings_waived,
         features_settings: form.features_settings,
@@ -429,6 +447,7 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
         
         if (error) throw error;
         clientData = data;
+        await saveClientLanguage(data?.id, form.language);
 
         // Registrar evento de receita automaticamente se houve mudança de valor
         if (revenueEventData) {
@@ -467,6 +486,7 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
 
         if (error) throw error;
         clientData = data;
+        await saveClientLanguage(data?.id, form.language);
 
         // Registrar evento de início se o cliente já possui valor cadastrado
         const initialVal = parseCurrencyInput(form.base_value) || 0;
@@ -636,6 +656,15 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
     setSaving(false);
   };
 
+  // Idioma do cliente fica em traffic_strategy_data.language (é o que o portal lê). Junta sem apagar o resto.
+  const saveClientLanguage = async (clientId: string | undefined, lang: string) => {
+    if (!clientId || !lang) return;
+    const { data } = await supabase.from('clients').select('traffic_strategy_data').eq('id', clientId).maybeSingle();
+    const cur = (data as any)?.traffic_strategy_data || {};
+    if (cur.language === lang) return;
+    await supabase.from('clients').update({ traffic_strategy_data: { ...cur, language: lang } }).eq('id', clientId);
+  };
+
   const resetForm = () => {
     setForm({ 
       name: '', 
@@ -655,6 +684,12 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
       logo_url: '',
       base_value: 0,
       currency: agencyId === 7 ? 'USD' : 'BRL',
+      language: agencyId === 7 ? 'en' : 'pt',
+      timezone: agencyId === 7 ? 'America/New_York' : 'America/Sao_Paulo',
+      city: '',
+      notify_enabled: false,
+      notify_emails: '',
+      team_owners: {},
       due_day: 10,
       briefings_waived: false,
       is_lead_tracking_enabled: false,
@@ -821,6 +856,12 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
       logo_url: client.logo_url || '',
       base_value: client.base_value !== undefined && client.base_value !== null ? String(client.base_value).replace('.', ',') : '',
       currency: (client as any).currency || 'BRL',
+      language: (client as any).traffic_strategy_data?.language || ((client as any).agency_id === 7 ? 'en' : 'pt'),
+      timezone: (client as any).timezone || 'America/Sao_Paulo',
+      city: (client as any).city || '',
+      notify_enabled: !!(client as any).notify_enabled,
+      notify_emails: ((client as any).notify_emails || []).join(', '),
+      team_owners: (client as any).team_owners || {},
       due_day: client.due_day || 10,
       briefings_waived: client.briefings_waived || false,
       is_lead_tracking_enabled: leadConfig?.is_enabled || false,
@@ -1234,6 +1275,67 @@ export const ClientManager: React.FC<ClientManagerProps> = ({ onBack }) => {
                 <input type="email" value={form.email} onChange={e => setForm(f => ({...f, email: e.target.value}))}
                   placeholder="contato@empresa.com"
                   className="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              </div>
+
+              <div className="sm:col-span-2 mt-2 pt-5 border-t border-gray-100">
+                <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-1">Idioma, local e avisos</h3>
+                <p className="text-xs text-gray-400 mb-4">O portal, os e-mails e os relatórios do cliente saem no idioma escolhido. Os horários dos posts seguem o fuso do cliente.</p>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Idioma do cliente</label>
+                    <select value={form.language} onChange={e => {
+                      const lang = e.target.value; const d = LANG_DEFAULTS[lang];
+                      setForm(f => ({ ...f, language: lang, ...(editingClientId ? {} : { currency: d.currency, timezone: d.timezone }) }));
+                    }} className="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+                      {CLIENT_LANGS.map(l => <option key={l.code} value={l.code}>{l.label}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Fuso horário</label>
+                    <select value={form.timezone} onChange={e => setForm(f => ({ ...f, timezone: e.target.value }))}
+                      className="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+                      {!TIMEZONES.some(z => z.tz === form.timezone) && <option value={form.timezone}>{form.timezone}</option>}
+                      {TIMEZONES.map(z => <option key={z.tz} value={z.tz}>{z.label}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Cidade</label>
+                    <input type="text" value={form.city} onChange={e => setForm(f => ({ ...f, city: e.target.value }))}
+                      placeholder="Ex.: São Paulo, SP · Orlando, FL"
+                      className="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-4">
+                  <div className="sm:col-span-2">
+                    <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">E-mails que recebem os avisos</label>
+                    <input type="text" value={form.notify_emails} onChange={e => setForm(f => ({ ...f, notify_emails: e.target.value }))}
+                      placeholder={form.email || 'cliente@empresa.com, socio@empresa.com'}
+                      className="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                    <p className="text-[11px] text-gray-400 mt-1">Separe por vírgula. Posts para aprovar, lembretes e resumos.</p>
+                  </div>
+                  <label className="flex items-center gap-3 px-4 py-2.5 border border-gray-200 rounded-lg cursor-pointer self-start mt-5 bg-gray-50/50">
+                    <input type="checkbox" checked={form.notify_enabled} onChange={e => setForm(f => ({ ...f, notify_enabled: e.target.checked, notify_emails: e.target.checked && !f.notify_emails.trim() && f.email ? f.email : f.notify_emails }))}
+                      className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500" />
+                    <span className="text-sm text-gray-700 font-medium">Enviar avisos por e-mail</span>
+                  </label>
+                </div>
+                {teamMembers.length > 0 && (
+                  <div className="mt-4">
+                    <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Responsáveis da equipe</label>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                      {TEAM_FRONTS.map(fr => (
+                        <div key={fr.key}>
+                          <span className="block text-[11px] text-gray-400 mb-1">{fr.label}</span>
+                          <select value={form.team_owners?.[fr.key] || ''} onChange={e => setForm(f => ({ ...f, team_owners: { ...(f.team_owners || {}), [fr.key]: e.target.value } }))}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            <option value="">Ninguém</option>
+                            {teamMembers.map(m => <option key={m.user_id} value={m.user_id}>{m.display_name}</option>)}
+                          </select>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div>
