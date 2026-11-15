@@ -53,6 +53,7 @@ import {
 import dayjs from 'dayjs';
 import 'dayjs/locale/pt-br';
 import { useT } from '../../lib/i18n';
+import { BatchPostReview } from './BatchPostReview';
 
 dayjs.locale('pt-br');
 
@@ -124,6 +125,7 @@ export const ClientPainelConteudo: React.FC<ClientPainelConteudoProps> = ({
 }) => {
   const { t } = useT();
   const { activeClient: authActiveClient, userRole } = useAuth();
+  const [batchOpen, setBatchOpen] = useState(false);
   const activeClient = overrideClient !== undefined ? overrideClient : authActiveClient;
   const { monthlyPlans } = useEditorialData(activeClient?.id);
   const currentYear = dayjs().year();
@@ -1053,6 +1055,14 @@ export const ClientPainelConteudo: React.FC<ClientPainelConteudoProps> = ({
                   <span className="inline-block w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>
                 )}
               </p>
+              {dashboardSummary.totalAguardandoAprovacao > 0 && (
+                <button
+                  onClick={(e) => { e.stopPropagation(); setBatchOpen(true); }}
+                  className="mt-3 w-full px-3 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold transition-colors"
+                >
+                  {t('Revisar todos em sequência')}
+                </button>
+              )}
             </div>
 
             {/* Card 4: Alteração solicitada */}
@@ -1448,6 +1458,9 @@ export const ClientPainelConteudo: React.FC<ClientPainelConteudoProps> = ({
         />
       )}
 
+      {batchOpen && activeClient && (
+        <BatchPostReview clientId={activeClient.id} agencyId={(activeClient as any).agency_id} onClose={() => setBatchOpen(false)} onDone={() => fetchPosts()} />
+      )}
     </div>
   );
 };

@@ -23,6 +23,12 @@ export const ReportsTab: React.FC = () => {
   const [gen, setGen] = useState<{ client_id: string; period: string }>({ client_id: '', period: 'quarterly' });
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState('');
+  const [errors, setErrors] = useState<any[]>([]);
+  useEffect(() => {
+    if (filter !== 'team') return;
+    supabase.from('app_errors').select('id, at, last_at, message, url, count, is_client').gte('at', new Date(Date.now() - 7 * 86400000).toISOString()).order('last_at', { ascending: false }).limit(30)
+      .then(({ data }) => setErrors((data as any[]) || []));
+  }, [filter]);
 
   const load = useCallback(async () => {
     if (!agencyId) return;
@@ -133,8 +139,21 @@ export const ReportsTab: React.FC = () => {
           </div>
         )
       ) : (
+        <div className="space-y-6">
         <div className="rounded-2xl border border-gray-200 bg-white divide-y divide-gray-100">
           {team.length ? team.slice(0, 40).map(r => <Row key={r.id} r={r} />) : <p className="px-4 py-3 text-sm text-gray-400">O primeiro resumo da equipe sai amanhã de manhã.</p>}
+        </div>
+        <div>
+          <h3 className="text-sm font-bold uppercase tracking-wider text-gray-500 mb-2">Erros nas telas · últimos 7 dias</h3>
+          <div className="rounded-2xl border border-gray-200 bg-white divide-y divide-gray-100">
+            {errors.length ? errors.map(e => (
+              <div key={e.id} className="px-4 py-3 text-sm">
+                <div className="flex items-center gap-2"><span className={`text-[10px] font-bold uppercase px-1.5 py-0.5 rounded ${e.is_client ? 'bg-rose-50 text-rose-700' : 'bg-gray-100 text-gray-600'}`}>{e.is_client ? 'cliente' : 'equipe'}</span><span className="font-medium text-gray-800 truncate">{e.message}</span>{e.count > 1 && <span className="text-xs text-gray-400">×{e.count}</span>}</div>
+                <div className="text-xs text-gray-400 mt-0.5 truncate">{fmtTs(e.last_at)} · {e.url}</div>
+              </div>
+            )) : <p className="px-4 py-3 text-sm text-gray-400">Nenhum erro registrado. 👍</p>}
+          </div>
+        </div>
         </div>
       )}
     </div>

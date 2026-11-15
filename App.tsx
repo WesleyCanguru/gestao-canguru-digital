@@ -36,6 +36,9 @@ import { ClientPainelConteudo } from './components/client/ClientPainelConteudo';
 import { OrganicMetricsDashboard } from './components/client/OrganicMetricsDashboard';
 import { PublicMonthPage } from './components/PublicMonthPage';
 import { ReportPage } from './components/reports/ReportPage';
+import { GlobalSearch } from './components/GlobalSearch';
+import { setErrorContext } from './lib/errorLog';
+import { BrandView } from './components/BrandView';
 import { ClientReportsView } from './components/reports/ClientReportsView';
 import { NpsPublicScreen } from './components/nps/NpsPublicScreen';
 import { ClientNpsSection } from './components/nps/ClientNpsSection';
@@ -58,7 +61,7 @@ dayjs.locale('pt-br');
 
 import { Navigation } from './components/Navigation';
 
-type ViewState = 'home' | 'month-detail' | 'onboarding' | 'dashboard' | 'briefings' | 'strategic-briefings' | 'paid-traffic' | 'password-vault' | 'tutorials' | 'ai-photos' | 'agencyDashboard' | 'crm' | 'roteiros' | 'organico' | 'nps' | 'criativos' | 'relatorios';
+type ViewState = 'home' | 'month-detail' | 'onboarding' | 'dashboard' | 'briefings' | 'strategic-briefings' | 'paid-traffic' | 'password-vault' | 'tutorials' | 'ai-photos' | 'agencyDashboard' | 'crm' | 'roteiros' | 'organico' | 'nps' | 'criativos' | 'relatorios' | 'marca';
 
 interface MainAppProps {
   initialView?: ViewState;
@@ -108,6 +111,8 @@ const MainApp: React.FC<MainAppProps> = ({ initialView, onExitAgencyDashboard, o
   });
   const [isNavCollapsed, setIsNavCollapsed] = useState(false);
   const { userRole, logout, activeClient, setActiveClient, refreshActiveClient, isViewingAsClient } = useAuth();
+  const { agencyId: ctxAgencyId, userType: ctxUserType } = useAuth() as any;
+  useEffect(() => { setErrorContext(ctxAgencyId, ctxUserType === 'client'); }, [ctxAgencyId, ctxUserType]);
   const { t } = useT();
   const { monthlyPlans } = useEditorialData();
 
@@ -237,6 +242,10 @@ const MainApp: React.FC<MainAppProps> = ({ initialView, onExitAgencyDashboard, o
         <div className="absolute top-[20%] right-[5%] w-[20%] h-[20%] bg-orange-50/20 rounded-full blur-[100px]"></div>
       </div>
 
+      <GlobalSearch
+        onOpenClient={(client, v) => { setActiveClient(client); setView((v || 'dashboard') as ViewState); }}
+        onOpenAgencyTab={(tab) => { setActiveClient(null); setView('agencyDashboard'); setAgencyTab(tab); }}
+      />
       {showNav && (
         <Navigation 
           view={isAgencyView ? 'agency' : 'client'}
@@ -494,6 +503,10 @@ const MainApp: React.FC<MainAppProps> = ({ initialView, onExitAgencyDashboard, o
                       </div>
                     )}
                     <AiPhotosView />
+                  </div>
+                ) : view === 'marca' ? (
+                  <div className="bg-white/60 rounded-[2.5rem] border border-black/[0.03] shadow-sm min-h-[60vh] p-4 sm:p-8">
+                    <BrandView />
                   </div>
                 ) : view === 'relatorios' ? (
                   <div className="bg-white rounded-[2.5rem] border border-black/[0.03] shadow-sm min-h-[60vh] p-6 sm:p-10">
