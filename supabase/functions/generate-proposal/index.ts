@@ -9,7 +9,7 @@
 // action 'meetings_today': { agency_id }  reuniões comerciais de hoje na agenda do Wesley (via Apps Script), com a proposta já criada de cada uma.
 // action 'summarize_meeting': { agency_id, event_id, whatsapp? }  busca as Anotações do Gemini daquela reunião e cria o resumo para aprovar.
 //   Se as anotações ainda não estiverem prontas, devolve { pending: true, reason }. Mesma reunião não gera dois resumos (source_ref gcal:<id>).
-//   Segredos: NOTES_SCRIPT_URL e NOTES_SCRIPT_SECRET (Edge Functions › Secrets). Código do script: Bolsa/outputs/apps-script/anotacoes-reunioes.gs
+//   Segredo: NOTES_SCRIPT_URL (Edge Functions › Secrets). O script confere o login da pessoa (i_am_staff_of). Código do script: Bolsa/outputs/apps-script/anotacoes-reunioes.gs
 //
 // AÇÕES QUE JÁ EXISTIAM (sem mudança de comportamento):
 // action 'create': { agency_id, prospect_name, whatsapp?, currency?, language?, notes?, pdf_base64?, monthly_value?, setup_value? }  gera a página direto
@@ -151,10 +151,11 @@ Deno.serve(async (req) => {
 
     // ---------- REUNIÕES DA AGENDA (botão "A reunião acabou") ----------
     if (action === "meetings_today" || action === "summarize_meeting") {
-      const url = Deno.env.get("NOTES_SCRIPT_URL"), secret = Deno.env.get("NOTES_SCRIPT_SECRET");
-      if (!url || !secret) return json({ error: "Ligação com a agenda ainda não configurada (NOTES_SCRIPT_URL / NOTES_SCRIPT_SECRET)." }, 500);
+      const url = Deno.env.get("NOTES_SCRIPT_URL");
+      if (!url) return json({ error: "Ligação com a agenda ainda não configurada (NOTES_SCRIPT_URL)." }, 500);
+      const jwt = (req.headers.get("Authorization") ?? "").replace(/^Bearer\s+/i, "");
       const callScript = async (payload: Record<string, unknown>) => {
-        const resp = await fetch(url, { method: "POST", headers: { "content-type": "text/plain" }, body: JSON.stringify({ secret, ...payload }), redirect: "follow" });
+        const resp = await fetch(url, { method: "POST", headers: { "content-type": "text/plain" }, body: JSON.stringify({ jwt, agency_id: agencyId, ...payload }), redirect: "follow" });
         const txt = await resp.text();
         try { return JSON.parse(txt); } catch { console.error(txt.slice(0, 500)); return { error: "A agenda não respondeu como esperado." }; }
       };

@@ -4,13 +4,26 @@
  * Roda como o Wesley (Agenda + Drive dele). Quem chama é a função generate-proposal do Supabase,
  * quando alguém clica em "A reunião acabou" na aba Propostas. Nada roda sozinho, não há gatilho de tempo.
  *
- * Segurança: só responde se o "secret" enviado for igual à propriedade SECRET do script
- * (Configurações do projeto › Propriedades do script). Nenhum segredo fica neste arquivo.
+ * Segurança: só responde a quem manda um login válido da Bolsa de alguém da equipe da agência
+ * (o script confere o token no Supabase com a função i_am_staff_of). A chave abaixo é a pública (a mesma do site).
  *
  * Ações:
- *   { secret, action: "list" }                    -> reuniões comerciais de hoje
- *   { secret, action: "notes", event_id }         -> texto das Anotações do Gemini daquela reunião
+ *   { jwt, agency_id, action: "list" }             -> reuniões comerciais de hoje
+ *   { jwt, agency_id, action: "notes", event_id }  -> texto das Anotações do Gemini daquela reunião
  */
+
+var SUPABASE_URL = 'https://wtzphiyybitcucwkfpgv.supabase.co';
+var SUPABASE_PUBLIC_KEY = 'sb_publishable_uLQGmz7lWazPN1Uqb4_4vQ_HggVpMz9';
+
+function isStaff(jwt, agencyId) {
+  if (!jwt || !agencyId) return false;
+  var r = UrlFetchApp.fetch(SUPABASE_URL + '/rest/v1/rpc/i_am_staff_of', {
+    method: 'post', contentType: 'application/json', muteHttpExceptions: true,
+    headers: { apikey: SUPABASE_PUBLIC_KEY, Authorization: 'Bearer ' + jwt },
+    payload: JSON.stringify({ p_agency: Number(agencyId) }),
+  });
+  return r.getResponseCode() === 200 && r.getContentText().trim() === 'true';
+}
 
 // Só reuniões comerciais (padrão de nomes da Canguru).
 var COMERCIAL = /Reuni[ãa]o de Diagn[óo]stico|Apresenta[çc][ãa]o de Proposta/i;
@@ -18,8 +31,7 @@ var COMERCIAL = /Reuni[ãa]o de Diagn[óo]stico|Apresenta[çc][ãa]o de Proposta
 function doPost(e) {
   var body = {};
   try { body = JSON.parse(e.postData.contents || '{}'); } catch (err) { return out({ error: 'json inválido' }); }
-  var secret = PropertiesService.getScriptProperties().getProperty('SECRET');
-  if (!secret || body.secret !== secret) return out({ error: 'unauthorized' });
+  if (!isStaff(body.jwt, body.agency_id)) return out({ error: 'unauthorized' });
   try {
     if (body.action === 'list') return out({ meetings: listToday() });
     if (body.action === 'notes') return out(notesFor(String(body.event_id || '')));
