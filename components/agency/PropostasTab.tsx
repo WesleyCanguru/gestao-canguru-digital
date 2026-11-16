@@ -3,12 +3,14 @@ import { supabase, useAuth } from '../../lib/supabase';
 import { getAppUrl } from '../../lib/appUrl';
 import { formatMoney } from '../../lib/money';
 import dayjs from 'dayjs';
-import { ExternalLink, Copy, Eye, Clock, MessageCircle, Monitor, Smartphone, ChevronDown, Plus, Sparkles, Send, Trash2, Loader2, X, History, RotateCcw } from 'lucide-react';
+import { ExternalLink, Copy, Eye, Clock, MessageCircle, Monitor, Smartphone, ChevronDown, Plus, Sparkles, Send, Trash2, Loader2, X, History, RotateCcw, Flag } from 'lucide-react';
 import { callFunction } from '../../lib/supabase';
 import { NewProposalModal } from '../proposals/NewProposalModal';
+import { MeetingEndedModal } from '../proposals/MeetingEndedModal';
+import { ProposalSummaryCard, ProposalSummary } from '../proposals/ProposalSummaryCard';
 import { geoLabel } from '../../lib/geo';
 
-type Proposal = { id: string; slug: string; prospect_name: string; title: string | null; whatsapp?: string | null; language?: string | null; version?: number; content?: any; draft_content?: any; draft_instructions?: string | null; draft_created_at?: string | null; monthly_value: number | null; setup_value: number | null; currency: string | null; status: string | null; created_at: string };
+type Proposal = { id: string; slug: string; prospect_name: string; title: string | null; whatsapp?: string | null; language?: string | null; version?: number; content?: any; draft_content?: any; draft_instructions?: string | null; draft_created_at?: string | null; monthly_value: number | null; setup_value: number | null; currency: string | null; status: string | null; created_at: string; summary?: ProposalSummary | null; summary_instructions?: string | null; source?: string | null };
 type Version = { id: string; version: number; created_at: string };
 type Ev = { id: string; proposal_id: string; event_type: string; session_id: string | null; seconds: number | null; user_agent: string | null; created_at: string };
 
@@ -32,6 +34,7 @@ export const PropostasTab: React.FC = () => {
   const [open, setOpen] = useState<string | null>(null);
   const [toast, setToast] = useState('');
   const [creating, setCreating] = useState(false);
+  const [meetingEnded, setMeetingEnded] = useState(false);
   const [adjustFor, setAdjustFor] = useState<Proposal | null>(null);
   const [adjustText, setAdjustText] = useState('');
   const [busy, setBusy] = useState<string | null>(null);
@@ -54,7 +57,7 @@ export const PropostasTab: React.FC = () => {
     setShareFor({ ...p, status: 'sent' }); setReload(r => r + 1);
   };
   const remove = async (p: Proposal) => {
-    if (!window.confirm(`Excluir o rascunho da proposta para ${p.prospect_name}?`)) return;
+    if (!window.confirm(p.status === 'summary' ? `Excluir o resumo da proposta para ${p.prospect_name}?` : `Excluir o rascunho da proposta para ${p.prospect_name}?`)) return;
     const { error } = await supabase.from('proposals').delete().eq('id', p.id);
     if (error) notify(error.message); else setReload(r => r + 1);
   };
@@ -111,6 +114,14 @@ export const PropostasTab: React.FC = () => {
     })();
   }, [agencyId, reload]);
 
+  // Enquanto houver resumo sendo montado, recarrega a cada 30 segundos.
+  const waiting = proposals.some(p => p.status === 'summary' && !p.summary);
+  useEffect(() => {
+    if (!waiting) return;
+    const t = setInterval(() => setReload(r => r + 1), 30000);
+    return () => clearInterval(t);
+  }, [waiting]);
+
   const statsOf = useMemo(() => (id: string) => {
     const ev = events.filter(e => e.proposal_id === id);
     const opens = ev.filter(e => e.event_type === 'open');
@@ -128,9 +139,12 @@ export const PropostasTab: React.FC = () => {
       <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3">
         <div>
           <h2 className="text-2xl font-bold text-gray-900 tracking-tight">Propostas</h2>
-          <p className="text-sm text-gray-500 mt-1">Crie com o Claude a partir da reunião e acompanhe quem abriu, quando, por quanto tempo e em qual aparelho. Abrir com "Ver" não conta.</p>
+          <p className="text-sm text-gray-500 mt-1">Crie com o Claude a partir da reunião (primeiro o resumo para aprovar, depois a página) e acompanhe quem abriu, quando, por quanto tempo e em qual aparelho. Abrir com "Ver" não conta.</p>
         </div>
-        <button onClick={() => setCreating(true)} className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gray-900 text-white text-sm font-semibold self-start"><Plus size={16} /> Nova proposta</button>
+        <div className="flex gap-2 self-start">
+          <button onClick={() => setMeetingEnded(true)} className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-violet-600 text-white text-sm font-semibold"><Flag size={16} /> A reunião acabou</button>
+          <button onClick={() => setCreating(true)} className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gray-900 text-white text-sm font-semibold"><Plus size={16} /> Nova proposta</button>
+        </div>
       </div>
 
       {loading ? <p className="text-sm text-gray-400">Carregando...</p> : proposals.length === 0 ? (
@@ -145,6 +159,7 @@ export const PropostasTab: React.FC = () => {
                 <div className="p-5 flex flex-wrap items-center gap-x-6 gap-y-3">
                   <div className="min-w-0 flex-1 basis-60">
                     <p className="font-semibold text-gray-900 truncate">{p.prospect_name}
+                      {p.status === 'summary' && <span className="ml-2 align-middle text-[11px] font-semibold px-2 py-0.5 rounded-full bg-violet-100 text-violet-800">Resumo para aprovar</span>}
                       {p.status === 'draft' && <span className="ml-2 align-middle text-[11px] font-semibold px-2 py-0.5 rounded-full bg-amber-50 text-amber-800">Rascunho{p.version && p.version > 1 ? ` v${p.version}` : ''}</span>}
                       {(p as any).client_id && <span className="ml-2 align-middle text-[11px] font-semibold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700">Fez o cadastro</span>}
                       {p.status !== 'draft' && p.draft_content && <span className="ml-2 align-middle text-[11px] font-semibold px-2 py-0.5 rounded-full bg-sky-50 text-sky-800">Ajuste para revisar</span>}
@@ -152,6 +167,7 @@ export const PropostasTab: React.FC = () => {
                     <p className="text-xs text-gray-500">{p.title || 'Proposta'} · criada em {dayjs(p.created_at).format('DD/MM/YYYY')}
                       {p.monthly_value ? ` · ${formatMoney(p.monthly_value, p.currency)}/mês` : ''}</p>
                   </div>
+                  {p.status !== 'summary' && <>
                   <div className="text-sm"><p className="text-[11px] text-gray-400">Aberturas</p><p className="font-semibold text-gray-900 inline-flex items-center gap-1"><Eye size={14} /> {s.opens.length}</p></div>
                   <div className="text-sm"><p className="text-[11px] text-gray-400">Última abertura</p><p className="font-semibold text-gray-900">{s.last ? dayjs(s.last).format('DD/MM [às] HH:mm') : 'Ainda não abriu'}</p></div>
                   <div className="text-sm"><p className="text-[11px] text-gray-400">Tempo de leitura</p><p className="font-semibold text-gray-900 inline-flex items-center gap-1"><Clock size={14} /> {fmtDur(s.read)}</p></div>
@@ -179,7 +195,11 @@ export const PropostasTab: React.FC = () => {
                       </button>
                     )}
                   </div>
+                  </>}
                 </div>
+                {p.status === 'summary' && (
+                  <ProposalSummaryCard proposal={p} onRemove={() => remove(p)} onChanged={m => { setReload(r => r + 1); notify(m); }} />
+                )}
                 {p.status !== 'draft' && p.draft_content && (
                   <div className="mx-5 mb-4 -mt-1 p-3 rounded-xl bg-sky-50 border border-sky-100 flex flex-wrap items-center gap-2">
                     <p className="text-xs text-sky-900 min-w-0 flex-1 basis-56 truncate">
@@ -220,7 +240,8 @@ export const PropostasTab: React.FC = () => {
           })}
         </ul>
       )}
-      {creating && <NewProposalModal onClose={() => setCreating(false)} onCreated={() => { setCreating(false); setReload(r => r + 1); notify('Rascunho pronto. Clique em Ver para revisar.'); }} />}
+      {meetingEnded && <MeetingEndedModal onClose={() => setMeetingEnded(false)} onCreated={() => { setMeetingEnded(false); setReload(r => r + 1); notify('Pedido feito. O resumo aparece aqui em alguns minutos.'); }} />}
+      {creating && <NewProposalModal onClose={() => setCreating(false)} onCreated={() => { setCreating(false); setReload(r => r + 1); notify('Resumo pronto. Confira e aprove para gerar a página.'); }} />}
 
       {adjustFor && (
         <div className="fixed inset-0 z-[80] bg-black/40 flex items-end sm:items-center justify-center p-0 sm:p-6" onClick={() => !busy && setAdjustFor(null)}>
