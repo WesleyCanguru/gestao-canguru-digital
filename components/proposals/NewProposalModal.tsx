@@ -34,7 +34,7 @@ export const NewProposalModal: React.FC<{ onClose: () => void; onCreated: (p: an
     if (!notes.trim() && !pdf) { setErr('Cole o resumo da reunião ou envie o PDF.'); return; }
     setBusy(true);
     const { data, error } = await callFunction<{ proposal: any }>('generate-proposal', {
-      action: 'create', agency_id: agencyId, prospect_name: name.trim(), whatsapp: whatsapp.trim(), currency, language,
+      action: 'summarize', agency_id: agencyId, prospect_name: name.trim(), whatsapp: whatsapp.trim(), currency, language,
       notes: notes.trim(), pdf_base64: pdf?.b64, monthly_value: parseCurrencyInput(monthly) || null, setup_value: parseCurrencyInput(setup) || null,
     });
     setBusy(false);
@@ -48,7 +48,7 @@ export const NewProposalModal: React.FC<{ onClose: () => void; onCreated: (p: an
     <div className="fixed inset-0 z-[80] bg-black/40 flex items-end sm:items-center justify-center p-0 sm:p-6" onClick={() => !busy && onClose()}>
       <div className="bg-white w-full max-w-2xl max-h-[94vh] overflow-y-auto rounded-t-3xl sm:rounded-3xl p-6 space-y-4" onClick={e => e.stopPropagation()}>
         <div className="flex items-center gap-2">
-          <div><p className="font-bold text-gray-900">Nova proposta</p><p className="text-xs text-gray-500">O Claude escreve a página a partir do que vocês conversaram. Sai como rascunho para você revisar.</p></div>
+          <div><p className="font-bold text-gray-900">Nova proposta</p><p className="text-xs text-gray-500">O Claude resume o que vocês conversaram para você aprovar. A página só é escrita depois da aprovação.</p></div>
           <button disabled={busy} onClick={onClose} className="ml-auto p-2 rounded-xl hover:bg-gray-100 text-gray-500"><X size={18} /></button>
         </div>
         <div className="grid sm:grid-cols-2 gap-3">
@@ -84,7 +84,7 @@ export const NewProposalModal: React.FC<{ onClose: () => void; onCreated: (p: an
         <div className="flex justify-end gap-2">
           <button disabled={busy} onClick={onClose} className="px-4 py-3 rounded-xl border border-gray-200 text-sm font-semibold text-gray-700">Cancelar</button>
           <button disabled={busy} onClick={submit} className="inline-flex items-center gap-2 px-5 py-3 rounded-xl bg-gray-900 text-white text-sm font-semibold disabled:opacity-60">
-            {busy ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />} {busy ? 'O Claude está escrevendo (cerca de 1 minuto)...' : 'Gerar proposta com o Claude'}
+            {busy ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />} {busy ? 'O Claude está resumindo (cerca de 30 segundos)...' : 'Gerar resumo para aprovar'}
           </button>
         </div>
       </div>
