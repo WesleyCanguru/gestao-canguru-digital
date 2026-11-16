@@ -6,6 +6,10 @@
 //   cria a proposta como "Resumo para aprovar" (summary). Com source_ref repetido, devolve a que já existe.
 // action 'revise_summary': { proposal_id, instructions }  reescreve o resumo com a instrução da equipe.
 // action 'approve_summary': { proposal_id, summary? }  aprova o resumo (opcionalmente editado) e gera a página (vira 'draft').
+// action 'meetings_today': { agency_id }  reuniões comerciais de hoje na agenda do Wesley (via Apps Script), com a proposta já criada de cada uma.
+// action 'summarize_meeting': { agency_id, event_id, whatsapp? }  busca as Anotações do Gemini daquela reunião e cria o resumo para aprovar.
+//   Se as anotações ainda não estiverem prontas, devolve { pending: true, reason }. Mesma reunião não gera dois resumos (source_ref gcal:<id>).
+//   Segredos: NOTES_SCRIPT_URL e NOTES_SCRIPT_SECRET (Edge Functions › Secrets). Código do script: Bolsa/outputs/apps-script/anotacoes-reunioes.gs
 //
 // AÇÕES QUE JÁ EXISTIAM (sem mudança de comportamento):
 // action 'create': { agency_id, prospect_name, whatsapp?, currency?, language?, notes?, pdf_base64?, monthly_value?, setup_value? }  gera a página direto
@@ -30,7 +34,8 @@ const userClient = (req: Request) => createClient(Deno.env.get("SUPABASE_URL")!,
 });
 
 const MODEL = "claude-sonnet-5-5";
-const ACTIONS = ["create", "revise", "publish_draft", "discard_draft", "restore", "summarize", "revise_summary", "approve_summary"];
+const ACTIONS = ["create", "revise", "publish_draft", "discard_draft", "restore", "summarize", "revise_summary", "approve_summary", "meetings_today", "summarize_meeting"];
+const AGENCY_ACTIONS = ["create", "summarize", "meetings_today", "summarize_meeting"];
 
 const TOOL = {
   name: "salvar_proposta",
@@ -126,7 +131,7 @@ Deno.serve(async (req) => {
   if (req.method !== "POST") return json({ error: "method_not_allowed" }, 405);
   try {
     const body = await req.json();
-    const action: string = ACTIONS.includes(body.action) ? body.action : "create";
+    let action: string = ACTIONS.includes(body.action) ? body.action : "create";
     const admin = adminClient();
     const asUser = userClient(req);
     const { data: { user } } = await asUser.auth.getUser();
@@ -134,7 +139,7 @@ Deno.serve(async (req) => {
 
     let existing: Record<string, any> | null = null;
     let agencyId: number;
-    if (action !== "create" && action !== "summarize") {
+    if (!AGENCY_ACTIONS.includes(action)) {
       const { data } = await admin.from("proposals").select("*").eq("id", String(body.proposal_id || "")).maybeSingle();
       if (!data) return json({ error: "Proposta não encontrada." }, 404);
       existing = data; agencyId = data.agency_id;
@@ -143,6 +148,39 @@ Deno.serve(async (req) => {
     }
     const { data: isStaff } = await asUser.rpc("i_am_staff_of", { p_agency: agencyId });
     if (!isStaff) return json({ error: "Sem acesso a esta agência." }, 403);
+
+    // ---------- REUNIÕES DA AGENDA (botão "A reunião acabou") ----------
+    if (action === "meetings_today" || action === "summarize_meeting") {
+      const url = Deno.env.get("NOTES_SCRIPT_URL"), secret = Deno.env.get("NOTES_SCRIPT_SECRET");
+      if (!url || !secret) return json({ error: "Ligação com a agenda ainda não configurada (NOTES_SCRIPT_URL / NOTES_SCRIPT_SECRET)." }, 500);
+      const callScript = async (payload: Record<string, unknown>) => {
+        const resp = await fetch(url, { method: "POST", headers: { "content-type": "text/plain" }, body: JSON.stringify({ secret, ...payload }), redirect: "follow" });
+        const txt = await resp.text();
+        try { return JSON.parse(txt); } catch { console.error(txt.slice(0, 500)); return { error: "A agenda não respondeu como esperado." }; }
+      };
+      if (action === "meetings_today") {
+        const r = await callScript({ action: "list" });
+        if (r.error) return json({ error: `Agenda: ${r.error}` }, 502);
+        const meetings = (r.meetings ?? []) as any[];
+        const refs = meetings.map((m) => `gcal:${m.id}`);
+        const { data: done } = refs.length
+          ? await admin.from("proposals").select("id, status, source_ref").eq("agency_id", agencyId).in("source_ref", refs)
+          : { data: [] as any[] };
+        return json({ meetings: meetings.map((m) => ({ ...m, proposal: (done ?? []).find((d: any) => d.source_ref === `gcal:${m.id}`) ?? null })) });
+      }
+      const eventId = String(body.event_id || "").slice(0, 300);
+      if (!eventId) return json({ error: "Escolha a reunião." }, 400);
+      const { data: dup } = await admin.from("proposals").select("*").eq("agency_id", agencyId).eq("source_ref", `gcal:${eventId}`).maybeSingle();
+      if (dup) return json({ proposal: dup, duplicate: true });
+      const n = await callScript({ action: "notes", event_id: eventId });
+      if (n.error) return json({ error: `Agenda: ${n.error}` }, 502);
+      if (!n.ready) return json({ pending: true, reason: n.reason ?? "As anotações ainda não estão prontas." });
+      body.notes = `Reunião: ${n.title}\nConvidados: ${(n.guests ?? []).join(", ")}\n\n${n.text}`;
+      body.prospect_name = body.prospect_name || n.company;
+      body.source = `Anotações do Gemini: ${String(n.title).slice(0, 90)}`;
+      body.source_ref = `gcal:${eventId}`;
+      action = "summarize";
+    }
 
     const plansOf = (c: any) => (c?.planos ?? []).find((p: any) => p.destaque) ?? c?.planos?.[0];
     const saveHistory = (content: unknown, version: number, instructions: string | null) =>

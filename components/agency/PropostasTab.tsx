@@ -240,7 +240,7 @@ export const PropostasTab: React.FC = () => {
           })}
         </ul>
       )}
-      {meetingEnded && <MeetingEndedModal onClose={() => setMeetingEnded(false)} onCreated={() => { setMeetingEnded(false); setReload(r => r + 1); notify('Pedido feito. O resumo aparece aqui em alguns minutos.'); }} />}
+      {meetingEnded && <MeetingEndedModal onClose={() => setMeetingEnded(false)} onCreated={() => { setMeetingEnded(false); setReload(r => r + 1); notify('Resumo pronto para aprovar.'); }} />}
       {creating && <NewProposalModal onClose={() => setCreating(false)} onCreated={() => { setCreating(false); setReload(r => r + 1); notify('Resumo pronto. Confira e aprove para gerar a página.'); }} />}
 
       {adjustFor && (
