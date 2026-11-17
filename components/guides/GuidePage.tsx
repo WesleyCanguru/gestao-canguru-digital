@@ -138,7 +138,15 @@ export const GuidePage: React.FC<{ slug: string }> = ({ slug }) => {
     })();
   }, [slug]);
 
-  useEffect(() => { if (guide) document.title = guide.title; }, [guide]);
+  // Título da aba e idioma da página seguem o guia. Sem isso o Pouch (lang="en") faz o navegador "traduzir" guia em português.
+  useEffect(() => {
+    if (!guide) return;
+    document.title = guide.title;
+    const html = document.documentElement;
+    const prev = html.lang;
+    html.lang = guide.language === 'en' ? 'en' : guide.language === 'es' ? 'es' : 'pt-BR';
+    return () => { html.lang = prev; };
+  }, [guide]);
 
   if (state === 'loading') return <div className="min-h-screen bg-[#F5F7FB]"><div className="max-w-[1180px] mx-auto px-6 py-16 space-y-6 animate-pulse"><div className="h-4 w-48 rounded bg-gray-200" /><div className="h-14 w-3/4 rounded bg-gray-200" /><div className="h-28 rounded-2xl bg-gray-200" /></div></div>;
   if (state === 'notfound' || !guide) return (
