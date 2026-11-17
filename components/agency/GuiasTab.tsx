@@ -4,7 +4,7 @@ import { Copy, Eye, Loader2, MessageCircle, Plus, RotateCcw, Sparkles, X, Histor
 import { callFunction, supabase, useAuth } from '../../lib/supabase';
 import { getAppUrl } from '../../lib/appUrl';
 
-type Guide = { id: string; slug: string; title: string; audience: 'socio' | 'cliente' | 'equipe'; language: 'pt' | 'en' | 'es'; services: string[]; version: number; is_published: boolean; updated_at: string };
+type Guide = { id: string; slug: string; title: string; audience: 'socio' | 'cliente' | 'equipe'; language: 'pt' | 'en' | 'es'; services: string[]; version: number; is_published: boolean; updated_at: string; kind?: string | null };
 type Version = { id: string; version: number; instructions: string | null; created_at: string };
 
 const AUDIENCE: Record<string, string> = { socio: 'Sócios', cliente: 'Clientes', equipe: 'Equipe' };
@@ -31,7 +31,7 @@ export const GuiasTab: React.FC = () => {
   const load = async () => {
     if (!agencyId) return;
     setLoading(true);
-    const { data } = await supabase.from('guides').select('id, slug, title, audience, language, services, version, is_published, updated_at').eq('agency_id', agencyId).order('updated_at', { ascending: false });
+    const { data } = await supabase.from('guides').select('id, slug, title, audience, language, services, version, is_published, updated_at, kind:content->>kind').eq('agency_id', agencyId).order('updated_at', { ascending: false });
     setGuides((data as Guide[]) || []);
     setLoading(false);
   };
@@ -127,7 +127,9 @@ export const GuiasTab: React.FC = () => {
               <div className="flex flex-wrap gap-2">
                 <a href={`/g/${g.slug}?preview`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-gray-200 text-sm font-semibold text-gray-700 hover:bg-gray-50"><Eye size={15} /> Ver</a>
                 <a href={wa(g)} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-gray-200 text-sm font-semibold text-gray-700 hover:bg-gray-50"><MessageCircle size={15} /> WhatsApp</a>
-                <button type="button" onClick={() => { setEditing(g); setInstructions(''); setErr(null); }} className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-[#13284D] text-white text-sm font-semibold"><Sparkles size={15} /> Pedir mudança ao Claude</button>
+                {g.kind === 'page'
+                  ? <span className="self-center text-xs text-gray-400">Página pronta: mudanças pelo Claude Code</span>
+                  : <button type="button" onClick={() => { setEditing(g); setInstructions(''); setErr(null); }} className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-[#13284D] text-white text-sm font-semibold"><Sparkles size={15} /> Pedir mudança ao Claude</button>}
                 <button type="button" onClick={() => openHistory(g)} title="Versões anteriores" aria-label="Versões anteriores" className="inline-flex items-center px-2.5 py-2 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50"><History size={15} /></button>
                 <button type="button" onClick={() => togglePublished(g)} className="ml-auto text-xs font-semibold text-gray-500 hover:text-gray-800">{g.is_published ? 'Tirar do ar' : 'Colocar no ar'}</button>
               </div>

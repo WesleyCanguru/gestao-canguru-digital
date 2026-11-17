@@ -6,6 +6,7 @@ import { PreviewCloseButton } from '../../lib/previewClose';
  * Guia da Bolsa como página pública (/g/<slug>). Sem login: qualquer pessoa com o link vê um guia publicado.
  * O conteúdo é JSON (hero, steps, sections) e é editado pela equipe em Operação › Guias, pedindo ao Claude.
  * Com ?preview a equipe logada vê também guias não publicados.
+ * Página pronta: content = { kind: 'page', html } mostra um HTML inteiro (ex.: Time Joey Growth), isolado num iframe.
  */
 
 type Tone = 'cliente' | 'equipe' | 'socio';
@@ -15,6 +16,7 @@ export interface GuideSection {
   title: string; text?: string; bullets?: string[]; cards?: { title: string; text: string }[]; images?: GuideImage[];
 }
 export interface GuideContent {
+  kind?: 'page'; html?: string;
   hero: { eyebrow: string; title: string; text: string };
   steps?: { title: string; who: string; tone: Tone }[];
   sections: GuideSection[];
@@ -153,6 +155,13 @@ export const GuidePage: React.FC<{ slug: string }> = ({ slug }) => {
     <div className="min-h-screen bg-[#F5F7FB] flex items-center justify-center px-6 text-center text-[#13284D]">
       <div><p style={display} className="text-2xl font-semibold">Este guia não está disponível.</p><p className="mt-2 text-[#56647C]">Fale com quem te enviou. / This guide is not available.</p></div>
     </div>
+  );
+  if (guide.content?.kind === 'page' && guide.content.html) return (
+    <>
+      <iframe title={guide.title} srcDoc={guide.content.html} sandbox="allow-scripts allow-popups allow-popups-to-escape-sandbox"
+        className="fixed inset-0 w-full border-0 block bg-white" style={{ height: '100dvh' }} />
+      {preview && <PreviewCloseButton fallbackTab="guias" />}
+    </>
   );
   return (
     <>
