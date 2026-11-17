@@ -14,6 +14,8 @@ const SERVICES = ['Tráfego Pago', 'Social Media', 'Website', 'CRM'];
 /** Operação › Guias: páginas com link próprio (/g/<nome>) para sócios e clientes. Mudanças são pedidas ao Claude. */
 export const GuiasTab: React.FC = () => {
   const { agencyId } = useAuth();
+  // Na Joey (agência 7) o sistema se chama Pouch; nas outras, Bolsa.
+  const sysName = agencyId === 7 ? 'o Pouch' : 'a Bolsa';
   const [guides, setGuides] = useState<Guide[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<'todos' | 'socio' | 'cliente' | 'equipe'>('todos');
@@ -79,7 +81,7 @@ export const GuiasTab: React.FC = () => {
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h2 className="text-2xl font-bold text-gray-900">Guias</h2>
-          <p className="text-sm text-gray-500 mt-1">Páginas que explicam a Bolsa para sócios e clientes. Cada uma tem um link para mandar a quem quiser.</p>
+          <p className="text-sm text-gray-500 mt-1">Páginas que explicam {sysName} para sócios e clientes. Cada uma tem um link para mandar a quem quiser.</p>
         </div>
         <button type="button" onClick={() => { setCreating(true); setErr(null); }} className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gray-900 text-white text-sm font-semibold">
           <Plus size={16} /> Novo guia
@@ -192,7 +194,7 @@ export const GuiasTab: React.FC = () => {
               <button type="button" aria-label="Fechar" onClick={() => !busy && setCreating(false)} className="text-gray-400 hover:text-gray-700"><X size={18} /></button>
             </div>
             <label className="block"><span className="text-sm font-semibold text-gray-700">Título</span>
-              <input value={draft.title} onChange={e => setDraft({ ...draft, title: e.target.value })} placeholder="Ex.: Como usar a Bolsa: só tráfego" className="mt-1.5 w-full rounded-xl border border-gray-200 px-3.5 py-2.5 text-sm" /></label>
+              <input value={draft.title} onChange={e => setDraft({ ...draft, title: e.target.value })} placeholder={`Ex.: Como usar ${sysName}: só tráfego`} className="mt-1.5 w-full rounded-xl border border-gray-200 px-3.5 py-2.5 text-sm" /></label>
             <div className="grid grid-cols-2 gap-3">
               <label className="block"><span className="text-sm font-semibold text-gray-700">Para quem</span>
                 <select value={draft.audience} onChange={e => setDraft({ ...draft, audience: e.target.value })} className="mt-1.5 w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm bg-white">
