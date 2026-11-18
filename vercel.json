@@ -9,6 +9,20 @@
       "destination": "/propostas/alvaro-petrus-360.html"
     },
     {
+      "source": "/g/:slug",
+      "destination": "/api/share?path=g/:slug"
+    },
+    {
+      "source": "/:path((?!api/).*)",
+      "has": [
+        {
+          "type": "host",
+          "value": "pouch.joeygrowth.com"
+        }
+      ],
+      "destination": "/api/share?path=:path"
+    },
+    {
       "source": "/((?!api/).*)",
       "destination": "/index.html"
     }
