@@ -39,7 +39,8 @@ import {
   PlayCircle,
   BarChart3,
   NotebookPen,
-  HeartHandshake
+  HeartHandshake,
+  FolderLock
 } from 'lucide-react';
 import { useAuth, supabase } from '../lib/supabase';
 import { Logo } from './Logo';
@@ -147,6 +148,7 @@ export const Navigation: React.FC<SidebarProps> = ({
     { id: 'g-home', items: [
       { id: 'home', label: 'Início', icon: Home },
       { id: 'clientes', label: 'Clientes', icon: Users },
+      { id: 'documentos', label: 'Documentos internos', icon: FolderLock },
     ] },
     { id: 'g-conteudo', label: 'Conteúdo', icon: LayoutDashboard, items: [
       { id: 'masterMap', label: 'Painel de Conteúdo', icon: LayoutDashboard },
