@@ -7,8 +7,8 @@ type Doc = { id: string; slug: string; title: string; version: number; updated_a
 
 /**
  * Documentos internos: páginas da própria agência (manual da marca, time, plano...).
- * Ficam na tabela guides com audience = 'interno'. Só quem é da equipe ou sócio da agência lê
- * (regra no banco: o link /g/ desses documentos não abre sem login).
+ * Ficam na tabela guides com audience = 'interno' e saem de Operação › Guias.
+ * O link /g/ abre para qualquer pessoa com o link (decisão de 18/11/2026: dá para mandar o manual a um freelancer).
  * Mudanças pelo Claude Code, direto no banco, guardando a versão anterior em guide_versions.
  */
 export const DocumentosTab: React.FC = () => {
@@ -56,7 +56,7 @@ export const DocumentosTab: React.FC = () => {
     <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-gray-900">Documentos internos</h1>
-        <p className="mt-1 text-gray-600">Material da casa para os sócios e a equipe: marca, time e plano. Só abre com login.</p>
+        <p className="mt-1 text-gray-600">Material da casa: marca, time e plano. O link abre para qualquer pessoa que o receber.</p>
       </div>
       {loading ? (
         <div className="flex items-center gap-2 text-gray-500"><Loader2 className="w-4 h-4 animate-spin" /> Carregando…</div>
