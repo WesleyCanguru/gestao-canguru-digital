@@ -31,7 +31,7 @@ export const GuiasTab: React.FC = () => {
   const load = async () => {
     if (!agencyId) return;
     setLoading(true);
-    const { data } = await supabase.from('guides').select('id, slug, title, audience, language, services, version, is_published, updated_at, kind:content->>kind').eq('agency_id', agencyId).order('updated_at', { ascending: false });
+    const { data } = await supabase.from('guides').select('id, slug, title, audience, language, services, version, is_published, updated_at, kind:content->>kind').eq('agency_id', agencyId).neq('audience', 'interno').order('updated_at', { ascending: false });
     setGuides((data as Guide[]) || []);
     setLoading(false);
   };
