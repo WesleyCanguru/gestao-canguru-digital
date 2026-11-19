@@ -221,9 +221,11 @@ export const StrategyPublicPage: React.FC<{ token: string; initial?: PageData }>
 
       <main className="stp-wrap">
         <div className="stp-top">
-          {agency?.logo_url
-            ? <img src={agency.logo_url} alt={agency.name} className="h-8 w-auto max-w-[160px] object-contain" />
-            : <b className="stp-brand">{agency?.name}</b>}
+          {joey
+            ? <img src="/marca/joey/joey-growth-horizontal-laranja-claro.svg" alt="Joey Growth" className="h-7 w-auto max-w-[180px] object-contain" />
+            : agency?.logo_url
+              ? <img src={agency.logo_url} alt={agency.name} className="h-8 w-auto max-w-[160px] object-contain" />
+              : <b className="stp-brand">{agency?.name}</b>}
           <span>{t('Estratégia de anúncios', 'Ad strategy', 'Estrategia de anuncios')} · v{s.version}</span>
         </div>
 
