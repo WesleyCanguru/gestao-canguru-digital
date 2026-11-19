@@ -3,7 +3,7 @@ import { firstNameOf } from '../../lib/names';
 import { supabase } from '../../lib/supabase';
 import { StrategyRow, StrategyView } from './StrategyView';
 import { AccessChoice, AccessGuideCard, emptyAccess } from './AccessGuideCard';
-import { Lang, Platform, pickLang, tr } from '../../lib/accessGuides';
+import { Lang, Platform, accessEmailFor, pickLang, tr } from '../../lib/accessGuides';
 import { Sparkles, Check, X, Loader2, MessageSquare, Rocket, Clock, MessageCircle, ClipboardList, ChevronRight } from 'lucide-react';
 
 type AccessRow = { platform: Platform; situation: 'has_account' | 'needs_account' | 'unknown'; status: AccessChoice['status']; account_ref: string | null; contact_email?: string | null };
@@ -206,7 +206,7 @@ export const ClientStartCard: React.FC<{
           {err && <p className="text-sm text-rose-600">{err}</p>}
           {pendingPlatforms.map(p => (
             <AccessGuideCard key={p} platform={p} lang={lang} brand={brand} disabled={readOnly}
-              accessEmail={agency?.access_email || 'contato@cangurudigital.com.br'}
+              accessEmail={accessEmailFor(p, agency?.access_email)}
               signupEmail={client.email}
               value={access[p]} onChange={patch => changeAccess(p, patch)} />
           ))}
