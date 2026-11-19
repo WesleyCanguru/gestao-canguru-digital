@@ -299,6 +299,27 @@ const ClientDrawer: React.FC<{
   const [adjustText, setAdjustText] = useState('');
   const [shareOpen, setShareOpen] = useState(false);
   const [copiedWhat, setCopiedWhat] = useState<'link' | 'msg' | null>(null);
+  // Pedido de estratégia em andamento (o Claude trabalha em lote: Raio-X, rascunho e revisão)
+  const [job, setJob] = useState<{ id: string; status: string; error?: string | null } | null>(null);
+  const jobOpen = !!job && ['queued', 'drafting', 'reviewing'].includes(job.status);
+  useEffect(() => {
+    let alive = true;
+    supabase.from('strategy_jobs').select('id, status, error, created_at').eq('client_id', client.id)
+      .order('created_at', { ascending: false }).limit(1).maybeSingle()
+      .then(({ data }) => { if (alive && data && ['queued', 'drafting', 'reviewing'].includes(data.status)) setJob(data); });
+    return () => { alive = false; };
+  }, [client.id]);
+  useEffect(() => {
+    if (!jobOpen || !job) return;
+    const t = setInterval(async () => {
+      const { data } = await supabase.from('strategy_jobs').select('id, status, error').eq('id', job.id).maybeSingle();
+      if (!data) return;
+      if (data.status === 'done') { setJob(null); onChanged(); }
+      else if (data.status === 'error') { setJob(null); setErr(data.error || 'O Claude não conseguiu montar a estratégia. Tente de novo.'); }
+      else setJob(data);
+    }, 15000);
+    return () => clearInterval(t);
+  }, [jobOpen, job?.id, onChanged]);
   const tsd = (client as any).traffic_strategy_data || {};
   const lang = (tsd.language as 'pt' | 'en' | 'es') || (client.agency_id === 7 ? 'en' : 'pt');
   const hasPaidTraffic = ((client.services as string[]) || []).includes('Tráfego Pago');
@@ -319,15 +340,15 @@ const ClientDrawer: React.FC<{
   });
 
   const generate = () => run('gen', async () => {
-    const { error } = await callFunction('generate-strategy', { client_id: client.id, instructions: notes });
-    if (!error) { setNotes(''); setShowNotes(false); }
+    const { data, error } = await callFunction<{ job?: any }>('generate-strategy', { client_id: client.id, instructions: notes });
+    if (!error) { setNotes(''); setShowNotes(false); if (data?.job) setJob(data.job); }
     return error;
   });
 
   const askAdjust = () => run('adjust', async () => {
     if (!adjustText.trim()) return 'Escreva o que mudar.';
-    const { error } = await callFunction('generate-strategy', { client_id: client.id, instructions: `AJUSTE PEDIDO PELA EQUIPE: ${adjustText.trim()}` });
-    if (!error) { setAdjustText(''); setShowAdjust(false); }
+    const { data, error } = await callFunction<{ job?: any }>('generate-strategy', { client_id: client.id, instructions: `AJUSTE PEDIDO PELA EQUIPE: ${adjustText.trim()}` });
+    if (!error) { setAdjustText(''); setShowAdjust(false); if (data?.job) setJob(data.job); }
     return error;
   });
 
@@ -478,13 +499,23 @@ const ClientDrawer: React.FC<{
               </div>
             )}
 
+            {jobOpen && (
+              <div className="mb-3 rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-700">
+                {job?.status === 'reviewing'
+                  ? 'Rascunho pronto. Agora o Claude confere a estratégia contra o checklist da casa.'
+                  : 'O Claude está montando a estratégia com o Raio-X do site e o playbook da casa.'}
+                {' '}Fica pronta em alguns minutos e aparece aqui sozinha. Você pode fechar esta janela.
+              </div>
+            )}
             <div className="flex flex-wrap gap-2 mb-4">
               {(!strategy || strategy.status === 'draft' || strategy.status === 'changes') && (
-                <button disabled={!!busy || stage === 'cadastro'} onClick={() => (showNotes ? generate() : setShowNotes(true))}
+                <button disabled={!!busy || jobOpen || stage === 'cadastro'} onClick={() => (showNotes ? generate() : setShowNotes(true))}
                   className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gray-900 text-white text-sm font-semibold disabled:opacity-50">
-                  {busy === 'gen' ? <Loader2 size={15} className="animate-spin" /> : <Sparkles size={15} />}
+                  {busy === 'gen' || jobOpen ? <Loader2 size={15} className="animate-spin" /> : <Sparkles size={15} />}
                   {busy === 'gen'
-                    ? 'O Claude está montando (leva cerca de 1 minuto)...'
+                    ? 'Lendo o site e as tags do cliente...'
+                    : jobOpen
+                    ? (job?.status === 'reviewing' ? 'Revisando a estratégia...' : 'O Claude está montando a estratégia...')
                     : showNotes
                     ? 'Gerar agora'
                     : hasPaidTraffic && !trafficBriefing?.is_completed
