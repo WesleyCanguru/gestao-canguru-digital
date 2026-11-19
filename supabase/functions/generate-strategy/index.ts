@@ -1,67 +1,9 @@
-// Gera a estratégia de tráfego pago de um cliente com o Claude, a partir do cadastro.
-// Só a equipe da agência do cliente pode chamar. Salva como rascunho (status 'draft').
+// Pede a estratégia de tráfego pago de um cliente. Não espera o Claude: roda o Raio-X, monta os prompts
+// (playbook da casa + data de hoje), cria um pedido em strategy_jobs e manda o rascunho em lote.
+// A função strategy-jobs-tick (a cada minuto) faz a revisão e salva a estratégia como rascunho (status 'draft').
+// Só a equipe da agência do cliente pode chamar. Resposta: { job } com status 'drafting'.
 import { adminClient, corsHeaders, json, userClient } from "../_shared/common.ts";
-
-const MODEL = "claude-sonnet-5-5";
-
-const STRATEGY_TOOL = {
-  name: "salvar_estrategia",
-  description: "Salva a estratégia de tráfego pago estruturada para o cliente.",
-  input_schema: {
-    type: "object",
-    properties: {
-      resumo: { type: "string", description: "2 a 4 frases, em linguagem simples, dizendo o que vamos fazer e por quê." },
-      objetivo_principal: { type: "string" },
-      oferta: { type: "string", description: "Como a oferta será apresentada nos anúncios." },
-      publicos: {
-        type: "array",
-        items: {
-          type: "object",
-          properties: {
-            nome: { type: "string" },
-            descricao: { type: "string" },
-            segmentacao: { type: "string", description: "Interesses, palavras-chave, idade, região, públicos semelhantes etc." },
-          },
-          required: ["nome", "descricao", "segmentacao"],
-        },
-      },
-      campanhas: {
-        type: "array",
-        items: {
-          type: "object",
-          properties: {
-            plataforma: { type: "string", enum: ["Meta", "Google"] },
-            nome: { type: "string" },
-            objetivo: { type: "string" },
-            publico: { type: "string" },
-            criativos: { type: "string", description: "Formatos e ângulos dos anúncios." },
-            percentual_verba: { type: "number", description: "Percentual da verba mensal (0 a 100)." },
-          },
-          required: ["plataforma", "nome", "objetivo", "publico", "criativos", "percentual_verba"],
-        },
-      },
-      investimento: {
-        type: "object",
-        properties: {
-          mensal_sugerido: { type: "string", description: "Valor na moeda do cliente, ex.: R$ 2.000/mês" },
-          justificativa: { type: "string" },
-        },
-        required: ["mensal_sugerido", "justificativa"],
-      },
-      metricas: {
-        type: "array",
-        items: { type: "object", properties: { nome: { type: "string" }, meta: { type: "string" } }, required: ["nome", "meta"] },
-      },
-      cronograma: {
-        type: "array",
-        items: { type: "object", properties: { fase: { type: "string" }, prazo: { type: "string" }, entregas: { type: "string" } }, required: ["fase", "prazo", "entregas"] },
-      },
-      precisamos_do_cliente: { type: "array", items: { type: "string" }, description: "O que o cliente precisa enviar ou fazer (fotos, vídeos, acessos, aprovações)." },
-      pontos_em_aberto: { type: "array", items: { type: "string" }, description: "Dúvidas internas para a agência confirmar. Não aparece para o cliente." },
-    },
-    required: ["resumo", "objetivo_principal", "oferta", "publicos", "campanhas", "investimento", "metricas", "cronograma", "precisamos_do_cliente", "pontos_em_aberto"],
-  },
-};
+import { buildStrategyPrompts, strategyParams, submitBatch } from "../_shared/strategy-core.ts";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
@@ -87,110 +29,29 @@ Deno.serve(async (req) => {
     const apiKey = Deno.env.get("ANTHROPIC_API_KEY");
     if (!apiKey) return json({ error: "Chave do Claude não configurada (ANTHROPIC_API_KEY)." }, 500);
 
-    const [{ data: agency }, { data: briefings }, { data: access }, { data: previous }] = await Promise.all([
-      admin.from("agencies").select("name").eq("id", client.agency_id).maybeSingle(),
-      admin.from("client_briefings").select("briefing_type, responses, is_completed").eq("client_id", clientId),
-      admin.from("client_platform_access").select("platform, situation, status").eq("client_id", clientId),
-      admin.from("client_strategies").select("version, status, client_feedback, content").eq("client_id", clientId)
-        .order("version", { ascending: false }).limit(1),
-    ]);
+    // Um pedido por vez por cliente
+    const { data: open } = await admin.from("strategy_jobs").select("*").eq("client_id", clientId)
+      .in("status", ["queued", "drafting", "reviewing"]).order("created_at", { ascending: false }).limit(1).maybeSingle();
+    if (open) return json({ job: open, already_running: true });
 
-    const trafego = (briefings ?? []).find((b) => b.briefing_type === "trafego_pago");
-    const english = client.agency_id === 7;
-    const tsd = client.traffic_strategy_data ?? {};
-    const last = previous?.[0];
-    const lang: string = ["pt", "en", "es"].includes(tsd.language) ? tsd.language : (english ? "en" : "pt");
-
-    const context = {
-      empresa: client.name,
-      responsavel: client.responsible,
-      segmento: client.segment,
-      moeda: client.currency || (english ? "USD" : "BRL"),
-      site: tsd.website_url ?? null,
-      instagram: client.instagram ?? tsd.instagram_url ?? null,
-      cadastro: tsd.onboarding_briefing ?? null,
-      briefing_de_trafego: trafego?.responses ?? null,
-      briefing_de_trafego_respondido: !!trafego?.is_completed,
-      outros_briefings: (briefings ?? []).filter((b) => b.briefing_type !== "trafego_pago" && b.briefing_type !== "onboarding")
-        .map((b) => ({ tipo: b.briefing_type, respostas: b.responses })),
-      acessos: access ?? [],
-      estrategia_anterior: last ? { versao: last.version, status: last.status, feedback_do_cliente: last.client_feedback, conteudo: last.content } : null,
-    };
-
-    const system = [
-      `Você é o estrategista de tráfego pago da agência ${agency?.name ?? ""}.`,
-      "Monte uma estratégia de anúncios no Meta Ads e no Google Ads, prática e pronta para executar, a partir do cadastro do cliente.",
-      "Seja específico para o negócio dele: públicos, palavras-chave, ângulos de criativo e divisão de verba que façam sentido para essa oferta e região.",
-      "O cadastro traz o básico (oferta, região, idade, investimento). O briefing de tráfego aprofunda: gênero, renda, profissão, onde o público passa o tempo, maior problema, motivo da busca, ciclo de vendas, gatilho para agir, quem atende os contatos e que materiais o cliente já tem. Use os dois juntos.",
-      "Adapte a estratégia ao atendimento e aos materiais: se o cliente demora para responder ou não tem fotos e vídeos, diga isso e ajuste campanhas e criativos.",
-      "Se o briefing de tráfego não foi respondido, registre em pontos_em_aberto quais respostas fazem falta.",
-      "Use o investimento que o cliente indicou como referência. Se não houver, sugira um valor inicial realista e explique.",
-      "Escreva para o cliente ler: frases curtas, sem jargão, sem travessão (—). Use \"para\", nunca \"pra\".",
-      "Se faltar informação, faça a melhor suposição e registre a dúvida em pontos_em_aberto (isso é só para a agência).",
-      "Se houver estratégia anterior com feedback do cliente, corrija o que ele pediu.",
-      "Se a equipe mandou um pedido de ajuste (instruções que começam com AJUSTE) e existe estratégia anterior, parta dela: mantenha tudo o que não foi citado e mude só o que foi pedido.",
-      "Entregue o resultado chamando a ferramenta salvar_estrategia uma única vez, sem texto antes ou depois.",
-      lang === "en" ? "Write every field in English." : lang === "es" ? "Escribe todos los campos en español neutro (latinoamericano)." : "Escreva em português do Brasil.",
-      english ? "O cliente é atendido nos Estados Unidos: use valores em USD." : "",
-    ].filter(Boolean).join("\n");
-
-    const userMsg = `Dados do cliente (JSON):\n${JSON.stringify(context, null, 2)}` +
-      (extra ? `\n\nInstruções ou anotações da equipe (por exemplo, resumo da reunião):\n${extra}` : "");
-
-    // Confere o formato: listas precisam ser listas e nada de marcação de ferramenta vazando no texto.
-    const isValid = (c: any) => {
-      if (!c || typeof c !== "object" || typeof c.resumo !== "string" || !c.resumo.trim()) return false;
-      for (const k of ["publicos", "campanhas"]) if (!Array.isArray(c[k]) || c[k].length === 0) return false;
-      for (const k of ["metricas", "cronograma", "precisamos_do_cliente", "pontos_em_aberto"]) if (c[k] != null && !Array.isArray(c[k])) return false;
-      if (c.investimento != null && typeof c.investimento !== "object") return false;
-      return !/<\/?parameter|<\/?invoke|antml:/.test(JSON.stringify(c));
-    };
-
-    let strategyContent: any = null;
-    let out: any = null;
-    for (let attempt = 0; attempt < 2 && !strategyContent; attempt++) {
-      const resp = await fetch("https://api.anthropic.com/v1/messages", {
-        method: "POST",
-        headers: { "x-api-key": apiKey, "anthropic-version": "2023-06-01", "content-type": "application/json" },
-        body: JSON.stringify({
-          model: MODEL,
-          max_tokens: 8000,
-          system,
-          tools: [STRATEGY_TOOL],
-          tool_choice: attempt === 0 ? { type: "auto" } : { type: "tool", name: "salvar_estrategia" },
-          messages: [{ role: "user", content: userMsg }],
-        }),
-      });
-      out = await resp.json();
-      if (!resp.ok) {
-        console.error(out);
-        const msg = out?.error?.message ?? "Erro ao chamar o Claude.";
-        return json({ error: `Claude: ${msg}` }, 502);
-      }
-      let candidate = (out.content ?? []).find((c: { type: string }) => c.type === "tool_use")?.input ?? null;
-      if (!candidate) {
-        // Plano B: o modelo respondeu em texto; tenta achar o JSON
-        const text = (out.content ?? []).filter((c: { type: string }) => c.type === "text").map((c: { text: string }) => c.text).join("\n");
-        const m = text.match(/\{[\s\S]*\}/);
-        try { candidate = m ? JSON.parse(m[0]) : null; } catch { candidate = null; }
-      }
-      if (isValid(candidate)) strategyContent = candidate;
-      else console.warn("estratégia fora do formato, tentativa", attempt + 1, out?.stop_reason);
-    }
-    if (!strategyContent) return json({ error: "O Claude não devolveu a estratégia no formato certo. Tente de novo." }, 502);
-
-    const { data: saved, error } = await admin.from("client_strategies").insert({
-      client_id: clientId,
-      agency_id: client.agency_id,
-      version: (last?.version ?? 0) + 1,
-      status: "draft",
-      content: strategyContent,
-      model: out.model ?? MODEL,
-      created_by: user.id,
+    const p = await buildStrategyPrompts(admin, client, user.id, extra, body.refresh_xray === true);
+    const { data: job, error } = await admin.from("strategy_jobs").insert({
+      client_id: clientId, agency_id: client.agency_id, created_by: user.id, instructions: extra || null,
+      status: "queued", system_prompt: p.system, user_prompt: p.userMsg, review_system_prompt: p.reviewSystem,
+      xray_id: p.auditId, base_version: p.baseVersion,
     }).select("*").single();
-    if (error) return json({ error: "Erro ao salvar a estratégia." }, 500);
+    if (error || !job) return json({ error: "Erro ao criar o pedido." }, 500);
 
-    return json({ strategy: saved, usage: out.usage ?? null });
+    try {
+      const batchId = await submitBatch(apiKey, `draft-${job.id}`, strategyParams(p.system, p.userMsg, "high"));
+      const { data: upd } = await admin.from("strategy_jobs").update({ status: "drafting", batch_id: batchId, attempts: 1, updated_at: new Date().toISOString() })
+        .eq("id", job.id).select("*").single();
+      return json({ job: upd ?? job });
+    } catch (e) {
+      console.error(e);
+      await admin.from("strategy_jobs").update({ status: "error", error: String(e), updated_at: new Date().toISOString() }).eq("id", job.id);
+      return json({ error: "Não foi possível enviar o pedido ao Claude. Tente de novo." }, 502);
+    }
   } catch (e) {
     console.error(e);
     return json({ error: "Erro inesperado." }, 500);
