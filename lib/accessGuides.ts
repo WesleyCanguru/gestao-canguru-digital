@@ -10,6 +10,17 @@ export const LANGS: { id: Lang; label: string }[] = [
   { id: 'es', label: 'Español' },
 ];
 
+/**
+ * E-mail que o cliente convida em cada plataforma.
+ * Google: o e-mail de acesso da agência (contato@).
+ * Meta: tráfego@, que é o e-mail do perfil do Facebook que aceita os convites
+ * (apelido do contato@, então o aviso cai na mesma caixa).
+ */
+export const META_ACCESS_EMAIL = 'trafego@cangurudigital.com.br';
+export const DEFAULT_ACCESS_EMAIL = 'contato@cangurudigital.com.br';
+export const accessEmailFor = (p: Platform, agencyEmail?: string | null): string =>
+  p === 'meta' ? META_ACCESS_EMAIL : (agencyEmail || DEFAULT_ACCESS_EMAIL);
+
 export const pickLang = (l?: string | null): Lang => (l === 'en' || l === 'es' || l === 'pt' ? l : 'pt');
 
 export const browserLang = (): Lang => {

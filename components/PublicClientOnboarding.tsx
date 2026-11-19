@@ -5,7 +5,7 @@ import {
   Building2, FileText, Target, KeyRound, CheckCircle2, ArrowRight, ArrowLeft, AlertCircle, Loader2,
   Check, Sparkles, MessageCircle, Globe,
 } from 'lucide-react';
-import { Lang, LANGS, Platform, browserLang, pickLang, tr } from '../lib/accessGuides';
+import { Lang, LANGS, Platform, accessEmailFor, browserLang, pickLang, tr } from '../lib/accessGuides';
 import { AccessChoice, AccessGuideCard, emptyAccess } from './strategy/AccessGuideCard';
 
 interface PublicClientOnboardingProps { agencySlug: string | null }
@@ -65,7 +65,6 @@ export const PublicClientOnboarding: React.FC<PublicClientOnboardingProps> = ({ 
 
   const t = tr(lang);
   const brand = agency?.primary_color || '#456da1';
-  const accessEmail = agency?.access_email || 'contato@cangurudigital.com.br';
 
   // Carrega agência
   useEffect(() => {
@@ -465,7 +464,7 @@ export const PublicClientOnboarding: React.FC<PublicClientOnboardingProps> = ({ 
                   {errorBox()}
                   <div className="space-y-4">
                     {(['meta', 'google'] as Platform[]).map(p => (
-                      <AccessGuideCard key={p} platform={p} lang={lang} accessEmail={accessEmail} brand={brand}
+                      <AccessGuideCard key={p} platform={p} lang={lang} accessEmail={accessEmailFor(p, agency?.access_email)} brand={brand}
                         signupEmail={company.email}
                         value={access[p]} onChange={patch => setPlat(p, patch)} />
                     ))}
