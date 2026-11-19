@@ -34,6 +34,20 @@ const fmtTime = (d: Date) =>
 
 const str = (v: unknown, max = 2000) => (typeof v === "string" ? v.trim().slice(0, max) : "");
 
+/** Resumo do Raio-X para a página (só números e status; os dados brutos ficam no banco). Igual a summarizeXray do front. */
+const summarizeXray = (d: any) => {
+  if (!d || typeof d !== "object") return null;
+  const tr = d.site?.tracking;
+  const kinds = d.site?.pages?.by_kind_counts ?? {};
+  return {
+    collected_at: d.collected_at ?? null,
+    speed: d.speed?.ok ? { performance_mobile: d.speed.performance_mobile ?? null, lcp_s: d.speed.lcp_s ?? null, total_kb: d.speed.total_kb ?? null } : null,
+    instagram: d.instagram?.ok ? { username: d.instagram.username ?? null, followers: d.instagram.followers ?? null, engagement_rate_pct: d.instagram.engagement_rate_pct ?? null, repeated: d.instagram.repeated_captions_last_12 ?? null } : null,
+    tracking: tr ? { gtm: (tr.gtm_containers ?? []).length, meta: (tr.meta_pixels ?? []).length, ga4: (tr.ga4_properties ?? []).length, ads: (tr.google_ads_tags ?? []).length, server_side: !!(tr.server_side_gtm ?? []).length, alerts: tr.alerts ?? [] } : null,
+    site: d.site ? { comparacoes: kinds.comparacao ?? 0, precos: kinds.preco ?? 0, paginas: d.site.pages?.total_in_sitemap ?? 0 } : null,
+  };
+};
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
   if (req.method !== "POST") return json({ error: "method_not_allowed" }, 405);
@@ -61,14 +75,20 @@ Deno.serve(async (req) => {
     if (action === "get") {
       const { data: agency } = await admin.from("agencies").select("name, logo_url, primary_color, contact_whatsapp").eq("id", s.agency_id).maybeSingle();
       const { pontos_em_aberto: _hidden, ...content } = (s.content ?? {}) as Record<string, unknown>;
+      // Raio-X mais recente do cliente, até o envio desta versão (para os medidores da página)
+      let xq = admin.from("client_audits").select("data").eq("client_id", s.client_id).eq("kind", "xray")
+        .order("created_at", { ascending: false }).limit(1);
+      if (s.sent_at) xq = xq.lte("created_at", s.sent_at);
+      const { data: xr } = await xq;
       return json({
         strategy: {
           version: s.version, status: s.status, content, sent_at: s.sent_at, responded_at: s.responded_at,
           client_feedback: s.client_feedback, responded_name: s.responded_name,
           token: s.public_token, newer_than_link: s.id !== byToken.id,
         },
-        client: { name: client?.name ?? "", responsible: client?.responsible ?? "", lang, currency: client?.currency ?? null },
+        client: { name: client?.name ?? "", responsible: client?.responsible ?? "", lang, currency: client?.currency ?? null, agency_id: s.agency_id },
         agency: agency ?? null,
+        xray: summarizeXray(xr?.[0]?.data),
       });
     }
 

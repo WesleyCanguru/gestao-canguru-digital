@@ -12,6 +12,8 @@ export interface StrategyContent {
   cronograma?: { fase: string; prazo: string; entregas: string }[];
   precisamos_do_cliente?: string[];
   pontos_em_aberto?: string[];
+  /** Camada curta para a página do cliente (ver strategyVisual.ts). */
+  visual?: unknown;
 }
 
 /** Garante que as listas da estratégia sejam listas (o modelo às vezes devolve texto quebrado). */

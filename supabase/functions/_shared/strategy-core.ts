@@ -59,8 +59,60 @@ export const STRATEGY_TOOL = {
       },
       precisamos_do_cliente: { type: "array", items: { type: "string" }, description: "O que o cliente precisa enviar ou fazer (fotos, vídeos, acessos, aprovações)." },
       pontos_em_aberto: { type: "array", items: { type: "string" }, description: "Dúvidas internas para a agência confirmar. Não aparece para o cliente." },
+      visual: {
+        type: "object",
+        description: "Versão CURTA e visual para a página do cliente. Os campos acima viram o 'Ver detalhes'. Linguagem de dono de negócio, sem siglas nem IDs.",
+        properties: {
+          titulo: { type: "string", description: "Título da página, até 8 palavras, sem o nome do cliente. Ex.: 'Compradores reais de cruisers,'" },
+          titulo_destaque: { type: "string", description: "Final do título em destaque, até 6 palavras. Ex.: 'prontos para a temporada.'" },
+          subtitulo: { type: "string", description: "1 ou 2 frases curtas (máx. 40 palavras): o que vamos fazer e por quê." },
+          numeros: {
+            type: "array", description: "Exatamente 3 números grandes: verba mensal, resultado esperado (faixa) e quando sai o primeiro número real.",
+            items: { type: "object", properties: { rotulo: { type: "string" }, valor: { type: "string", description: "Curto: 'US$ 1.500/mês', '8 a 20/mês', '14–18 dez'" }, nota: { type: "string", description: "Até 10 palavras" } }, required: ["rotulo", "valor"] },
+          },
+          raio_x: {
+            type: "array", description: "3 a 5 cartões do diagnóstico, só com o que o raio_x mediu. Use tema 'velocidade' e 'instagram' quando houver esses dados (a página desenha o medidor com o número medido).",
+            items: { type: "object", properties: {
+              tema: { type: "string", enum: ["rastreamento", "velocidade", "instagram", "site", "anuncios", "outro"] },
+              status: { type: "string", enum: ["critico", "melhorar", "forte"] },
+              titulo: { type: "string", description: "Até 5 palavras" },
+              frase: { type: "string", description: "1 frase, até 20 palavras, dizendo o efeito para o negócio" },
+              detalhe: { type: "string", description: "Explicação técnica para o 'Ver detalhes' (IDs, ferramentas), até 60 palavras" },
+            }, required: ["tema", "status", "titulo", "frase"] },
+          },
+          funil: {
+            type: "array", description: "4 ou 5 etapas de como o comprador chega até a venda, na ordem. Etapas com campanha levam selo '45% da verba'; as finais levam a meta (ex.: 'meta 20–30%') ou 'no CRM'.",
+            items: { type: "object", properties: { titulo: { type: "string", description: "Até 6 palavras, do ponto de vista do comprador. Ex.: 'Ele procura no Google'" }, frase: { type: "string", description: "Até 22 palavras" }, selo: { type: "string" }, destaque: { type: "boolean", description: "true nas etapas que recebem verba" } }, required: ["titulo", "frase"] },
+          },
+          publicos: {
+            type: "array", description: "Um cartão por público, na mesma ordem de publicos.",
+            items: { type: "object", properties: { icone: { type: "string", description: "1 emoji ou símbolo simples" }, titulo: { type: "string", description: "Até 6 palavras" }, frase: { type: "string", description: "Até 22 palavras" }, selo: { type: "string", description: "Plataforma e papel, até 6 palavras. Ex.: 'Google · o mais quente'" } }, required: ["titulo", "frase"] },
+          },
+          verba: {
+            type: "array", description: "Divisão da verba mensal, uma linha por campanha. Percentuais somam 100.",
+            items: { type: "object", properties: { nome: { type: "string", description: "Até 4 palavras. Ex.: 'Meta · vídeo'" }, valor: { type: "string", description: "Ex.: 'US$ 675'" }, frase: { type: "string", description: "Até 8 palavras, com o valor por dia" }, percentual: { type: "number" } }, required: ["nome", "valor", "percentual"] },
+          },
+          verba_alternativas: {
+            type: "array", description: "Até 2 cenários se a verba for menor.",
+            items: { type: "object", properties: { se: { type: "string", description: "Ex.: 'Se for US$ 1.000'" }, entao: { type: "string", description: "Até 8 palavras" } }, required: ["se", "entao"] },
+          },
+          cronograma: {
+            type: "array", description: "4 a 5 marcos curtos.",
+            items: { type: "object", properties: { quando: { type: "string", description: "Ex.: 'Semana 1 · 23–27/11'" }, titulo: { type: "string", description: "Até 3 palavras" }, frase: { type: "string", description: "Até 14 palavras" } }, required: ["quando", "titulo", "frase"] },
+          },
+          precisamos: {
+            type: "array", description: "6 a 8 itens curtos do que o cliente precisa enviar. trava=true nos que impedem o lançamento (no máximo 3).",
+            items: { type: "object", properties: { item: { type: "string", description: "Até 14 palavras" }, trava: { type: "boolean" } }, required: ["item"] },
+          },
+          perguntas: {
+            type: "array", description: "Até 3 perguntas que o CLIENTE precisa responder antes de ligar a verba (não as dúvidas internas).",
+            items: { type: "object", properties: { titulo: { type: "string", description: "A pergunta, até 10 palavras" }, frase: { type: "string", description: "Por que importa, até 18 palavras" } }, required: ["titulo", "frase"] },
+          },
+        },
+        required: ["titulo", "subtitulo", "numeros", "raio_x", "funil", "publicos", "verba", "cronograma", "precisamos"],
+      },
     },
-    required: ["resumo", "objetivo_principal", "oferta", "publicos", "campanhas", "investimento", "metricas", "cronograma", "precisamos_do_cliente", "pontos_em_aberto"],
+    required: ["resumo", "objetivo_principal", "oferta", "publicos", "campanhas", "investimento", "metricas", "cronograma", "precisamos_do_cliente", "pontos_em_aberto", "visual"],
   },
 };
 
@@ -145,6 +197,8 @@ export async function buildStrategyPrompts(admin: SupabaseClient, client: any, u
     "Se o briefing de tráfego não foi respondido, registre em pontos_em_aberto quais respostas fazem falta.",
     "Se houver estratégia anterior com feedback do cliente, corrija o que ele pediu.",
     "Se a equipe mandou um pedido de ajuste (instruções que começam com AJUSTE) e existe estratégia anterior, parta dela: mantenha tudo o que não foi citado e mude só o que foi pedido.",
+    "Escreva DUAS camadas. Os campos completos são para a equipe executar e para o 'Ver detalhes': profundos, específicos, com IDs, palavras-chave e números. O campo visual é o que o cliente lê primeiro: frases curtas, sem siglas nem jargão (nada de ThruPlay, CBO, GTM, lookalike), respeitando os limites de palavras de cada item. O cliente precisa entender a estratégia inteira lendo só o visual.",
+    "No visual, nunca afirme o que não está nos dados (por exemplo, que um acesso já foi liberado ou que o site não tem um botão). Dúvidas vão para pontos_em_aberto ou para visual.perguntas.",
     "Entregue o resultado chamando a ferramenta salvar_estrategia uma única vez, sem texto antes ou depois.",
     langLine,
     english ? "O cliente é atendido nos Estados Unidos: use valores em USD." : "",
@@ -156,7 +210,8 @@ export async function buildStrategyPrompts(admin: SupabaseClient, client: any, u
   const reviewSystem = [
     `Você é o revisor de estratégias de tráfego pago da agência ${agency?.name ?? ""}. Nenhuma estratégia sai sem passar por você.`,
     "Confira a estratégia contra o raio_x, os briefings e cada item do checklist do revisor no fim do playbook.",
-    "Corrija tudo o que estiver errado ou fraco e devolva a estratégia COMPLETA corrigida chamando salvar_estrategia. Mantenha o que está bom.",
+    "Corrija tudo o que estiver errado ou fraco e devolva a estratégia COMPLETA corrigida chamando salvar_estrategia, incluindo o campo visual. Mantenha o que está bom.",
+    "Confira também o visual: está coerente com os campos completos, curto (dentro dos limites de palavras), sem jargão, e não afirma nada que os dados não mostram. Se faltar, escreva.",
     "No fim de pontos_em_aberto, acrescente até 5 itens começando com \"Revisor:\" dizendo as principais correções que você fez. Se não precisou corrigir nada, acrescente \"Revisor: sem correções\".",
     langLine,
     "",
