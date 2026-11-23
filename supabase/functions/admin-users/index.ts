@@ -58,6 +58,27 @@ Deno.serve(async (req) => {
       return { user: data.user, created: true };
     };
 
+    // Uma conta pode ter acesso em várias agências. Quem chama só pode vincular uma conta já existente
+    // ou trocar a senha dela se tiver a permissão certa em TODAS as agências onde essa conta tem acesso.
+    // Conta de admin da plataforma: só outro admin da plataforma mexe.
+    const isPlatformAdmin = async (userId: string) => {
+      const { data } = await admin.from("platform_admins").select("user_id").eq("user_id", userId).limit(1);
+      return !!data?.length;
+    };
+    const controlsIdentity = async (userId: string) => {
+      if (userId === who.user.id) return true;
+      if ((await isPlatformAdmin(userId)) && !(await isPlatformAdmin(who.user.id))) return false;
+      const { data: staffRows } = await admin.from("agency_members").select("agency_id").eq("user_id", userId);
+      for (const r of staffRows ?? []) if (!(await can(r.agency_id, "manage_team"))) return false;
+      const { data: clientRows } = await admin.from("client_members").select("agency_id, clients(agency_id)").eq("user_id", userId);
+      for (const r of clientRows ?? []) {
+        const ag = (r as any).clients?.agency_id ?? r.agency_id;
+        if (!(await can(ag, "manage_clients"))) return false;
+      }
+      return true;
+    };
+    const FOREIGN = "Este e-mail já tem acesso em outra agência. Peça para quem administra essa agência fazer a alteração.";
+
     switch (action) {
       // ----------------------------------------------------------- EQUIPE
       case "create_member": {
@@ -67,7 +88,8 @@ Deno.serve(async (req) => {
         if (!(await can(agency_id, "manage_team"))) return json({ error: "Sem permissão para gerenciar a equipe." }, 403);
 
         const { user, created } = await getOrCreateUser(email, password, display_name || email);
-        const ref = `${slugify(display_name || email.split("@")[0])}${randomToken(2)}`;
+        if (!created && !(await controlsIdentity(user.id))) return json({ error: FOREIGN }, 403);
+        const ref =`${slugify(display_name || email.split("@")[0])}${randomToken(2)}`;
         const { data: member, error } = await admin.from("agency_members").upsert({
           user_id: user.id, agency_id, role, permissions: cleanPerms(permissions),
           display_name: display_name || null, email: normEmail(email), ref_code: ref, is_active: true,
@@ -105,6 +127,7 @@ Deno.serve(async (req) => {
         const { data: m } = await admin.from("agency_members").select("*").eq("id", member_id).single();
         if (!m) return json({ error: "Membro não encontrado." }, 404);
         if (!(await can(m.agency_id, "manage_team"))) return json({ error: "Sem permissão." }, 403);
+        if (!(await controlsIdentity(m.user_id))) return json({ error: FOREIGN }, 403);
         const { error } = await admin.auth.admin.updateUserById(m.user_id, { password });
         if (error) return json({ error: error.message }, 400);
         await log(m.agency_id, "agency_members", "update", m.id, { pessoa: { para: m.display_name || m.email }, password: { para: "nova senha definida" } });
@@ -121,6 +144,7 @@ Deno.serve(async (req) => {
           return json({ error: "Sem permissão para criar login de cliente." }, 403);
 
         const { user, created } = await getOrCreateUser(email, password, display_name || c.name);
+        if (!created && !(await controlsIdentity(user.id))) return json({ error: FOREIGN }, 403);
         const { data: staffHit } = await admin.from("agency_members").select("id").eq("user_id", user.id).limit(1);
         if (staffHit && staffHit.length) return json({ error: "Este e-mail é de alguém da equipe. Use outro e-mail para o cliente." }, 400);
         const { error } = await admin.from("client_members").upsert({
@@ -139,6 +163,7 @@ Deno.serve(async (req) => {
         if (!m) return json({ error: "Login não encontrado." }, 404);
         const agencyId = (m as any).clients?.agency_id ?? m.agency_id;
         if (!(await can(agencyId, "manage_clients"))) return json({ error: "Sem permissão." }, 403);
+        if (!(await controlsIdentity(m.user_id))) return json({ error: FOREIGN }, 403);
         const { error } = await admin.auth.admin.updateUserById(m.user_id, { password });
         if (error) return json({ error: error.message }, 400);
         return json({ ok: true });
