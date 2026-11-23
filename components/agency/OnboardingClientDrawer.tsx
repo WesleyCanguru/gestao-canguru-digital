@@ -4,9 +4,10 @@ import { getAppUrl } from '../../lib/appUrl';
 import { Client } from '../../types';
 import { StrategyRow, StrategyView } from '../strategy/StrategyView';
 import { BRIEFING_QUESTIONS } from '../BriefingOnboarding';
+import { summarizeXray } from '../strategy/strategyVisual';
 import {
   Copy, Check, X, Loader2, Sparkles, Send, Rocket, ExternalLink, Megaphone, Search, AlertCircle, ChevronRight, ChevronDown,
-  Trash2, MessageCircle, Clock, Eye, ListChecks, KeyRound, FileText, History, Globe, AtSign, Phone, Mail, ArrowRight,
+  Trash2, MessageCircle, Clock, Eye, ListChecks, KeyRound, FileText, History, Globe, AtSign, Phone, Mail, ArrowRight, ScanSearch, Gauge, RefreshCw,
 } from 'lucide-react';
 import dayjs from 'dayjs';
 
@@ -85,7 +86,7 @@ const strategyMessage = (lang: 'pt' | 'en' | 'es', client: string, link: string)
   : lang === 'es' ? `¡Hola a todos! La estrategia de anuncios de ${client} está lista. Está todo en este enlace, y al final de la página pueden aprobarla o pedir algún ajuste: ${link}`
   : `Olá, pessoal! A estratégia de anúncios da ${client} está pronta. Está tudo neste link, e no final da página tem o botão para aprovar ou pedir algum ajuste: ${link}`;
 
-type Tab = 'resumo' | 'acessos' | 'estrategia' | 'respostas' | 'historico';
+type Tab = 'resumo' | 'raiox' | 'acessos' | 'estrategia' | 'respostas' | 'historico';
 
 /* ------------------------------------------------------------------ */
 /* Janela do cliente no funil de novos clientes                        */
@@ -107,6 +108,7 @@ export const OnboardingClientDrawer: React.FC<{
   const [copiedWhat, setCopiedWhat] = useState<'link' | 'msg' | null>(null);
   const [allBriefings, setAllBriefings] = useState<Briefing[] | null>(null);
   const [xrayAt, setXrayAt] = useState<string | null>(null);
+  const [xrayData, setXrayData] = useState<any>(null);
 
   // Pedido de estratégia em andamento (Raio-X, rascunho e revisão em lote)
   const [job, setJob] = useState<{ id: string; status: string; error?: string | null } | null>(null);
@@ -119,9 +121,9 @@ export const OnboardingClientDrawer: React.FC<{
       .then(({ data }) => { if (alive && data && ['queued', 'drafting', 'reviewing'].includes(data.status)) setJob(data); });
     supabase.from('client_briefings').select('client_id, briefing_type, responses, is_completed, created_at').eq('client_id', client.id)
       .then(({ data }) => { if (alive) setAllBriefings((data as Briefing[]) || []); });
-    supabase.from('client_audits').select('created_at').eq('client_id', client.id).eq('kind', 'xray')
+    supabase.from('client_audits').select('created_at, data').eq('client_id', client.id).eq('kind', 'xray')
       .order('created_at', { ascending: false }).limit(1).maybeSingle()
-      .then(({ data }) => { if (alive) setXrayAt((data as any)?.created_at || null); });
+      .then(({ data }) => { if (alive) { setXrayAt((data as any)?.created_at || null); setXrayData((data as any)?.data || null); } });
     return () => { alive = false; };
   }, [client.id]);
 
@@ -191,6 +193,13 @@ export const OnboardingClientDrawer: React.FC<{
     const { error } = await supabase.from('client_strategies').delete().eq('id', strategy.id);
     return error?.message;
   });
+  const runXray = () => run('xray', async () => {
+    const { error } = await callFunction('xray-collect', { client_id: client.id, force: true });
+    if (error) return error;
+    const { data } = await supabase.from('client_audits').select('created_at, data').eq('client_id', client.id).eq('kind', 'xray')
+      .order('created_at', { ascending: false }).limit(1).maybeSingle();
+    setXrayAt((data as any)?.created_at || null); setXrayData((data as any)?.data || null);
+  });
   const goLive = () => run('live', async () => {
     const { error } = await supabase.from('clients').update({ campaign_live_at: new Date().toISOString(), client_status: 'active', is_active: true }).eq('id', client.id);
     return error?.message;
@@ -240,8 +249,8 @@ export const OnboardingClientDrawer: React.FC<{
         : { label: 'Briefing de tráfego', state: 'wait', detail: 'A estratégia sai melhor com ele', who: 'Cliente' });
     }
     list.push(xrayAt
-      ? { label: 'Raio-X do site', state: 'done', detail: `Feito em ${when(xrayAt)}` }
-      : { label: 'Raio-X do site', state: 'todo', detail: 'Roda junto com a estratégia', who: 'Equipe' });
+      ? { label: 'Raio-X do site', state: 'done', detail: `Feito em ${when(xrayAt)}`, tab: 'raiox' }
+      : { label: 'Raio-X do site', state: 'todo', detail: 'Ainda não rodou. Dá para rodar agora, antes da reunião.', who: 'Equipe', tab: 'raiox' });
     if (!strategy) list.push({ label: 'Estratégia', state: 'todo', detail: 'Ainda não foi gerada', who: 'Equipe', tab: 'estrategia' });
     else if (strategy.status === 'draft') list.push({ label: `Estratégia v${strategy.version}`, state: 'todo', detail: 'Rascunho: revisar e enviar', who: 'Equipe', tab: 'estrategia' });
     else if (strategy.status === 'changes') list.push({ label: `Estratégia v${strategy.version}`, state: 'warn', detail: 'Cliente pediu ajustes', who: 'Equipe', tab: 'estrategia' });
@@ -345,6 +354,7 @@ export const OnboardingClientDrawer: React.FC<{
   /* ---------------- render ---------------- */
   const tabs: { id: Tab; label: string; icon: React.ReactNode; badge?: string }[] = [
     { id: 'resumo', label: 'Resumo', icon: <ListChecks size={15} />, badge: `${doneCount}/${checklist.length}` },
+    { id: 'raiox', label: 'Raio-X', icon: <ScanSearch size={15} />, badge: xrayAt ? day(xrayAt) : undefined },
     ...(hasPaidTraffic || access.length ? [{ id: 'acessos' as Tab, label: 'Acessos', icon: <KeyRound size={15} />, badge: `${platforms.filter(accessOk).length}/2` }] : []),
     { id: 'estrategia', label: 'Estratégia', icon: <Sparkles size={15} />, badge: strategy ? `v${strategy.version}` : undefined },
     { id: 'respostas', label: 'Respostas', icon: <FileText size={15} />, badge: answerGroups.length ? String(answerGroups.length) : undefined },
@@ -364,8 +374,9 @@ export const OnboardingClientDrawer: React.FC<{
     : next.who === 'cliente' ? 'bg-sky-50 text-sky-950 border border-sky-100' : 'bg-emerald-50 text-emerald-950 border border-emerald-100';
 
   return (
-    <div className="fixed inset-0 z-50 flex justify-end bg-black/30 backdrop-blur-[1px]" onClick={onClose}>
-      <div className="w-full max-w-4xl h-full bg-[#F7F8FA] shadow-2xl flex flex-col" onClick={e => e.stopPropagation()}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-[2px] sm:p-6" onClick={onClose}>
+      <div role="dialog" aria-modal="true" aria-label={client.name}
+        className="w-full max-w-5xl h-full sm:h-[92vh] bg-[#F7F8FA] shadow-2xl flex flex-col sm:rounded-3xl overflow-hidden" onClick={e => e.stopPropagation()}>
 
         {/* Cabeçalho */}
         <div className="bg-white border-b border-gray-100 px-5 sm:px-7 pt-4 pb-0 shrink-0">
@@ -512,6 +523,9 @@ export const OnboardingClientDrawer: React.FC<{
               )}
             </>
           )}
+
+          {/* ---------------- RAIO-X ---------------- */}
+          {tab === 'raiox' && <XrayPanel data={xrayData} at={xrayAt} busy={busy === 'xray'} onRun={runXray} canRun={!!tsd.website_url || !!client.instagram || !!tsd.instagram_url} />}
 
           {/* ---------------- ACESSOS ---------------- */}
           {tab === 'acessos' && (
@@ -801,5 +815,92 @@ const StrategyDetails: React.FC<{ strategy: StrategyFull; lang: 'pt' | 'en' | 'e
       </button>
       {open && <div className="border-t border-gray-100 p-5"><StrategyView content={strategy.content} internal lang={lang} /></div>}
     </div>
+  );
+};
+
+/** Raio-X do site e do Instagram: o que a equipe mostra na reunião de fechamento. */
+const XrayPanel: React.FC<{ data: any; at: string | null; busy: boolean; onRun: () => void; canRun: boolean }> = ({ data, at, busy, onRun, canRun }) => {
+  const x = summarizeXray(data);
+  const runBtn = (
+    <button disabled={busy || !canRun} onClick={onRun} className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gray-900 text-white text-sm font-semibold disabled:opacity-50">
+      {busy ? <Loader2 size={15} className="animate-spin" /> : at ? <RefreshCw size={15} /> : <ScanSearch size={15} />}
+      {busy ? 'Lendo o site, as tags e o Instagram (até 1 min)...' : at ? 'Rodar de novo' : 'Rodar o Raio-X agora'}
+    </button>
+  );
+  if (!x) {
+    return (
+      <Card title="Raio-X do site">
+        <p className="text-sm text-gray-600 mb-4">{canRun ? 'Ainda não rodou para este cliente. Leva menos de um minuto e mostra velocidade do site, pixels e tags instalados e a saúde do Instagram.' : 'O cliente não informou site nem Instagram. Sem isso não dá para rodar.'}</p>
+        {runBtn}
+      </Card>
+    );
+  }
+  const sp = x.speed; const ig = x.instagram; const tr = x.tracking; const site = x.site;
+  const tone = (n: number | null | undefined, good: number, ok: number) => n == null ? 'text-gray-400' : n >= good ? 'text-emerald-600' : n >= ok ? 'text-amber-600' : 'text-rose-600';
+  const dup = tr ? [tr.gtm > 1 && `${tr.gtm} GTM`, tr.meta > 1 && `${tr.meta} pixels do Meta`, tr.ga4 > 1 && `${tr.ga4} GA4`].filter(Boolean) as string[] : [];
+  return (
+    <>
+      <Card title="Raio-X do site" right={<span className="text-xs text-gray-500">Feito em {when(at)}</span>}>
+        <div className="grid sm:grid-cols-3 gap-3">
+          <div className="rounded-2xl bg-gray-50 p-4">
+            <p className="text-[11px] font-semibold text-gray-500 flex items-center gap-1.5"><Gauge size={13} /> Velocidade no celular</p>
+            {sp ? (
+              <>
+                <p className={`mt-1 text-3xl font-bold tabular-nums ${tone(sp.performance_mobile, 90, 50)}`}>{sp.performance_mobile ?? '–'}<span className="text-sm text-gray-400 font-semibold">/100</span></p>
+                <p className="text-xs text-gray-500 mt-1">{sp.lcp_s != null ? `Carrega em ${sp.lcp_s} s` : ''}{sp.total_kb != null ? ` · ${(sp.total_kb / 1024).toFixed(1)} MB` : ''}</p>
+              </>
+            ) : <p className="mt-2 text-sm text-gray-400">Não medido</p>}
+          </div>
+          <div className="rounded-2xl bg-gray-50 p-4">
+            <p className="text-[11px] font-semibold text-gray-500 flex items-center gap-1.5"><AtSign size={13} /> Instagram</p>
+            {ig ? (
+              <>
+                <p className="mt-1 text-3xl font-bold tabular-nums text-gray-900">{ig.followers != null ? Number(ig.followers).toLocaleString('pt-BR') : '–'}</p>
+                <p className="text-xs text-gray-500 mt-1">
+                  {ig.username ? `@${ig.username} · ` : ''}<span className={tone(ig.engagement_rate_pct, 3, 1)}>{ig.engagement_rate_pct != null ? `${ig.engagement_rate_pct}% de engajamento` : ''}</span>
+                  {ig.repeated ? ` · ${ig.repeated} legendas repetidas` : ''}
+                </p>
+              </>
+            ) : <p className="mt-2 text-sm text-gray-400">Não lido</p>}
+          </div>
+          <div className="rounded-2xl bg-gray-50 p-4">
+            <p className="text-[11px] font-semibold text-gray-500 flex items-center gap-1.5"><Globe size={13} /> Site</p>
+            {site ? (
+              <>
+                <p className="mt-1 text-3xl font-bold tabular-nums text-gray-900">{site.paginas || '–'}</p>
+                <p className="text-xs text-gray-500 mt-1">páginas no sitemap{site.comparacoes ? ` · ${site.comparacoes} de comparação` : ''}{site.precos ? ` · ${site.precos} de preço` : ''}</p>
+              </>
+            ) : <p className="mt-2 text-sm text-gray-400">Não lido</p>}
+          </div>
+        </div>
+        <div className="mt-4">{runBtn}</div>
+      </Card>
+
+      {tr && (
+        <Card title="Rastreamento (pixels e tags)">
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 mb-3">
+            {[['GTM', tr.gtm], ['Pixel Meta', tr.meta], ['GA4', tr.ga4], ['Google Ads', tr.ads]].map(([l, n]) => (
+              <div key={l as string} className={`rounded-xl px-3 py-2.5 ${n === 0 ? 'bg-rose-50' : (n as number) > 1 ? 'bg-amber-50' : 'bg-emerald-50'}`}>
+                <p className="text-[11px] font-semibold text-gray-500">{l}</p>
+                <p className={`text-lg font-bold tabular-nums ${n === 0 ? 'text-rose-700' : (n as number) > 1 ? 'text-amber-700' : 'text-emerald-700'}`}>{n}</p>
+              </div>
+            ))}
+            <div className={`rounded-xl px-3 py-2.5 ${tr.server_side ? 'bg-emerald-50' : 'bg-gray-50'}`}>
+              <p className="text-[11px] font-semibold text-gray-500">Server-side</p>
+              <p className={`text-lg font-bold ${tr.server_side ? 'text-emerald-700' : 'text-gray-500'}`}>{tr.server_side ? 'Sim' : 'Não'}</p>
+            </div>
+          </div>
+          {(dup.length > 0 || (tr.alerts || []).length > 0) && (
+            <ul className="space-y-1.5">
+              {dup.length > 0 && <li className="text-sm text-amber-900 bg-amber-50 rounded-lg px-3 py-2 flex gap-2"><AlertCircle size={15} className="mt-0.5 shrink-0" />Instalado em dobro: {dup.join(', ')}. Conta conversão duas vezes.</li>}
+              {(tr.alerts || []).map((a: any, i: number) => (
+                <li key={i} className="text-sm text-gray-700 bg-gray-50 rounded-lg px-3 py-2 flex gap-2"><AlertCircle size={15} className="mt-0.5 shrink-0 text-gray-400" />{typeof a === 'string' ? a : fmtVal(a)}</li>
+              ))}
+            </ul>
+          )}
+          <p className="mt-3 text-[11px] text-gray-400">Verde: um de cada. Amarelo: duplicado. Vermelho: não encontrado.</p>
+        </Card>
+      )}
+    </>
   );
 };

@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { Lang, LANGS, Platform, accessEmailFor, browserLang, pickLang, tr } from '../lib/accessGuides';
 import { AccessChoice, AccessGuideCard, emptyAccess } from './strategy/AccessGuideCard';
+import { PhoneField } from './PhoneField';
 
 interface PublicClientOnboardingProps { agencySlug: string | null }
 
@@ -62,6 +63,8 @@ export const PublicClientOnboarding: React.FC<PublicClientOnboardingProps> = ({ 
   const [password, setPassword] = useState('');
   const [password2, setPassword2] = useState('');
   const [entering, setEntering] = useState(false);
+  const [alreadyDone, setAlreadyDone] = useState(false);
+  const [resumed, setResumed] = useState(false);
 
   const t = tr(lang);
   const brand = agency?.primary_color || '#456da1';
@@ -113,6 +116,9 @@ export const PublicClientOnboarding: React.FC<PublicClientOnboardingProps> = ({ 
     if (!company.responsible.trim() || !company.companyName.trim() || !company.phone.trim()) {
       setError(t('Preencha nome, empresa e WhatsApp.', 'Please fill in name, company and phone.', 'Completa nombre, empresa y WhatsApp.')); return;
     }
+    if (company.phone.replace(/\D/g, '').length < 8) {
+      setError(t('Confira o número do WhatsApp.', 'Please check the phone number.', 'Revisa el número de WhatsApp.')); return;
+    }
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(company.email.trim())) {
       setError(t('Informe um e-mail válido.', 'Please enter a valid email.', 'Ingresa un correo válido.')); return;
     }
@@ -122,11 +128,13 @@ export const PublicClientOnboarding: React.FC<PublicClientOnboardingProps> = ({ 
       setBusy(false);
       if (err) { setError(err); return; }
     } else {
-      const { data, error: err } = await callFunction<{ client_id: string; token: string }>('public-onboarding', {
+      const { data, error: err } = await callFunction<{ client_id?: string; token?: string; already_done?: boolean; resumed?: boolean }>('public-onboarding', {
         action: 'start', agency_slug: agency?.slug, ref: refCode, proposal: proposalSlug, data: company, lang,
       });
       setBusy(false);
-      if (err || !data) { setError(t('Não foi possível salvar. Tente novamente.', 'Could not save. Please try again.', 'No se pudo guardar. Inténtalo de nuevo.')); return; }
+      if (data?.already_done) { setAlreadyDone(true); return; }
+      if (err || !data?.client_id || !data?.token) { setError(t('Não foi possível salvar. Tente novamente.', 'Could not save. Please try again.', 'No se pudo guardar. Inténtalo de nuevo.')); return; }
+      if (data.resumed) setResumed(true);
       setClientId(data.client_id); setToken(data.token);
       persist({ clientId: data.client_id, token: data.token });
     }
@@ -270,7 +278,7 @@ export const PublicClientOnboarding: React.FC<PublicClientOnboardingProps> = ({ 
     t('Visitas à loja física', 'Store visits', 'Visitas a la tienda'),
     t('Fortalecer a marca', 'Brand awareness', 'Reconocimiento de marca'),
   ];
-  const budgets = lang === 'pt' && agency.id !== 7
+  const budgets = agency.id !== 7 && lang === 'pt'
     ? ['Até R$ 1.000/mês', 'R$ 1.000 a R$ 3.000/mês', 'R$ 3.000 a R$ 10.000/mês', 'Acima de R$ 10.000/mês', 'Ainda não sei']
     : [
       t('Até US$ 500/mês', 'Up to $500/mo', 'Hasta US$ 500/mes'),
@@ -363,6 +371,13 @@ export const PublicClientOnboarding: React.FC<PublicClientOnboardingProps> = ({ 
                   {header(<Building2 size={13} />, t('Sobre você e a empresa', 'About you and your company', 'Sobre ti y tu empresa'),
                     t('Leva menos de um minuto. Seus dados ficam salvos a cada etapa.', 'Takes less than a minute. Your progress is saved at every step.', 'Toma menos de un minuto. Tus datos se guardan en cada paso.'))}
                   {errorBox()}
+                  {alreadyDone && (
+                    <div className="mb-4 p-4 rounded-xl bg-sky-50 border border-sky-100 text-sm text-sky-900">
+                      <p className="font-semibold">{t('Este e-mail já tem cadastro.', 'This email is already registered.', 'Este correo ya está registrado.')}</p>
+                      <p className="mt-1">{t('É só entrar no seu portal com ele e a senha que você criou.', 'Just sign in to your portal with it and the password you created.', 'Solo entra a tu portal con él y la contraseña que creaste.')}</p>
+                      <a href="/" className="inline-flex items-center gap-1.5 mt-3 px-4 py-2 rounded-lg text-white font-semibold" style={{ backgroundColor: brand }}>{t('Entrar no portal', 'Go to my portal', 'Entrar al portal')} <ArrowRight size={14} /></a>
+                    </div>
+                  )}
                   <div className="grid sm:grid-cols-2 gap-4">
                     <div><label className={labelCls}>{t('Seu nome completo *', 'Full name *', 'Tu nombre completo *')}</label><input className={fieldCls} value={company.responsible} onChange={e => setCompany({ ...company, responsible: e.target.value })} /></div>
                     <div><label className={labelCls}>{t('Nome da empresa *', 'Company name *', 'Nombre de la empresa *')}</label><input className={fieldCls} value={company.companyName} onChange={e => setCompany({ ...company, companyName: e.target.value })} /></div>
@@ -371,7 +386,7 @@ export const PublicClientOnboarding: React.FC<PublicClientOnboardingProps> = ({ 
                       <input type="email" className={fieldCls} value={company.email} onChange={e => setCompany({ ...company, email: e.target.value })} />
                       <p className="text-[11px] text-gray-400 mt-1">{t('Com este e-mail você vai entrar no seu portal.', "You'll use this email to sign in to your portal.", 'Con este correo entrarás a tu portal.')}</p>
                     </div>
-                    <div><label className={labelCls}>{t('WhatsApp *', 'Phone / WhatsApp *', 'WhatsApp *')}</label><input className={fieldCls} value={company.phone} onChange={e => setCompany({ ...company, phone: e.target.value })} /></div>
+                    <div><label className={labelCls}>{t('WhatsApp *', 'Phone / WhatsApp *', 'WhatsApp *')}</label><PhoneField value={company.phone} onChange={v => setCompany({ ...company, phone: v })} defaultIso={agency.id === 7 ? 'US' : 'BR'} lang={lang} className={fieldCls} /></div>
                     <div><label className={labelCls}>{t('Site (se tiver)', 'Website (if any)', 'Sitio web (si tienes)')}</label><input className={fieldCls} value={company.website} placeholder={t('www.suaempresa.com', 'www.yourcompany.com', 'www.tuempresa.com')} onChange={e => setCompany({ ...company, website: e.target.value })} /></div>
                     <div><label className={labelCls}>Instagram</label><input className={fieldCls} value={company.instagram_url} placeholder={t('@suaempresa', '@yourcompany', '@tuempresa')} onChange={e => setCompany({ ...company, instagram_url: e.target.value })} /></div>
                   </div>
@@ -383,6 +398,11 @@ export const PublicClientOnboarding: React.FC<PublicClientOnboardingProps> = ({ 
                 <form onSubmit={submitBusiness}>
                   {header(<Target size={13} />, t('Seu negócio', 'Your business', 'Tu negocio'),
                     t('É daqui que sai a sua estratégia. Quanto mais detalhe, melhor.', 'Your strategy is built on this. The more detail, the better.', 'De aquí sale tu estrategia. Cuanto más detalle, mejor.'))}
+                  {resumed && (
+                    <div className="mb-4 p-3 rounded-xl bg-emerald-50 border border-emerald-100 text-sm text-emerald-900">
+                      {t('Encontramos o seu cadastro começado com este e-mail. Seguimos daqui, sem criar outro.', 'We found the sign-up you started with this email. We will continue it, no duplicate.', 'Encontramos el registro que empezaste con este correo. Seguimos desde aquí, sin duplicarlo.')}
+                    </div>
+                  )}
                   {errorBox()}
                   <div className="space-y-5">
                     <div>
@@ -399,7 +419,7 @@ export const PublicClientOnboarding: React.FC<PublicClientOnboardingProps> = ({ 
                       <textarea rows={3} className={fieldCls} value={business.offer} onChange={e => setBusiness({ ...business, offer: e.target.value })} /></div>
                     <div className="grid sm:grid-cols-2 gap-4">
                       <div><label className={labelCls}>{t('Ticket médio (valor de uma venda)', 'Average sale value', 'Ticket promedio (valor de una venta)')}</label>
-                        <input className={fieldCls} value={business.ticket} placeholder={t('Ex.: R$ 450', 'e.g. $450', 'Ej.: US$ 450')} onChange={e => setBusiness({ ...business, ticket: e.target.value })} /></div>
+                        <input className={fieldCls} value={business.ticket} placeholder={agency.id === 7 ? t('Ex.: US$ 450', 'e.g. $450', 'Ej.: US$ 450') : t('Ex.: R$ 450', 'e.g. R$ 450', 'Ej.: R$ 450')} onChange={e => setBusiness({ ...business, ticket: e.target.value })} /></div>
                       <div><label className={labelCls}>{t('Onde estão seus clientes? *', 'Where are your customers? *', '¿Dónde están tus clientes? *')}</label>
                         <input className={fieldCls} value={business.region} placeholder={t('Cidade, região ou país', 'City, region or country', 'Ciudad, región o país')} onChange={e => setBusiness({ ...business, region: e.target.value })} /></div>
                     </div>
