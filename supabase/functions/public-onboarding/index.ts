@@ -55,6 +55,29 @@ Deno.serve(async (req) => {
         acquiredBy = m?.user_id ?? null;
       }
 
+      // Mesmo e-mail na mesma agência: não cria outro cliente.
+      // Cadastro concluído -> manda entrar no portal. Cadastro pela metade -> continua o mesmo registro.
+      const { data: same } = await admin.from("clients").select("id, onboarding_status, acquired_by_user_id, traffic_strategy_data")
+        .eq("agency_id", agency.id).eq("email", normEmail(email)).order("created_at", { ascending: false }).limit(1).maybeSingle();
+      if (same && same.onboarding_status === "concluido") return json({ already_done: true });
+      if (same && same.traffic_strategy_data?.created_via === "public_onboarding") {
+        const token = randomToken();
+        const tsd = {
+          ...(same.traffic_strategy_data ?? {}),
+          website_url: strOrNull(d.website), phone: strOrNull(d.phone, 40),
+          instagram_url: strOrNull(d.instagram_url), google_business_url: strOrNull(d.google_business_url),
+          language: ["pt", "en", "es"].includes(body.lang) ? body.lang : (same.traffic_strategy_data?.language ?? "pt"),
+          resumed_at: new Date().toISOString(),
+        };
+        const { error } = await admin.from("clients").update({
+          name: company, responsible: strOrNull(d.responsible, 120), instagram: strOrNull(d.instagram_url),
+          acquired_by_user_id: same.acquired_by_user_id ?? acquiredBy,
+          registration_token_hash: await sha256Hex(token), traffic_strategy_data: tsd,
+        }).eq("id", same.id);
+        if (error) return json({ error: "Não foi possível salvar os dados." }, 400);
+        return json({ client_id: same.id, token, resumed: true });
+      }
+
       const token = randomToken();
       const initials = company.split(/\s+/).map((w) => w[0]).slice(0, 2).join("").toUpperCase() || "CL";
       const { data: created, error } = await admin.from("clients").insert({
@@ -234,6 +257,18 @@ Deno.serve(async (req) => {
         registration_token_hash: null,
         traffic_strategy_data: tsd,
       }).eq("id", c.id);
+
+      // Aviso para a equipe (Telegram, e-mail e push), pela fila do notify-dispatch
+      await admin.from("email_outbox").insert({
+        agency_id: c.agency_id, client_id: c.id, audience: "team", kind: "signup_done",
+        payload: {
+          services: c.traffic_strategy_data?.servicos_marcados ?? c.services ?? [],
+          lang: c.traffic_strategy_data?.language ?? null,
+          responsible: c.responsible ?? null,
+          ref: c.acquisition_ref ?? null,
+        },
+        dedupe_key: `signup_done:${c.id}`,
+      }).then(() => {}, () => {});
 
       return json({ ok: true, email });
     }
