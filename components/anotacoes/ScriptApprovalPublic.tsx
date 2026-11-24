@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { BRAND } from '../../lib/brand';
-import { supabase } from '../../lib/supabase';
+import { supabase, fetchClientCard } from '../../lib/supabase';
 import { ScriptEditor } from './ScriptEditor';
 import { Script } from '../../hooks/useScripts';
 import { Logo } from '../Logo';
@@ -29,7 +29,7 @@ export const ScriptApprovalPublic: React.FC<ScriptApprovalPublicProps> = ({ scri
       
       const { data, error } = await supabase
         .from('scripts')
-        .select('*, client:clients(name, agency_id, lang:traffic_strategy_data->>language)')
+        .select('*')
         .eq('id', scriptId)
         .maybeSingle();
 
@@ -46,6 +46,7 @@ export const ScriptApprovalPublic: React.FC<ScriptApprovalPublicProps> = ({ scri
         return;
       }
 
+      data.client = await fetchClientCard(data.client_id);
       setScript(data);
       applyPublicLang(data.client); setClientName(data.client?.name || '');
     } catch (err) {

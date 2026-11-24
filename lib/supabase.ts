@@ -102,6 +102,14 @@ export const ensurePublicAccess = async (scope: PublicLinkScope, token: string):
   }
 };
 
+/** Dados públicos do cliente (nome, logo, cor, idioma, redes) para as páginas de link público.
+ *  Lê a vitrine client_public_card, que não expõe valores, pagamentos nem tokens. */
+export const fetchClientCard = async (clientId: string | null | undefined): Promise<any | null> => {
+  if (!clientId) return null;
+  const { data } = await rawClient.from('client_public_card').select('*').eq('id', clientId).maybeSingle();
+  return data ?? null;
+};
+
 /** Chama uma Edge Function com a sessão atual. */
 export const callFunction = async <T = any>(name: string, body: any): Promise<{ data: T | null; error: string | null }> => {
   const { data, error } = await rawClient.functions.invoke(name, { body });

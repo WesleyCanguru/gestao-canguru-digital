@@ -62,7 +62,7 @@ export const CreativeReviewer: React.FC<Props> = ({ batchId, token, mode, client
       const list = ((its as CreativeItem[]) || []);
       const sig = await signMedia(list);
       {
-        const { data: c } = await supabase.from('clients').select('name, agency_id, lang:traffic_strategy_data->>language').eq('id', (b as any).client_id).maybeSingle();
+        const { data: c } = await supabase.from('client_public_card').select('name, agency_id, lang').eq('id', (b as any).client_id).maybeSingle();
         if (alive && c) {
           if (!clientName) setCName((c as any).name || '');
           setClientLang(toUiLang((c as any).lang ?? ((c as any).agency_id === 7 ? 'en' : 'pt')));

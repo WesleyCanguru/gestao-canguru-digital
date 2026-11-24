@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { BRAND } from '../../lib/brand';
 import { motion, AnimatePresence } from 'motion/react';
 import { CheckCircle2, Heart, Send, AlertCircle, Sparkles, Building2, MessageSquare, ArrowRight, Loader2 } from 'lucide-react';
-import { supabase } from '../../lib/supabase';
+import { supabase, fetchClientCard } from '../../lib/supabase';
 import { Logo } from '../Logo';
 import { ClientNps } from '../../types';
 import dayjs from 'dayjs';
@@ -38,7 +38,7 @@ export const NpsPublicScreen: React.FC<NpsPublicScreenProps> = ({ token }) => {
         // Buscar o registro pelo token e os dados do cliente associado
         const { data, error: fetchErr } = await supabase
           .from('client_nps')
-          .select('*, client:clients(id, name, logo_url, initials, color, agency_id, lang:traffic_strategy_data->>language)')
+          .select('*')
           .eq('token', token)
           .maybeSingle();
 
@@ -53,6 +53,7 @@ export const NpsPublicScreen: React.FC<NpsPublicScreenProps> = ({ token }) => {
           return;
         }
 
+        (data as any).client = await fetchClientCard((data as any).client_id);
         applyPublicLang((data as any).client); setNpsData(data as ClientNps);
 
         // Se já foi respondido anteriormente
@@ -86,13 +87,14 @@ export const NpsPublicScreen: React.FC<NpsPublicScreenProps> = ({ token }) => {
           responded_at: new Date().toISOString()
         })
         .eq('token', token)
-        .select('*, client:clients(id, name, logo_url, initials, color, agency_id, lang:traffic_strategy_data->>language)')
+        .select('*')
         .single();
 
       if (updateErr) {
         throw updateErr;
       }
 
+      (data as any).client = await fetchClientCard((data as any).client_id);
       setNpsData(data as ClientNps);
       setSubmitted(true);
     } catch (err: any) {

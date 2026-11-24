@@ -30,7 +30,7 @@ export const PublicMonthPage: React.FC<PublicMonthPageProps> = ({ clientId, mes,
     const fetchClient = async () => {
       try {
         const { data, error } = await supabase
-          .from('clients')
+          .from('client_public_card')
           .select('*')
           .eq('id', clientId)
           .single();
