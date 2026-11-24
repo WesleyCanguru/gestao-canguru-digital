@@ -1,0 +1,403 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<link rel="icon" href="/pouch/favicon-32x32.png">
+<title>Guia do Pouch</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Instrument+Sans:wght@400;600&family=JetBrains+Mono:wght@500;700&display=swap">
+<style>
+/* Layout: coluna de leitura com índice fixo à esquerda no desktop; cantos retos como a marca Joey. */
+:root{
+  --bg:#F4F6F5; --panel:#FFFFFF; --panel2:#EBEFEE; --line:#D4DCDA;
+  --fg:#0B0D0F; --muted:#4E5857; --accent:#8F5208; --accent-bg:rgba(240,166,58,.16); --btn-fg:#FFFFFF;
+  --ok:#17703F; --warn:#A23A22;
+  --display:"Bricolage Grotesque","Arial Black",system-ui,sans-serif;
+  --text:"Instrument Sans",ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0B0D0F; --panel:#121619; --panel2:#171C20; --line:#293136;
+  --fg:#F4F6F5; --muted:#A3AEAF; --accent:#F0A63A; --accent-bg:rgba(240,166,58,.10);
+  --ok:#57E39A; --warn:#FF8A6B; --btn-fg:#1E1404; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0B0D0F; --panel:#121619; --panel2:#171C20; --line:#293136;
+  --fg:#F4F6F5; --muted:#A3AEAF; --accent:#F0A63A; --accent-bg:rgba(240,166,58,.10);
+  --ok:#57E39A; --warn:#FF8A6B; --btn-fg:#1E1404; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font:16px/1.6 var(--text);
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.wrap{max-width:1120px;margin:0 auto;display:grid;grid-template-columns:220px minmax(0,1fr);gap:56px;padding-block:48px 96px}
+nav.toc{position:sticky;top:calc(env(safe-area-inset-top,0px) + 24px);align-self:start;font-size:14px}
+nav.toc p{font:700 11px/1 var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin:0 0 14px}
+nav.toc ol{list-style:none;margin:0;padding:0;display:grid;gap:2px;counter-reset:t}
+nav.toc a{display:block;padding:6px 10px;color:var(--muted);text-decoration:none;border-left:2px solid transparent}
+nav.toc a:hover,nav.toc a:focus-visible{color:var(--fg);border-left-color:var(--accent);outline:none}
+main{min-width:0}
+.eyebrow{font:700 12px/1 var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--accent);display:flex;align-items:center;gap:10px}
+.eyebrow::before{content:"";width:28px;height:2px;background:var(--accent)}
+h1{font:800 clamp(40px,6vw,64px)/1.02 var(--display);margin:18px 0 18px;letter-spacing:-.02em;text-wrap:balance}
+h1 em{font-style:normal;color:var(--accent)}
+.lead{font-size:19px;color:var(--muted);max-width:62ch;margin:0}
+.meta{margin-top:22px;font:500 13px/1.5 var(--mono);color:var(--muted)}
+section{padding-top:64px;scroll-margin-top:24px}
+h2{font:800 30px/1.15 var(--display);margin:0 0 8px;letter-spacing:-.01em;text-wrap:balance}
+h2 small{display:block;font:700 12px/1 var(--mono);letter-spacing:.12em;color:var(--accent);margin-bottom:12px}
+h3{font:600 19px/1.3 var(--display);margin:28px 0 8px}
+p,li{max-width:68ch}
+.sub{color:var(--muted);margin:0 0 24px}
+a{color:var(--accent)}
+code,.mono{font-family:var(--mono);font-size:.88em}
+code{background:var(--panel2);padding:3px 8px;border:1px solid var(--line);word-break:break-all}
+.grid2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+.card{background:var(--panel);border:1px solid var(--line);padding:22px}
+.card h3{margin-top:0}
+.card .tag{font:700 11px/1 var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.card ul{margin:10px 0 0;padding-left:18px}
+.card li{margin:4px 0}
+.callout{border:1px solid var(--line);border-left:3px solid var(--accent);background:var(--accent-bg);padding:16px 20px;margin:20px 0}
+.callout p{margin:0}
+.callout.warn{border-left-color:var(--warn);background:transparent}
+.tbl{overflow-x:auto;border:1px solid var(--line);margin:16px 0}
+table{border-collapse:collapse;width:100%;min-width:560px;font-size:15px}
+th,td{text-align:left;padding:12px 16px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font:700 11px/1.2 var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--muted);background:var(--panel2)}
+tr:last-child td{border-bottom:0}
+td:first-child{font-weight:600;white-space:nowrap}
+.yes{color:var(--ok);font-weight:600}
+.no{color:var(--warn);font-weight:600}
+/* Jornada */
+.journey{list-style:none;margin:20px 0 0;padding:0;counter-reset:j;display:grid;gap:0}
+.journey li{counter-increment:j;display:grid;grid-template-columns:56px minmax(0,1fr);gap:18px;padding:20px 0;border-top:1px solid var(--line);max-width:none}
+.journey li::before{content:counter(j,decimal-leading-zero);font:700 22px/1 var(--mono);color:var(--accent);padding-top:3px}
+.journey h3{margin:0 0 4px}
+.journey p{margin:0;color:var(--muted)}
+.who{display:inline-block;font:700 11px/1 var(--mono);letter-spacing:.1em;text-transform:uppercase;padding:5px 9px;border:1px solid var(--line);color:var(--muted);margin-left:8px;vertical-align:3px}
+.who.team{border-color:var(--accent);color:var(--accent)}
+/* Estágios */
+.stages{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));border:1px solid var(--line);margin:18px 0}
+.stages div{padding:14px;border-right:1px solid var(--line);background:var(--panel)}
+.stages div:last-child{border-right:0}
+.stages b{display:block;font:600 15px/1.25 var(--display);margin-bottom:6px}
+.stages span{font-size:13px;color:var(--muted);display:block}
+.stages i{font:700 11px/1 var(--mono);font-style:normal;letter-spacing:.1em;text-transform:uppercase;color:var(--accent);display:block;margin-top:10px}
+/* Menu */
+.menu{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0;border:1px solid var(--line);margin-top:16px}
+.menu > div{padding:18px 20px;border-bottom:1px solid var(--line);background:var(--panel);min-width:0}
+.menu > div:nth-child(odd){border-right:1px solid var(--line)}
+.menu .grp{font:700 11px/1 var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--accent);margin-bottom:8px}
+.menu b{font-family:var(--display);font-weight:600}
+.menu p{margin:4px 0 0;color:var(--muted);font-size:15px}
+/* Checklist */
+.check{list-style:none;padding:0;margin:16px 0;display:grid;gap:8px}
+.check li{display:grid;grid-template-columns:28px minmax(0,1fr);gap:10px;align-items:start;background:var(--panel);border:1px solid var(--line);padding:14px 16px;max-width:none}
+.check input{width:18px;height:18px;margin:3px 0 0;accent-color:var(--accent)}
+.check label{cursor:pointer}
+.check small{display:block;color:var(--muted)}
+.copyrow{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:8px 0}
+.copyrow code{flex:1 1 280px;min-width:0;padding:10px 12px}
+button.copy{font:700 12px/1 var(--mono);letter-spacing:.08em;text-transform:uppercase;padding:11px 14px;background:var(--accent);color:var(--btn-fg);border:0;cursor:pointer}
+button.copy:focus-visible{outline:2px solid var(--fg);outline-offset:2px}
+dl.gloss{display:grid;grid-template-columns:180px minmax(0,1fr);gap:0;border:1px solid var(--line);margin-top:16px}
+dl.gloss dt,dl.gloss dd{margin:0;padding:12px 16px;border-bottom:1px solid var(--line);background:var(--panel)}
+dl.gloss dt{font-weight:600;font-family:var(--display)}
+dl.gloss dd{color:var(--muted)}
+footer{margin-top:72px;padding-top:24px;border-top:1px solid var(--line);color:var(--muted);font-size:14px}
+@media (max-width:880px){
+  .wrap{grid-template-columns:minmax(0,1fr);gap:24px;padding-block:28px 72px}
+  nav.toc{position:static;border:1px solid var(--line);padding:16px;background:var(--panel)}
+  nav.toc ol{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .grid2,.menu{grid-template-columns:minmax(0,1fr)}
+  .menu > div:nth-child(odd){border-right:0}
+  .stages{grid-template-columns:minmax(0,1fr)}
+  .stages div{border-right:0;border-bottom:1px solid var(--line)}
+  dl.gloss{grid-template-columns:minmax(0,1fr)}
+  dl.gloss dt{border-bottom:0;padding-bottom:0}
+}
+@media (prefers-reduced-motion:reduce){*{scroll-behavior:auto!important}}
+html{scroll-behavior:smooth}
+</style>
+<style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style>
+</head>
+<body>
+
+<div class="wrap">
+  <nav class="toc" aria-label="Índice">
+    <p>Neste guia</p>
+    <ol>
+      <li><a href="#o-que-e">O que é o Pouch</a></li>
+      <li><a href="#acessos">Seus acessos</a></li>
+      <li><a href="#permissoes">O que o sócio faz</a></li>
+      <li><a href="#jornada">Jornada do cliente</a></li>
+      <li><a href="#onboarding">Funil de onboarding</a></li>
+      <li><a href="#menu">O menu, item a item</a></li>
+      <li><a href="#portal">O que o cliente vê</a></li>
+      <li><a href="#avisos">Avisos</a></li>
+      <li><a href="#clientes">Clientes hoje</a></li>
+      <li><a href="#avaliar">Roteiro de avaliação</a></li>
+      <li><a href="#pendente">O que ainda falta</a></li>
+      <li><a href="#glossario">Glossário</a></li>
+    </ol>
+  </nav>
+
+  <main>
+    <header>
+      <div class="eyebrow">Joey Growth · uso interno</div>
+      <h1>Guia do <em>Pouch</em> para os sócios</h1>
+      <p class="lead">Tudo o que o Marcelo e o Sergio precisam para entrar, entender e avaliar o sistema da Joey: o que cada tela faz, como o cliente anda do primeiro contato até a campanha no ar e o que ainda está em construção.</p>
+      <p class="meta">Atualizado em 24/11/2026 · pouch.joeygrowth.com</p>
+    </header>
+
+    <section id="o-que-e">
+      <h2><small>01</small>O que é o Pouch</h2>
+      <p>O Pouch é o sistema da Joey. Nele o time trabalha e o cliente acompanha. Proposta, cadastro, estratégia, aprovação de anúncios, relatórios e CRM ficam no mesmo lugar, com o mesmo login.</p>
+      <p>Ele usa a mesma base da Bolsa, o sistema que a Canguru usa todo dia no Brasil. A Joey tem a própria marca, o próprio endereço e os próprios clientes, com o portal do cliente em inglês e valores em dólar. Os dados da Canguru e da Joey não se misturam.</p>
+      <div class="callout"><p><b>A regra da casa:</b> tudo o que o cliente recebe sai pelo Pouch, como link, portal, e-mail ou aviso. Nada de PDF solto no WhatsApp. É isso que sustenta a promessa de transparência da Joey.</p></div>
+    </section>
+
+    <section id="acessos">
+      <h2><small>02</small>Seus acessos</h2>
+      <p class="sub">Existem dois tipos de login no Pouch. O mesmo endereço serve para os dois, e o sistema abre a tela certa de acordo com o login.</p>
+      <div class="grid2">
+        <div class="card">
+          <span class="tag">Login de sócio</span>
+          <h3>A visão da Joey inteira</h3>
+          <p>Mostra todos os clientes, o funil de onboarding, o CRM, as propostas, os relatórios e o seu link de cadastro.</p>
+          <ul>
+            <li>Marcelo: <code>marcelo@cangurudigital.com.br</code></li>
+            <li>Sergio: <code>sergio@cangurudigital.com.br</code></li>
+          </ul>
+          <p class="mono" style="color:var(--muted);font-size:13px;margin-top:12px">E-mails provisórios até a Joey ter o domínio de e-mail próprio.</p>
+        </div>
+        <div class="card">
+          <span class="tag">Login de cliente</span>
+          <h3>A visão de uma empresa</h3>
+          <p>É o que o cliente usa. Mostra só a empresa dele: estratégia, acessos, anúncios para aprovar e resultados.</p>
+          <p>O Marcelo também tem o login da Granfort, criado no cadastro de 18/11. Por ele dá para ver exatamente o que um cliente vê.</p>
+        </div>
+      </div>
+      <h3>Primeiro acesso</h3>
+      <ol>
+        <li>Abra <b>pouch.joeygrowth.com</b> no navegador do computador ou do celular.</li>
+        <li>Entre com o e-mail de sócio e a senha provisória que o Wesley mandou no privado.</li>
+        <li>Troque a senha logo depois: saia, clique em <b>Esqueci minha senha</b> na tela de login e crie a sua. O link chega no e-mail de sócio.</li>
+        <li>No celular, use <b>Compartilhar › Adicionar à Tela de Início</b> (iPhone) para o Pouch abrir como aplicativo.</li>
+      </ol>
+      <div class="callout warn"><p>Senha não vai para grupo de WhatsApp nem para descrição de grupo. Quem entrar no grupo depois veria. Senha só no privado, e de preferência trocada no primeiro acesso.</p></div>
+    </section>
+
+    <section id="permissoes">
+      <h2><small>03</small>O que o sócio pode fazer</h2>
+      <p class="sub">O login de sócio vê tudo e mexe no comercial. Dinheiro, contratos e logins ficam com o administrador. O Wesley muda essas permissões em Equipe &amp; Acessos quando fizer sentido.</p>
+      <div class="tbl"><table>
+        <thead><tr><th>Ação</th><th>Sócio</th><th>Onde fica</th></tr></thead>
+        <tbody>
+          <tr><td>Ver todos os clientes e o painel de cada um</td><td class="yes">Pode</td><td>Clientes</td></tr>
+          <tr><td>Copiar e mandar o link de cadastro</td><td class="yes">Pode</td><td>Comercial › Onboarding</td></tr>
+          <tr><td>Criar e enviar propostas</td><td class="yes">Pode</td><td>Comercial › Propostas</td></tr>
+          <tr><td>Movimentar o CRM comercial</td><td class="yes">Pode</td><td>Comercial › CRM / Prospecção</td></tr>
+          <tr><td>Ver financeiro e metas</td><td class="yes">Pode</td><td>Gestão › Financeiro e Metas</td></tr>
+          <tr><td>Lançar receitas e despesas</td><td class="no">Não</td><td>Administrador</td></tr>
+          <tr><td>Editar valores e contratos</td><td class="no">Não</td><td>Administrador</td></tr>
+          <tr><td>Cadastrar, editar ou excluir clientes</td><td class="no">Não</td><td>Administrador</td></tr>
+          <tr><td>Criar logins e gerenciar a equipe</td><td class="no">Não</td><td>Administrador</td></tr>
+        </tbody>
+      </table></div>
+    </section>
+
+    <section id="jornada">
+      <h2><small>04</small>A jornada do cliente</h2>
+      <p class="sub">Do primeiro contato até a campanha no ar. A etiqueta mostra quem age em cada etapa.</p>
+      <ol class="journey">
+        <li><div><h3>Lead no CRM <span class="who team">Sócio</span></h3><p>Todo contato entra em Comercial › CRM / Prospecção, venha ele do site da Joey, de indicação ou de prospecção. Ali o lead anda pelas etapas até a reunião.</p></div></li>
+        <li><div><h3>Raio-X <span class="who team">Equipe</span></h3><p>Antes da reunião de fechamento, o Pouch faz o Raio-X da empresa: velocidade do site no celular, Instagram (seguidores e engajamento), páginas do site e rastreamento (Google Tag Manager, pixel do Meta, GA4). É o material que se apresenta na reunião.</p></div></li>
+        <li><div><h3>Proposta <span class="who team">Sócio</span></h3><p>Em Comercial › Propostas, a proposta vira uma página própria com link. O Pouch avisa quando o cliente abre.</p></div></li>
+        <li><div><h3>Link de cadastro <span class="who team">Sócio</span></h3><p>Fechou, o sócio manda o link de cadastro dele. O link carrega o código do sócio, e o cliente fica registrado como trazido por ele.</p></div></li>
+        <li><div><h3>Cadastro <span class="who">Cliente</span></h3><p>O cliente escolhe o idioma (inglês, português ou espanhol), preenche os dados da empresa, o telefone com o país e os serviços, e cria a senha do portal. Se parar no meio, retoma depois com o mesmo e-mail.</p></div></li>
+        <li><div><h3>Acessos às contas <span class="who">Cliente</span></h3><p>O portal mostra o passo a passo para dar acesso ao Google Ads e ao Meta (conta de anúncios, página, Instagram e pixel). O cliente marca que enviou e o time confere.</p></div></li>
+        <li><div><h3>Estratégia <span class="who team">Equipe</span></h3><p>O Claude monta a estratégia a partir do cadastro e dos briefings. O time revisa e envia. O cliente recebe uma página própria e aprova ali mesmo. O Pouch registra quando ele abre e quando aprova.</p></div></li>
+        <li><div><h3>Campanha no ar <span class="who team">Equipe</span></h3><p>Com acessos conferidos e estratégia aprovada, o time sobe a campanha e marca o cliente como "No ar".</p></div></li>
+        <li><div><h3>Rotina <span class="who">Os dois</span></h3><p>O cliente aprova anúncios em Criativos, recebe relatórios semanais em página própria e responde ao NPS. O time acompanha a saúde de cada cliente.</p></div></li>
+      </ol>
+    </section>
+
+    <section id="onboarding">
+      <h2><small>05</small>O funil de onboarding</h2>
+      <p class="sub">Em Comercial › Onboarding, aba de novos clientes, cada cliente aparece como um cartão numa destas colunas.</p>
+      <div class="stages">
+        <div><b>Cadastro em andamento</b><span>O cliente ainda não terminou o cadastro.</span><i>Com o cliente</i></div>
+        <div><b>Montar estratégia</b><span>Gerar com o Claude, revisar e enviar.</span><i>Com a equipe</i></div>
+        <div><b>Aguardando o cliente</b><span>Estratégia enviada para aprovação.</span><i>Com o cliente</i></div>
+        <div><b>Subir campanha</b><span>Aprovada, falta colocar no ar.</span><i>Com a equipe</i></div>
+        <div><b>No ar</b><span>Clientes que entraram nos últimos 30 dias.</span><i>Concluído</i></div>
+      </div>
+      <h3>A janela do cliente</h3>
+      <p>Clicar num cartão abre uma janela grande no centro da tela. Fecha no X ou na tecla Esc. No topo aparecem o contato, o sócio que trouxe o cliente, o idioma e um botão de WhatsApp. Logo abaixo, a linha das cinco etapas com as datas e o card <b>Próximo passo</b>, que diz se a vez é do time ou do cliente.</p>
+      <div class="tbl"><table>
+        <thead><tr><th>Aba</th><th>O que mostra</th></tr></thead>
+        <tbody>
+          <tr><td>Resumo</td><td>Checklist do que foi feito e do que falta, presença digital, serviços contratados e "o negócio em 30 segundos".</td></tr>
+          <tr><td>Raio-X</td><td>Velocidade no celular, Instagram, site e rastreamento, com alerta de tags duplicadas. Botão para rodar de novo.</td></tr>
+          <tr><td>Acessos</td><td>Um cartão por plataforma (Google Ads, Meta), com ID, e-mail e status: pendente, cliente diz que enviou, conferido.</td></tr>
+          <tr><td>Estratégia</td><td>Se foi gerada, enviada, aberta e aprovada, e a estratégia completa.</td></tr>
+          <tr><td>Respostas</td><td>Tudo o que o cliente respondeu no cadastro e nos briefings, agrupado por assunto.</td></tr>
+          <tr><td>Histórico</td><td>Linha do tempo com o que o cliente, o time e o sistema fizeram.</td></tr>
+        </tbody>
+      </table></div>
+      <h3>Seu link de cadastro</h3>
+      <p>Cada sócio tem o próprio link. O botão para copiar fica no topo de Onboarding. Os links de hoje:</p>
+      <div class="copyrow"><code id="l-marcelo">pouch.joeygrowth.com/cadastro?agency=joey&amp;ref=marceloa236</code><button class="copy" data-target="l-marcelo" type="button">Copiar</button></div>
+      <div class="copyrow"><code id="l-sergio">pouch.joeygrowth.com/cadastro?agency=joey&amp;ref=sergioab1b</code><button class="copy" data-target="l-sergio" type="button">Copiar</button></div>
+    </section>
+
+    <section id="menu">
+      <h2><small>06</small>O menu do sócio, item a item</h2>
+      <p class="sub">É o que aparece na barra lateral com o login de sócio. Alguns itens vêm da Bolsa e ainda têm pouco uso na Joey. Estão marcados.</p>
+      <div class="menu">
+        <div><div class="grp">Topo</div><b>Início</b><p>Resumo do dia: o que está em aprovação, tarefas e números principais.</p></div>
+        <div><div class="grp">Topo</div><b>Clientes</b><p>Lista de clientes. Clicar num cliente abre o painel dele, como o cliente vê, com as ferramentas do time.</p></div>
+        <div><div class="grp">Topo</div><b>Documentos internos</b><p>Arquivos da empresa guardados no Pouch.</p></div>
+        <div><div class="grp">Conteúdo</div><b>Painel de Conteúdo · Nosso Conteúdo</b><p>Calendário de posts dos clientes de social media e da própria Joey. Pouco uso na Joey hoje.</p></div>
+        <div><div class="grp">Comercial</div><b>CRM / Prospecção</b><p>Quadros de leads por etapa. Hoje existe o quadro "Site joeygrowth.com", que recebe os contatos do site.</p></div>
+        <div><div class="grp">Comercial</div><b>Onboarding</b><p>O funil de novos clientes e o seu link de cadastro. É a tela mais importante para o sócio.</p></div>
+        <div><div class="grp">Comercial</div><b>Contratos</b><p>Contratos dos clientes. O sócio vê, mas não edita valores.</p></div>
+        <div><div class="grp">Comercial</div><b>Propostas</b><p>Cria a proposta, gera a página do cliente e avisa quando ele abre. Ainda não foi usada na Joey.</p></div>
+        <div><div class="grp">Operação</div><b>Processos &amp; Tarefas</b><p>Tarefas do time por cliente e por processo, com prazo.</p></div>
+        <div><div class="grp">Operação</div><b>Anotações</b><p>Notas e roteiros internos.</p></div>
+        <div><div class="grp">Operação</div><b>Guias</b><p>Guias passo a passo para clientes, como "como dar acesso ao Google Ads", em inglês e português. A Joey tem 12.</p></div>
+        <div><div class="grp">Operação</div><b>Relatórios</b><p>Relatórios semanais de tráfego de cada cliente, cada um com página própria e registro de abertura.</p></div>
+        <div><div class="grp">Gestão</div><b>Financeiro</b><p>Receitas, despesas e a aba Sócios, que é só da Joey. O sócio vê, não lança.</p></div>
+        <div><div class="grp">Gestão</div><b>Metas</b><p>Metas da empresa e o andamento.</p></div>
+      </div>
+    </section>
+
+    <section id="portal">
+      <h2><small>07</small>O que o cliente vê</h2>
+      <p class="sub">O portal do cliente abre no idioma que ele escolheu no cadastro (inglês por padrão na Joey) e mostra só o que faz sentido para os serviços contratados.</p>
+      <div class="grid2">
+        <div class="card"><span class="tag">Sempre</span><h3>Base</h3><ul>
+          <li><b>Início:</b> o próximo passo dele e o status da estratégia e dos acessos.</li>
+          <li><b>Relatórios:</b> os relatórios semanais.</li>
+          <li><b>Marca:</b> logo, cores e materiais da empresa.</li>
+          <li><b>Senhas:</b> cofre para guardar acessos com segurança.</li>
+          <li><b>Tutoriais</b> e <b>NPS</b>.</li>
+        </ul></div>
+        <div class="card"><span class="tag">Se contratou tráfego</span><h3>Anúncios</h3><ul>
+          <li><b>Tráfego Pago:</b> gasto, cliques, leads e custo por lead do Google e do Meta.</li>
+          <li><b>Criativos:</b> anúncios para aprovar, pedir ajuste ou reprovar.</li>
+          <li><b>Briefings:</b> perguntas sobre o negócio que alimentam a estratégia.</li>
+        </ul></div>
+        <div class="card"><span class="tag">Se contratou social media</span><h3>Conteúdo</h3><ul>
+          <li><b>Painel de Conteúdo:</b> posts do mês para aprovar.</li>
+          <li><b>Redes Sociais:</b> números do Instagram e das outras redes.</li>
+        </ul></div>
+        <div class="card"><span class="tag">Opcional</span><h3>Ligados por cliente</h3><ul>
+          <li><b>CRM do cliente:</b> funil dos leads que chegam das campanhas.</li>
+          <li><b>Fotos IA</b> e <b>Roteiros</b>.</li>
+        </ul></div>
+      </div>
+      <p style="margin-top:20px">Para ver exatamente o que o cliente vê, use o login de cliente, ou abra o cliente em Clientes e use a opção de ver como cliente.</p>
+    </section>
+
+    <section id="avisos">
+      <h2><small>08</small>Avisos</h2>
+      <p>Quando o cliente faz algo importante, o Pouch avisa o time sem ninguém precisar abrir o sistema:</p>
+      <ul>
+        <li>Cliente abriu ou aprovou a estratégia.</li>
+        <li>Cliente aprovou, pediu ajuste ou reprovou um anúncio.</li>
+        <li>Cliente pediu ajuda para dar um acesso.</li>
+        <li>Cliente terminou o cadastro (em ativação, ver a seção 11).</li>
+      </ul>
+      <p>Hoje os avisos chegam ao Wesley pelo Telegram e por e-mail, marcados "Joey Growth". O aviso no celular e no computador, para quem instalou o Pouch como aplicativo, está em ativação.</p>
+    </section>
+
+    <section id="clientes">
+      <h2><small>09</small>Clientes no Pouch hoje</h2>
+      <div class="tbl"><table>
+        <thead><tr><th>Cliente</th><th>Onde está</th><th>Observação</th></tr></thead>
+        <tbody>
+          <tr><td>Granfort USA</td><td>Subir campanha</td><td>Estratégia aprovada em 23/11. Falta conferir os acessos ao Google Ads e ao Meta.</td></tr>
+          <tr><td>Hookaway Dumpsters</td><td>Cadastro concluído</td><td>Trazido pelo Sergio. Começa só com Google Ads; o acesso já funciona.</td></tr>
+          <tr><td>Hi Solutions</td><td>Cadastro concluído</td><td>Tem um cadastro parcial duplicado, que vai ser removido.</td></tr>
+          <tr><td>Brazuca Cleaning Co.</td><td>Demonstração</td><td>Cliente fictício, ativo, em inglês. Use à vontade para testar e mostrar.</td></tr>
+          <tr><td>Sorriso Orlando Dental</td><td>Demonstração</td><td>Cliente fictício em onboarding. Nunca use como prova de resultado.</td></tr>
+        </tbody>
+      </table></div>
+    </section>
+
+    <section id="avaliar">
+      <h2><small>10</small>Roteiro de avaliação</h2>
+      <p class="sub">Uma volta de uns 30 minutos pelo sistema. Para cada passo, anote o que confundiu, o que faltou e o que você mudaria. As marcações ficam salvas só no seu navegador.</p>
+      <ul class="check" id="checklist">
+        <li><input type="checkbox" id="c1"><label for="c1">Entrar com o login de sócio e trocar a senha.<small>Funcionou de primeira? O e-mail de troca chegou?</small></label></li>
+        <li><input type="checkbox" id="c2"><label for="c2">Abrir Comercial › Onboarding e olhar o funil.<small>Dá para entender em cinco segundos onde cada cliente está?</small></label></li>
+        <li><input type="checkbox" id="c3"><label for="c3">Abrir o cartão da Granfort e passar por todas as abas.<small>Ficou claro o próximo passo? Falta alguma informação para a reunião?</small></label></li>
+        <li><input type="checkbox" id="c4"><label for="c4">Ver a aba Raio-X da Granfort.<small>É isso que você mostraria numa reunião de fechamento? O que acrescentaria?</small></label></li>
+        <li><input type="checkbox" id="c5"><label for="c5">Copiar o seu link de cadastro e abrir numa janela anônima.<small>Vá até a escolha de serviços sem concluir. O cliente entenderia sozinho?</small></label></li>
+        <li><input type="checkbox" id="c6"><label for="c6">Abrir a Brazuca Cleaning em Clientes e navegar como se fosse o cliente.<small>Relatórios, Tráfego Pago, Criativos. O que um dono de empresa americano acharia?</small></label></li>
+        <li><input type="checkbox" id="c7"><label for="c7">Abrir Comercial › CRM / Prospecção.<small>Como vocês gostariam de organizar os leads de vocês aqui?</small></label></li>
+        <li><input type="checkbox" id="c8"><label for="c8">Abrir Comercial › Propostas e começar uma proposta de teste.<small>Os campos fazem sentido para o jeito que vocês vendem?</small></label></li>
+        <li><input type="checkbox" id="c9"><label for="c9">Repetir uma parte pelo celular.<small>O que fica difícil na tela pequena?</small></label></li>
+        <li><input type="checkbox" id="c10"><label for="c10">Marcelo: entrar também com o login da Granfort.<small>Comparar a visão de cliente com a de sócio.</small></label></li>
+      </ul>
+      <div class="callout"><p><b>Como mandar o retorno:</b> uma mensagem por assunto no grupo dos sócios, com print quando der. O Wesley transforma em ajuste no sistema, e o que for combinado vira mudança registrada.</p></div>
+      <div class="callout warn"><p>Para testar o cadastro até o fim, avise o Wesley antes. Cada cadastro concluído cria um cliente de verdade no Pouch e dispara os avisos.</p></div>
+    </section>
+
+    <section id="pendente">
+      <h2><small>11</small>O que ainda falta</h2>
+      <p class="sub">O sistema está em uso, com clientes reais, e melhora toda semana. Isto é o que está em construção ou em discussão.</p>
+      <div class="tbl"><table>
+        <thead><tr><th>Item</th><th>Situação</th></tr></thead>
+        <tbody>
+          <tr><td>Aviso de cadastro concluído</td><td>Pronto no código. Falta publicar no servidor.</td></tr>
+          <tr><td>Retomar o cadastro pelo e-mail</td><td>Pronto no código. Falta publicar no servidor.</td></tr>
+          <tr><td>Aviso no celular e no Mac</td><td>Em ativação.</td></tr>
+          <tr><td>Link de cadastro com serviços já marcados</td><td>Em discussão. O sócio marcaria os serviços vendidos e o cliente veria só esses.</td></tr>
+          <tr><td>Briefing de tráfego mais curto</td><td>Em discussão. O cliente libera os acessos, o Claude lê as contas e o cliente responde só três ou quatro perguntas.</td></tr>
+          <tr><td>Página do Raio-X com link</td><td>Próximo passo. Uma página para apresentar na reunião e deixar com o cliente.</td></tr>
+          <tr><td>Acessos por serviço, TikTok e LinkedIn</td><td>Planejado. Quem contratou só social media não vê o passo do Google Ads.</td></tr>
+          <tr><td>E-mail próprio da Joey</td><td>Os logins e os e-mails do sistema ainda saem por endereços da Canguru.</td></tr>
+        </tbody>
+      </table></div>
+    </section>
+
+    <section id="glossario">
+      <h2><small>12</small>Glossário</h2>
+      <dl class="gloss">
+        <dt>Pouch</dt><dd>O sistema da Joey. "Pouch" é a bolsa do canguru, onde o filhote (Joey) cresce.</dd>
+        <dt>Bolsa</dt><dd>O mesmo sistema na Canguru, no Brasil.</dd>
+        <dt>Raio-X</dt><dd>Diagnóstico da presença digital da empresa: site, Instagram e rastreamento.</dd>
+        <dt>Estratégia</dt><dd>O plano de tráfego do cliente, gerado pelo Claude, revisado pelo time e aprovado pelo cliente numa página própria.</dd>
+        <dt>Ref</dt><dd>O código do sócio no link de cadastro. Diz quem trouxe o cliente.</dd>
+        <dt>Acessos</dt><dd>As permissões que o cliente dá ao time no Google Ads e no Meta.</dd>
+        <dt>Criativos</dt><dd>Os anúncios: imagem ou vídeo e texto, aprovados pelo cliente no Pouch.</dd>
+        <dt>NPS</dt><dd>A pesquisa de satisfação que o cliente responde no portal.</dd>
+      </dl>
+    </section>
+
+    <footer>Joey Growth · Only forward. Material interno para os sócios. Não encaminhar para clientes.</footer>
+  </main>
+</div>
+
+<script>
+document.querySelectorAll('button.copy').forEach(function(b){
+  b.addEventListener('click',function(){
+    var el=document.getElementById(b.dataset.target), t='https://'+el.textContent.trim();
+    var done=function(){b.textContent='Copiado';setTimeout(function(){b.textContent='Copiar'},1600)};
+    var sel=function(){var r=document.createRange();r.selectNodeContents(el);var s=getSelection();s.removeAllRanges();s.addRange(r);b.textContent='Selecionado'};
+    try{navigator.clipboard.writeText(t).then(done,sel)}catch(e){sel()}
+  });
+});
+var KEY='pouch-guia-check';
+var saved={};try{saved=JSON.parse(localStorage.getItem(KEY)||'{}')}catch(e){}
+document.querySelectorAll('#checklist input').forEach(function(i){
+  if(saved[i.id])i.checked=true;
+  i.addEventListener('change',function(){saved[i.id]=i.checked;try{localStorage.setItem(KEY,JSON.stringify(saved))}catch(e){}});
+});
+</script>
+</body>
+</html>
