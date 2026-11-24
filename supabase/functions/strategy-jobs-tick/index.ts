@@ -1,5 +1,5 @@
 // Acompanha a fila da estratégia (strategy_jobs). Chamado pelo pg_cron a cada minuto.
-// Sem login de propósito: só processa a fila e é idempotente. Etapas:
+// Só o pg_cron chama: exige o header x-cron-secret (check_cron_secret). Processa a fila e é idempotente. Etapas:
 // drafting (lote do rascunho) -> reviewing (lote da revisão) -> done (estratégia salva como rascunho, status 'draft').
 // Se a revisão falhar, salva o rascunho sem revisão. Uma nova tentativa por etapa quando o formato vem errado.
 import { adminClient, json } from "../_shared/common.ts";
@@ -7,10 +7,12 @@ import { extractStrategy, MODEL, readBatch, RETRY_NOTE, strategyParams, submitBa
 
 const MAX_AGE_H = 26; // lote do Claude expira em 24 h
 
-Deno.serve(async () => {
+Deno.serve(async (req) => {
+  const db = adminClient();
+  const { data: okSecret } = await db.rpc("check_cron_secret", { p_secret: req.headers.get("x-cron-secret") ?? "" });
+  if (okSecret !== true) return json({ error: "unauthorized" }, 401);
   const apiKey = Deno.env.get("ANTHROPIC_API_KEY");
   if (!apiKey) return json({ error: "sem ANTHROPIC_API_KEY" }, 500);
-  const db = adminClient();
   const now = () => new Date().toISOString();
   const report = { checked: 0, advanced: 0, saved: 0, failed: 0 };
 
