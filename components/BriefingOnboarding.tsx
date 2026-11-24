@@ -1,5 +1,6 @@
 import { clientLang, isStarterClient } from './strategy/ClientStartCard';
 import { BRAND } from '../lib/brand';
+import { escapeHtml } from '../lib/safeHtml';
 import { trBriefing } from '../lib/briefingI18n';
 import { tr } from '../lib/accessGuides';
 import React, { useState, useEffect } from 'react';
@@ -31,7 +32,7 @@ export const handleDownloadBriefingPDF = (briefing: any, clientName: string, cus
   const html = `
     <html>
       <head>
-        <title>Briefing - ${title} - ${clientName}</title>
+        <title>Briefing - ${escapeHtml(title)} - ${escapeHtml(clientName)}</title>
         <style>
           body { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; padding: 40px; color: #333; line-height: 1.6; max-width: 800px; margin: 0 auto; }
           h1 { color: #111; font-size: 28px; margin-bottom: 5px; }
@@ -61,10 +62,10 @@ export const handleDownloadBriefingPDF = (briefing: any, clientName: string, cus
           </div>
         </div>
 
-        <h1>Briefing: ${title}</h1>
+        <h1>Briefing: ${escapeHtml(title)}</h1>
         <div class="subtitle">
-          <div><strong>Cliente:</strong> ${clientName || 'Cliente'}</div>
-          <div><strong>Respondido em:</strong> ${dateStr}</div>
+          <div><strong>Cliente:</strong> ${escapeHtml(clientName || 'Cliente')}</div>
+          <div><strong>Respondido em:</strong> ${escapeHtml(dateStr)}</div>
         </div>
         
         <div class="content">
@@ -72,13 +73,13 @@ export const handleDownloadBriefingPDF = (briefing: any, clientName: string, cus
              const ans = briefing.responses?.[q.key];
              const hasAnswer = ans && (Array.isArray(ans) ? ans.length > 0 : String(ans).trim() !== '');
              const displayAns = hasAnswer 
-                 ? (Array.isArray(ans) ? ans.join(', ') : (typeof ans === 'object' ? JSON.stringify(ans, null, 2) : String(ans)))
+                 ? escapeHtml(Array.isArray(ans) ? ans.join(', ') : (typeof ans === 'object' ? JSON.stringify(ans, null, 2) : String(ans)))
                  : '<span class="empty">Não respondido</span>';
-             return '<div class="item"><div class="question">' + q.label + '</div><div class="answer">' + displayAns + '</div></div>';
+             return '<div class="item"><div class="question">' + escapeHtml(q.label) + '</div><div class="answer">' + displayAns + '</div></div>';
           }).join('')}
         </div>
         
-        <div class="footer">Gerado por ${BRAND.by}</div>
+        <div class="footer">Gerado por ${escapeHtml(BRAND.by)}</div>
         <script>
           function goBack() {
             try {

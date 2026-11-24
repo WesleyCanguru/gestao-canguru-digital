@@ -3,6 +3,7 @@ import { Note } from '../../hooks/useNotes';
 import { Notebook } from '../../hooks/useNotebooks';
 import { Plus, Pin, Trash2, FolderInput } from 'lucide-react';
 import dayjs from 'dayjs';
+import { htmlToText } from '../../lib/safeHtml';
 
 interface NoteListProps {
   notebook: Notebook | null;
@@ -20,9 +21,7 @@ export function NoteList({ notebook, notebooks = [], notes, selectedId, onSelect
 
   const extractPreview = (htmlStr: string) => {
     if (!htmlStr) return 'Sem conteúdo adicional';
-    const tmp = document.createElement('div');
-    tmp.innerHTML = htmlStr;
-    const text = tmp.textContent || tmp.innerText || '';
+    const text = htmlToText(htmlStr);
     return text.substring(0, 80) + (text.length > 80 ? '...' : '');
   };
 

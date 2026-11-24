@@ -3,6 +3,7 @@ import { getAppUrl } from '../lib/appUrl';
 import { useTutorialCenter, Tutorial } from '../hooks/useTutorialCenter';
 import { CheckCircle, Circle, ChevronDown, ChevronUp, Plus, X, BookOpen, Link } from 'lucide-react';
 import { useT } from '../lib/i18n';
+import { sanitizeHtml } from '../lib/safeHtml';
 
 interface TutorialCenterProps {
   clientId: string;
@@ -172,7 +173,7 @@ export const TutorialCenter: React.FC<TutorialCenterProps> = ({ clientId, userRo
                             </div>
                             <div>
                               <h5 className="font-bold text-gray-900 mb-1">{step.title}</h5>
-                              <p className="text-sm text-gray-600 leading-relaxed" dangerouslySetInnerHTML={{ __html: step.description }} />
+                              <p className="text-sm text-gray-600 leading-relaxed" dangerouslySetInnerHTML={{ __html: sanitizeHtml(step.description) }} />
                             </div>
                           </div>
                         ))}
