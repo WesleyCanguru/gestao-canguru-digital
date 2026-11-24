@@ -1,5 +1,5 @@
 // Gera os relatórios em página e manda os e-mails.
-// Automático (pg_cron, body {auto:true}): todo dia -> resumo diário da equipe (ontem);
+// Automático (pg_cron, body {auto:true}, exige header x-cron-secret conferido no banco): todo dia -> resumo diário da equipe (ontem);
 //   segunda -> semanal dos clientes + semanal da equipe; dia 1 -> mensal dos clientes + mensal da equipe.
 // Manual (equipe logada): {client_id, period: 'weekly'|'monthly'|'quarterly', start?, end?} -> gera na hora.
 // O cliente só recebe por e-mail se notification_settings.client_reports_auto e o cliente tiver avisos ligados.
@@ -144,6 +144,10 @@ async function teamReport(agency: any, settings: any, period: Period, start: str
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
   const body = await req.json().catch(() => ({}));
+  if (body.auto) {
+    const { data: ok } = await db.rpc("check_cron_secret", { p_secret: req.headers.get("x-cron-secret") ?? "" });
+    if (ok !== true) return json({ error: "unauthorized" }, 401);
+  }
   const { data: agencies } = await db.from("agencies").select("id, name, logo_url, domain, primary_color, access_email");
   const { data: settingsRows } = await db.from("notification_settings").select("*");
   const ag = new Map((agencies || []).map((a: any) => [a.id, a]));
