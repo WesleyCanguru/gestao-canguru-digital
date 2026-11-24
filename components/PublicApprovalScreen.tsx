@@ -75,7 +75,7 @@ export const PublicApprovalScreen: React.FC = () => {
 
           // Fetch client data
           const { data: clientData } = await supabase
-             .from('clients')
+             .from('client_public_card')
              .select('*')
              .eq('id', dbData.client_id)
              .maybeSingle();

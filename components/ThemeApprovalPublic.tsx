@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { BRAND } from '../lib/brand';
-import { supabase } from '../lib/supabase';
+import { supabase, fetchClientCard } from '../lib/supabase';
 import { motion, AnimatePresence } from 'motion/react';
 import { Loader2, CheckCircle2, MessageSquare, XCircle, Search, Calendar, ChevronRight, LayoutList, Target, AlertCircle, Save, Send } from 'lucide-react';
 import { Logo } from './Logo';
@@ -81,13 +81,14 @@ export const ThemeApprovalPublic: React.FC<{ sessionToken: string }> = ({ sessio
     try {
       const { data: sessionData, error: sessionError } = await supabase
         .from('theme_sessions')
-        .select(`*, clients (name, logo_url, agency_id, lang:traffic_strategy_data->>language)`)
+        .select('*')
         .eq('session_token', sessionToken)
         .single();
         
       if (sessionError) throw sessionError;
       if (!sessionData) throw new Error('Sessão não encontrada');
 
+      sessionData.clients = await fetchClientCard(sessionData.client_id);
       applyPublicLang(sessionData.clients); setSession(sessionData);
 
       const { data: itemsData, error: itemsError } = await supabase
