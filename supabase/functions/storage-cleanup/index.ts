@@ -1,7 +1,7 @@
 // Limpeza do Storage (bucket post-uploads), aprovada pelo Wesley em 15/11/2026.
 // mode=orphans: apaga arquivos que nenhum post, foto IA ou logo usa (só os com mais de 3 dias).
 // mode=retention: apaga a mídia de posts publicados há mais de 6 meses; o post continua (título, data, legenda).
-// Sem login de propósito: só executa as regras fixas acima, não recebe lista de arquivos. Chamado pelo pg_cron.
+// Só o pg_cron chama: exige o header x-cron-secret, conferido no banco (check_cron_secret, segredo no Vault).
 import { createClient } from "npm:@supabase/supabase-js@2";
 
 const json = (b: unknown, s = 200) => new Response(JSON.stringify(b), { status: s, headers: { "Content-Type": "application/json" } });
@@ -10,6 +10,8 @@ Deno.serve(async (req) => {
   const url = new URL(req.url);
   const mode = url.searchParams.get("mode") === "retention" ? "retention" : "orphans";
   const db = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, { auth: { persistSession: false } });
+  const { data: ok } = await db.rpc("check_cron_secret", { p_secret: req.headers.get("x-cron-secret") ?? "" });
+  if (ok !== true) return json({ error: "unauthorized" }, 401);
 
   const rows = mode === "orphans"
     ? (await db.rpc("storage_orphan_files")).data as { name: string; size: number }[] | null

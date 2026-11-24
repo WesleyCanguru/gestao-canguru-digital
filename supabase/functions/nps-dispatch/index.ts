@@ -2,7 +2,7 @@
 // 1) No último dia do mês: cria a pesquisa do mês para cada cliente ativo com avisos ligados e manda o e-mail.
 // 2) 48h depois, sem resposta: manda um lembrete.
 // 3) Mais 48h sem resposta: avisa a equipe para cobrar pelo WhatsApp.
-// Idempotente (dedupe na email_outbox). Sem login de propósito: só segue as regras acima.
+// Idempotente (dedupe na email_outbox). Só o pg_cron chama: exige o header x-cron-secret (check_cron_secret).
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { brandOf, layout, sendEmail, teamRecipients, Lang } from "./mail.ts";
 
@@ -19,6 +19,8 @@ const TXT: Record<Lang, any> = {
 };
 
 Deno.serve(async (req) => {
+  const { data: okSecret } = await db.rpc("check_cron_secret", { p_secret: req.headers.get("x-cron-secret") ?? "" });
+  if (okSecret !== true) return new Response(JSON.stringify({ error: "unauthorized" }), { status: 401, headers: { "Content-Type": "application/json" } });
   const body = await req.json().catch(() => ({}));
   const now = new Date();
   const br = new Date(now.getTime() - 3 * 3600 * 1000);
