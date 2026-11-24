@@ -1,10 +1,12 @@
 // Envia os avisos da fila email_outbox pelo Resend e gera os lembretes de 24h.
-// Avisos da equipe também vão para o Telegram (se TELEGRAM_BOT_TOKEN e TELEGRAM_CHAT_ID existirem).
+// Avisos da equipe também vão para o Telegram (se TELEGRAM_BOT_TOKEN e TELEGRAM_CHAT_ID existirem)
+// e, no caso de cadastro concluído, como notificação no iPhone/Mac (OneSignal).
 // Linhas com audience 'telegram' (proposta aberta, estratégia, criativos) vão só para o Telegram.
 // Chamado pelo pg_cron a cada 5 minutos. Exige o header x-cron-secret (conferido no banco por check_cron_secret).
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { brandOf, layout, fmtPostDate, T, Lang, sendEmail, teamRecipients } from "./mail.ts";
 import { sendTelegram, telegramReady, tgEsc } from "./telegram.ts";
+import { pushToAdmins } from "./push.ts";
 
 const db = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, { auth: { persistSession: false } });
 const json = (b: unknown, s = 200) => new Response(JSON.stringify(b), { status: s, headers: { "Content-Type": "application/json" } });
@@ -15,13 +17,14 @@ async function mark(ids: string[], patch: Record<string, unknown>) {
   if (ids.length) await db.from("email_outbox").update(patch).in("id", ids);
 }
 
-const TG_ICON: Record<string, string> = { post_approved: "✅", post_changes_requested: "✏️", post_rejected: "❌", access_help: "🆘", health_drop: "📉" };
+const TG_ICON: Record<string, string> = { post_approved: "✅", post_changes_requested: "✏️", post_rejected: "❌", access_help: "🆘", health_drop: "📉", signup_done: "🎉" };
+const LANG_NAME: Record<string, string> = { pt: "português", en: "inglês", es: "espanhol" };
 
 Deno.serve(async (req) => {
   const { data: okSecret } = await db.rpc("check_cron_secret", { p_secret: req.headers.get("x-cron-secret") ?? "" });
   if (okSecret !== true) return json({ error: "unauthorized" }, 401);
   const now = new Date();
-  const report: Record<string, number> = { client: 0, team: 0, reminders: 0, skipped: 0, failed: 0, telegram: 0, telegram_failed: 0 };
+  const report: Record<string, number> = { client: 0, team: 0, reminders: 0, skipped: 0, failed: 0, telegram: 0, telegram_failed: 0, push: 0, push_failed: 0 };
   const { data: agencies } = await db.from("agencies").select("id, name, logo_url, domain, primary_color, access_email");
   const { data: settings } = await db.from("notification_settings").select("*");
   const ag = new Map((agencies || []).map((a: any) => [a.id, a]));
@@ -29,7 +32,7 @@ Deno.serve(async (req) => {
   const clientCache = new Map<string, any>();
   const getClient = async (id: string) => {
     if (!clientCache.has(id)) {
-      const { data } = await db.from("clients").select("id, name, agency_id, email, notify_enabled, notify_emails, is_demo, traffic_strategy_data, timezone").eq("id", id).maybeSingle();
+      const { data } = await db.from("clients").select("id, name, agency_id, email, notify_enabled, notify_emails, is_demo, traffic_strategy_data, timezone, acquired_by_user_id").eq("id", id).maybeSingle();
       clientCache.set(id, data);
     }
     return clientCache.get(id);
@@ -76,7 +79,7 @@ Deno.serve(async (req) => {
     } else { await mark(ids, { status: "failed", error: res.error }); report.failed += ids.length; }
   }
 
-  // ---------- Equipe: cliente aprovou / pediu ajuste / reprovou; ajuda no onboarding; saúde caiu ----------
+  // ---------- Equipe: cliente aprovou / pediu ajuste / reprovou; ajuda no onboarding; saúde caiu; cadastro concluído ----------
   const teamRows = rows.filter((r: any) => r.audience === "team");
   const teamGroups = new Map<string, any[]>();
   for (const r of teamRows) { const k = `${r.agency_id}|${r.client_id}`; if (!teamGroups.has(k)) teamGroups.set(k, []); teamGroups.get(k)!.push(r); }
@@ -89,11 +92,22 @@ Deno.serve(async (req) => {
     const { data: posts } = postIds.length ? await db.from("posts").select("id, date_key, theme, theme_title, caption").in("id", postIds) : { data: [] as any[] };
     const pm = new Map((posts || []).map((p: any) => [p.id, p]));
     const b = brandOf(a, "pt");
-    const label: Record<string, string> = { post_approved: "Aprovou", post_changes_requested: "Pediu ajuste", post_rejected: "Reprovou", access_help: "Pediu ajuda", health_drop: "Saúde caiu" };
+    // Quem trouxe o cliente (link de cadastro do sócio)
+    let broughtBy: string | null = null;
+    if (c?.acquired_by_user_id) {
+      const { data: m } = await db.from("agency_members").select("display_name").eq("agency_id", a.id).eq("user_id", c.acquired_by_user_id).maybeSingle();
+      broughtBy = (m?.display_name || "").split(" ")[0] || null;
+    }
+    const label: Record<string, string> = { post_approved: "Aprovou", post_changes_requested: "Pediu ajuste", post_rejected: "Reprovou", access_help: "Pediu ajuda", health_drop: "Saúde caiu", signup_done: "Terminou o cadastro" };
     const items = list.map((r) => {
       const p = pm.get(r.ref_id);
       if (r.kind === "health_drop") return { title: `Saúde caiu para ${r.payload?.score} (era ${r.payload?.prev})`, meta: (r.payload?.reasons || []).join(" · ") || "Sem motivo específico registrado", url: b.appUrl, tag: "Saúde do cliente" };
       if (r.kind === "access_help") return { title: `Conta do ${r.payload?.platform === "google" ? "Google Ads" : "Meta"}`, meta: "Pediu ajuda no onboarding para conectar a conta", url: b.appUrl, tag: label[r.kind] };
+      if (r.kind === "signup_done") {
+        const sv = (r.payload?.services || []).join(", ") || "sem serviço marcado";
+        const meta = [r.payload?.responsible, broughtBy ? `via ${broughtBy}` : null, r.payload?.lang ? `em ${LANG_NAME[r.payload.lang] || r.payload.lang}` : null].filter(Boolean).join(" · ");
+        return { title: `Serviços: ${sv}`, meta: `${meta}. Próximo passo: conferir acessos e montar o Raio-X.`, url: b.appUrl, tag: label[r.kind] };
+      }
       return { title: p ? postTitle(p) : "Post", meta: p ? fmtPostDate(p.date_key, null, "pt") : "", url: p ? `${b.appUrl}/?mode=public&id=${encodeURIComponent(p.date_key)}` : b.appUrl, tag: label[r.kind] || r.kind };
     });
     const kinds = [...new Set(list.map((r) => r.kind))];
@@ -105,7 +119,7 @@ Deno.serve(async (req) => {
       const agencyTag = a.id === 1 ? "" : ` · <i>${tgEsc(a.name)}</i>`;
       const lines = list.map((r, i) => {
         const it = items[i];
-        const what = r.kind === "health_drop" || r.kind === "access_help" ? `${it.title}${it.meta ? ` — ${it.meta}` : ""}` : `${label[r.kind] || r.kind}: ${it.title}${it.meta ? ` (${it.meta})` : ""}`;
+        const what = ["health_drop", "access_help", "signup_done"].includes(r.kind) ? `${it.title}${it.meta ? ` — ${it.meta}` : ""}` : `${label[r.kind] || r.kind}: ${it.title}${it.meta ? ` (${it.meta})` : ""}`;
         return `${TG_ICON[r.kind] || "•"} ${tgEsc(what)}${it.url ? `\n   <a href="${tgEsc(it.url)}">Abrir na Bolsa</a>` : ""}`;
       });
       const tg = await sendTelegram(`<b>${tgEsc(clientName)}</b> · ${tgEsc(head.toLowerCase())}${agencyTag}\n\n${lines.join("\n")}`);
@@ -113,10 +127,20 @@ Deno.serve(async (req) => {
       else if (!tg.skipped) { report.telegram_failed += 1; console.error("telegram", tg.error); }
     }
 
+    // Notificação no iPhone/Mac: só para cadastro concluído (o resto já chega pelo Telegram)
+    if (kinds.includes("signup_done")) {
+      const pu = await pushToAdmins(db, `🎉 ${c?.name || "Cliente novo"} terminou o cadastro`, `${a.id === 7 ? "Joey Growth" : a.name}${broughtBy ? ` · via ${broughtBy}` : ""}. Abra o onboarding para seguir.`);
+      if (pu.ok) report.push += 1;
+      else if (!pu.skipped) { report.push_failed += 1; console.error("push", pu.error); }
+    }
+
     const to = await teamRecipients(db, a.id, s);
     if (!to.length) { await mark(ids, { status: "skipped", error: "equipe sem e-mail" }); report.skipped += ids.length; continue; }
     const subject = `${c?.name || "Cliente"} · ${head.toLowerCase()}${list.length > 1 ? ` (${list.length})` : ""}`;
-    const html = layout(b, "pt", { title: `${c?.name || "Cliente"} ${head.toLowerCase()}`, intro: kinds.includes("health_drop") ? "A saúde do cliente caiu nesta semana. Veja os motivos abaixo." : "Atualização feita pelo cliente agora há pouco.", items, button: { label: "Abrir a Bolsa", url: b.appUrl }, footnote: "Aviso automático para a equipe." });
+    const intro = kinds.includes("health_drop") ? "A saúde do cliente caiu nesta semana. Veja os motivos abaixo."
+      : kinds.includes("signup_done") ? "Um cliente novo terminou o cadastro. Ele já está no funil de onboarding."
+      : "Atualização feita pelo cliente agora há pouco.";
+    const html = layout(b, "pt", { title: `${c?.name || "Cliente"} ${head.toLowerCase()}`, intro, items, button: { label: "Abrir a Bolsa", url: b.appUrl }, footnote: "Aviso automático para a equipe." });
     const res = await sendEmail({ from: b.from, to, subject, html });
     if (res.ok) { await mark(ids, { status: "sent", sent_at: now.toISOString(), to_emails: to, subject }); report.team += 1; }
     else { await mark(ids, { status: "failed", error: res.error }); report.failed += ids.length; }
