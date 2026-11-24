@@ -30,5 +30,16 @@
       "source": "/((?!api/).*)",
       "destination": "/index.html"
     }
+  ],
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        {
+          "key": "Content-Security-Policy-Report-Only",
+          "value": "default-src 'self'; script-src 'self' 'sha256-6Zqy+XL4KuQAi9XIrpYn1jBNKmpa0jBUjixRkJj35Vs=' https://cdn.tailwindcss.com https://cdn.onesignal.com https://*.onesignal.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://onesignal.com https://*.onesignal.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob: https:; media-src 'self' blob: https:; connect-src 'self' https://wtzphiyybitcucwkfpgv.supabase.co wss://wtzphiyybitcucwkfpgv.supabase.co https://onesignal.com https://*.onesignal.com https://open.er-api.com https://api.frankfurter.dev; frame-src 'self' https://www.youtube.com https://player.vimeo.com https://drive.google.com https://onesignal.com https://*.onesignal.com; worker-src 'self' blob:; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'; report-uri /api/csp-report"
+        }
+      ]
+    }
   ]
 }
