@@ -109,6 +109,8 @@ export const OnboardingClientDrawer: React.FC<{
   const [allBriefings, setAllBriefings] = useState<Briefing[] | null>(null);
   const [xrayAt, setXrayAt] = useState<string | null>(null);
   const [xrayData, setXrayData] = useState<any>(null);
+  const [xrayToken, setXrayToken] = useState<string | null>(null);
+  const [xrayCopied, setXrayCopied] = useState(false);
 
   // Pedido de estratégia em andamento (Raio-X, rascunho e revisão em lote)
   const [job, setJob] = useState<{ id: string; status: string; error?: string | null } | null>(null);
@@ -124,6 +126,8 @@ export const OnboardingClientDrawer: React.FC<{
     supabase.from('client_audits').select('created_at, data').eq('client_id', client.id).eq('kind', 'xray')
       .order('created_at', { ascending: false }).limit(1).maybeSingle()
       .then(({ data }) => { if (alive) { setXrayAt((data as any)?.created_at || null); setXrayData((data as any)?.data || null); } });
+    supabase.from('clients').select('xray_public_token').eq('id', client.id).maybeSingle()
+      .then(({ data }) => { if (alive) setXrayToken((data as any)?.xray_public_token || null); });
     return () => { alive = false; };
   }, [client.id]);
 
@@ -199,6 +203,20 @@ export const OnboardingClientDrawer: React.FC<{
     const { data } = await supabase.from('client_audits').select('created_at, data').eq('client_id', client.id).eq('kind', 'xray')
       .order('created_at', { ascending: false }).limit(1).maybeSingle();
     setXrayAt((data as any)?.created_at || null); setXrayData((data as any)?.data || null);
+  });
+  // Link público do Raio-X (/x/<token>): um por cliente, sempre com o Raio-X mais recente
+  const xrayLink = xrayToken ? `${getAppUrl()}/x/${xrayToken}` : '';
+  const shareXray = () => run('xray-link', async () => {
+    let tok = xrayToken;
+    if (!tok) {
+      tok = Array.from(crypto.getRandomValues(new Uint8Array(16))).map(b => b.toString(16).padStart(2, '0')).join('');
+      const { error } = await supabase.from('clients').update({ xray_public_token: tok }).eq('id', client.id);
+      if (error) return error.message;
+      setXrayToken(tok);
+    }
+    navigator.clipboard?.writeText(`${getAppUrl()}/x/${tok}`);
+    setXrayCopied(true); setTimeout(() => setXrayCopied(false), 1800);
+    return null;
   });
   const goLive = () => run('live', async () => {
     const { error } = await supabase.from('clients').update({ campaign_live_at: new Date().toISOString(), client_status: 'active', is_active: true }).eq('id', client.id);
@@ -525,7 +543,7 @@ export const OnboardingClientDrawer: React.FC<{
           )}
 
           {/* ---------------- RAIO-X ---------------- */}
-          {tab === 'raiox' && <XrayPanel data={xrayData} at={xrayAt} busy={busy === 'xray'} onRun={runXray} canRun={!!tsd.website_url || !!client.instagram || !!tsd.instagram_url} />}
+          {tab === 'raiox' && <XrayPanel data={xrayData} at={xrayAt} busy={busy === 'xray'} onRun={runXray} canRun={!!tsd.website_url || !!client.instagram || !!tsd.instagram_url} link={xrayLink} onShare={shareXray} sharing={busy === 'xray-link'} copied={xrayCopied} />}
 
           {/* ---------------- ACESSOS ---------------- */}
           {tab === 'acessos' && (
@@ -819,7 +837,7 @@ const StrategyDetails: React.FC<{ strategy: StrategyFull; lang: 'pt' | 'en' | 'e
 };
 
 /** Raio-X do site e do Instagram: o que a equipe mostra na reunião de fechamento. */
-const XrayPanel: React.FC<{ data: any; at: string | null; busy: boolean; onRun: () => void; canRun: boolean }> = ({ data, at, busy, onRun, canRun }) => {
+const XrayPanel: React.FC<{ data: any; at: string | null; busy: boolean; onRun: () => void; canRun: boolean; link: string; onShare: () => void; sharing: boolean; copied: boolean }> = ({ data, at, busy, onRun, canRun, link, onShare, sharing, copied }) => {
   const x = summarizeXray(data);
   const runBtn = (
     <button disabled={busy || !canRun} onClick={onRun} className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gray-900 text-white text-sm font-semibold disabled:opacity-50">
@@ -873,7 +891,14 @@ const XrayPanel: React.FC<{ data: any; at: string | null; busy: boolean; onRun: 
             ) : <p className="mt-2 text-sm text-gray-400">Não lido</p>}
           </div>
         </div>
-        <div className="mt-4">{runBtn}</div>
+        <div className="mt-4 flex flex-wrap gap-2">
+          {runBtn}
+          <button disabled={sharing} onClick={onShare} className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-gray-200 bg-white text-sm font-semibold text-gray-800 hover:bg-gray-50 disabled:opacity-50">
+            {copied ? <Check size={15} className="text-emerald-600" /> : <Copy size={15} />}{copied ? 'Link copiado' : 'Copiar link para o cliente'}
+          </button>
+          {link && <a href={link} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-gray-200 bg-white text-sm font-semibold text-gray-800 hover:bg-gray-50"><ExternalLink size={15} />Abrir a página</a>}
+        </div>
+        <p className="text-xs text-gray-500 mt-2">A página do Raio-X é o material da reunião de fechamento. O link é sempre o mesmo e mostra o Raio-X mais recente, no idioma do cliente.</p>
       </Card>
 
       {tr && (

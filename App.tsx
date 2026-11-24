@@ -15,6 +15,7 @@ import { ClientChecklistView } from './components/agency/ClientChecklistView';
 import { BriefingOnboarding } from './components/BriefingOnboarding';
 import { ClientStartCard, isStarterClient, clientLang } from './components/strategy/ClientStartCard';
 import { StrategyPublicPage } from './components/strategy/StrategyPublicPage';
+import { XrayPublicPage } from './components/strategy/XrayPublicPage';
 import { tr } from './lib/accessGuides';
 import { ClientHome } from './components/ClientHome';
 import { BriefingsView } from './components/BriefingsView';
@@ -879,6 +880,12 @@ const App: React.FC = () => {
   const strategyMatch = typeof window !== 'undefined' ? window.location.pathname.match(/^\/e\/([a-f0-9]{32})\/?$/) : null;
   if (strategyMatch) {
     return <StrategyPublicPage token={strategyMatch[1]} />;
+  }
+
+  // Raio-X como página pública: /x/<token> (material da reunião de fechamento)
+  const xrayMatch = typeof window !== 'undefined' ? window.location.pathname.match(/^\/x\/([a-f0-9]{32})\/?$/) : null;
+  if (xrayMatch) {
+    return <XrayPublicPage token={xrayMatch[1]} />;
   }
 
   // Proposta gerada na Bolsa: /p/<slug> (as estáticas, como a do Álvaro, continuam em public/propostas)
