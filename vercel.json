@@ -1,6 +1,10 @@
 {
   "rewrites": [
     {
+      "source": "/guia-socios",
+      "destination": "/guias/joey/socios.html"
+    },
+    {
       "source": "/p/alvaro-petrus",
       "destination": "/propostas/alvaro-petrus.html"
     },
