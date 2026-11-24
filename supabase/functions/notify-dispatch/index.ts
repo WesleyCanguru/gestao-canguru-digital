@@ -2,7 +2,7 @@
 // Avisos da equipe também vão para o Telegram (se TELEGRAM_BOT_TOKEN e TELEGRAM_CHAT_ID existirem)
 // e, no caso de cadastro concluído, como notificação no iPhone/Mac (OneSignal).
 // Linhas com audience 'telegram' (proposta aberta, estratégia, criativos) vão só para o Telegram.
-// Chamado pelo pg_cron a cada 5 minutos. Sem login de propósito: só processa a fila (idempotente).
+// Chamado pelo pg_cron a cada 5 minutos. Exige o header x-cron-secret (conferido no banco por check_cron_secret).
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { brandOf, layout, fmtPostDate, T, Lang, sendEmail, teamRecipients } from "./mail.ts";
 import { sendTelegram, telegramReady, tgEsc } from "./telegram.ts";
@@ -20,7 +20,9 @@ async function mark(ids: string[], patch: Record<string, unknown>) {
 const TG_ICON: Record<string, string> = { post_approved: "✅", post_changes_requested: "✏️", post_rejected: "❌", access_help: "🆘", health_drop: "📉", signup_done: "🎉" };
 const LANG_NAME: Record<string, string> = { pt: "português", en: "inglês", es: "espanhol" };
 
-Deno.serve(async () => {
+Deno.serve(async (req) => {
+  const { data: okSecret } = await db.rpc("check_cron_secret", { p_secret: req.headers.get("x-cron-secret") ?? "" });
+  if (okSecret !== true) return json({ error: "unauthorized" }, 401);
   const now = new Date();
   const report: Record<string, number> = { client: 0, team: 0, reminders: 0, skipped: 0, failed: 0, telegram: 0, telegram_failed: 0, push: 0, push_failed: 0 };
   const { data: agencies } = await db.from("agencies").select("id, name, logo_url, domain, primary_color, access_email");
