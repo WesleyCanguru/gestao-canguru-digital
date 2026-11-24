@@ -67,6 +67,11 @@ export default async function handler(req: Request): Promise<Response> {
     ? { title: 'Pouch • Joey Growth', description: 'The Joey Growth client portal: ads, leads, approvals and reports, live.', image: '/pouch/og/og-pouch.png', siteName: 'Pouch · Joey Growth', pouch }
     : { title: 'Bolsa • Canguru Digital', description: 'Bolsa, a plataforma da Canguru Digital.', siteName: 'Bolsa · Canguru Digital', pouch };
 
+  if (/^x\/[a-f0-9]{32}\/?$/.test(path)) {
+    m.title = pouch ? 'Growth X-Ray · Joey Growth' : 'Raio-X · Canguru Digital';
+    m.description = pouch ? 'Where your business stands today: website speed, ad tracking and Instagram.' : 'Onde a sua empresa está hoje: velocidade do site, rastreamento dos anúncios e Instagram.';
+  }
+
   const g = path.match(/^g\/([a-z0-9-]{3,80})\/?$/);
   if (g) {
     const row = await guideMeta(g[1]);

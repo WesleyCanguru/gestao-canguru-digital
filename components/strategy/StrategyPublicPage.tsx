@@ -503,7 +503,7 @@ export const StrategyPublicPage: React.FC<{ token: string; initial?: PageData }>
 };
 
 /** Estilos da página (usam as variáveis do tema). */
-const STP_CSS = `
+export const STP_CSS = `
 .stp{font-size:16px;line-height:1.55}
 .stp *{box-sizing:border-box}
 .stp-wrap{max-width:1040px;margin:0 auto;padding:28px 16px 140px}
