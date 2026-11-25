@@ -537,6 +537,8 @@ export interface KanbanStage {
   loss_reasons?: string[];
   /** Só na etapa "perdido": meta de taxa de resposta (%) da prospecção. Liga o funil de prospecção no painel. */
   response_target?: number;
+  /** Cadência de follow-up desta etapa (ver lib/followups.ts). */
+  followup?: import('./supabase/functions/_shared/followups-core').FollowUpCadence;
 }
 
 export interface FormField {

@@ -46,6 +46,21 @@ const SortableStage: React.FC<{ stage: KanbanStage, onUpdate: (s: KanbanStage) =
         />
         <span className="text-xs text-gray-500">dias auto</span>
       </div>
+      {stage.followup?.mode === 'date' ? (
+        <span className="w-40 text-[11px] text-sky-700 font-semibold" title="Follow-up na data escolhida ao mover o lead">🔁 retomar por data</span>
+      ) : (
+        <input
+          type="text"
+          value={(stage.followup?.days || []).join(', ')}
+          onChange={(e) => {
+            const days = e.target.value.split(/[,;\s]+/).map(v => parseInt(v, 10)).filter(n => Number.isFinite(n) && n >= 0);
+            onUpdate({ ...stage, followup: days.length ? { ...(stage.followup || {}), days } : undefined });
+          }}
+          className="w-40 px-2 py-1.5 bg-gray-50 border border-gray-200 rounded-lg text-sm"
+          placeholder="Follow-ups: 2, 5"
+          title="Dias úteis depois de entrar na etapa para cada follow-up. Ex.: 2, 5"
+        />
+      )}
       <button onClick={onRemove} className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg">
         <Trash2 className="w-4 h-4" />
       </button>
