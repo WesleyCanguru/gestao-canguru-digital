@@ -418,6 +418,42 @@ export const CRMBoard: React.FC<CRMBoardProps> = ({ crm }) => {
       s.name.toLowerCase() !== 'perdido' && s.name.toLowerCase() !== 'fechado'
     );
 
+    // Funil de prospecção: só para CRMs com meta de resposta configurada na etapa "perdido".
+    const prospecting = (() => {
+      const lostCfg = crm.kanban_stages.find(s => s.id === 'perdido');
+      if (!lostCfg || typeof lostCfg.response_target !== 'number') return null;
+      const order = crm.kanban_stages.map(s => s.name);
+      const idx = (name: string) => order.indexOf(name);
+      const sentIdx = 1; // segunda etapa = mensagem enviada
+      const meetingIdx = crm.kanban_stages.findIndex(s => /reuni/i.test(s.name) || s.id.startsWith('reuniao'));
+      const noReply = ['Não respondeu'];
+      const invalid = (r?: string | null) => !!r && /contato inválido/i.test(r);
+      let contacted = 0, replied = 0, meetings = 0, closed = 0;
+      filteredLeads.forEach(l => {
+        const i = idx(l.stage);
+        const isLost = l.stage === lostCfg.name;
+        if (isLost) {
+          if (invalid(l.loss_reason)) return;
+          contacted++;
+          if (l.loss_reason && !noReply.includes(l.loss_reason)) replied++;
+          return;
+        }
+        if (i < sentIdx) return;
+        contacted++;
+        if (i > sentIdx) replied++;
+        if (meetingIdx > 0 && i >= meetingIdx) meetings++;
+        if (crm.kanban_stages[i]?.id === 'fechado') closed++;
+      });
+      const pct = (a: number, b: number) => (b > 0 ? (a / b) * 100 : 0);
+      return {
+        target: lostCfg.response_target,
+        contacted, replied, meetings, closed,
+        replyRate: pct(replied, contacted),
+        meetingRate: pct(meetings, replied),
+        closeRate: pct(closed, contacted),
+      };
+    })();
+
     const lossReasonsCounts = (() => {
       const countsMap: Record<string, number> = {};
       perdidosLeads.forEach(l => {
@@ -440,7 +476,8 @@ export const CRMBoard: React.FC<CRMBoardProps> = ({ crm }) => {
       fechadoCount: fechadosLeads.length,
       activePipelineCount: activePipelineLeads.length,
       coldStages,
-      lossReasonsCounts
+      lossReasonsCounts,
+      prospecting
     };
   }, [filteredLeads, leads.length, crm.kanban_stages]);
 
@@ -687,6 +724,43 @@ export const CRMBoard: React.FC<CRMBoardProps> = ({ crm }) => {
                 </p>
               </div>
             </div>
+
+            {/* Funil de prospecção (só CRMs com meta de resposta) */}
+            {dashboardStats.prospecting && (() => {
+              const p = dashboardStats.prospecting;
+              const ok = p.replyRate >= p.target;
+              const steps = [
+                { label: 'Contatados', value: p.contacted, sub: 'saíram de "A Contatar"' },
+                { label: 'Responderam', value: p.replied, sub: `${p.replyRate.toFixed(1)}% dos contatados` },
+                { label: 'Reuniões', value: p.meetings, sub: `${p.meetingRate.toFixed(1)}% de quem respondeu` },
+                { label: 'Fechados', value: p.closed, sub: `${p.closeRate.toFixed(1)}% dos contatados` },
+              ];
+              return (
+                <div className="bg-white rounded-3xl border border-gray-100 p-6 shadow-sm space-y-4">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <h3 className="font-bold text-gray-900 text-lg">Funil de Prospecção</h3>
+                      <p className="text-xs text-gray-400 font-medium">Quem foi abordado, quem respondeu e quem virou reunião</p>
+                    </div>
+                    <div className={`px-3 py-2 rounded-2xl border text-right ${ok ? 'bg-emerald-50 border-emerald-200' : 'bg-amber-50 border-amber-200'}`}>
+                      <div className={`text-[10px] font-bold uppercase tracking-wider ${ok ? 'text-emerald-700' : 'text-amber-700'}`}>Taxa de resposta</div>
+                      <div className={`text-2xl font-black ${ok ? 'text-emerald-700' : 'text-amber-700'}`}>{p.replyRate.toFixed(1)}%</div>
+                      <div className="text-[10px] font-medium text-gray-500">meta {p.target}% · {ok ? 'na meta' : 'abaixo da meta'}</div>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    {steps.map(st => (
+                      <div key={st.label} className="bg-gray-50 rounded-2xl p-4">
+                        <div className="text-[11px] font-bold uppercase tracking-wider text-gray-500">{st.label}</div>
+                        <div className="text-2xl font-black text-gray-900 mt-1">{st.value}</div>
+                        <div className="text-[11px] text-gray-500 font-medium mt-0.5">{st.sub}</div>
+                      </div>
+                    ))}
+                  </div>
+                  <p className="text-[11px] text-gray-400">Resposta = o lead passou de "Mensagem Enviada" ou foi marcado como perdido com motivo diferente de "Não respondeu". Contato inválido não conta como contatado.</p>
+                </div>
+              );
+            })()}
 
             {/* Grid Inferior: Gráfico de Barras & Motivos de Perda */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

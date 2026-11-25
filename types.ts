@@ -535,6 +535,8 @@ export interface KanbanStage {
   auto_advance_days: number | null;
   /** Só na etapa "perdido": motivos de perda próprios deste CRM. */
   loss_reasons?: string[];
+  /** Só na etapa "perdido": meta de taxa de resposta (%) da prospecção. Liga o funil de prospecção no painel. */
+  response_target?: number;
 }
 
 export interface FormField {
