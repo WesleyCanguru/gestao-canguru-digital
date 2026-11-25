@@ -2,6 +2,7 @@ import React from 'react';
 import { Clock, AlertCircle, ArrowRight } from 'lucide-react';
 import { AgencyCRM, AgencyLead } from '../../types';
 import { useAgencyCRM } from '../../hooks/useAgencyCRM';
+import type { FollowUpDue } from '../../lib/followups';
 
 const formatInstagramUrl = (handle: string) => {
   const clean = handle.trim().replace(/^@/, '');
@@ -113,9 +114,10 @@ interface CRMLeadCardProps {
   crm: AgencyCRM;
   onClick: () => void;
   onMoveStage?: (lead: AgencyLead, stageName: string) => void;
+  followUp?: FollowUpDue;
 }
 
-export const CRMLeadCard: React.FC<CRMLeadCardProps> = ({ lead, crm, onClick, onMoveStage }) => {
+export const CRMLeadCard: React.FC<CRMLeadCardProps> = ({ lead, crm, onClick, onMoveStage, followUp }) => {
   const { moveLeadToStage } = useAgencyCRM();
 
   // Find the first form field that has a value to display
@@ -245,6 +247,15 @@ export const CRMLeadCard: React.FC<CRMLeadCardProps> = ({ lead, crm, onClick, on
           </div>
         ) : null)}
 
+        {followUp && (followUp.status !== 'proximo' || followUp.isReturn) && (
+          <div className={`mb-1.5 inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full border ${followUp.status === 'atrasado' ? 'text-red-700 bg-red-50 border-red-100' : followUp.status === 'hoje' ? 'text-amber-700 bg-amber-50 border-amber-100' : 'text-sky-700 bg-sky-50 border-sky-100'}`}>
+            {followUp.isReturn
+              ? `🔁 Retomar ${followUp.status === 'proximo' ? 'em ' + followUp.dueAt.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }) : followUp.status === 'hoje' ? 'hoje' : `(atrasado ${followUp.daysLate}d)`}`
+              : followUp.isEnd
+                ? '📬 Encerrar: sem resposta'
+                : `📬 ${followUp.label} ${followUp.status === 'hoje' ? 'hoje' : `atrasado ${followUp.daysLate}d`}`}
+          </div>
+        )}
         {primaryValue && (
           <div className="text-xs text-gray-500 mb-3 line-clamp-1">
             <span className="font-medium text-gray-600">{primaryField?.label}:</span> {String(primaryValue)}

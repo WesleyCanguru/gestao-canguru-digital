@@ -2,6 +2,7 @@
 // Só o pg_cron chama: exige o header x-cron-secret (check_cron_secret). Manda para o chat do Wesley, no máximo 1 vez por dia (trava na email_outbox).
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { sendTelegram, telegramReady, tgEsc } from "./telegram.ts";
+import { computeFollowUp } from "../_shared/followups-core.ts";
 
 const db = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, { auth: { persistSession: false } });
 const json = (b: unknown, s = 200) => new Response(JSON.stringify(b), { status: s, headers: { "Content-Type": "application/json" } });
@@ -56,6 +57,19 @@ Deno.serve(async (req) => {
   // Leads dos clientes ontem
   const { data: leads } = await db.from("client_leads").select("client_id").gte("created_at", yStart.toISOString()).lt("created_at", todayStart.toISOString());
 
+  // Follow-ups do CRM da agência (só etapas com cadência configurada)
+  const { data: crmsAll } = await db.from("agency_crms").select("id, name, agency_id, kanban_stages");
+  const crmsFu = (crmsAll || []).filter((c: any) => (c.kanban_stages || []).some((s: any) => s.followup));
+  const crmIds = crmsFu.map((c: any) => c.id);
+  const { data: fuLeads } = crmIds.length ? await db.from("agency_leads").select("id, name, stage, stage_entered_at, created_at, form_data, crm_id").in("crm_id", crmIds) : { data: [] as any[] };
+  const { data: fuHist } = crmIds.length ? await db.from("agency_lead_followups").select("lead_id, stage, step, outcome, created_at").in("crm_id", crmIds) : { data: [] as any[] };
+  const brNow = new Date(`${sp.iso}T12:00:00`);
+  const fuDue = (fuLeads || []).map((l: any) => {
+    const crm = crmsFu.find((c: any) => c.id === l.crm_id);
+    const due = crm ? computeFollowUp(l, crm.kanban_stages, (fuHist || []) as any, brNow) : null;
+    return due && due.status !== "proximo" ? { lead: l, crm, due } : null;
+  }).filter(Boolean) as any[];
+
   const countBy = (arr: any[], key: (x: any) => string) => { const m = new Map<string, number>(); for (const x of arr) { const k = key(x); m.set(k, (m.get(k) || 0) + 1); } return [...m.entries()].sort((a, b) => b[1] - a[1]); };
   const sections: string[] = [];
   for (const a of (agencies || []).sort((x: any, y: any) => x.id - y.id)) {
@@ -87,6 +101,14 @@ Deno.serve(async (req) => {
         const opens = ev.filter((e: any) => e.event_type === "open").length; const wa = ev.some((e: any) => e.event_type === "whatsapp_click");
         lines.push(`• ${tgEsc(p.prospect_name || p.title || "Proposta")}: ${opens}x${wa ? " · clicou no WhatsApp 💬" : ""}`);
       }
+    }
+    const fu = fuDue.filter((x: any) => x.crm.agency_id === a.id);
+    if (fu.length) {
+      const lateN = fu.filter((x: any) => x.due.status === "atrasado").length;
+      lines.push(`📬 <b>Follow-ups hoje (${fu.length})</b>${lateN ? ` · ${lateN} atrasados` : ""}`);
+      for (const [crmName, n] of countBy(fu, (x) => x.crm.name)) lines.push(`• ${tgEsc(crmName)}: ${n}`);
+      const top = fu.sort((x: any, y: any) => y.due.daysLate - x.due.daysLate).slice(0, 6);
+      for (const x of top) lines.push(`   ◦ ${tgEsc(x.lead.name)}: ${tgEsc(x.due.isEnd ? "encerrar" : x.due.isReturn ? "retomar" : x.due.label)}${x.due.daysLate ? ` (${x.due.daysLate}d)` : ""}`);
     }
     const ld = (leads || []).filter((l: any) => inAg(l.client_id));
     if (ld.length) lines.push(`📥 <b>Leads dos clientes ontem: ${ld.length}</b> (${countBy(ld, (l) => l.client_id).map(([cid, n]) => `${tgEsc(cm.get(cid)!.name)} ${n}`).join(", ")})`);

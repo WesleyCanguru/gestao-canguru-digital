@@ -44,6 +44,9 @@ import { useAgencyCRM } from '../../hooks/useAgencyCRM';
 import { CRMLeadCard } from './CRMLeadCard';
 import { CRMLeadModal } from './CRMLeadModal';
 import { SortableLeadCard } from './SortableLeadCard';
+import { FollowUpPanel } from './FollowUpPanel';
+import { useLeadFollowUps } from '../../hooks/useLeadFollowUps';
+import { computeFollowUp, FollowUpDue } from '../../lib/followups';
 import { parseCurrencyInput } from '../../lib/currencyUtils';
 
 class SmartMouseSensor extends MouseSensor {
@@ -110,6 +113,10 @@ interface CRMBoardProps {
 
 export const CRMBoard: React.FC<CRMBoardProps> = ({ crm }) => {
   const { leads, fetchLeads, moveLeadToStage, autoAdvanceLeads, addLead, updateLead } = useAgencyCRM();
+  const { history: followUpHistory, recordFollowUp } = useLeadFollowUps(crm.id);
+  const [returnModal, setReturnModal] = useState<{ isOpen: boolean; lead: AgencyLead | null; newStage: string }>({ isOpen: false, lead: null, newStage: '' });
+  const [returnDate, setReturnDate] = useState('');
+  const [returnNote, setReturnNote] = useState('');
   const [activeLead, setActiveLead] = useState<AgencyLead | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedLead, setSelectedLead] = useState<AgencyLead | null>(null);
@@ -211,7 +218,13 @@ export const CRMBoard: React.FC<CRMBoardProps> = ({ crm }) => {
                       crm.kanban_stages.find(s => s.name === targetStageName)?.id === 'perdido';
     const isPropostaOuNegociacao = isNegotiationOrProposalStage(targetStageName);
 
-    if (isPerdido) {
+    const isRetomar = crm.kanban_stages.find(s => s.name === targetStageName)?.followup?.mode === 'date';
+    if (isRetomar) {
+      const d = new Date(); d.setDate(d.getDate() + 30);
+      setReturnDate(lead.form_data?.retomar_em || d.toISOString().slice(0, 10));
+      setReturnNote(lead.form_data?.retomar_nota || '');
+      setReturnModal({ isOpen: true, lead, newStage: targetStageName });
+    } else if (isPerdido) {
       setLossReasonModal({ isOpen: true, lead, newStage: targetStageName });
       setSelectedLossReason('');
       setCustomLossReason('');
@@ -270,6 +283,41 @@ export const CRMBoard: React.FC<CRMBoardProps> = ({ crm }) => {
       setSelectedLossReason('');
       setCustomLossReason('');
     }
+  };
+
+  const handleConfirmReturn = async () => {
+    const lead = returnModal.lead;
+    if (!lead || !returnDate) return;
+    await moveLeadToStage(lead, returnModal.newStage, crm.kanban_stages, crm.auto_advance_time);
+    await updateLead(lead.id, { form_data: { ...(lead.form_data || {}), retomar_em: returnDate, retomar_nota: returnNote.trim() } });
+    setReturnModal({ isOpen: false, lead: null, newStage: '' });
+  };
+
+  // --- Follow-ups ---
+  const followUpByLead = React.useMemo(() => {
+    const map: Record<string, FollowUpDue> = {};
+    const today = new Date();
+    leads.forEach(l => {
+      const due = computeFollowUp(l, crm.kanban_stages, followUpHistory, today);
+      if (due) map[l.id] = due;
+    });
+    return map;
+  }, [leads, followUpHistory, crm.kanban_stages]);
+
+  const handleFollowUpRecord = async (lead: AgencyLead, due: FollowUpDue, outcome: 'feito' | 'pulado') => {
+    await recordFollowUp(lead.id, due.stageName, due.step, outcome);
+  };
+
+  const handleFollowUpReplied = async (lead: AgencyLead) => {
+    const target = crm.kanban_stages.find(s => s.id === 'em_conversa') || crm.kanban_stages.find(s => /conversa/i.test(s.name));
+    if (target && target.name !== lead.stage) await moveLeadToStage(lead, target.name, crm.kanban_stages, crm.auto_advance_time);
+  };
+
+  const handleFollowUpLose = async (lead: AgencyLead) => {
+    const lost = crm.kanban_stages.find(s => s.id === 'perdido');
+    if (!lost) return;
+    await moveLeadToStage(lead, lost.name, crm.kanban_stages, crm.auto_advance_time);
+    await updateLead(lead.id, { loss_reason: 'Não respondeu' });
   };
 
   const handleConfirmProposalValue = async (skip: boolean) => {
@@ -429,18 +477,24 @@ export const CRMBoard: React.FC<CRMBoardProps> = ({ crm }) => {
       const noReply = ['Não respondeu'];
       const invalid = (r?: string | null) => !!r && /contato inválido/i.test(r);
       let contacted = 0, replied = 0, meetings = 0, closed = 0;
+      const sentName = crm.kanban_stages[sentIdx]?.name;
+      const byStep: number[] = [0, 0, 0];
+      const countReply = (leadId: string) => {
+        const n = followUpHistory.filter(h => h.lead_id === leadId && h.stage === sentName && h.outcome === 'feito').length;
+        byStep[Math.min(n, 2)]++;
+      };
       filteredLeads.forEach(l => {
         const i = idx(l.stage);
         const isLost = l.stage === lostCfg.name;
         if (isLost) {
           if (invalid(l.loss_reason)) return;
           contacted++;
-          if (l.loss_reason && !noReply.includes(l.loss_reason)) replied++;
+          if (l.loss_reason && !noReply.includes(l.loss_reason)) { replied++; countReply(l.id); }
           return;
         }
         if (i < sentIdx) return;
         contacted++;
-        if (i > sentIdx) replied++;
+        if (i > sentIdx) { replied++; countReply(l.id); }
         if (meetingIdx > 0 && i >= meetingIdx) meetings++;
         if (crm.kanban_stages[i]?.id === 'fechado') closed++;
       });
@@ -451,6 +505,7 @@ export const CRMBoard: React.FC<CRMBoardProps> = ({ crm }) => {
         replyRate: pct(replied, contacted),
         meetingRate: pct(meetings, replied),
         closeRate: pct(closed, contacted),
+        repliesByStep: byStep,
       };
     })();
 
@@ -479,7 +534,7 @@ export const CRMBoard: React.FC<CRMBoardProps> = ({ crm }) => {
       lossReasonsCounts,
       prospecting
     };
-  }, [filteredLeads, leads.length, crm.kanban_stages]);
+  }, [filteredLeads, leads.length, crm.kanban_stages, followUpHistory]);
 
   return (
     <div className="flex flex-col bg-gray-50/25">
@@ -629,6 +684,16 @@ export const CRMBoard: React.FC<CRMBoardProps> = ({ crm }) => {
               </div>
             </div>
 
+            <FollowUpPanel
+              crm={crm}
+              leads={leads}
+              history={followUpHistory}
+              onRecord={handleFollowUpRecord}
+              onReplied={handleFollowUpReplied}
+              onLose={handleFollowUpLose}
+              onOpenLead={(lead) => { setSelectedLead(lead); setIsModalOpen(true); }}
+            />
+
             {/* Board Header de controles menores e mais discretos */}
             <div className="px-6 py-2.5 bg-gray-50/80 border-t border-gray-100 flex items-center justify-between">
               <div className="text-xs font-bold text-gray-500 flex items-center gap-1.5">
@@ -756,6 +821,12 @@ export const CRMBoard: React.FC<CRMBoardProps> = ({ crm }) => {
                         <div className="text-[11px] text-gray-500 font-medium mt-0.5">{st.sub}</div>
                       </div>
                     ))}
+                  </div>
+                  <div className="flex flex-wrap gap-2 text-xs">
+                    <span className="font-bold text-gray-600">Respostas por mensagem:</span>
+                    <span className="px-2 py-0.5 rounded-full bg-gray-100 text-gray-700">1ª mensagem: {p.repliesByStep[0]}</span>
+                    <span className="px-2 py-0.5 rounded-full bg-gray-100 text-gray-700">após follow-up 1: {p.repliesByStep[1]}</span>
+                    <span className="px-2 py-0.5 rounded-full bg-gray-100 text-gray-700">após follow-up 2: {p.repliesByStep[2]}</span>
                   </div>
                   <p className="text-[11px] text-gray-400">Resposta = o lead passou de "Mensagem Enviada" ou foi marcado como perdido com motivo diferente de "Não respondeu". Contato inválido não conta como contatado.</p>
                 </div>
@@ -937,6 +1008,7 @@ export const CRMBoard: React.FC<CRMBoardProps> = ({ crm }) => {
                                   setIsModalOpen(true);
                                 }}
                                 onMoveStage={handleMoveStageRequest}
+                                followUp={followUpByLead[lead.id]}
                               />
                             ))}
                           </SortableContext>
@@ -1035,6 +1107,11 @@ export const CRMBoard: React.FC<CRMBoardProps> = ({ crm }) => {
                                         {lead.loss_reason && (
                                           <span className="text-[10px] font-semibold text-red-600 bg-red-50 border border-red-100 px-2 py-0.5 rounded">
                                             Motivo: {lead.loss_reason}
+                                          </span>
+                                        )}
+                                        {followUpByLead[lead.id] && followUpByLead[lead.id].status !== 'proximo' && (
+                                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded border ${followUpByLead[lead.id].status === 'atrasado' ? 'text-red-700 bg-red-50 border-red-100' : 'text-amber-700 bg-amber-50 border-amber-100'}`}>
+                                            📬 {followUpByLead[lead.id].status === 'atrasado' ? `Follow-up atrasado ${followUpByLead[lead.id].daysLate}d` : 'Follow-up hoje'}
                                           </span>
                                         )}
                                       </div>
@@ -1380,6 +1457,33 @@ export const CRMBoard: React.FC<CRMBoardProps> = ({ crm }) => {
             setSelectedLead(null);
           }}
         />
+      )}
+
+      {/* Retomar depois Modal */}
+      {returnModal.isOpen && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+            <div className="px-6 py-4 border-b border-gray-100 bg-gray-50/50">
+              <h2 className="text-lg font-bold text-sky-700 flex items-center gap-2"><span>🔁</span> Retomar depois</h2>
+              <p className="text-xs text-gray-500 mt-1">{returnModal.lead?.name}</p>
+            </div>
+            <div className="p-6 space-y-4">
+              <label className="block text-sm font-semibold text-gray-700">
+                Retomar em
+                <input type="date" value={returnDate} onChange={e => setReturnDate(e.target.value)} className="mt-1 w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm" />
+              </label>
+              <label className="block text-sm font-semibold text-gray-700">
+                Nota (motivo e o que combinar na volta)
+                <textarea value={returnNote} onChange={e => setReturnNote(e.target.value)} rows={3} placeholder="Ex.: não investe agora · recebeu dica da tag em 25/11 · perguntar se instalou" className="mt-1 w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm" />
+              </label>
+              <p className="text-xs text-gray-500">Na data, o lead aparece em "Follow-ups de hoje" com a nota.</p>
+            </div>
+            <div className="px-6 py-4 border-t border-gray-100 flex justify-end gap-2">
+              <button onClick={() => setReturnModal({ isOpen: false, lead: null, newStage: '' })} className="px-4 py-2 text-sm font-semibold text-gray-600 hover:bg-gray-100 rounded-xl">Cancelar</button>
+              <button disabled={!returnDate} onClick={handleConfirmReturn} className="px-4 py-2 text-sm font-bold text-white bg-sky-600 hover:bg-sky-700 rounded-xl disabled:opacity-50">Salvar</button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Loss Reason Modal */}
