@@ -533,6 +533,8 @@ export interface KanbanStage {
   name: string;
   color: string;
   auto_advance_days: number | null;
+  /** Só na etapa "perdido": motivos de perda próprios deste CRM. */
+  loss_reasons?: string[];
 }
 
 export interface FormField {

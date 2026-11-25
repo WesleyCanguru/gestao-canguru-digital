@@ -1,3 +1,4 @@
+import { getLossReasonOptions } from '../../lib/lossReasons';
 import React, { useEffect, useState } from 'react';
 import { Plus, Search, LayoutGrid, List, Download, TrendingUp, CheckSquare, DollarSign, AlertCircle, Calendar, Users, Percent, FileText, Filter, Clock, ArrowRight, ChevronDown, ChevronRight } from 'lucide-react';
 
@@ -1310,7 +1311,7 @@ export const CRMBoard: React.FC<CRMBoardProps> = ({ crm }) => {
       {/* Loss Reason Modal */}
       {lossReasonModal.isOpen && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-200">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md flex flex-col overflow-hidden transform scale-95 transition-all duration-300">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg flex flex-col overflow-hidden transform scale-95 transition-all duration-300">
             <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
               <h2 className="text-lg font-bold text-red-600 flex items-center gap-2">
                 <span>❌</span> Marcar como Perdido
@@ -1321,8 +1322,8 @@ export const CRMBoard: React.FC<CRMBoardProps> = ({ crm }) => {
                 Por favor, selecione o motivo da perda do lead:
               </p>
               
-              <div className="space-y-2">
-                {["Não respondeu", "Achou caro", "Não era o momento", "Escolheu concorrente", "Outro"].map(option => (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-1 max-h-[50vh] overflow-y-auto">
+                {getLossReasonOptions(crm).map(option => (
                   <label key={option} className="flex items-center gap-3 p-2 hover:bg-gray-50 rounded-xl cursor-pointer transition-colors">
                     <input
                       type="radio"
