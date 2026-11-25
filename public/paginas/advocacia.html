@@ -184,8 +184,17 @@ body.locked main { visibility: hidden; }
 
   <section>
     <p class="eyebrow">Quem está por trás</p>
-    <h2>Canguru Digital, desde 2018</h2>
-    <p class="muted">Agência de marketing com quase 8 anos de mercado, 100% remota. Quem cuida da sua conta é o Wesley Camelo, fundador e gestor de tráfego. E toda a operação roda na Bolsa, o sistema que a gente mesmo desenvolveu para o cliente ver cada entrega.</p>
+    <h2>Quase 8 anos fazendo marketing que vira cliente</h2>
+    <div class="stats">
+      <div class="stat"><strong>2018</strong><span>no mercado desde então, atendendo serviços, comércio e escritórios</span></div>
+      <div class="stat"><strong>Sistema próprio</strong><span>a Bolsa, desenvolvida por nós para o cliente ver cada entrega</span></div>
+      <div class="stat"><strong>Brasil e EUA</strong><span>operação no Brasil e braço nos Estados Unidos, com o mesmo método</span></div>
+    </div>
+    <div class="card">
+      <h3>Wesley Camelo</h3>
+      <p style="color:var(--brand);font-weight:600;margin:2px 0 8px">Diretor de Growth e fundador da Canguru Digital</p>
+      <p>Estrategista de crescimento: une anúncio, página, atendimento e dados para que o investimento volte em cliente. É quem desenha a estratégia do seu escritório e acompanha os números de perto, com a equipe criativa e a Bolsa sustentando a operação.</p>
+    </div>
   </section>
 
   <div class="cta">
@@ -235,9 +244,10 @@ body.locked main { visibility: hidden; }
     document.body.classList.remove("locked");
     document.getElementById("gate").hidden = true;
     var first = me.name.split(/\s+/).slice(0, 2).join(" ");
-    document.getElementById("hello").textContent = "Olá, " + first + ". Aqui está como eu trabalho.";
+    document.getElementById("hello").textContent = noTrack ? "Prévia (sem rastreio)" : "Olá, " + first + ". Aqui está como eu trabalho.";
     var wa = document.getElementById("cta-wa");
-    wa.href = "https://wa.me/5511994075149?text=" + encodeURIComponent("Olá, Wesley! Aqui é " + me.name + ". Vi a página da Canguru Digital e quero conversar.");
+    var intro = noTrack ? "Olá, Wesley!" : "Olá, Wesley! Aqui é " + me.name + ".";
+    wa.href = "https://wa.me/5511994075149?text=" + encodeURIComponent(intro + " Vi a página da Canguru Digital e quero conversar.");
     wa.addEventListener("click", function () { send({ event: "whatsapp_click" }); });
 
     if (noTrack) return;
