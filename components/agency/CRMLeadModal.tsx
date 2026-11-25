@@ -1,3 +1,4 @@
+import { getLossReasonOptions, isPredefinedLossReason } from '../../lib/lossReasons';
 import React, { useState, useEffect } from 'react';
 import { X, Save, Trash2, Clock, Pause, Play, Edit, ExternalLink } from 'lucide-react';
 import { AgencyCRM, AgencyLead, FormField } from '../../types';
@@ -56,7 +57,7 @@ export const CRMLeadModal: React.FC<CRMLeadModalProps> = ({ crm, lead, isOpen, o
           : '50'
       );
       
-      const isPredefined = ["Não respondeu", "Achou caro", "Não era o momento", "Escolheu concorrente"].includes(lead.loss_reason || '');
+      const isPredefined = isPredefinedLossReason(crm, lead.loss_reason);
       const temp_loss_reason = lead.loss_reason 
         ? (isPredefined ? lead.loss_reason : 'Outro')
         : '';
@@ -224,7 +225,7 @@ export const CRMLeadModal: React.FC<CRMLeadModalProps> = ({ crm, lead, isOpen, o
         // Revert to original values and exit edit mode
         setName(lead.name);
         
-        const isPredefined = ["Não respondeu", "Achou caro", "Não era o momento", "Escolheu concorrente"].includes(lead.loss_reason || '');
+        const isPredefined = isPredefinedLossReason(crm, lead.loss_reason);
         const temp_loss_reason = lead.loss_reason 
           ? (isPredefined ? lead.loss_reason : 'Outro')
           : '';
@@ -385,7 +386,7 @@ export const CRMLeadModal: React.FC<CRMLeadModalProps> = ({ crm, lead, isOpen, o
               <div className="bg-red-50/50 border border-red-100 p-4 rounded-xl space-y-3">
                 <label className="block text-sm font-bold text-red-900">❌ Motivo da Perda</label>
                 <div className="space-y-2">
-                  {["Não respondeu", "Achou caro", "Não era o momento", "Escolheu concorrente", "Outro"].map(option => (
+                  {getLossReasonOptions(crm).map(option => (
                     <label key={option} className="flex items-center gap-3 cursor-pointer">
                       <input
                         type="radio"
