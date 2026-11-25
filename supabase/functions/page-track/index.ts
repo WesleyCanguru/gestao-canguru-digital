@@ -1,7 +1,8 @@
 // Rastreio das páginas comerciais com portão de nome (ex.: bolsa.cangurudigital.com.br/advocacia).
-// Sem login. A página manda: open (ao entrar), read_time (a cada 15 s e ao sair) e whatsapp_click.
+// Sem login. A página manda: open (ao entrar), read_time (a cada 15 s e ao sair), whatsapp_click e site_click
+// (clique no link do site cangurudigital.com.br).
 // Grava em page_visits e avisa no Telegram: abertura (com nº da visita), tempo na página ao sair
-// (só quando subiu 30 s ou mais desde o último aviso daquela sessão) e clique no WhatsApp.
+// (só quando subiu 30 s ou mais desde o último aviso daquela sessão), clique no WhatsApp e clique no site.
 // Aceita corpo em text/plain (fetch keepalive sem preflight).
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 import { sendTelegram, tgEsc } from "./telegram.ts";
@@ -31,7 +32,7 @@ Deno.serve(async (req) => {
     const { page, event, visitor, session, name, seconds, city, region, country } = body ?? {};
     const cfg = typeof page === "string" ? PAGES[page] : undefined;
     if (!cfg) return json({ error: "bad page" }, 400);
-    if (!["open", "read_time", "whatsapp_click"].includes(event)) return json({ error: "bad event" }, 400);
+    if (!["open", "read_time", "whatsapp_click", "site_click"].includes(event)) return json({ error: "bad event" }, 400);
     if (!idOk(visitor) || !idOk(session)) return json({ error: "bad id" }, 400);
     const who = clip(name, 80);
     if (!who) return json({ error: "name required" }, 400);
@@ -69,6 +70,12 @@ Deno.serve(async (req) => {
         await db.from("page_visits").insert({ agency_id: cfg.agency, page_slug: page, visitor_id: visitor, visitor_name: who, session_id: session, event_type: "read_time", seconds: secs, notified_seconds: notified });
       }
       if (shouldTell) await sendTelegram(`⏱ <b>${tgEsc(who)}</b> ficou <b>${fmtDur(secs)}</b> na página <i>${label}</i>`);
+      return json({ ok: true });
+    }
+
+    if (event === "site_click") {
+      await db.from("page_visits").insert({ agency_id: cfg.agency, page_slug: page, visitor_id: visitor, visitor_name: who, session_id: session, event_type: "site_click" });
+      await sendTelegram(`🌐 <b>${tgEsc(who)}</b> clicou no site da Canguru a partir da página <i>${label}</i>`);
       return json({ ok: true });
     }
 

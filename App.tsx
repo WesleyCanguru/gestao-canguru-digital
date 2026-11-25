@@ -93,7 +93,7 @@ const MainApp: React.FC<MainAppProps> = ({ initialView, onExitAgencyDashboard, o
     // ?tab=propostas (ou outra aba da agência) abre direto nela; usado pelo botão Fechar da visualização da proposta/estratégia
     if (typeof window === 'undefined') return 'home';
     const tab = new URLSearchParams(window.location.search).get('tab');
-    return tab && ['propostas', 'onboarding', 'contratos', 'prospeccao', 'financeiro', 'tasks', 'clientes', 'guias', 'documentos', 'relatorios'].includes(tab) ? tab : 'home';
+    return tab && ['propostas', 'paginas', 'onboarding', 'contratos', 'prospeccao', 'financeiro', 'tasks', 'clientes', 'guias', 'documentos', 'relatorios'].includes(tab) ? tab : 'home';
   });
   const [painelTab, setPainelTab] = useState<'dashboard' | 'publicacoes' | 'mapa'>('dashboard');
   const [painelFilterStatus, setPainelFilterStatus] = useState<string>('all');

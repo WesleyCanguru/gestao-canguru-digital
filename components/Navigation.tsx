@@ -36,6 +36,7 @@ import {
   CheckCircle2,
   Clock,
   Sparkles,
+  Presentation,
   PlayCircle,
   BarChart3,
   NotebookPen,
@@ -43,6 +44,7 @@ import {
   FolderLock
 } from 'lucide-react';
 import { useAuth, supabase } from '../lib/supabase';
+import { pagesForAgency } from './agency/PageVisitsPanel';
 import { Logo } from './Logo';
 import { Client } from '../types';
 
@@ -142,6 +144,7 @@ export const Navigation: React.FC<SidebarProps> = ({
   const allowed = (id: string) => {
     if (id === 'financeiro' || id === 'metas') return can('view_finance');
     if (id === 'equipe' || id === 'pessoas') return can('manage_team');
+    if (id === 'paginas') return pagesForAgency(agencyId).length > 0;
     return true;
   };
   const agencyGroups: NavGroup[] = ([
@@ -159,6 +162,7 @@ export const Navigation: React.FC<SidebarProps> = ({
       { id: 'onboarding', label: 'Onboarding', icon: Target },
       { id: 'contratos', label: 'Contratos', icon: FileText },
       { id: 'propostas', label: 'Propostas', icon: Sparkles },
+      { id: 'paginas', label: 'Páginas de apresentação', icon: Presentation },
     ] },
     { id: 'g-operacao', label: 'Operação', icon: ClipboardList, items: [
       { id: 'tasks', label: 'Processos & Tarefas', icon: ClipboardList },

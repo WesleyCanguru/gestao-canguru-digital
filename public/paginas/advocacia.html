@@ -13,7 +13,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap">
 <style>
-/* Página comercial com portão de nome. Rastreio em supabase/functions/page-track (tabela page_visits).
+/* Página comercial com portão de nome. Rastreio em supabase/functions/page-track (tabela page_visits): open, read_time, whatsapp_click e site_click.
    ?preview no link marca o aparelho como "não rastrear" (para o Wesley conferir sem gerar aviso). */
 :root {
   --bg: #F5F7FB; --paper: #FFFFFF; --ink: #13284D; --muted: #56647C; --line: #DCE3EE;
@@ -30,8 +30,9 @@
 html, body { margin: 0; }
 body { background: var(--bg); color: var(--ink); font-family: var(--body); font-size: 16px; line-height: 1.6; -webkit-font-smoothing: antialiased; }
 .wrap { max-width: 760px; margin: 0 auto; padding: 32px 16px 96px; }
-.brand { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding-bottom: 20px; border-bottom: 1px solid var(--line); }
-.brand b { font-size: 13px; letter-spacing: .14em; text-transform: uppercase; }
+.brand { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding-bottom: 20px; border-bottom: 1px solid var(--line); }
+.brand picture, .foot-logo { display: block; line-height: 0; }
+.foot-logo { margin: 0 auto 12px; width: max-content; }
 .brand span { font-size: 13px; color: var(--muted); }
 h1, h2, h3 { font-family: var(--display); font-weight: 600; line-height: 1.2; margin: 0; }
 h1 { font-size: clamp(30px, 6vw, 44px); margin-top: 36px; letter-spacing: -.01em; }
@@ -77,7 +78,8 @@ footer { margin-top: 40px; font-size: 13px; color: var(--muted); text-align: cen
 .gate[hidden] { display: none; }
 .gate-box { width: 100%; max-width: 420px; background: var(--paper); border: 1px solid var(--line); border-radius: 20px; padding: 28px 22px; }
 .gate-box b.k { font-size: 12px; letter-spacing: .14em; text-transform: uppercase; color: var(--brand); }
-.gate-box h2 { margin: 10px 0 6px; }
+.gate-box h2 { margin: 16px 0 6px; }
+.gate-logo { display: block; line-height: 0; }
 .gate-box p { color: var(--muted); font-size: 15px; }
 .gate-box label { display: block; font-size: 14px; font-weight: 600; margin: 16px 0 6px; }
 .gate-box input { width: 100%; font: inherit; font-size: 17px; padding: 12px 14px; border-radius: 12px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); }
@@ -90,7 +92,7 @@ body.locked main { visibility: hidden; }
 
 <div class="gate" id="gate" hidden>
   <form class="gate-box" id="gate-form" autocomplete="on">
-    <b class="k">Canguru Digital</b>
+    <picture class="gate-logo"><source srcset="/paginas/img/canguru-claro.png" media="(prefers-color-scheme: dark)"><img src="/paginas/img/canguru-azul.png" alt="Canguru Digital" width="480" height="221" style="height:44px;width:auto"></picture>
     <h2>Olá! Antes de começar, como posso te chamar?</h2>
     <p>É só para eu saber com quem estou falando. Não precisa de email nem cadastro.</p>
     <label for="gate-name">Seu nome</label>
@@ -101,7 +103,7 @@ body.locked main { visibility: hidden; }
 </div>
 
 <main class="wrap">
-  <div class="brand"><b>Canguru Digital</b><span>Google Ads para escritórios de advocacia</span></div>
+  <div class="brand"><picture class="top-logo"><source srcset="/paginas/img/canguru-claro.png" media="(prefers-color-scheme: dark)"><img src="/paginas/img/canguru-azul.png" alt="Canguru Digital" width="480" height="221" style="height:52px;width:auto"></picture><span>Google Ads para escritórios de advocacia</span></div>
 
   <p class="hello" id="hello"></p>
   <h1>Do anúncio no Google ao cliente no WhatsApp do escritório.</h1>
@@ -201,10 +203,10 @@ body.locked main { visibility: hidden; }
     <h2>Faz sentido conversar?</h2>
     <p class="muted">Me chama no WhatsApp e marcamos os 20 minutos no melhor horário para você.</p>
     <a class="btn" id="cta-wa" href="https://wa.me/5511994075149" target="_blank" rel="noopener">Falar com o Wesley no WhatsApp</a>
-    <p class="sig">Wesley Camelo · Canguru Digital · (11) 99407-5149<br><a href="https://www.cangurudigital.com.br/" target="_blank" rel="noopener" style="color:var(--brand)">cangurudigital.com.br</a></p>
+    <p class="sig">Wesley Camelo · Canguru Digital · (11) 99407-5149<br><a id="site-link" href="https://www.cangurudigital.com.br/" target="_blank" rel="noopener" style="color:var(--brand)">cangurudigital.com.br</a></p>
   </div>
 
-  <footer>Canguru Digital · Página de apresentação, sem valores.</footer>
+  <footer><picture class="foot-logo"><source srcset="/paginas/img/canguru-claro.png" media="(prefers-color-scheme: dark)"><img src="/paginas/img/canguru-azul.png" alt="Canguru Digital" width="480" height="221" style="height:40px;width:auto"></picture>Canguru Digital · Página de apresentação, sem valores.</footer>
 </main>
 
 <script>
@@ -249,6 +251,8 @@ body.locked main { visibility: hidden; }
     var intro = noTrack ? "Olá, Wesley!" : "Olá, Wesley! Aqui é " + me.name + ".";
     wa.href = "https://wa.me/5511994075149?text=" + encodeURIComponent(intro + " Vi a página da Canguru Digital e quero conversar.");
     wa.addEventListener("click", function () { send({ event: "whatsapp_click" }); });
+    var site = document.getElementById("site-link");
+    if (site) site.addEventListener("click", function () { send({ event: "site_click" }); });
 
     if (noTrack) return;
     fetch("/api/geo").then(function (r) { return r.json(); }).catch(function () { return {}; })
