@@ -13,6 +13,10 @@
       "destination": "/propostas/alvaro-petrus-360.html"
     },
     {
+      "source": "/advocacia",
+      "destination": "/paginas/advocacia.html"
+    },
+    {
       "source": "/g/:slug",
       "destination": "/api/share?path=g/:slug"
     },

@@ -1,0 +1,261 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Como trabalhamos · Canguru Digital</title>
+<meta name="description" content="Google Ads, página e atendimento para escritórios de advocacia: como a Canguru Digital trabalha.">
+<meta name="robots" content="noindex, nofollow">
+<meta property="og:title" content="Como a Canguru Digital trabalha com escritórios de advocacia">
+<meta property="og:description" content="Do anúncio no Google até o cliente no WhatsApp do escritório.">
+<meta property="og:site_name" content="Canguru Digital">
+<link rel="icon" href="/favicon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap">
+<style>
+/* Página comercial com portão de nome. Rastreio em supabase/functions/page-track (tabela page_visits).
+   ?preview no link marca o aparelho como "não rastrear" (para o Wesley conferir sem gerar aviso). */
+:root {
+  --bg: #F5F7FB; --paper: #FFFFFF; --ink: #13284D; --muted: #56647C; --line: #DCE3EE;
+  --brand: #456DA1; --brand-soft: #E9EFF8; --gold: #9A6A22; --ok: #1F7A4D; --wa: #15803D;
+  --display: "Fraunces", Georgia, "Times New Roman", serif;
+  --body: "Plus Jakarta Sans", "Segoe UI", system-ui, sans-serif;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #0D1626; --paper: #142036; --ink: #E8EEF8; --muted: #A9B8CE; --line: #24344F; --brand: #8FB0DD; --brand-soft: #1A2B47; --gold: #E2B26C; --ok: #5CC796; --wa: #16A34A; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #0D1626; --paper: #142036; --ink: #E8EEF8; --muted: #A9B8CE; --line: #24344F; --brand: #8FB0DD; --brand-soft: #1A2B47; --gold: #E2B26C; --ok: #5CC796; --wa: #16A34A; color-scheme: dark }
+
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body { background: var(--bg); color: var(--ink); font-family: var(--body); font-size: 16px; line-height: 1.6; -webkit-font-smoothing: antialiased; }
+.wrap { max-width: 760px; margin: 0 auto; padding: 32px 16px 96px; }
+.brand { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding-bottom: 20px; border-bottom: 1px solid var(--line); }
+.brand b { font-size: 13px; letter-spacing: .14em; text-transform: uppercase; }
+.brand span { font-size: 13px; color: var(--muted); }
+h1, h2, h3 { font-family: var(--display); font-weight: 600; line-height: 1.2; margin: 0; }
+h1 { font-size: clamp(30px, 6vw, 44px); margin-top: 36px; letter-spacing: -.01em; }
+h2 { font-size: clamp(22px, 4vw, 28px); margin-bottom: 14px; }
+h3 { font-size: 18px; font-family: var(--body); font-weight: 700; }
+.lede { font-size: 18px; color: var(--muted); margin: 16px 0 0; max-width: 620px; }
+.hello { font-size: 15px; color: var(--brand); font-weight: 600; margin: 28px 0 0; }
+section { margin-top: 56px; }
+.eyebrow { font-size: 12px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: var(--brand); margin: 0 0 8px; }
+p { margin: 0 0 12px; }
+.muted { color: var(--muted); }
+.list { list-style: none; padding: 0; margin: 0; display: grid; gap: 10px; }
+.list li { background: var(--paper); border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px; }
+.list li b { display: block; margin-bottom: 2px; }
+.list li span { color: var(--muted); font-size: 15px; }
+.grid { display: grid; gap: 12px; grid-template-columns: 1fr; }
+@media (min-width: 640px) { .grid { grid-template-columns: 1fr 1fr; } }
+.card { background: var(--paper); border: 1px solid var(--line); border-radius: 16px; padding: 18px; }
+.card .n { font-family: var(--display); font-size: 15px; color: var(--brand); font-weight: 600; }
+.card h3 { margin: 4px 0 6px; }
+.card p { color: var(--muted); font-size: 15px; margin: 0; }
+.case { background: var(--brand-soft); border-radius: 18px; padding: 24px 20px; }
+.stats { display: grid; gap: 12px; grid-template-columns: 1fr; margin: 18px 0 14px; }
+@media (min-width: 560px) { .stats { grid-template-columns: repeat(3, 1fr); } }
+.stat { background: var(--paper); border-radius: 14px; padding: 14px 16px; }
+.stat strong { display: block; font-family: var(--display); font-size: 28px; line-height: 1.1; }
+.stat span { font-size: 14px; color: var(--muted); }
+.note { font-size: 13px; color: var(--muted); }
+.steps { counter-reset: s; list-style: none; padding: 0; margin: 0; display: grid; gap: 14px; }
+.steps li { counter-increment: s; position: relative; padding-left: 48px; }
+.steps li::before { content: counter(s); position: absolute; left: 0; top: 0; width: 32px; height: 32px; border-radius: 50%; background: var(--brand); color: var(--paper); font-weight: 700; display: grid; place-items: center; font-size: 15px; }
+.steps li b { display: block; }
+.steps li span { color: var(--muted); font-size: 15px; }
+.price { border: 1px dashed var(--line); border-radius: 16px; padding: 20px; background: var(--paper); }
+.cta { margin-top: 56px; background: var(--paper); border: 1px solid var(--line); border-radius: 20px; padding: 28px 20px; text-align: center; }
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; background: var(--wa); color: #fff; font-weight: 700; text-decoration: none; padding: 14px 22px; border-radius: 12px; font-size: 16px; min-height: 48px; border: 0; cursor: pointer; font-family: inherit; }
+.btn:focus-visible, input:focus-visible { outline: 3px solid var(--brand); outline-offset: 2px; }
+.sig { margin-top: 18px; font-size: 14px; color: var(--muted); }
+footer { margin-top: 40px; font-size: 13px; color: var(--muted); text-align: center; }
+
+/* Portão de nome */
+.gate { position: fixed; inset: 0; background: var(--bg); display: grid; place-items: center; padding: 16px; z-index: 10; }
+.gate[hidden] { display: none; }
+.gate-box { width: 100%; max-width: 420px; background: var(--paper); border: 1px solid var(--line); border-radius: 20px; padding: 28px 22px; }
+.gate-box b.k { font-size: 12px; letter-spacing: .14em; text-transform: uppercase; color: var(--brand); }
+.gate-box h2 { margin: 10px 0 6px; }
+.gate-box p { color: var(--muted); font-size: 15px; }
+.gate-box label { display: block; font-size: 14px; font-weight: 600; margin: 16px 0 6px; }
+.gate-box input { width: 100%; font: inherit; font-size: 17px; padding: 12px 14px; border-radius: 12px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); }
+.gate-box .btn { width: 100%; margin-top: 14px; background: var(--brand); }
+.gate-box .err { color: #B42318; font-size: 14px; margin-top: 8px; min-height: 1em; }
+body.locked main { visibility: hidden; }
+</style>
+</head>
+<body class="locked">
+
+<div class="gate" id="gate" hidden>
+  <form class="gate-box" id="gate-form" autocomplete="on">
+    <b class="k">Canguru Digital</b>
+    <h2>Olá! Antes de começar, como posso te chamar?</h2>
+    <p>É só para eu saber com quem estou falando. Não precisa de email nem cadastro.</p>
+    <label for="gate-name">Seu nome</label>
+    <input id="gate-name" name="name" type="text" autocomplete="name" maxlength="80" required placeholder="Ex.: Dra. Ana">
+    <div class="err" id="gate-err" role="alert"></div>
+    <button class="btn" type="submit">Ver a página</button>
+  </form>
+</div>
+
+<main class="wrap">
+  <div class="brand"><b>Canguru Digital</b><span>Google Ads para escritórios de advocacia</span></div>
+
+  <p class="hello" id="hello"></p>
+  <h1>Do anúncio no Google ao cliente no WhatsApp do escritório.</h1>
+  <p class="lede">A gente cuida do caminho inteiro: quem pesquisa, o que vê, onde clica, quem responde e quanto disso vira consulta. Você acompanha tudo, sem relatório cheio de jargão.</p>
+
+  <section>
+    <p class="eyebrow">O que costuma dar errado</p>
+    <h2>Anúncio rodando não é o mesmo que cliente chegando</h2>
+    <ul class="list">
+      <li><b>O Google não sabe quem virou contato</b><span>Sem a medição de conversão, ele otimiza por clique e a verba vai para quem só está pesquisando.</span></li>
+      <li><b>O clique cai num formulário ou no site genérico</b><span>Quem procura advogado quer falar na hora. Cada passo a mais perde gente.</span></li>
+      <li><b>Palavras amplas demais</b><span>Pesquisas de estudante, de concurso e de "modelo grátis" consomem a verba sem trazer cliente.</span></li>
+      <li><b>O contato chega e ninguém acompanha</b><span>A conversa fica perdida no WhatsApp e ninguém sabe de qual anúncio veio.</span></li>
+      <li><b>O relatório fala de cliques, não de consultas</b><span>E fica impossível saber se o investimento está se pagando.</span></li>
+    </ul>
+  </section>
+
+  <section>
+    <p class="eyebrow">O que a gente faz</p>
+    <h2>Quatro peças que trabalham juntas</h2>
+    <div class="grid">
+      <div class="card"><span class="n">01</span><h3>Google Ads por área de atuação</h3><p>Campanhas separadas por situação concreta do cliente, palavras certas, proteção do nome do escritório e limpeza constante do que não traz consulta.</p></div>
+      <div class="card"><span class="n">02</span><h3>Página da área</h3><p>Uma página feita para quem clicou no anúncio, com o botão de WhatsApp na frente e linguagem clara, dentro das regras da OAB.</p></div>
+      <div class="card"><span class="n">03</span><h3>Medição de verdade</h3><p>Cada clique no WhatsApp, ligação ou formulário é registrado. O Google passa a buscar quem chama, não quem só olha.</p></div>
+      <div class="card"><span class="n">04</span><h3>Atendimento sob controle</h3><p>Todo contato entra num funil na Bolsa, nosso sistema: de onde veio, em que etapa está, quem respondeu. Com respostas prontas para o WhatsApp.</p></div>
+    </div>
+    <p class="muted" style="margin-top:14px">Toda semana você recebe um relatório curto: quantos contatos, quantas consultas e o que ajustamos. Se quiser, também cuidamos do Instagram do escritório.</p>
+  </section>
+
+  <section>
+    <p class="eyebrow">Dentro das regras</p>
+    <h2>Publicidade informativa, como pede o Provimento 205/2021</h2>
+    <p class="muted">Anúncios e páginas com caráter informativo, sem promessa de resultado, sem comparação com colegas e sem oferta de serviço. A gente já trabalha assim desde o primeiro texto, para você não precisar revisar tudo com lupa.</p>
+  </section>
+
+  <section class="case">
+    <p class="eyebrow">Um caso real</p>
+    <h2>Escritório de direito bancário, começando do zero no Google</h2>
+    <div class="stats">
+      <div class="stat"><strong>R$ 41 mil</strong><span>em contratos fechados em 5 meses</span></div>
+      <div class="stat"><strong>~R$ 900</strong><span>por mês de investimento no Google Ads</span></div>
+      <div class="stat"><strong>−62%</strong><span>no custo por contato em 3 semanas</span></div>
+    </div>
+    <p class="muted">O escritório não anunciava antes. A virada veio de duas escolhas: anunciar numa situação com honorário inicial (conta bloqueada judicialmente) e separar os anúncios pela situação real do cliente.</p>
+    <p class="note">Nome do escritório preservado. Resultados variam conforme área, cidade, verba e atendimento; não prometemos resultado, prometemos processo.</p>
+  </section>
+
+  <section>
+    <p class="eyebrow">Como começa</p>
+    <h2>Passo a passo, sem surpresa</h2>
+    <ol class="steps">
+      <li><b>Conversa de 20 minutos</b><span>Entendo as áreas do escritório, a cidade, o que já foi feito e onde está travando.</span></li>
+      <li><b>Diagnóstico do escritório no Google</b><span>Em 48 horas: quem aparece quando pesquisam o nome do escritório, perfil no Google, anúncios atuais e o caminho do contato até o WhatsApp.</span></li>
+      <li><b>Implantação</b><span>Campanhas, página, medição e funil montados. Você vê cada etapa andando na Bolsa.</span></li>
+      <li><b>Acompanhamento semanal</b><span>Relatório toda semana e ajuste contínuo do que traz ou não traz consulta.</span></li>
+    </ol>
+    <p class="muted" style="margin-top:16px"><b style="color:var(--ink)">Garantia de processo:</b> se em 30 dias o funil não estiver rodando e o relatório semanal não sair, devolvemos o valor da implantação.</p>
+    <p class="muted"><b style="color:var(--ink)">Exclusividade na região:</b> não atendemos um concorrente direto seu na mesma área de atuação e região.</p>
+  </section>
+
+  <section>
+    <div class="price">
+      <p class="eyebrow">E o preço?</p>
+      <h2>Não coloco aqui, e é de propósito</h2>
+      <p class="muted">Cada escritório precisa de uma coisa. Quem investe R$ 1.000 por mês em anúncio e quem investe R$ 10.000 não precisam do mesmo trabalho, então não faz sentido cobrar igual. Depois da conversa, mando uma proposta sob medida, com tudo por escrito.</p>
+    </div>
+  </section>
+
+  <section>
+    <p class="eyebrow">Quem está por trás</p>
+    <h2>Canguru Digital, desde 2018</h2>
+    <p class="muted">Agência de marketing com quase 8 anos de mercado, 100% remota. Quem cuida da sua conta é o Wesley Camelo, fundador e gestor de tráfego, com a Bolsa organizando a operação e mostrando cada entrega para o cliente.</p>
+  </section>
+
+  <div class="cta">
+    <h2>Faz sentido conversar?</h2>
+    <p class="muted">Me chama no WhatsApp e marcamos os 20 minutos no melhor horário para você.</p>
+    <a class="btn" id="cta-wa" href="https://wa.me/5511994075149" target="_blank" rel="noopener">Falar com o Wesley no WhatsApp</a>
+    <p class="sig">Wesley Camelo · Canguru Digital · (11) 99407-5149<br><a href="https://www.cangurudigital.com.br/" target="_blank" rel="noopener" style="color:var(--brand)">cangurudigital.com.br</a></p>
+  </div>
+
+  <footer>Canguru Digital · Página de apresentação, sem valores.</footer>
+</main>
+
+<script>
+(function () {
+  var PAGE = "advocacia";
+  var API = "https://wtzphiyybitcucwkfpgv.supabase.co/functions/v1/page-track";
+  var KEY = "cg-page-visitor";
+  var NOTRACK = "cg-notrack";
+
+  function get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+  function set(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
+  function uid() {
+    try { if (crypto.randomUUID) return crypto.randomUUID(); } catch (e) {}
+    return "v" + Date.now().toString(36) + Math.random().toString(36).slice(2, 12);
+  }
+
+  var params = new URLSearchParams(location.search);
+  if (params.has("preview")) set(NOTRACK, "1");
+  var noTrack = get(NOTRACK) === "1";
+
+  var me = null;
+  try { me = JSON.parse(get(KEY) || "null"); } catch (e) { me = null; }
+  var session = uid();
+  var seconds = 0, active = !document.hidden, last = Date.now(), started = false;
+
+  function send(payload) {
+    if (noTrack || !me) return;
+    payload.page = PAGE; payload.visitor = me.id; payload.session = session; payload.name = me.name;
+    try {
+      fetch(API, { method: "POST", headers: { "Content-Type": "text/plain" }, body: JSON.stringify(payload), keepalive: true }).catch(function () {});
+    } catch (e) {}
+  }
+  function tick() { var now = Date.now(); if (active) seconds += (now - last) / 1000; last = now; }
+
+  function start() {
+    if (started) return; started = true;
+    document.body.classList.remove("locked");
+    document.getElementById("gate").hidden = true;
+    var first = me.name.split(/\s+/).slice(0, 2).join(" ");
+    document.getElementById("hello").textContent = "Olá, " + first + ". Aqui está como eu trabalho.";
+    var wa = document.getElementById("cta-wa");
+    wa.href = "https://wa.me/5511994075149?text=" + encodeURIComponent("Olá, Wesley! Aqui é " + me.name + ". Vi a página da Canguru Digital e quero conversar.");
+    wa.addEventListener("click", function () { send({ event: "whatsapp_click" }); });
+
+    if (noTrack) return;
+    fetch("/api/geo").then(function (r) { return r.json(); }).catch(function () { return {}; })
+      .then(function (g) { send({ event: "open", city: g.city, region: g.region, country: g.country }); });
+    document.addEventListener("visibilitychange", function () {
+      tick(); active = !document.hidden;
+      if (document.hidden) send({ event: "read_time", seconds: Math.round(seconds), final: true });
+    });
+    window.addEventListener("pagehide", function () { tick(); send({ event: "read_time", seconds: Math.round(seconds), final: true }); });
+    setInterval(function () { tick(); if (active) send({ event: "read_time", seconds: Math.round(seconds) }); }, 15000);
+  }
+
+  if (noTrack && !me) me = { id: "preview-" + uid().slice(0, 8), name: "Prévia" };
+  if (me && me.id && me.name) { start(); return; }
+
+  var gate = document.getElementById("gate");
+  gate.hidden = false;
+  var input = document.getElementById("gate-name");
+  setTimeout(function () { input.focus(); }, 50);
+  document.getElementById("gate-form").addEventListener("submit", function (e) {
+    e.preventDefault();
+    var name = input.value.replace(/\s+/g, " ").trim();
+    if (name.length < 2) { document.getElementById("gate-err").textContent = "Escreva seu nome para continuar."; return; }
+    me = { id: uid(), name: name.slice(0, 80) };
+    set(KEY, JSON.stringify(me));
+    last = Date.now(); seconds = 0; active = !document.hidden;
+    start();
+  });
+})();
+</script>
+</body>
+</html>
