@@ -1,22 +1,24 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import dayjs from 'dayjs';
-import { Eye, Clock, MessageCircle, ChevronDown, Copy, ExternalLink, Monitor, Smartphone, RotateCw } from 'lucide-react';
+import { Eye, Clock, MessageCircle, ChevronDown, Copy, ExternalLink, Monitor, Smartphone, RotateCw, Globe } from 'lucide-react';
 import { supabase, useAuth } from '../../lib/supabase';
 import { getAppUrl } from '../../lib/appUrl';
 import { geoLabel } from '../../lib/geo';
 
-/** Páginas comerciais com portão de nome (arquivos em public/paginas, rastreio pela função page-track). */
-const PAGES: Record<string, { agency: number; path: string; label: string }> = {
-  advocacia: { agency: 1, path: '/advocacia', label: 'Como trabalhamos (advocacia)' },
+/** Páginas comerciais com portão de nome (arquivos em public/paginas, rastreio pela função page-track).
+ *  Uma página por nicho. Página nova: duplicar o HTML e acrescentar o slug aqui E em PAGES da função page-track. */
+export const PAGES: Record<string, { agency: number; path: string; label: string; niche: string }> = {
+  advocacia: { agency: 1, path: '/advocacia', label: 'Como trabalhamos (advocacia)', niche: 'Advocacia' },
 };
+export const pagesForAgency = (agencyId?: number | null) => Object.entries(PAGES).filter(([, p]) => p.agency === agencyId);
 
 type Row = {
   id: number; page_slug: string; visitor_id: string; visitor_name: string | null; session_id: string;
-  event_type: 'open' | 'read_time' | 'whatsapp_click'; seconds: number | null; visit_number: number | null;
+  event_type: 'open' | 'read_time' | 'whatsapp_click' | 'site_click'; seconds: number | null; visit_number: number | null;
   user_agent: string | null; city: string | null; region: string | null; country: string | null; created_at: string;
 };
-type Visit = { session: string; at: string; geo: string; ua: string | null; seconds: number; wa: boolean };
-type Person = { id: string; name: string; page: string; visits: Visit[]; total: number; wa: number; last: string };
+type Visit = { session: string; at: string; geo: string; ua: string | null; seconds: number; wa: boolean; site: boolean };
+type Person = { id: string; name: string; page: string; visits: Visit[]; total: number; wa: number; site: number; last: string };
 
 const fmtDur = (s: number) => (s < 60 ? `${Math.round(s)} s` : `${Math.floor(s / 60)} min${Math.round(s % 60) ? ` ${Math.round(s % 60)} s` : ''}`);
 const device = (ua?: string | null) => {
@@ -26,10 +28,12 @@ const device = (ua?: string | null) => {
   return { mobile, name };
 };
 
-/** Comercial > Propostas: quem abriu as páginas de apresentação, quantas vezes, por quanto tempo e se chamou no WhatsApp. */
-export const PageVisitsPanel: React.FC = () => {
+/** Comercial > Páginas de apresentação: um quadro por página (nicho). Quem abriu, quantas vezes, por quanto tempo,
+ *  se chamou no WhatsApp e se clicou no site da Canguru. */
+export const PageVisitsPanel: React.FC<{ slug: string }> = ({ slug }) => {
   const { agencyId } = useAuth();
-  const pages = useMemo(() => Object.entries(PAGES).filter(([, p]) => p.agency === agencyId), [agencyId]);
+  const page = PAGES[slug];
+  const pages = useMemo(() => (page && page.agency === agencyId ? [[slug, page] as const] : []), [slug, page, agencyId]);
   const [rows, setRows] = useState<Row[]>([]);
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState<string | null>(null);
@@ -40,28 +44,31 @@ export const PageVisitsPanel: React.FC = () => {
     if (!agencyId || !pages.length) return;
     (async () => {
       setLoading(true);
-      const { data } = await supabase.from('page_visits').select('*').eq('agency_id', agencyId).order('created_at', { ascending: false }).limit(2000);
+      const { data } = await supabase.from('page_visits').select('*').eq('agency_id', agencyId).eq('page_slug', slug).order('created_at', { ascending: false }).limit(2000);
       setRows((data as Row[]) || []);
       setLoading(false);
     })();
-  }, [agencyId, pages.length, reload]);
+  }, [agencyId, slug, pages.length, reload]);
 
   const people = useMemo<Person[]>(() => {
     const readBy: Record<string, number> = {};
     const waBy: Record<string, boolean> = {};
+    const siteBy: Record<string, boolean> = {};
     rows.forEach(r => {
+      if (r.event_type === 'site_click') siteBy[r.session_id] = true;
       if (r.event_type === 'read_time') readBy[r.session_id] = Math.max(readBy[r.session_id] || 0, r.seconds || 0);
       if (r.event_type === 'whatsapp_click') waBy[r.session_id] = true;
     });
     const map = new Map<string, Person>();
     rows.filter(r => r.event_type === 'open').forEach(r => {
       const key = `${r.page_slug}|${r.visitor_id}`;
-      if (!map.has(key)) map.set(key, { id: key, name: r.visitor_name || 'Sem nome', page: r.page_slug, visits: [], total: 0, wa: 0, last: r.created_at });
+      if (!map.has(key)) map.set(key, { id: key, name: r.visitor_name || 'Sem nome', page: r.page_slug, visits: [], total: 0, wa: 0, site: 0, last: r.created_at });
       const p = map.get(key)!;
       const secs = readBy[r.session_id] || 0;
-      p.visits.push({ session: r.session_id, at: r.created_at, geo: geoLabel(r), ua: r.user_agent, seconds: secs, wa: !!waBy[r.session_id] });
+      p.visits.push({ session: r.session_id, at: r.created_at, geo: geoLabel(r), ua: r.user_agent, seconds: secs, wa: !!waBy[r.session_id], site: !!siteBy[r.session_id] });
       p.total += secs;
       if (waBy[r.session_id]) p.wa += 1;
+      if (siteBy[r.session_id]) p.site += 1;
       if (r.created_at > p.last) p.last = r.created_at;
     });
     return [...map.values()].sort((a, b) => (a.last < b.last ? 1 : -1));
@@ -78,8 +85,9 @@ export const PageVisitsPanel: React.FC = () => {
     <div className="bg-white rounded-2xl border border-gray-100 shadow-sm">
       <div className="p-5 flex flex-col sm:flex-row sm:items-start justify-between gap-3">
         <div className="min-w-0">
-          <h3 className="font-semibold text-gray-900">Página de apresentação</h3>
-          <p className="text-xs text-gray-500 mt-1">Quem abriu, quantas vezes, por quanto tempo e se chamou no WhatsApp. A pessoa digita o nome ao abrir; no mesmo aparelho não pergunta de novo. Abrir com "Ver" não conta.</p>
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-400">{page.niche}</p>
+          <h3 className="font-semibold text-gray-900">{page.label}</h3>
+          <p className="text-xs text-gray-500 mt-1">{page.path} · {people.length} {people.length === 1 ? 'pessoa' : 'pessoas'} · {people.filter(p => p.site).length} {people.filter(p => p.site).length === 1 ? 'foi' : 'foram'} para o site</p>
         </div>
         <div className="flex flex-wrap gap-1.5 self-start">
           {pages.map(([slug, p]) => (
@@ -103,12 +111,12 @@ export const PageVisitsPanel: React.FC = () => {
                 <div className="px-5 py-4 flex flex-wrap items-center gap-x-6 gap-y-2">
                   <div className="min-w-0 flex-1 basis-48">
                     <p className="font-semibold text-gray-900 truncate">{p.name}</p>
-                    {pages.length > 1 && <p className="text-xs text-gray-500">{PAGES[p.page]?.label || p.page}</p>}
                   </div>
                   <div className="text-sm"><p className="text-[11px] text-gray-400">Visitas</p><p className="font-semibold text-gray-900 inline-flex items-center gap-1"><Eye size={14} /> {p.visits.length}</p></div>
                   <div className="text-sm"><p className="text-[11px] text-gray-400">Última visita</p><p className="font-semibold text-gray-900">{dayjs(p.last).format('DD/MM [às] HH:mm')}</p></div>
                   <div className="text-sm"><p className="text-[11px] text-gray-400">Tempo total</p><p className="font-semibold text-gray-900 inline-flex items-center gap-1"><Clock size={14} /> {fmtDur(p.total)}</p></div>
                   <div className="text-sm"><p className="text-[11px] text-gray-400">WhatsApp</p><p className={`font-semibold inline-flex items-center gap-1 ${p.wa ? 'text-emerald-700' : 'text-gray-900'}`}><MessageCircle size={14} /> {p.wa ? 'Clicou' : 'Não clicou'}</p></div>
+                  <div className="text-sm"><p className="text-[11px] text-gray-400">Site</p><p className={`font-semibold inline-flex items-center gap-1 ${p.site ? 'text-blue-700' : 'text-gray-900'}`}><Globe size={14} /> {p.site ? 'Clicou' : 'Não clicou'}</p></div>
                   <button onClick={() => setOpen(isOpen ? null : p.id)} className="p-2 rounded-lg text-gray-500 hover:bg-gray-100 ml-auto" aria-label="Ver cada visita">
                     <ChevronDown size={16} className={isOpen ? 'rotate-180 transition-transform' : 'transition-transform'} />
                   </button>
@@ -117,7 +125,7 @@ export const PageVisitsPanel: React.FC = () => {
                   <div className="border-t border-gray-50 overflow-x-auto">
                     <table className="w-full text-sm">
                       <thead><tr className="text-[11px] text-gray-400 uppercase tracking-wider text-left">
-                        <th className="px-5 py-2.5 font-semibold">Quando</th><th className="px-5 py-2.5 font-semibold">De onde</th><th className="px-5 py-2.5 font-semibold">Aparelho</th><th className="px-5 py-2.5 font-semibold">Ficou</th><th className="px-5 py-2.5 font-semibold">WhatsApp</th>
+                        <th className="px-5 py-2.5 font-semibold">Quando</th><th className="px-5 py-2.5 font-semibold">De onde</th><th className="px-5 py-2.5 font-semibold">Aparelho</th><th className="px-5 py-2.5 font-semibold">Ficou</th><th className="px-5 py-2.5 font-semibold">WhatsApp</th><th className="px-5 py-2.5 font-semibold">Site</th>
                       </tr></thead>
                       <tbody className="divide-y divide-gray-50">
                         {p.visits.map(v => {
@@ -129,6 +137,7 @@ export const PageVisitsPanel: React.FC = () => {
                               <td className="px-5 py-2.5 whitespace-nowrap"><span className="inline-flex items-center gap-1.5">{d.mobile ? <Smartphone size={14} /> : <Monitor size={14} />} {d.name}</span></td>
                               <td className="px-5 py-2.5 whitespace-nowrap">{v.seconds ? fmtDur(v.seconds) : '—'}</td>
                               <td className="px-5 py-2.5">{v.wa ? <span className="text-emerald-700 font-semibold">Clicou</span> : '—'}</td>
+                              <td className="px-5 py-2.5">{v.site ? <span className="text-blue-700 font-semibold">Clicou</span> : '—'}</td>
                             </tr>
                           );
                         })}

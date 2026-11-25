@@ -9,7 +9,6 @@ import { NewProposalModal } from '../proposals/NewProposalModal';
 import { MeetingEndedModal } from '../proposals/MeetingEndedModal';
 import { ProposalSummaryCard, ProposalSummary } from '../proposals/ProposalSummaryCard';
 import { geoLabel } from '../../lib/geo';
-import { PageVisitsPanel } from './PageVisitsPanel';
 
 type Proposal = { id: string; slug: string; prospect_name: string; title: string | null; whatsapp?: string | null; language?: string | null; version?: number; content?: any; draft_content?: any; draft_instructions?: string | null; draft_created_at?: string | null; monthly_value: number | null; setup_value: number | null; currency: string | null; status: string | null; created_at: string; summary?: ProposalSummary | null; summary_instructions?: string | null; source?: string | null };
 type Version = { id: string; version: number; created_at: string };
@@ -147,8 +146,6 @@ export const PropostasTab: React.FC = () => {
           <button onClick={() => setCreating(true)} className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gray-900 text-white text-sm font-semibold"><Plus size={16} /> Nova proposta</button>
         </div>
       </div>
-
-      <PageVisitsPanel />
 
       {loading ? <p className="text-sm text-gray-400">Carregando...</p> : proposals.length === 0 ? (
         <div className="bg-white rounded-2xl border border-gray-100 p-10 text-center text-sm text-gray-500">Nenhuma proposta ainda.</div>
