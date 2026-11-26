@@ -219,6 +219,21 @@ Deno.serve(async (req) => {
         }
       }
 
+      // GA4 e GTM: sem tabela própria, a resposta fica no cadastro
+      if (body.tracking && typeof body.tracking === "object") {
+        const out: Record<string, unknown> = {};
+        for (const tool of ["ga4", "gtm"]) {
+          const a = body.tracking[tool];
+          if (!a || typeof a !== "object") continue;
+          out[tool] = {
+            situation: ["has_account", "needs_account"].includes(a.situation) ? a.situation : "unknown",
+            status: ["pending", "client_done", "help", "agency_creating"].includes(a.status) ? a.status : "pending",
+            updated_at: new Date().toISOString(),
+          };
+        }
+        tsd.acessos_rastreamento = { ...(tsd.acessos_rastreamento ?? {}), ...out };
+      }
+
       if (body.contract_accepted) {
         tsd.contract_accepted_at = new Date().toISOString();
         patch.onboarding_status = "em_andamento";

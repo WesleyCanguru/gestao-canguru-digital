@@ -1,6 +1,8 @@
 import React from 'react';
 import { Check, Copy, LifeBuoy, Clock, ExternalLink, Megaphone, Search, Video } from 'lucide-react';
 import { GuideStep, Lang, Platform, platformGuide, tr } from '../../lib/accessGuides';
+import { accessShots } from '../../lib/accessShots';
+import { ShotGallery } from './ShotGallery';
 
 export type AccessSituation = 'has_account' | 'needs_account' | null;
 export type AccessStatus = 'pending' | 'client_done' | 'help' | 'agency_creating' | 'verified';
@@ -333,6 +335,7 @@ export const AccessGuideCard: React.FC<{
         <div className="space-y-4">
           {emailBox}
           {steps(g.hasAccount)}
+          <ShotGallery shots={accessShots(platform === 'meta' ? 'meta' : 'google-ads', 'a', lang)} lang={lang} />
           {openBtn(g.link, g.linkLabel)}
           {platform === 'google' && renderGoogleEmailQuestion()}
           <div>
@@ -356,11 +359,12 @@ export const AccessGuideCard: React.FC<{
         <div className="space-y-4">
           <p className="text-sm text-gray-700">{g.noAccountIntro}</p>
           {steps(g.noAccount)}
+          <ShotGallery shots={accessShots('meta', 'b', lang)} lang={lang} />
           {g.noAccountLink && openBtn(g.noAccountLink, g.noAccountLinkLabel || '')}
           {emailBox}
           <div className="grid sm:grid-cols-3 gap-2">
             {choice('client_done', t('Criei e enviei o convite', 'Created it and sent the invite', 'La creé y envié la invitación'), <Check size={15} />)}
-            {choice('pending', t('Faço depois', "I'll do it later", 'Lo hago depois'), <Clock size={15} />)}
+            {choice('pending', t('Faço depois', "I'll do it later", 'Lo hago después'), <Clock size={15} />)}
             {choice('help', t('Prefiro fazer numa chamada', "I'd rather do it on a call", 'Prefiero hacerlo en una llamada'), <Video size={15} />)}
           </div>
           {confirmationBox}
