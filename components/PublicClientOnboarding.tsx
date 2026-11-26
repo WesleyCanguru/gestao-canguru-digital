@@ -9,6 +9,7 @@ import { Lang, LANGS, Platform, accessEmailFor, browserLang, pickLang, tr } from
 import { AccessChoice, AccessGuideCard, emptyAccess } from './strategy/AccessGuideCard';
 import { PhoneField } from './PhoneField';
 import { BudgetSimulator } from './BudgetSimulator';
+import { TrackingAccessCard, TrackingChoice, TrackingTool, emptyTracking } from './strategy/TrackingAccessCard';
 
 interface PublicClientOnboardingProps { agencySlug: string | null }
 
@@ -61,6 +62,7 @@ export const PublicClientOnboarding: React.FC<PublicClientOnboardingProps> = ({ 
     differentiator: '', competitors: '', budget: '', advertisedBefore: '', history: '', salesChannel: '', notes: '',
   });
   const [access, setAccess] = useState<Record<Platform, AccessChoice>>({ meta: emptyAccess(), google: emptyAccess() });
+  const [tracking, setTracking] = useState<Record<TrackingTool, TrackingChoice>>({ ga4: emptyTracking(), gtm: emptyTracking() });
   const [contractAccepted, setContractAccepted] = useState(false);
   const [password, setPassword] = useState('');
   const [password2, setPassword2] = useState('');
@@ -95,6 +97,7 @@ export const PublicClientOnboarding: React.FC<PublicClientOnboardingProps> = ({ 
         if (s.company) setCompany(s.company);
         if (s.business) setBusiness(b => ({ ...b, ...s.business }));
         if (s.access) setAccess(s.access);
+        if (s.tracking) setTracking(s.tracking);
         if (s.step && s.step < 6) setStep(s.step);
       }
     } catch { /* sem armazenamento: começa do zero */ }
@@ -165,10 +168,10 @@ export const PublicClientOnboarding: React.FC<PublicClientOnboardingProps> = ({ 
   const setPlat = (p: Platform, patch: Partial<AccessChoice>) => setAccess(a => ({ ...a, [p]: { ...a[p], ...patch } }));
   const submitAccess = async () => {
     setBusy(true);
-    const { error: err } = await callFunction('public-onboarding', { action: 'update', client_id: clientId, token, step: 3, access });
+    const { error: err } = await callFunction('public-onboarding', { action: 'update', client_id: clientId, token, step: 3, access, tracking });
     setBusy(false);
     if (err) { setError(err); return; }
-    persist({ access });
+    persist({ access, tracking });
     go(4);
   };
 
@@ -513,6 +516,18 @@ export const PublicClientOnboarding: React.FC<PublicClientOnboardingProps> = ({ 
                         value={access[p]} onChange={patch => setPlat(p, patch)} />
                     ))}
                   </div>
+                  {showsTraffic && (
+                    <>
+                      <h3 className="mt-8 mb-1 text-sm font-bold text-gray-900">{t('Medição do site', 'Website tracking', 'Medición del sitio')}</h3>
+                      <p className="text-xs text-gray-500 mb-3">{t('É assim que sabemos quais anúncios trazem contato de verdade.', 'This is how we know which ads bring real leads.', 'Así sabemos qué anuncios traen contactos de verdad.')}</p>
+                      <div className="space-y-4">
+                        {(['ga4', 'gtm'] as TrackingTool[]).map(tool => (
+                          <TrackingAccessCard key={tool} tool={tool} lang={lang} brand={brand} accessEmail={agency?.access_email}
+                            value={tracking[tool]} onChange={v => setTracking(x => ({ ...x, [tool]: v }))} />
+                        ))}
+                      </div>
+                    </>
+                  )}
                   <p className="text-xs text-gray-400 mt-4">{t('Se preferir fazer depois, tudo bem: este passo a passo também fica no seu portal.', 'Prefer to do it later? No problem: these steps will also be in your portal.', '¿Prefieres hacerlo después? Sin problema: estos pasos también quedan en tu portal.')}</p>
                   <div className="mt-8 flex items-center justify-between gap-3">{backBtn(2)}{primaryBtn(<>{t('Continuar', 'Continue', 'Continuar')} <ArrowRight size={16} /></>, { onClick: submitAccess })}</div>
                 </div>
