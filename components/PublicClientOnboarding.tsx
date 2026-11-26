@@ -8,6 +8,7 @@ import {
 import { Lang, LANGS, Platform, accessEmailFor, browserLang, pickLang, tr } from '../lib/accessGuides';
 import { AccessChoice, AccessGuideCard, emptyAccess } from './strategy/AccessGuideCard';
 import { PhoneField } from './PhoneField';
+import { BudgetSimulator } from './BudgetSimulator';
 
 interface PublicClientOnboardingProps { agencySlug: string | null }
 
@@ -55,6 +56,7 @@ export const PublicClientOnboarding: React.FC<PublicClientOnboardingProps> = ({ 
   });
   const [business, setBusiness] = useState({
     services: [] as string[],
+    adPlatforms: [] as string[],
     offer: '', ticket: '', objective: '', region: '', audience: '', ageRanges: [] as string[],
     differentiator: '', competitors: '', budget: '', advertisedBefore: '', history: '', salesChannel: '', notes: '',
   });
@@ -293,8 +295,18 @@ export const PublicClientOnboarding: React.FC<PublicClientOnboardingProps> = ({ 
     t('Sim, com agência ou gestor', 'Yes, with an agency', 'Sí, con agencia o gestor'),
   ];
   const showsTraffic = business.services.includes('Tráfego Pago') || business.services.includes('Não sei');
+  const adPlatformOptions: [string, string][] = [
+    ['google', t('Google (pesquisa)', 'Google (search)', 'Google (búsqueda)')],
+    ['meta', t('Meta (Facebook e Instagram)', 'Meta (Facebook and Instagram)', 'Meta (Facebook e Instagram)')],
+    ['unsure', t('Não sei', 'Not sure', 'No sé')],
+  ];
+  // Acessos pedidos: só as plataformas marcadas (nada ou "não sei" = as duas)
+  const askedPlatforms: Platform[] = (() => {
+    const real = business.adPlatforms.filter(x => x === 'meta' || x === 'google') as Platform[];
+    return real.length && !business.adPlatforms.includes('unsure') ? (['meta', 'google'] as Platform[]).filter(p => real.includes(p)) : ['meta', 'google'];
+  })();
 
-  const pendingAccess = (['meta', 'google'] as Platform[]).filter(p => access[p].status === 'pending' || access[p].situation === null);
+  const pendingAccess = askedPlatforms.filter(p => access[p].status === 'pending' || access[p].situation === null);
   // Quem mandou o link recebe o contato; sem indicação, vai para o WhatsApp da agência
   const waNumber = referrer?.whatsapp || agency.contact_whatsapp;
   const waLink = waNumber
@@ -447,6 +459,18 @@ export const PublicClientOnboarding: React.FC<PublicClientOnboardingProps> = ({ 
                     {showsTraffic && (
                       <>
                         <div>
+                          <label className={labelCls}>{t('Onde você quer anunciar?', 'Where do you want to advertise?', '¿Dónde quieres anunciar?')}</label>
+                          <div className="flex flex-wrap gap-2">
+                            {adPlatformOptions.map(([key, label]) => {
+                              const on = business.adPlatforms.includes(key);
+                              const next = key === 'unsure' ? (on ? [] : ['unsure']) : (on ? business.adPlatforms.filter(x => x !== key) : [...business.adPlatforms.filter(x => x !== 'unsure'), key]);
+                              return chip(on, label, () => setBusiness({ ...business, adPlatforms: next }));
+                            })}
+                          </div>
+                          <p className="text-[11px] text-gray-400 mt-1.5">{t('É o que foi combinado com a equipe. Só vamos pedir acesso a essas contas.', 'Whatever you agreed with the team. We will only ask for access to these accounts.', 'Lo que acordaste con el equipo. Solo pediremos acceso a esas cuentas.')}</p>
+                        </div>
+                        <BudgetSimulator currency={agency.id === 7 || lang !== 'pt' ? 'USD' : 'BRL'} lang={lang} ticket={business.ticket} brand={brand} />
+                        <div>
                           <label className={labelCls}>{t('Quanto pretende investir por mês em anúncios? (pago direto às plataformas)', 'Monthly ad budget? (paid directly to the platforms)', '¿Cuánto piensas invertir al mes en anuncios? (pagado directo a las plataformas)')}</label>
                           <select className={`${fieldCls} bolsa-select`} value={business.budget} onChange={e => setBusiness({ ...business, budget: e.target.value })}>
                             <option value="">{t('Selecione', 'Select', 'Selecciona')}</option>
@@ -483,7 +507,7 @@ export const PublicClientOnboarding: React.FC<PublicClientOnboardingProps> = ({ 
                     t('Para gerenciar seus anúncios, precisamos de acesso às contas. Você continua dono de tudo.', 'To manage your ads we need access to your accounts. You remain the owner of everything.', 'Para gestionar tus anuncios necesitamos acceso a las cuentas. Tú sigues siendo el dueño de todo.'))}
                   {errorBox()}
                   <div className="space-y-4">
-                    {(['meta', 'google'] as Platform[]).map(p => (
+                    {askedPlatforms.map(p => (
                       <AccessGuideCard key={p} platform={p} lang={lang} accessEmail={accessEmailFor(p, agency?.access_email)} brand={brand}
                         signupEmail={company.email}
                         value={access[p]} onChange={patch => setPlat(p, patch)} />

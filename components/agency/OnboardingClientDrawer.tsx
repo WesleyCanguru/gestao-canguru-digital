@@ -237,7 +237,7 @@ export const OnboardingClientDrawer: React.FC<{
   const accessByPlat = (p: 'meta' | 'google') => access.find(a => a.platform === p);
   const accessOk = (p: 'meta' | 'google') => ['verified', 'agency_creating'].includes(accessByPlat(p)?.status || '');
   const allAccessOk = platforms.every(accessOk);
-  const trafficDone = !!trafficBriefing?.is_completed || !!(client as any).briefings_waived;
+  const trafficDone = !!trafficBriefing?.is_completed || !!briefing || !!(client as any).briefings_waived;
   const strategyStatusText = strategy ? ({ draft: 'Rascunho', sent: 'Enviada ao cliente', approved: 'Aprovada', changes: 'Cliente pediu ajustes' } as const)[strategy.status] : '';
   const approvedBy = strategy?.status === 'approved'
     ? (strategy.responded_via === 'page' ? `pelo cliente na página${strategy.responded_name ? ` (${strategy.responded_name})` : ''}` : 'pela equipe, combinado por fora')
@@ -265,7 +265,7 @@ export const OnboardingClientDrawer: React.FC<{
     if (hasPaidTraffic) {
       list.push(...platforms.map(accItem));
       list.push(trafficDone
-        ? { label: 'Briefing de tráfego', state: 'done', detail: 'Respondido', tab: 'respostas' }
+        ? { label: 'Briefing de tráfego', state: 'done', detail: trafficBriefing?.is_completed ? 'Respondido' : 'Coberto pelas respostas do cadastro', tab: 'respostas' }
         : { label: 'Briefing de tráfego', state: 'wait', detail: 'A estratégia sai melhor com ele', who: 'Cliente' });
     }
     list.push(xrayAt
@@ -289,7 +289,7 @@ export const OnboardingClientDrawer: React.FC<{
       : { label: 'Campanha no ar', state: strategy?.status === 'approved' ? 'todo' : 'wait', detail: strategy?.status === 'approved' ? 'Liberada para subir' : 'Depois da aprovação', who: 'Equipe' });
     return list;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [client, access, strategy, trafficBriefing, xrayAt]);
+  }, [client, access, strategy, trafficBriefing, briefing, xrayAt]);
   const doneCount = checklist.filter(i => i.state === 'done').length;
 
   /* ---------------- próximo passo ---------------- */

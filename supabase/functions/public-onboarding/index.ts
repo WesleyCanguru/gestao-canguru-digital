@@ -150,6 +150,11 @@ Deno.serve(async (req) => {
         const realServices = marked.filter((x) => REAL.includes(x));
         tsd.servicos_marcados = marked;
         if (realServices.length) patch.services = realServices;
+        // Onde o cliente quer anunciar: define os acessos que o portal pede (vazio ou "não sei" = Meta e Google)
+        const adMarked: string[] = Array.isArray(b.adPlatforms) ? b.adPlatforms.slice(0, 5).map((x: unknown) => str(x, 20)) : [];
+        const adReal = adMarked.filter((x) => x === "meta" || x === "google");
+        tsd.plataformas_marcadas = adMarked;
+        patch.traffic_platforms = adReal.length && !adMarked.includes("unsure") ? adReal : ["meta", "google"];
         // Briefings complementares: só o que o cadastro não cobre (tráfego e público já vieram daqui)
         const EXTRA: Record<string, string[]> = {
           "Social Media": ["persona", "tom_voz", "posicionamento", "conteudo_bastidores"],
@@ -167,6 +172,7 @@ Deno.serve(async (req) => {
           investimento_mensal: str(b.budget, 80), ja_anunciou: str(b.advertisedBefore, 80),
           historico: str(b.history, 2000), canal_de_venda: str(b.salesChannel, 300), observacoes: str(b.notes, 2000),
           servicos: marked,
+          plataformas: adMarked,
         };
         Object.assign(tsd, {
           onboarding_briefing: briefing,

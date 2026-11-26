@@ -63,7 +63,8 @@ export const ClientStartCard: React.FC<{
     setAccess(next);
     setAgency((ag.data as any) || null);
     const trafficRow = ((br.data as any[]) || []).find(b => b.briefing_type === 'trafego_pago');
-    setTrafficDone(!needsTraffic || !!trafficRow?.is_completed || !!client.briefings_waived);
+    const signupBriefing = ((br.data as any[]) || []).some(b => b.briefing_type === 'onboarding' && b.is_completed);
+    setTrafficDone(!needsTraffic || !!trafficRow?.is_completed || signupBriefing || !!client.briefings_waived);
     const wanted: string[] = client.features_settings?.active_briefing_types || [];
     const done = new Set(((br.data as any[]) || []).filter(b => b.is_completed).map(b => b.briefing_type));
     setBriefingsPending(wanted.filter(w => w !== 'trafego_pago' && !done.has(w)).length);
