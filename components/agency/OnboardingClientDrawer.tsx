@@ -590,6 +590,21 @@ export const OnboardingClientDrawer: React.FC<{
                   </div>
                 );
               })}
+              {(['ga4', 'gtm'] as const).map(tool => {
+                const r = (tsd.acessos_rastreamento || {})[tool] as { situation?: string; status?: string; updated_at?: string } | undefined;
+                const label = !r ? 'Não respondeu'
+                  : r.situation === 'needs_account' ? 'Não tem: nós criamos'
+                  : r.status === 'client_done' ? 'Cliente diz que convidou. Conferir.'
+                  : r.status === 'help' ? 'Pediu ajuda. Marcar chamada.'
+                  : 'Tem a conta, ainda não convidou';
+                return (
+                  <div key={tool} className="p-5 rounded-2xl border border-gray-200 bg-white">
+                    <p className="font-bold text-gray-900 mb-1">{tool === 'ga4' ? 'Google Analytics 4' : 'Google Tag Manager'}</p>
+                    <p className="text-sm text-gray-600">{label}</p>
+                    {r?.updated_at && <p className="text-xs text-gray-400 mt-1">Atualizado {when(r.updated_at)}</p>}
+                  </div>
+                );
+              })}
             </div>
           )}
 
