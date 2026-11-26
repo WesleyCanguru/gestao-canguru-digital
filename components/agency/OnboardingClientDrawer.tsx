@@ -10,6 +10,8 @@ import {
   Trash2, MessageCircle, Clock, Eye, ListChecks, KeyRound, FileText, History, Globe, AtSign, Phone, Mail, ArrowRight, ScanSearch, Gauge, RefreshCw,
 } from 'lucide-react';
 import dayjs from 'dayjs';
+import { clientAdPlatforms } from '../../lib/adPlatforms';
+import { TeamChecklistCard } from './TeamChecklistCard';
 
 /* ------------------------------------------------------------------ */
 /* Tipos (os mesmos do funil)                                          */
@@ -231,11 +233,11 @@ export const OnboardingClientDrawer: React.FC<{
     setCopiedWhat(what); setTimeout(() => setCopiedWhat(null), 1800);
   };
 
-  const platforms: ('meta' | 'google')[] = ['meta', 'google'];
+  const platforms: ('meta' | 'google')[] = clientAdPlatforms(client as any);
   const accessByPlat = (p: 'meta' | 'google') => access.find(a => a.platform === p);
   const accessOk = (p: 'meta' | 'google') => ['verified', 'agency_creating'].includes(accessByPlat(p)?.status || '');
   const allAccessOk = platforms.every(accessOk);
-  const trafficDone = !!trafficBriefing?.is_completed;
+  const trafficDone = !!trafficBriefing?.is_completed || !!(client as any).briefings_waived;
   const strategyStatusText = strategy ? ({ draft: 'Rascunho', sent: 'Enviada ao cliente', approved: 'Aprovada', changes: 'Cliente pediu ajustes' } as const)[strategy.status] : '';
   const approvedBy = strategy?.status === 'approved'
     ? (strategy.responded_via === 'page' ? `pelo cliente na página${strategy.responded_name ? ` (${strategy.responded_name})` : ''}` : 'pela equipe, combinado por fora')
@@ -261,7 +263,7 @@ export const OnboardingClientDrawer: React.FC<{
         : { label: 'Cadastro', state: 'wait', detail: `Parou na etapa ${Math.min(regStep + 1, 5)} de 5`, who: 'Cliente' },
     ];
     if (hasPaidTraffic) {
-      list.push(accItem('meta'), accItem('google'));
+      list.push(...platforms.map(accItem));
       list.push(trafficDone
         ? { label: 'Briefing de tráfego', state: 'done', detail: 'Respondido', tab: 'respostas' }
         : { label: 'Briefing de tráfego', state: 'wait', detail: 'A estratégia sai melhor com ele', who: 'Cliente' });
@@ -373,7 +375,7 @@ export const OnboardingClientDrawer: React.FC<{
   const tabs: { id: Tab; label: string; icon: React.ReactNode; badge?: string }[] = [
     { id: 'resumo', label: 'Resumo', icon: <ListChecks size={15} />, badge: `${doneCount}/${checklist.length}` },
     { id: 'raiox', label: 'Raio-X', icon: <ScanSearch size={15} />, badge: xrayAt ? day(xrayAt) : undefined },
-    ...(hasPaidTraffic || access.length ? [{ id: 'acessos' as Tab, label: 'Acessos', icon: <KeyRound size={15} />, badge: `${platforms.filter(accessOk).length}/2` }] : []),
+    ...(hasPaidTraffic || access.length ? [{ id: 'acessos' as Tab, label: 'Acessos', icon: <KeyRound size={15} />, badge: `${platforms.filter(accessOk).length}/${platforms.length}` }] : []),
     { id: 'estrategia', label: 'Estratégia', icon: <Sparkles size={15} />, badge: strategy ? `v${strategy.version}` : undefined },
     { id: 'respostas', label: 'Respostas', icon: <FileText size={15} />, badge: answerGroups.length ? String(answerGroups.length) : undefined },
     { id: 'historico', label: 'Histórico', icon: <History size={15} /> },
@@ -507,6 +509,8 @@ export const OnboardingClientDrawer: React.FC<{
                   ))}
                 </ul>
               </Card>
+
+              <TeamChecklistCard client={client} />
 
               <div className="grid sm:grid-cols-2 gap-4">
                 <Card title="Presença on-line">

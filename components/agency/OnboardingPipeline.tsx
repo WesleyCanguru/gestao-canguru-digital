@@ -1,3 +1,4 @@
+import { clientAdPlatforms } from '../../lib/adPlatforms';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { supabase, useAuth } from '../../lib/supabase';
 import { getAppUrl } from '../../lib/appUrl';
@@ -58,7 +59,10 @@ export const OnboardingPipeline: React.FC<{ onOpenClient: (c: Client) => void }>
   useEffect(() => { load(); }, [load]);
 
   const latestStrategy = (clientId: string) => strategies.find(s => s.client_id === clientId) || null;
-  const accessOf = (clientId: string) => access.filter(a => a.client_id === clientId);
+  const accessOf = (clientId: string) => {
+    const plats = clientAdPlatforms(clients.find(c => c.id === clientId));
+    return access.filter(a => a.client_id === clientId && plats.includes(a.platform));
+  };
   const trafficBriefingOf = (clientId: string) => briefings.find(b => b.client_id === clientId && b.briefing_type === 'trafego_pago') || null;
   const onboardingBriefingOf = (clientId: string) => briefings.find(b => b.client_id === clientId && b.briefing_type === 'onboarding')?.responses || (clients.find(c => c.id === clientId) as any)?.traffic_strategy_data?.onboarding_briefing || null;
 

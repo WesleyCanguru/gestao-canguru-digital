@@ -1,3 +1,4 @@
+import { clientAdPlatforms } from '../../lib/adPlatforms';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { firstNameOf } from '../../lib/names';
 import { supabase } from '../../lib/supabase';
@@ -38,6 +39,7 @@ export const ClientStartCard: React.FC<{
   const t = tr(lang);
 
   const needsTraffic = ((client?.services as string[]) || []).includes('Tráfego Pago');
+  const plats = clientAdPlatforms(client);
 
   const load = useCallback(async () => {
     if (!client?.id) return;
@@ -61,12 +63,12 @@ export const ClientStartCard: React.FC<{
     setAccess(next);
     setAgency((ag.data as any) || null);
     const trafficRow = ((br.data as any[]) || []).find(b => b.briefing_type === 'trafego_pago');
-    setTrafficDone(!needsTraffic || !!trafficRow?.is_completed);
+    setTrafficDone(!needsTraffic || !!trafficRow?.is_completed || !!client.briefings_waived);
     const wanted: string[] = client.features_settings?.active_briefing_types || [];
     const done = new Set(((br.data as any[]) || []).filter(b => b.is_completed).map(b => b.briefing_type));
     setBriefingsPending(wanted.filter(w => w !== 'trafego_pago' && !done.has(w)).length);
     setLoaded(true);
-  }, [client?.id, client?.agency_id, client?.features_settings, needsTraffic]);
+  }, [client?.id, client?.agency_id, client?.features_settings, client?.briefings_waived, needsTraffic]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -112,18 +114,18 @@ export const ClientStartCard: React.FC<{
   const steps = needsTraffic ? [
     { label: t('Cadastro', 'Sign-up', 'Registro'), done: client.onboarding_status === 'concluido' },
     { label: t('Briefing', 'Briefing', 'Briefing'), done: trafficDone },
-    { label: t('Acessos', 'Access', 'Accesos'), done: accessOk('meta') && accessOk('google') },
+    { label: t('Acessos', 'Access', 'Accesos'), done: plats.every(accessOk) },
     { label: t('Estratégia', 'Strategy', 'Estrategia'), done: !!strategy },
     { label: t('Aprovação', 'Approval', 'Aprobación'), done: strategy?.status === 'approved' },
     { label: t('No ar', 'Live', 'Al aire'), done: false },
   ] : [
     { label: t('Cadastro', 'Sign-up', 'Registro'), done: client.onboarding_status === 'concluido' },
-    { label: t('Acessos', 'Access', 'Accesos'), done: accessOk('meta') && accessOk('google') },
+    { label: t('Acessos', 'Access', 'Accesos'), done: plats.every(accessOk) },
     { label: t('Estratégia', 'Strategy', 'Estrategia'), done: !!strategy },
     { label: t('Sua aprovação', 'Your approval', 'Tu aprobación'), done: strategy?.status === 'approved' },
     { label: t('Campanha no ar', 'Campaign live', 'Campaña al aire'), done: false },
   ];
-  const pendingPlatforms = (['meta', 'google'] as Platform[]).filter(p => access[p].status !== 'verified');
+  const pendingPlatforms = (plats as Platform[]).filter(p => access[p].status !== 'verified');
   const firstName = firstNameOf(client.responsible);
   const wa = agency?.contact_whatsapp ? `https://wa.me/${agency.contact_whatsapp}?text=${encodeURIComponent(t(`Olá! Aqui é da ${client.name}.`, `Hi! This is ${client.name}.`, `¡Hola! Te escribe ${client.name}.`))}` : null;
 

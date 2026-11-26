@@ -59,29 +59,13 @@ export function ClientChecklistView({ client, onClose }: OnboardingChecklistModa
     if (!agencyId) return;
     setLoading(true);
     try {
-      let { data: templates } = await supabase
+      const { data: templates } = await supabase
         .from('onboarding_templates')
         .select('*')
         .eq('agency_id', agencyId)
         .eq('is_active', true)
         .order('phase')
         .order('position');
-
-      if (!templates || templates.length === 0) {
-        if (agencyId !== 1) {
-          const { data: defaultTemplates } = await supabase
-            .from('onboarding_templates')
-            .select('*')
-            .eq('agency_id', 1)
-            .eq('is_active', true)
-            .order('phase')
-            .order('position');
-            
-          if (defaultTemplates && defaultTemplates.length > 0) {
-            templates = defaultTemplates;
-          }
-        }
-      }
 
       if (!templates || templates.length === 0) {
         setLoading(false);
